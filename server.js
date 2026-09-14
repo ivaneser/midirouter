@@ -121,6 +121,20 @@ class MIDIRouterWorker {
                 console.log(`[SERVER] Auto-discovery: ${msg.active ? 'ON' : 'OFF'}`);
                 break;
 
+            case 'unrouted-input': {
+                // Worker обнаружил сигнал от входа без маршрута → предлагаем пользователю создать маршрут
+                const inputName = this.inputs.get(msg.inputId) || msg.inputId;
+                this._broadcast({
+                    type: 'suggested-route',
+                    inputId: msg.inputId,
+                    inputName,
+                    sampleMessage: msg.message,
+                    sampleCount: msg.sampleCount
+                });
+                console.log(`[SERVER] Unrouted input detected: ${inputName} (sample #${msg.sampleCount})`);
+                break;
+            }
+
             case 'midi-sent':
                 // Можно уведомить клиента об успешной отправке (для логирования)
                 break;
@@ -214,7 +228,15 @@ async function main() {
 
     // HTTP сервер для фронтенда
     const server = createServer((req, res) => {
-        let filePath = join(FRONTEND_DIR, req.url === '/' ? 'index.html' : req.url);
+        let filePath;
+
+        // Отдаём device_maps JSON из корня проекта
+        if (req.url.startsWith('/device_maps/')) {
+            filePath = join(import.meta.dirname, req.url);
+        } else {
+            filePath = join(FRONTEND_DIR, req.url === '/' ? 'index.html' : req.url);
+        }
+
         const ext = extname(filePath);
         const mimeTypes = {
             '.html': 'text/html',

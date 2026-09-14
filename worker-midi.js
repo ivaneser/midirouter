@@ -2,6 +2,7 @@
 // Работает независимо от основного процесса, не блокируется веб-запросами
 // API @julusian/midi v3.x: new midi.Input() → input.getPortCount(), input.getPortName(i)
 // Hot-plug: watchdog перечисляет порты каждые 5 сек, обнаруживает новые устройства
+// Auto-discover: когда input шлёт сигнал без маршрута → уведомление серверу → пользователь подтверждает маршрут
 // Запуск: node worker-midi.js
 
 import midi from '@julusian/midi';
@@ -14,6 +15,9 @@ class MIDIRouterWorker {
         this.routes = new Map();   // inputPortId → [outputPortIds]
         this.autoDiscoverMode = false;
         this.watchdogInterval = null;
+
+        // Счётчик сообщений от unrouted входов (для debounce)
+        this.unroutedCounters = new Map();  // portId → count
     }
 
     init() {
@@ -64,6 +68,7 @@ class MIDIRouterWorker {
                     this.inputs.delete(id);
                     // Удаляем маршруты для этого порта
                     this.routes.delete(id);
+                    this.unroutedCounters.delete(id);
                 }
             }
 
@@ -132,7 +137,30 @@ class MIDIRouterWorker {
 
     _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
-        if (!destinations || destinations.length === 0) return;
+
+        // === Auto-discover: нет маршрута → уведомляем сервер ===
+        if (!destinations || destinations.length === 0) {
+            if (this.autoDiscoverMode) {
+                // Debounce: считаем сообщения, шлём уведомление только при первом или каждые N сообщений
+                const count = (this.unroutedCounters.get(inputPortId) || 0) + 1;
+                this.unroutedCounters.set(inputPortId, count);
+
+                if (count <= 3) {  // шлём первые 3 сообщения для надёжности
+                    parentPort.postMessage({
+                        type: 'unrouted-input',
+                        inputId: inputPortId,
+                        message: message,
+                        sampleCount: count
+                    });
+                }
+
+                // Не маршрутизируем — ждём подтверждения пользователя
+                return;
+            } else {
+                // Auto-discover выключен — просто игнорируем unrouted
+                return;
+            }
+        }
 
         // Мгновенная отправка через все маршруты — минимальные аллокации
         for (let i = 0; i < destinations.length; i++) {
@@ -145,6 +173,11 @@ class MIDIRouterWorker {
                     // Игнорируем ошибки отправки — не блокируем роутинг
                 }
             }
+        }
+
+        // Сбрасываем счётчик при успешной маршрутизации
+        if (this.unroutedCounters.has(inputPortId)) {
+            this.unroutedCounters.set(inputPortId, 0);
         }
     }
 
@@ -189,6 +222,9 @@ class MIDIRouterWorker {
             destinations.push(outputId);
         }
 
+        // Сбрасываем счётчик unrouted для этого порта
+        this.unroutedCounters.delete(inputId);
+
         // Подтверждаем маршрутизацию
         parentPort.postMessage({
             type: 'route-updated',
@@ -216,7 +252,10 @@ class MIDIRouterWorker {
     // Авто-обнаружение
     setAutoDiscover(active) {
         this.autoDiscoverMode = active;
-        if (!active) { /* сброс discovery state если нужен */ }
+        if (!active) {
+            // Сбрасываем все счётчики при выключении
+            this.unroutedCounters.clear();
+        }
 
         parentPort.postMessage({
             type: 'auto-discover-state',

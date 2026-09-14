@@ -21,7 +21,28 @@
         <section class="connect-panel">
             <input type="text" id="ws-url" value="ws://localhost:3000" placeholder="WebSocket URL">
             <button id="btn-connect" class="btn btn-primary">Подключиться</button>
+            
+            <!-- Auto-Discover Toggle -->
+            <div class="auto-discover-bar" style="display:none; margin-top:12px;">
+                <span class="discover-label">🎓 Learning Mode (авто-маршруты)</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="auto-discover-toggle">
+                    <span class="slider"></span>
+                </label>
+            </div>
         </section>
+
+        <!-- Диалог подтверждения маршрута -->
+        <div id="suggested-route-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center;">
+            <div class="modal-card">
+                <h3>🎓 Предложен маршрут</h3>
+                <p id="suggested-route-text"></p>
+                <div class="modal-actions">
+                    <button id="btn-accept-route" class="btn btn-primary">✓ Подтвердить</button>
+                    <button id="btn-reject-route" class="btn btn-secondary">✕ Отклонить</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Список устройств -->
         <main id="devices-container" class="devices-grid"></main>

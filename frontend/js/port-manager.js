@@ -278,4 +278,48 @@ class PortManager {
         outCard.classList.add('drop-success');
         setTimeout(() => outCard.classList.remove('drop-success'), 500);
     }
+
+    /** Показать диалог подтверждения маршрута (Learning Mode) */
+    showSuggestedRoute(data) {
+        const modal = document.getElementById('suggested-route-modal');
+        if (!modal) return;
+
+        const inputName = data.inputName || data.inputId;
+        // Показываем только первый output порт как предложение
+        const suggestedOutput = this.outputs[0]?.name || 'любой доступный';
+        
+        document.getElementById('suggested-route-text').textContent = 
+            `Обнаружен сигнал с ${inputName}. Создать маршрут?`;
+
+        modal.style.display = 'flex';
+
+        // Сохраняем данные для кнопки подтверждения
+        this._pendingRoute = data;
+    }
+
+    hideSuggestedRoute() {
+        const modal = document.getElementById('suggested-route-modal');
+        if (modal) modal.style.display = 'none';
+        this._pendingRoute = null;
+    }
+
+    /** Принять предложенный маршрут */
+    acceptSuggestedRoute(outputId) {
+        if (!this._pendingRoute) return;
+        
+        const data = this._pendingRoute;
+        console.log('[PortManager] Accepting route:', data.inputId, '→', outputId);
+        
+        // Создаём маршрут через device-manager
+        this.dm.createRoute(data.inputId, outputId);
+        
+        // Скрываем модал
+        this.hideSuggestedRoute();
+    }
+
+    /** Отклонить предложенный маршрут */
+    rejectSuggestedRoute() {
+        console.log('[PortManager] Rejecting suggested route');
+        this.hideSuggestedRoute();
+    }
 }
