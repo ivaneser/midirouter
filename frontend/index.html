@@ -21,7 +21,13 @@
         <section class="connect-panel">
             <input type="text" id="ws-url" value="ws://localhost:3000" placeholder="WebSocket URL">
             <button id="btn-connect" class="btn btn-primary">Подключиться</button>
+            <button id="btn-auto-connect" class="btn btn-secondary" style="display:none;">🔗 Авто-соединение</button>
         </section>
+
+        <!-- Панель авто-подключения -->
+        <div id="auto-connect-bar" class="connect-panel" style="display:none;">
+            <p style="margin:0; color:#aaa; font-size:14px;">Подключите контроллер и нажмите кнопку. Роутер отправит тестовые ноты на каждый синтезатор и ожидает ответ от контроллера 5 сек.</p>
+        </div>
 
         <!-- Список устройств -->
         <main id="devices-container" class="devices-grid"></main>

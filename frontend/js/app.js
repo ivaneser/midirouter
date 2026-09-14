@@ -73,6 +73,12 @@ class App {
             btn.addEventListener('click', () => this._handleConnect());
         }
 
+        // Обработка кнопки авто-соединения
+        const autoBtn = document.getElementById('btn-auto-connect');
+        if (autoBtn) {
+            autoBtn.addEventListener('click', () => this._startAutoConnect());
+        }
+
         // Загрузка устройства из JSON файлов
         await this.ui.loadDevices();
 
@@ -91,9 +97,9 @@ class App {
             // После подключения получаем список доступных портов
             this._logToPanel(`Подключено к ${url}`);
 
-            // Показываем Learning Mode toggle
-            const autoDiscoverBar = document.querySelector('.auto-discover-bar');
-            if (autoDiscoverBar) autoDiscoverBar.style.display = 'flex';
+            // Показываем кнопку авто-соединения
+            const autoBtn = document.getElementById('btn-auto-connect');
+            if (autoBtn) autoBtn.style.display = 'inline-block';
 
             // Запрашиваем список устройств
             if (this.dm.ws?.readyState === WebSocket.OPEN) {
@@ -103,6 +109,21 @@ class App {
             console.error('Connection failed:', e);
             alert(`Не удалось подключиться: ${e.message}`);
         }
+    }
+
+    _startAutoConnect() {
+        if (!this.dm.ws || this.dm.ws.readyState !== WebSocket.OPEN) {
+            this._logToPanel('❌ Нет подключения к серверу');
+            return;
+        }
+
+        const autoBtn = document.getElementById('btn-auto-connect');
+        if (autoBtn) autoBtn.disabled = true;
+
+        this._logToPanel('🔗 Запуск авто-соединения...');
+        
+        // Отправляем команду на сервер
+        this.dm.ws.send(JSON.stringify({ type: 'startAutoConnect' }));
     }
 
     _updateDeviceList(devices) {

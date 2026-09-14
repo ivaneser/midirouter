@@ -171,44 +171,12 @@ class MIDIRouterWorker {
     _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
 
-        // === Auto-discovery: нет маршрута → начинаем автоматическое соединение ===
-        if ((!destinations || destinations.length === 0) && this.discoveryState.active) {
-            // Если discovery активен — проверяем не от этого ли input пришла нота
-            if (this.discoveryState.waitingForInput === null) {
-                // Первый input который шлёт ноту — запоминаем его как контроллер
-                console.log(`[WORKER] Auto-discovery: ${inputPortId} detected as controller`);
-                this.discoveryState.waitingForInput = inputPortId;
-                
-                // Если есть unrouted outputs (синтезаторы) — начинаем тестирование
-                if (this.discoveryState.unroutedOutputs.length > 0 && 
-                    this.discoveryState.currentOutputIndex < this.discoveryState.unroutedOutputs.length) {
-                    
-                    const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-                    console.log(`[WORKER] Auto-discovery: sending test note to ${outputId} (synth #${this.discoveryState.currentOutputIndex + 1})`);
-                    
-                    // Отправляем тестовую ноту (C4 = 0x90 0x3C 0x7F) на синтезатор
-                    this._sendTestNote(outputId);
-                    
-                    // Запускаем таймер ожидания 5 секунд
-                    const self = this;
-                    if (this.discoveryState.timer) {
-                        clearTimeout(this.discoveryState.timer);
-                    }
-                    
-                    this.discoveryState.timer = setTimeout(() => {
-                        // Таймаут — пробуем следующий синтезатор
-                        console.log(`[WORKER] Auto-discovery timeout for ${outputId} → skipping`);
-                        self._nextSynth();
-                    }, this.discoveryState.timeoutMs);
-                } else if (this.discoveryState.unroutedOutputs.length === 0) {
-                    // Все синтезаторы подключены — завершаем discovery
-                    console.log('[WORKER] Auto-discovery: all synths connected');
-                    this._endDiscovery();
-                }
-            } else if (inputPortId === this.discoveryState.waitingForInput) {
-                // Получили ноту от контроллера — создаём маршрут
+        // === Auto-discovery: проверяем если discovery активен и ждём ноту от контроллера ===
+        if (this.discoveryState.active && this.discoveryState.waitingForInput !== null) {
+            // Если нота пришла от того же input который мы ожидаем — создаём маршрут
+            if (inputPortId === this.discoveryState.waitingForInput) {
                 const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-                console.log(`[WORKER] Auto-discovery: CC received from ${inputPortId} on ${outputId} → creating route`);
+                console.log(`[WORKER] Auto-connect: received note from ${inputPortId} on ${outputId} → creating route`);
                 
                 // Создаём маршрут input → output
                 this._createRoute(inputPortId, outputId);
@@ -314,12 +282,12 @@ class MIDIRouterWorker {
         
         // Проверяем все ли синтезаторы подключены
         if (this.discoveryState.currentOutputIndex >= this.discoveryState.unroutedOutputs.length) {
-            console.log('[WORKER] Auto-discovery: all synths connected');
+            console.log('[WORKER] Auto-connect: all synths connected');
             this._endDiscovery();
         } else {
             // Начинаем тестирование следующего синтезатора
             const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-            console.log(`[WORKER] Auto-discovery: testing next synth ${outputId}`);
+            console.log(`[WORKER] Auto-connect: testing next synth ${outputId}`);
             
             // Сбрасываем таймер и отправляем тестовую ноту
             if (this.discoveryState.timer) {
@@ -331,10 +299,49 @@ class MIDIRouterWorker {
             const self = this;
             this.discoveryState.timer = setTimeout(() => {
                 // Таймаут — пробуем следующий синтезатор
-                console.log(`[WORKER] Auto-discovery timeout for ${outputId} → skipping`);
+                console.log(`[WORKER] Auto-connect timeout for ${outputId} → skipping`);
                 self._nextSynth();
             }, this.discoveryState.timeoutMs);
         }
+    }
+
+    /** Запустить автоматическое соединение всех устройств */
+    startAutoConnect() {
+        console.log('[WORKER] Starting auto-connect mode...');
+        
+        // Собираем все unrouted outputs (синтезаторы без маршрутов)
+        this.discoveryState.unroutedOutputs = [];
+        for (const [outputId] of this.outputs) {
+            if (!this.discoveryState.connectedOutputs.has(outputId)) {
+                this.discoveryState.unroutedOutputs.push(outputId);
+            }
+        }
+        
+        console.log(`[WORKER] Found ${this.discoveryState.unroutedOutputs.length} synths to connect`);
+        
+        if (this.discoveryState.unroutedOutputs.length === 0) {
+            console.log('[WORKER] No synths to connect');
+            return;
+        }
+        
+        // Активируем discovery режим
+        this.discoveryState.active = true;
+        this.discoveryState.waitingForInput = null;
+        this.discoveryState.currentOutputIndex = 0;
+        this.discoveryState.totalSynthsToConnect = this.discoveryState.unroutedOutputs.length;
+        
+        // Начинаем тестирование первого синтезатора
+        const outputId = this.discoveryState.unroutedOutputs[0];
+        console.log(`[WORKER] Sending test note to ${outputId} (synth #1)`);
+        
+        this._sendTestNote(outputId);
+        
+        // Запускаем таймер 5 секунд ожидания от контроллера
+        const self = this;
+        this.discoveryState.timer = setTimeout(() => {
+            console.log(`[WORKER] Auto-connect timeout for ${outputId} → skipping`);
+            self._nextSynth();
+        }, this.discoveryState.timeoutMs);
     }
 
     /** Завершить discovery режим */
@@ -513,6 +520,10 @@ parentPort.on('message', (msg) => {
 
         case 'remove-route':
             worker.removeRoute(msg.inputId, msg.outputId);
+            break;
+
+        case 'auto-connect':
+            worker.startAutoConnect();
             break;
 
         case 'shutdown':

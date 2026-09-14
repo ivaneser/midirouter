@@ -239,6 +239,17 @@ class MIDIRouterWorker {
         return this.autoDiscoverMode;
     }
 
+    // Запустить автоматическое соединение устройств
+    startAutoConnect() {
+        if (!this.isReady || !this.worker) return false;
+
+        console.log('[SERVER] Starting auto-connect mode...');
+        this.worker.postMessage({
+            type: 'auto-connect'
+        });
+        return true;
+    }
+
     // Получить список портов
     getPorts() {
         return {
@@ -336,6 +347,17 @@ async function main() {
                             router.createRoute(message.inputId, message.outputId);
                         } else if (message.action === 'remove') {
                             router.removeRoute(message.inputId, message.outputId);
+                        }
+                        break;
+                    }
+
+                    case 'startAutoConnect': {
+                        console.log('[SERVER] Auto-connect requested from frontend');
+                        const success = router.startAutoConnect();
+                        if (success) {
+                            ws.send(JSON.stringify({ type: 'auto-connect-started' }));
+                        } else {
+                            ws.send(JSON.stringify({ type: 'error', message: 'Router not ready' }));
                         }
                         break;
                     }
