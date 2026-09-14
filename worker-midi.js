@@ -1,73 +1,74 @@
 /* === MIDI Router Worker — отдельный процесс для роутинга === */
 // Работает независимо от основного процесса, не блокируется веб-запросами
+// API @julusian/midi v3.x: midi.Input() / midi.Output() (без init())
 // Запуск: node worker-midi.js
 
-import Midi from '@julusian/midi';
+import midi from '@julusian/midi';
 import { parentPort } from 'worker_threads';
 
 class MIDIRouterWorker {
     constructor() {
-        this.inputs = new Map();   // portId → RtMidiIn
-        this.outputs = new Map();  // portId → RtMidiOut
+        this.inputs = new Map();   // portId → RtMidiIn instance
+        this.outputs = new Map();  // portId → RtMidiOut instance
         this.routes = new Map();   // inputPortId → [outputPortIds]
         this.autoDiscoverMode = false;
-        this.discoveryState = null;
     }
 
-    async init() {
+    init() {
         try {
-            await Midi.init('ALSA');
-            console.log('[WORKER] ALSA initialized');
+            // enumerate ports — без init(), сразу работаем
+            const inputNames = midi.getInputNames();
+            const outputNames = midi.getOutputNames();
+
+            console.log(`[WORKER] MIDI initialized`);
+            console.log(`[WORKER] Inputs: ${inputNames.length}, Outputs: ${outputNames.length}`);
+
+            // Отправляем список портов основному процессу
+            parentPort.postMessage({
+                type: 'ports-enumerated',
+                inputs: inputNames.map((name, i) => ({ id: `input_${i}`, name })),
+                outputs: outputNames.map((name, i) => ({ id: `output_${i}`, name }))
+            });
+
+            // Открываем все input порты для callback
+            for (let i = 0; i < inputNames.length; i++) {
+                const portId = `input_${i}`;
+                try {
+                    const midiIn = new midi.Input();
+                    midiIn.openPort(i, 'midirouter-in');
+
+                    // Callback: мгновенная маршрутизация без аллокаций
+                    const self = this;
+                    midiIn.on('message', (deltaTime, message) => {
+                        self._routeMessage(message, portId);
+                    });
+
+                    this.inputs.set(portId, midiIn);
+                    console.log(`[WORKER] Input opened: ${portId} — ${inputNames[i]}`);
+                } catch (e) {
+                    console.error(`[WORKER] Failed to open input ${portId}:`, e.message);
+                }
+            }
+
+            // Отправляем signal готовности
+            parentPort.postMessage({ type: 'ready' });
         } catch (e) {
-            console.error('[WORKER] ALSA init failed:', e.message);
+            console.error('[WORKER] MIDI init failed:', e.message);
             process.exit(1);
         }
-
-        this._enumeratePorts();
     }
 
-    _enumeratePorts() {
-        const inputs = Midi.getInputNames();
-        const outputs = Midi.getOutputNames();
-
-        // Отправляем список портов основному процессу
-        parentPort.postMessage({
-            type: 'ports-enumerated',
-            inputs: inputs.map((name, i) => ({ id: `input_${i}`, name })),
-            outputs: outputs.map((name, i) => ({ id: `output_${i}`, name }))
-        });
-
-        // Открываем все input порты для callback
-        for (let i = 0; i < inputs.length; i++) {
-            const portId = `input_${i}`;
-            try {
-                const midiIn = new Midi.Input();
-                midiIn.openPort(i);
-
-                // Callback работает на уровне ALSA — синхронный, мгновенный
-                const self = this;
-                midiIn.setCallback(function(message) {
-                    self._routeMessage(message.bytes, portId);
-                });
-
-                this.inputs.set(portId, midiIn);
-            } catch (e) {
-                console.error(`[WORKER] Failed to open input ${portId}:`, e.message);
-            }
-        }
-    }
-
-    _routeMessage(bytes, inputPortId) {
+    _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
         if (!destinations || destinations.length === 0) return;
 
-        // Мгновенная отправка через буфер — минимальные аллокации
+        // Мгновенная отправка через все маршруты — минимальные аллокации
         for (let i = 0; i < destinations.length; i++) {
             const outputId = destinations[i];
             const midiOut = this.outputs.get(outputId);
             if (midiOut) {
                 try {
-                    midiOut.send(bytes);
+                    midiOut.sendMessage(message);
                 } catch (e) {
                     // Игнорируем ошибки отправки — не блокируем роутинг
                 }
@@ -76,12 +77,12 @@ class MIDIRouterWorker {
     }
 
     // Отправить MIDI на output порт из основного процесса
-    async sendToOutput(outputPortId, bytes) {
-        const midiOut = await this._ensureOutput(outputPortId);
+    sendToOutput(outputPortId, message) {
+        const midiOut = this._ensureOutput(outputPortId);
         if (!midiOut) return false;
 
         try {
-            midiOut.send(bytes);
+            midiOut.sendMessage(message);
             return true;
         } catch (e) {
             console.error(`[WORKER] Send failed to ${outputPortId}:`, e.message);
@@ -89,21 +90,20 @@ class MIDIRouterWorker {
         }
     }
 
-    async _ensureOutput(portId) {
+    _ensureOutput(portId) {
         if (this.outputs.has(portId)) return this.outputs.get(portId);
 
         const portIndex = parseInt(portId.split('_')[1]);
         try {
-            const midiOut = new Midi.Output();
-            await midiOut.openPort(portIndex);
+            const midiOut = new midi.Output();
+            midiOut.openPort(portIndex, 'midirouter-out');
             this.outputs.set(portId, midiOut);
             console.log(`[WORKER] Output opened: ${portId}`);
+            return midiOut;
         } catch (e) {
             console.error(`[WORKER] Failed to open output ${portId}:`, e.message);
             return null;
         }
-
-        return this.outputs.get(portId);
     }
 
     // Установить маршрут
@@ -144,7 +144,7 @@ class MIDIRouterWorker {
     // Авто-обнаружение
     setAutoDiscover(active) {
         this.autoDiscoverMode = active;
-        if (!active) this.discoveryState = null;
+        if (!active) { /* сброс discovery state если нужен */ }
 
         parentPort.postMessage({
             type: 'auto-discover-state',
@@ -166,10 +166,10 @@ class MIDIRouterWorker {
 const worker = new MIDIRouterWorker();
 
 // Обработка команд от основного процесса
-parentPort.on('message', async (msg) => {
+parentPort.on('message', (msg) => {
     switch (msg.type) {
         case 'send-midi': {
-            const result = await worker.sendToOutput(msg.outputId, msg.bytes);
+            const result = worker.sendToOutput(msg.outputId, msg.message);
             parentPort.postMessage({ type: 'midi-sent', outputId: msg.outputId, success: result });
             break;
         }
@@ -192,7 +192,5 @@ parentPort.on('message', async (msg) => {
     }
 });
 
-// Запуск
-worker.init().then(() => {
-    parentPort.postMessage({ type: 'ready' });
-}).catch(console.error);
+// Запуск (синхронный — без init())
+worker.init();
