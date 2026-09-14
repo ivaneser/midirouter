@@ -90,7 +90,14 @@ class MIDIRouterWorker {
                 if (!newInputIds.has(id)) {
                     console.log(`[WORKER] Input removed: ${id}`);
                     const inp = this.inputs.get(id);
-                    if (inp) inp.closePort();
+                    if (inp) {
+                        // Удаляем handler перед закрытием порта
+                        if (inp._handler) {
+                            inp.off('message', inp._handler);
+                            inp._handler = null;
+                        }
+                        inp.closePort();
+                    }
                     this.inputs.delete(id);
                     // Удаляем маршруты для этого порта
                     this.routes.delete(id);
@@ -106,11 +113,13 @@ class MIDIRouterWorker {
                         const portIndex = parseInt(port.id.split('_')[1]);
                         midiIn.openPort(portIndex, 'midirouter-in');
 
-                        // Callback: мгновенная маршрутизация
+                        // Callback: мгновенная маршрутизация (только один раз!)
                         const self = this;
-                        midiIn.on('message', (deltaTime, message) => {
+                        const handler = (deltaTime, message) => {
                             self._routeMessage(message, port.id);
-                        });
+                        };
+                        midiIn.on('message', handler);
+                        midiIn._handler = handler;  // Сохраняем ссылку для удаления
 
                         this.inputs.set(port.id, midiIn);
                         console.log(`[WORKER] Input added: ${port.id} — ${port.name}`);
@@ -127,7 +136,7 @@ class MIDIRouterWorker {
                 }
             }
 
-            // Обновляем output порты (для sendFromServer)
+            // Обновляем output порты (для sendFromServer) — просто проверяем доступность
             const oldOutputIds = new Set(this.outputs.keys());
             const newOutputIds = new Set(realOutputs.map(o => o.id));
 
@@ -135,7 +144,13 @@ class MIDIRouterWorker {
                 if (!newOutputIds.has(id)) {
                     console.log(`[WORKER] Output removed: ${id}`);
                     const out = this.outputs.get(id);
-                    if (out) out.closePort();
+                    if (out) {
+                        if (out._handler) {
+                            out.off('message', out._handler);
+                            out._handler = null;
+                        }
+                        out.closePort();
+                    }
                     this.outputs.delete(id);
                 }
             }
@@ -256,23 +271,34 @@ class MIDIRouterWorker {
         }
     }
 
-    /** Отправить тестовую ноту на output порт */
-    _sendTestNote(outputId) {
-        const midiOut = this.outputs.get(outputId);
-        if (!midiOut) return;
-
-        // C4 нота: 0x90 (note on ch1), 0x3C (C4), 0x7F (velocity)
-        const testNote = [0x90, 0x3C, 0x7F];
+    /** Отправить тестовую ноту на input порт (через loopback) */
+    _sendTestNoteToInput(inputId) {
+        const portIndex = parseInt(inputId.split('_')[1]);
+        
+        // Отправляем через ALSA sequencer напрямую
         try {
-            midiOut.sendMessage(testNote);
+            // C4 нота: 0x90 (note on ch1), 0x3C (C4), 0x7F (velocity)
+            const testNote = [0x90, 0x3C, 0x7F];
             
-            // Через 100мс отправляем note off чтобы нота не зависла
-            setTimeout(() => {
-                const noteOff = [0x80, 0x3C, 0x00];
-                try { midiOut.sendMessage(noteOff); } catch (e) {}
-            }, 100);
+            // Для input→input маршрутизации используем loopback порт
+            // Ищем loopback output для отправки
+            for (const [outputId] of this.outputs) {
+                const midiOut = this.outputs.get(outputId);
+                if (midiOut) {
+                    try {
+                        midiOut.sendMessage(testNote);
+                        
+                        setTimeout(() => {
+                            const noteOff = [0x80, 0x3C, 0x00];
+                            try { midiOut.sendMessage(noteOff); } catch (e) {}
+                        }, 100);
+                    } catch (e) {}
+                }
+            }
+            
+            console.log(`[WORKER] Test note sent to ${inputId} via loopback`);
         } catch (e) {
-            console.error(`[WORKER] Failed to send test note to ${outputId}:`, e.message);
+            console.error(`[WORKER] Failed to send test note to ${inputId}:`, e.message);
         }
     }
 
@@ -309,37 +335,49 @@ class MIDIRouterWorker {
     startAutoConnect() {
         console.log('[WORKER] Starting auto-connect mode...');
         
-        // Собираем все unrouted outputs (синтезаторы без маршрутов)
-        this.discoveryState.unroutedOutputs = [];
-        for (const [outputId] of this.outputs) {
-            if (!this.discoveryState.connectedOutputs.has(outputId)) {
-                this.discoveryState.unroutedOutputs.push(outputId);
+        // Определяем типы устройств по имени
+        const controllers = [];  // контроллеры (CC-устройства)
+        const synths = [];       // синтезаторы
+        
+        for (const [inputId, name] of this.inputs) {
+            const lowerName = name.toLowerCase();
+            
+            // Определяем тип устройства по имени
+            if (lowerName.includes('nt') || 
+                lowerName.includes('craft') || 
+                lowerName.includes('synth') ||
+                lowerName.includes('keyboard')) {
+                synths.push(inputId);
+            } else {
+                controllers.push(inputId);
             }
         }
         
-        console.log(`[WORKER] Found ${this.discoveryState.unroutedOutputs.length} synths to connect`);
+        console.log(`[WORKER] Found ${controllers.length} controllers, ${synths.length} synths`);
+        console.log(`[WORKER] Controllers:`, controllers);
+        console.log(`[WORKER] Synths:`, synths);
         
-        if (this.discoveryState.unroutedOutputs.length === 0) {
-            console.log('[WORKER] No synths to connect');
+        if (controllers.length === 0 || synths.length === 0) {
+            console.log('[WORKER] No matching device pairs found');
             return;
         }
         
-        // Активируем discovery режим
+        // Активируем discovery режим для маппинга input → input
         this.discoveryState.active = true;
         this.discoveryState.waitingForInput = null;
         this.discoveryState.currentOutputIndex = 0;
-        this.discoveryState.totalSynthsToConnect = this.discoveryState.unroutedOutputs.length;
+        this.discoveryState.totalSynthsToConnect = synths.length;
         
-        // Начинаем тестирование первого синтезатора
-        const outputId = this.discoveryState.unroutedOutputs[0];
-        console.log(`[WORKER] Sending test note to ${outputId} (synth #1)`);
+        // Начинаем тестирование первого синтезатора через loopback
+        const synthId = synths[0];
+        console.log(`[WORKER] Sending test note to ${synthId} (synth #1)`);
         
-        this._sendTestNote(outputId);
+        this._sendTestNoteToInput(synthId);
         
         // Запускаем таймер 5 секунд ожидания от контроллера
         const self = this;
         this.discoveryState.timer = setTimeout(() => {
-            console.log(`[WORKER] Auto-connect timeout for ${outputId} → skipping`);
+            console.log(`[WORKER] Auto-connect timeout for ${synthId} → skipping`);
             self._nextSynth();
         }, this.discoveryState.timeoutMs);
     }

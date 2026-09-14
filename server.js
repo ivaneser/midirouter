@@ -34,6 +34,11 @@ class MIDIRouterWorker {
             this.worker.postMessage({ type: 'shutdown' });
             await this.worker.terminate();
             this.isReady = false;
+            
+            // Удаляем все listener'ы перед рестартом чтобы не дублировались
+            if (this.worker._messageHandler) {
+                this.worker.removeListener('message', this.worker._messageHandler);
+            }
         }
 
         this.worker = new Worker(join(import.meta.dirname, 'worker-midi.js'));

@@ -11,6 +11,9 @@ class ControllerUI {
         const container = document.getElementById('devices-container');
         if (!container) return;
 
+        // Очищаем контейнер перед загрузкой — предотвращаем дубликаты при hot-plug
+        container.innerHTML = '';
+
         const deviceFiles = [
             'korg_nts1',
             'modal_craft_synth_v2',
