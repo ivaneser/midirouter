@@ -240,7 +240,7 @@ async function main() {
         console.log('[SERVER] Client connected from', req.socket.remoteAddress);
 
         // Отправляем список портов при подключении
-        ws.send(JSON.stringify(router.getPorts()));
+        ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('message', (data) => {
             try {

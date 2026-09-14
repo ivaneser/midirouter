@@ -12,12 +12,26 @@ class App {
         await new Promise(r => setTimeout(r, 100));
 
         this.ui = new ControllerUI(this.dm);
+        this.portManager = new PortManager(this.dm);  // ← новый менеджер портов
 
         // Настройка обработчика изменений состояния
         this.dm.onStateChange = (state) => {
             console.log('State change:', state.type);
             if (state.type === 'devices') {
                 this._updateDeviceList(state.devices);
+
+                // Разделяем на inputs и outputs для PortManager
+                const inputs = state.devices.filter(d => d.id.startsWith('input_'));
+                const outputs = state.devices.filter(d => d.id.startsWith('output_'));
+                if (this.portManager) {
+                    this.portManager.updatePorts(inputs, outputs);
+                }
+            } else if (state.type === 'routes') {
+                // Обновляем визуальное состояние маршрутов
+                if (this.portManager) {
+                    // Перерендерим всё — routes обновляются через серверные сообщения
+                    this.portManager._render();
+                }
             }
         };
 

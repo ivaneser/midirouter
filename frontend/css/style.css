@@ -83,6 +83,120 @@ body {
     color: white;
 }
 
+/* === Port Section (физические MIDI-порты) === */
+.port-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+    background: #16213e;
+    margin: 0 20px 20px;
+    border-radius: 10px;
+}
+
+.port-section h2 {
+    font-size: 0.95rem;
+    color: #e94560;
+    padding: 8px 16px;
+    margin-bottom: 8px;
+    background: #0f3460;
+    border-radius: 6px;
+}
+
+.port-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.port-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 100px;
+    padding: 8px;
+    background: #1a1a2e;
+    border-radius: 8px;
+}
+
+.port-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #0f3460;
+    border-radius: 6px;
+    cursor: grab;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.port-card.output {
+    cursor: default;
+}
+
+.port-card:hover {
+    background: #1a4a8e;
+}
+
+.port-card.dragging {
+    opacity: 0.5;
+}
+
+.port-card.drop-hover {
+    background: #2d6abf;
+    border: 2px dashed #e94560;
+}
+
+.port-card.drop-success {
+    animation: dropFlash 0.5s ease-out;
+}
+
+@keyframes dropFlash {
+    0% { background: #e94560; }
+    100% { background: #0f3460; }
+}
+
+.port-card.connected::after {
+    content: '●';
+    margin-left: auto;
+    color: #0a7c2e;
+    font-size: 1.2rem;
+}
+
+.port-card .route-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #e94560;
+    color: white;
+    font-size: 0.7rem;
+    margin-left: auto;
+}
+
+.port-icon {
+    font-size: 0.8rem;
+    color: #888;
+    width: 16px;
+    text-align: center;
+}
+
+.port-name {
+    flex: 1;
+    font-size: 0.85rem;
+    color: #eee;
+}
+
+.empty-hint {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
 /* === Devices Grid === */
 .devices-grid {
     display: grid;

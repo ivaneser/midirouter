@@ -1,6 +1,7 @@
 /* === MIDI Router Worker — отдельный процесс для роутинга === */
 // Работает независимо от основного процесса, не блокируется веб-запросами
 // API @julusian/midi v3.x: new midi.Input() → input.getPortCount(), input.getPortName(i)
+// Hot-plug: watchdog перечисляет порты каждые 5 сек, обнаруживает новые устройства
 // Запуск: node worker-midi.js
 
 import midi from '@julusian/midi';
@@ -12,69 +13,120 @@ class MIDIRouterWorker {
         this.outputs = new Map();  // portId → RtMidiOut instance
         this.routes = new Map();   // inputPortId → [outputPortIds]
         this.autoDiscoverMode = false;
+        this.watchdogInterval = null;
     }
 
     init() {
         try {
-            // v3.x API: создаём экземпляр, вызываем методы на нём
+            console.log('[WORKER] MIDI initializing...');
+            this._enumeratePorts(true);  // true = send ready signal on first run
+        } catch (e) {
+            console.error('[WORKER] MIDI init failed:', e.message);
+            process.exit(1);
+        }
+    }
+
+    _enumeratePorts(isInit = false) {
+        try {
             const tempInput = new midi.Input();
             const inputCount = tempInput.getPortCount();
-            tempInput.closePort();  // закрываем сразу — нам только count нужен
+            tempInput.closePort();
 
             const tempOutput = new midi.Output();
             const outputCount = tempOutput.getPortCount();
             tempOutput.closePort();
 
-            console.log(`[WORKER] MIDI initialized`);
-            console.log(`[WORKER] Inputs: ${inputCount}, Outputs: ${outputCount}`);
-
             // Собираем имена портов
-            const inputNames = [];
+            const currentInputs = [];
             for (let i = 0; i < inputCount; i++) {
                 const inp = new midi.Input();
-                inputNames.push({ id: `input_${i}`, name: inp.getPortName(i) });
+                currentInputs.push({ id: `input_${i}`, name: inp.getPortName(i) });
                 inp.closePort();
             }
 
-            const outputNames = [];
+            const currentOutputs = [];
             for (let i = 0; i < outputCount; i++) {
                 const out = new midi.Output();
-                outputNames.push({ id: `output_${i}`, name: out.getPortName(i) });
+                currentOutputs.push({ id: `output_${i}`, name: out.getPortName(i) });
                 out.closePort();
             }
+
+            // Сравниваем с текущими портами
+            const oldInputIds = new Set(this.inputs.keys());
+            const newInputIds = new Set(currentInputs.map(i => i.id));
+
+            // Удаляем исчезнувшие input порты
+            for (const id of oldInputIds) {
+                if (!newInputIds.has(id)) {
+                    console.log(`[WORKER] Input removed: ${id}`);
+                    const inp = this.inputs.get(id);
+                    if (inp) inp.closePort();
+                    this.inputs.delete(id);
+                    // Удаляем маршруты для этого порта
+                    this.routes.delete(id);
+                }
+            }
+
+            // Добавляем новые input порты
+            for (const port of currentInputs) {
+                if (!this.inputs.has(port.id)) {
+                    try {
+                        const midiIn = new midi.Input();
+                        const portIndex = parseInt(port.id.split('_')[1]);
+                        midiIn.openPort(portIndex, 'midirouter-in');
+
+                        // Callback: мгновенная маршрутизация
+                        const self = this;
+                        midiIn.on('message', (deltaTime, message) => {
+                            self._routeMessage(message, port.id);
+                        });
+
+                        this.inputs.set(port.id, midiIn);
+                        console.log(`[WORKER] Input added: ${port.id} — ${port.name}`);
+                    } catch (e) {
+                        console.error(`[WORKER] Failed to open new input ${port.id}:`, e.message);
+                    }
+                }
+            }
+
+            // Обновляем output порты (для sendFromServer)
+            const oldOutputIds = new Set(this.outputs.keys());
+            const newOutputIds = new Set(currentOutputs.map(o => o.id));
+
+            for (const id of oldOutputIds) {
+                if (!newOutputIds.has(id)) {
+                    console.log(`[WORKER] Output removed: ${id}`);
+                    const out = this.outputs.get(id);
+                    if (out) out.closePort();
+                    this.outputs.delete(id);
+                }
+            }
+
+            // Обновляем output порты — не добавляем новые автоматически, только при явном запросе
+            for (const port of currentOutputs) {
+                if (!this.outputs.has(port.id)) {
+                    const out = new midi.Output();
+                    out.closePort();  // просто проверяем доступность
+                }
+            }
+
+            console.log(`[WORKER] Ports: ${currentInputs.length} in, ${currentOutputs.length} out`);
 
             // Отправляем список портов основному процессу
             parentPort.postMessage({
                 type: 'ports-enumerated',
-                inputs: inputNames,
-                outputs: outputNames
+                inputs: currentInputs,
+                outputs: currentOutputs,
+                added: isInit ? null : currentInputs.filter(i => !oldInputIds.has(i.id)),
+                removed: isInit ? null : [...oldInputIds].filter(id => !newInputIds.has(id))
             });
 
-            // Открываем все input порты для callback
-            for (let i = 0; i < inputCount; i++) {
-                const portId = `input_${i}`;
-                try {
-                    const midiIn = new midi.Input();
-                    midiIn.openPort(i, 'midirouter-in');
-
-                    // Callback: мгновенная маршрутизация без аллокаций
-                    const self = this;
-                    midiIn.on('message', (deltaTime, message) => {
-                        self._routeMessage(message, portId);
-                    });
-
-                    this.inputs.set(portId, midiIn);
-                    console.log(`[WORKER] Input opened: ${portId} — ${inputNames[i].name}`);
-                } catch (e) {
-                    console.error(`[WORKER] Failed to open input ${portId}:`, e.message);
-                }
+            // На первый запуск — signal ready
+            if (isInit) {
+                parentPort.postMessage({ type: 'ready' });
             }
-
-            // Отправляем signal готовности
-            parentPort.postMessage({ type: 'ready' });
         } catch (e) {
-            console.error('[WORKER] MIDI init failed:', e.message);
-            process.exit(1);
+            console.error('[WORKER] Enumerate failed:', e.message);
         }
     }
 
@@ -172,7 +224,16 @@ class MIDIRouterWorker {
         });
     }
 
+    // Запуск watchdog — периодическое перечисление портов (hot-plug detection)
+    startWatchdog(intervalMs = 5000) {
+        console.log(`[WORKER] Watchdog started (${intervalMs}ms)`);
+        this.watchdogInterval = setInterval(() => {
+            this._enumeratePorts(false);
+        }, intervalMs);
+    }
+
     cleanup() {
+        if (this.watchdogInterval) clearInterval(this.watchdogInterval);
         for (const [, input] of this.inputs) {
             if (input) input.closePort();
         }
@@ -214,3 +275,4 @@ parentPort.on('message', (msg) => {
 
 // Запуск (синхронный — без init())
 worker.init();
+worker.startWatchdog(5000);  // hot-plug detection каждые 5 секунд

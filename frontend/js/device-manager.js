@@ -46,9 +46,36 @@ class DeviceManager {
         switch (data.type) {
             case 'devices':
                 this.devices.clear();
-                data.devices.forEach(d => this.devices.set(d.id, d));
+                // Сервер отправляет { inputs: [...], outputs: [...] }
+                (data.inputs || []).forEach(d => this.devices.set(d.id, d));
+                (data.outputs || []).forEach(d => this.devices.set(d.id, d));
                 this._notifyChange('devices');
                 break;
+
+            case 'route-updated': {
+                // Сервер прислал подтверждение маршрута — добавляем в routes
+                if (!this.routes.has(data.inputId)) {
+                    this.routes.set(data.inputId, []);
+                }
+                const dests = this.routes.get(data.inputId);
+                if (!dests.includes(data.outputId)) {
+                    dests.push(data.outputId);
+                }
+                this._notifyChange('routes');
+                break;
+            }
+
+            case 'route-removed': {
+                // Сервер удалил маршрут — убираем из локального состояния
+                const dests = this.routes.get(data.inputId);
+                if (dests) {
+                    const idx = dests.indexOf(data.outputId);
+                    if (idx > -1) dests.splice(idx, 1);
+                    if (dests.length === 0) this.routes.delete(data.inputId);
+                }
+                this._notifyChange('routes');
+                break;
+            }
 
             case 'route':
                 if (data.action === 'add') {
