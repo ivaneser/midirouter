@@ -120,6 +120,11 @@ class MIDIRouterWorker {
             case 'midi-sent':
                 // Можно уведомить клиента об успешной отправке (для логирования)
                 break;
+
+            case 'midi-routed': {
+                console.log(`[SERVER] MIDI: ${msg.inputId} → ${msg.outputId} | bytes=[${msg.message.map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
+                break;
+            }
         }
     }
 

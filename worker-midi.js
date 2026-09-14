@@ -209,6 +209,14 @@ class MIDIRouterWorker {
             if (midiOut) {
                 try {
                     midiOut.sendMessage(message);
+
+                    // Логируем в консоль сервера
+                    parentPort.postMessage({
+                        type: 'midi-routed',
+                        inputId: inputPortId,
+                        outputId,
+                        message: message
+                    });
                 } catch (e) {
                     // Игнорируем ошибки отправки — не блокируем роутинг
                 }
