@@ -28,12 +28,22 @@ class MIDIRouterWorker {
     async init() {
         console.log('[SERVER] Starting MIDI worker thread...');
 
+        // Terminating старый worker перед созданием нового — предотвращает утечку threads
+        if (this.worker) {
+            console.log('[SERVER] Terminating existing worker before restart');
+            this.worker.postMessage({ type: 'shutdown' });
+            await this.worker.terminate();
+            this.isReady = false;
+        }
+
         this.worker = new Worker(join(import.meta.dirname, 'worker-midi.js'));
 
-        // Обработка сообщений от воркера
-        this.worker.on('message', (msg) => {
+        // Обработка сообщений от воркера (ОДИН обработчик)
+        const handleMessage = (msg) => {
             this._handleWorkerMessage(msg);
-        });
+        };
+        this.worker.on('message', handleMessage);
+        this.worker._messageHandler = handleMessage;  // Сохраняем ссылку для удаления
 
         this.worker.on('error', (err) => {
             console.error('[SERVER] Worker error:', err);
@@ -41,26 +51,34 @@ class MIDIRouterWorker {
 
         this.worker.on('exit', (code) => {
             console.log(`[SERVER] Worker exited with code ${code}`);
+            // Удаляем все listener'ы перед рестартом чтобы не дублировались
+            if (this.worker && this.worker._messageHandler) {
+                this.worker.removeListener('message', this.worker._messageHandler);
+            }
             if (code !== 0) {
                 console.log('[SERVER] Restarting worker...');
                 setTimeout(() => this.init(), 1000);
             }
         });
 
-        // Ждём готовности воркера
+        // Ждём готовности воркера (ОДИН обработчик)
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 reject(new Error('Worker init timeout'));
             }, 5000);
 
-            this.worker.on('message', (msg) => {
+            const readyHandler = (msg) => {
                 if (msg.type === 'ready') {
                     clearTimeout(timeout);
                     this.isReady = true;
                     console.log('[SERVER] Worker is ready');
+                    // Удаляем обработчик ready чтобы не сработал повторно
+                    this.worker.removeListener('message', readyHandler);
                     resolve();
                 }
-            });
+            };
+
+            this.worker.on('message', readyHandler);
         });
     }
 

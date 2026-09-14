@@ -15,13 +15,17 @@ class MIDIRouterWorker {
         this.routes = new Map();   // inputPortId → [outputPortIds]
         this.watchdogInterval = null;
 
-        // Auto-discovery state (полностью автоматический)
+        // Auto-discovery state (полностью автоматический режим соединения)
         this.discoveryState = {
             active: false,
-            inputId: null,
+            currentOutputIndex: 0, // индекс текущего output который ждёт ноту от контроллера
+            waitingForInput: null, // inputId который получил ноту и готов к маппингу
             timer: null,
-            timeoutMs: 10000, // 10 секунд
-            ccReceived: new Map() // outputId → true
+            timeoutMs: 5000, // 5 секунд на каждый синтезатор
+            connectedOutputs: new Set(), // output ports которые уже подключены
+            unroutedOutputs: [], // output ports без маршрутов (синтезаторы)
+            totalSynthsToConnect: 0,
+            testNoteTimeout: null // таймер для тестовой ноты
         };
 
         // Watchdog — работает только пока нет активных маршрутов (hot-plug detection)
@@ -167,21 +171,69 @@ class MIDIRouterWorker {
     _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
 
-        // === Auto-discovery: нет маршрута → начинаем ожидание 10 сек ===
+        // === Auto-discovery: нет маршрута → начинаем автоматическое соединение ===
+        if ((!destinations || destinations.length === 0) && this.discoveryState.active) {
+            // Если discovery активен — проверяем не от этого ли input пришла нота
+            if (this.discoveryState.waitingForInput === null) {
+                // Первый input который шлёт ноту — запоминаем его как контроллер
+                console.log(`[WORKER] Auto-discovery: ${inputPortId} detected as controller`);
+                this.discoveryState.waitingForInput = inputPortId;
+                
+                // Если есть unrouted outputs (синтезаторы) — начинаем тестирование
+                if (this.discoveryState.unroutedOutputs.length > 0 && 
+                    this.discoveryState.currentOutputIndex < this.discoveryState.unroutedOutputs.length) {
+                    
+                    const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
+                    console.log(`[WORKER] Auto-discovery: sending test note to ${outputId} (synth #${this.discoveryState.currentOutputIndex + 1})`);
+                    
+                    // Отправляем тестовую ноту (C4 = 0x90 0x3C 0x7F) на синтезатор
+                    this._sendTestNote(outputId);
+                    
+                    // Запускаем таймер ожидания 5 секунд
+                    const self = this;
+                    if (this.discoveryState.timer) {
+                        clearTimeout(this.discoveryState.timer);
+                    }
+                    
+                    this.discoveryState.timer = setTimeout(() => {
+                        // Таймаут — пробуем следующий синтезатор
+                        console.log(`[WORKER] Auto-discovery timeout for ${outputId} → skipping`);
+                        self._nextSynth();
+                    }, this.discoveryState.timeoutMs);
+                } else if (this.discoveryState.unroutedOutputs.length === 0) {
+                    // Все синтезаторы подключены — завершаем discovery
+                    console.log('[WORKER] Auto-discovery: all synths connected');
+                    this._endDiscovery();
+                }
+            } else if (inputPortId === this.discoveryState.waitingForInput) {
+                // Получили ноту от контроллера — создаём маршрут
+                const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
+                console.log(`[WORKER] Auto-discovery: CC received from ${inputPortId} on ${outputId} → creating route`);
+                
+                // Создаём маршрут input → output
+                this._createRoute(inputPortId, outputId);
+                
+                // Переходим к следующему синтезатору
+                this._nextSynth();
+            }
+            
+            return;
+        }
+
+        // Если discovery не активен — обычная маршрутизация
         if (!destinations || destinations.length === 0) {
             // Debounce: считаем сообщения, шлём уведомление только при первом или каждые N сообщений
             const count = (this.unroutedCounters.get(inputPortId) || 0) + 1;
             this.unroutedCounters.set(inputPortId, count);
 
             if (count === 1) {
-                // Первое сообщение — начинаем discovery режим на 10 секунд
+                // Первое сообщение — начинаем discovery режим на 5 секунд
                 console.log(`[WORKER] Auto-discovery started for ${inputPortId} (${this.discoveryState.timeoutMs / 1000}s timeout)`);
                 
                 this.discoveryState.active = true;
-                this.discoveryState.inputId = inputPortId;
-                this.discoveryState.ccReceived.clear();
-
-                // Запускаем таймер на 10 секунд
+                this.discoveryState.waitingForInput = inputPortId;
+                
+                // Запускаем таймер на 5 секунд
                 if (this.discoveryState.timer) {
                     clearTimeout(this.discoveryState.timer);
                 }
@@ -207,17 +259,6 @@ class MIDIRouterWorker {
             }
 
             return;
-        }
-
-        // Проверяем — это CC сообщение? Если да и discovery активен → создаём маршрут
-        if (this.discoveryState.active && this._isCCMessage(message)) {
-            const outputId = this._findOutputReceivingCC(inputPortId, message);
-            if (outputId) {
-                console.log(`[WORKER] Auto-discovery: CC received from ${inputPortId} on ${outputId} → creating route`);
-                this._createRoute(this.discoveryState.inputId, outputId);
-                this._endDiscovery();
-                return;
-            }
         }
 
         // Мгновенная отправка через все маршруты — минимальные аллокации
@@ -247,29 +288,69 @@ class MIDIRouterWorker {
         }
     }
 
-    /** Проверить — это CC сообщение? */
-    _isCCMessage(message) {
-        // Status byte: 0xB0-0xBF = Control Change (channel 1-16)
-        const statusByte = message[0];
-        return (statusByte & 0xF0) === 0xB0;
+    /** Отправить тестовую ноту на output порт */
+    _sendTestNote(outputId) {
+        const midiOut = this.outputs.get(outputId);
+        if (!midiOut) return;
+
+        // C4 нота: 0x90 (note on ch1), 0x3C (C4), 0x7F (velocity)
+        const testNote = [0x90, 0x3C, 0x7F];
+        try {
+            midiOut.sendMessage(testNote);
+            
+            // Через 100мс отправляем note off чтобы нота не зависла
+            setTimeout(() => {
+                const noteOff = [0x80, 0x3C, 0x00];
+                try { midiOut.sendMessage(noteOff); } catch (e) {}
+            }, 100);
+        } catch (e) {
+            console.error(`[WORKER] Failed to send test note to ${outputId}:`, e.message);
+        }
     }
 
-    /** Найти output порт который получил CC от этого input */
-    _findOutputReceivingCC(inputId, ccMessage) {
-        // Проверяем все outputs — если есть уже созданный маршрут с этим CC → возвращаем его
-        for (const [outId] of this.outputs) {
-            if (!this.discoveryState.ccReceived.has(outId)) continue;
-            return outId;
+    /** Перейти к следующему синтезатору */
+    _nextSynth() {
+        this.discoveryState.currentOutputIndex++;
+        
+        // Проверяем все ли синтезаторы подключены
+        if (this.discoveryState.currentOutputIndex >= this.discoveryState.unroutedOutputs.length) {
+            console.log('[WORKER] Auto-discovery: all synths connected');
+            this._endDiscovery();
+        } else {
+            // Начинаем тестирование следующего синтезатора
+            const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
+            console.log(`[WORKER] Auto-discovery: testing next synth ${outputId}`);
+            
+            // Сбрасываем таймер и отправляем тестовую ноту
+            if (this.discoveryState.timer) {
+                clearTimeout(this.discoveryState.timer);
+            }
+            
+            this._sendTestNote(outputId);
+            
+            const self = this;
+            this.discoveryState.timer = setTimeout(() => {
+                // Таймаут — пробуем следующий синтезатор
+                console.log(`[WORKER] Auto-discovery timeout for ${outputId} → skipping`);
+                self._nextSynth();
+            }, this.discoveryState.timeoutMs);
         }
+    }
 
-        // Если discovery активен и мы получили CC — создаём маршрут на первый доступный output
-        const firstOutput = [...this.outputs.keys()][0];
-        if (firstOutput) {
-            this.discoveryState.ccReceived.set(firstOutput, true);
-            return firstOutput;
+    /** Завершить discovery режим */
+    _endDiscovery() {
+        if (this.discoveryState.timer) {
+            clearTimeout(this.discoveryState.timer);
+            this.discoveryState.timer = null;
         }
-
-        return null;
+        this.discoveryState.active = false;
+        this.discoveryState.waitingForInput = null;
+        this.discoveryState.currentOutputIndex = 0;
+        
+        // Уведомляем сервер
+        parentPort.postMessage({
+            type: 'discovery-complete'
+        });
     }
 
     /** Создать маршрут */
