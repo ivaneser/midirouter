@@ -51,24 +51,35 @@ class MIDIRouterWorker {
             const outputCount = tempOutput.getPortCount();
             tempOutput.closePort();
 
-            // Собираем имена портов
-            const currentInputs = [];
+            // Фильтрация — только реальные MIDI порты (исключаем системные ALSA sequencer)
+            const realInputs = [];
             for (let i = 0; i < inputCount; i++) {
                 const inp = new midi.Input();
-                currentInputs.push({ id: `input_${i}`, name: inp.getPortName(i) });
+                const name = inp.getPortName(i);
+                // Оставляем только порты с MIDI-устройствами, исключаем timers/loopback/system
+                if (!name.toLowerCase().includes('timer') && !name.toLowerCase().includes('loopback') && !name.toLowerCase().includes('system')) {
+                    realInputs.push({ id: `input_${i}`, name });
+                } else {
+                    console.log(`[WORKER] Skipping non-MIDI input ${i}: ${name}`);
+                }
                 inp.closePort();
             }
 
-            const currentOutputs = [];
+            const realOutputs = [];
             for (let i = 0; i < outputCount; i++) {
                 const out = new midi.Output();
-                currentOutputs.push({ id: `output_${i}`, name: out.getPortName(i) });
+                const name = out.getPortName(i);
+                if (!name.toLowerCase().includes('timer') && !name.toLowerCase().includes('loopback') && !name.toLowerCase().includes('system')) {
+                    realOutputs.push({ id: `output_${i}`, name });
+                } else {
+                    console.log(`[WORKER] Skipping non-MIDI output ${i}: ${name}`);
+                }
                 out.closePort();
             }
 
             // Сравниваем с текущими портами
             const oldInputIds = new Set(this.inputs.keys());
-            const newInputIds = new Set(currentInputs.map(i => i.id));
+            const newInputIds = new Set(realInputs.map(i => i.id));
 
             // Удаляем исчезнувшие input порты
             for (const id of oldInputIds) {
@@ -83,8 +94,8 @@ class MIDIRouterWorker {
                 }
             }
 
-            // Добавляем новые input порты
-            for (const port of currentInputs) {
+            // Добавляем новые input порты + автопоиск схемы
+            for (const port of realInputs) {
                 if (!this.inputs.has(port.id)) {
                     try {
                         const midiIn = new midi.Input();
@@ -99,6 +110,13 @@ class MIDIRouterWorker {
 
                         this.inputs.set(port.id, midiIn);
                         console.log(`[WORKER] Input added: ${port.id} — ${port.name}`);
+
+                        // Отправляем уведомление о новом устройстве для автопоиска схемы
+                        parentPort.postMessage({
+                            type: 'new-device-detected',
+                            inputId: port.id,
+                            name: port.name
+                        });
                     } catch (e) {
                         console.error(`[WORKER] Failed to open new input ${port.id}:`, e.message);
                     }

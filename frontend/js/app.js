@@ -38,8 +38,33 @@ class App {
         // Обработчик входящих MIDI сообщений
         this.dm.onMidiMessage = (bytes, sourcePort) => {
             console.log(`MIDI from ${sourcePort}:`, bytes);
-            // Здесь можно добавить логику маршрутизации/лупинга
             this._logToPanel(`MIDI ← ${this._portName(sourcePort)}: ${Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+        };
+
+        // Обработка событий схемы устройства от сервера
+        this.dm.onSchemeEvent = (event) => {
+            console.log(`[APP] Scheme event: ${event.type}`, event);
+            switch (event.type) {
+                case 'scheme-loaded':
+                    if (this.ui && event.scheme) {
+                        this.ui.renderDynamicControls(event.name, event.inputId, event.scheme);
+                        this._logToPanel(`✅ Схема загружена для: ${event.name}`);
+                    }
+                    break;
+
+                case 'scheme-search-failed':
+                    console.warn(`[APP] Scheme not found for: ${event.name}`);
+                    // Создаём пустую карточку с подсказкой
+                    if (this.ui) {
+                        this._createUnknownDeviceCard(event.name, event.inputId);
+                    }
+                    break;
+
+                case 'scheme-search-error':
+                    console.error(`[APP] Scheme search error:`, event.error);
+                    this._logToPanel(`❌ Ошибка поиска схемы для: ${event.name}`);
+                    break;
+            }
         };
 
         // Обработка кнопки подключения
@@ -134,6 +159,50 @@ class App {
         // Ограничиваем количество логов
         while (logs.children.length > 100) {
             logs.removeChild(logs.lastChild);
+        }
+    }
+
+    _createUnknownDeviceCard(name, inputId) {
+        const container = document.getElementById('devices-container');
+        if (!container) return;
+
+        console.log(`[APP] Creating unknown device card: ${name}`);
+
+        // Создаём карточку с подсказкой
+        const card = document.createElement('div');
+        card.className = 'device-card';
+
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.innerHTML = `
+            <h2>${name}</h2>
+            <span class="arrow">▶</span>
+        `;
+
+        const body = document.createElement('div');
+        body.className = 'device-body';
+
+        // Создаём секцию с подсказкой
+        const hintSection = document.createElement('div');
+        hintSection.style.padding = '20px';
+        hintSection.style.textAlign = 'center';
+        hintSection.style.color = '#999';
+        hintSection.innerHTML = `
+            <p>Схема для этого устройства не найдена.</p>
+            <p style="font-size: 14px;">Пожалуйста, создайте JSON файл в папке device_maps/</p>
+            <code style="background: #333; padding: 4px 8px; border-radius: 4px;">${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}.json</code>
+        `;
+
+        body.appendChild(hintSection);
+        card.appendChild(header);
+        card.appendChild(body);
+
+        container.appendChild(card);
+
+        // Обновляем счётчик устройств
+        const countEl = document.getElementById('device-count');
+        if (countEl) {
+            countEl.textContent = `${container.children.length} устройств`;
         }
     }
 }

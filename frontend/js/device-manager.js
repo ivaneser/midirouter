@@ -103,6 +103,24 @@ class DeviceManager {
                 console.log('[DeviceManager] Auto-discovery completed — route created');
                 break;
 
+            case 'scheme-loaded':
+                if (this.onSchemeEvent) {
+                    this.onSchemeEvent({ type: 'scheme-loaded', name: data.name, inputId: data.inputId, scheme: data.scheme });
+                }
+                break;
+
+            case 'scheme-search-failed':
+                if (this.onSchemeEvent) {
+                    this.onSchemeEvent({ type: 'scheme-search-failed', name: data.name, inputId: data.inputId });
+                }
+                break;
+
+            case 'scheme-search-error':
+                if (this.onSchemeEvent) {
+                    this.onSchemeEvent({ type: 'scheme-search-error', name: data.name, error: data.error });
+                }
+                break;
+
             default:
                 console.warn('Unknown message type:', data.type);
         }

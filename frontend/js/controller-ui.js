@@ -255,3 +255,81 @@ function sortedNestedKeys(keys) {
         return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
     });
 }
+
+// Динамический рендеринг контроллеров из загруженной схемы устройства
+ControllerUI.prototype.renderDynamicControls = function(deviceName, inputId, scheme) {
+    const container = document.getElementById('devices-container');
+    if (!container || !scheme) return;
+
+    console.log(`[CONTROLLER-UI] Rendering dynamic controls for: ${deviceName}`);
+
+    // Создаём карточку для динамического устройства
+    const card = this._createDynamicCard(deviceName, inputId, scheme);
+    container.appendChild(card);
+
+    // Обновляем счётчик устройств
+    const countEl = document.getElementById('device-count');
+    if (countEl) {
+        countEl.textContent = `${container.children.length} устройств`;
+    }
+};
+
+ControllerUI.prototype._createDynamicCard = function(name, portId, scheme) {
+    const card = document.createElement('div');
+    card.className = 'device-card';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    header.innerHTML = `
+        <h2>${name}</h2>
+        <span class="arrow">▶</span>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'device-body';
+
+    // Инициализация значений по умолчанию
+    this.deviceValues.set(name, {});
+
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        header.querySelector('.arrow').classList.toggle('open', isOpen);
+    });
+
+    // Рендерим контролы из схемы
+    if (scheme.controls) {
+        this._renderFlatControls(body, scheme.controls, { model: name, portId: portId });
+    } else if (scheme.controls_cc || scheme.controls_nrpn) {
+        if (scheme.controls_cc) {
+            const ccSection = document.createElement('div');
+            ccSection.className = 'section-title';
+            ccSection.textContent = 'MIDI CC Controls';
+            body.appendChild(ccSection);
+            this._renderFlatControls(body, scheme.controls_cc, { model: name, portId: portId });
+        }
+        if (scheme.controls_nrpn?.parameters) {
+            const nrpnSection = document.createElement('div');
+            nrpnSection.className = 'section-title';
+            nrpnSection.textContent = 'NRPN Controls';
+            body.appendChild(nrpnSection);
+            this._renderFlatControls(body, scheme.controls_nrpn.parameters, { model: name, portId: portId }, true);
+        }
+    } else {
+        // Вложенная структура (controls_osc1, controls_filter и т.д.)
+        const nestedKeys = Object.keys(scheme).filter(k => k.startsWith('controls_'));
+        for (const key of sortedNestedKeys(nestedKeys)) {
+            const sectionTitle = document.createElement('div');
+            sectionTitle.className = 'section-title';
+            sectionTitle.textContent = this._formatSectionName(key);
+            body.appendChild(sectionTitle);
+
+            this._renderFlatControls(body, scheme[key], { model: name, portId: portId });
+        }
+    }
+
+    card.appendChild(header);
+    card.appendChild(body);
+
+    return card;
+};

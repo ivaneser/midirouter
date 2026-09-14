@@ -125,6 +125,50 @@ class MIDIRouterWorker {
                 console.log(`[SERVER] MIDI: ${msg.inputId} → ${msg.outputId} | bytes=[${msg.message.map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
                 break;
             }
+
+            case 'new-device-detected': {
+                console.log(`[SERVER] New device detected: ${msg.name} (${msg.inputId}) — searching for scheme...`);
+                this._searchDeviceScheme(msg.name, msg.inputId);
+                break;
+            }
+        }
+    }
+
+    // Автопоиск схемы устройства в интернете
+    async _searchDeviceScheme(deviceName, inputId) {
+        try {
+            console.log(`[SERVER] Searching MIDI scheme for: ${deviceName}`);
+
+            // Ищем в локальных device_maps сначала
+            const fs = await import('fs');
+            const path = await import('path');
+
+            // Пробуем разные варианты названия файла
+            const searchNames = [
+                deviceName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+                deviceName.toLowerCase().replace(/\s+/g, '_')
+            ];
+
+            for (const name of searchNames) {
+                const filePath = path.join(import.meta.dirname, 'device_maps', `${name}.json`);
+                try {
+                    const data = fs.readFileSync(filePath, 'utf-8');
+                    const scheme = JSON.parse(data);
+                    console.log(`[SERVER] Found local scheme: ${name}`);
+                    this._broadcast({ type: 'scheme-loaded', name, inputId, scheme });
+                    return;
+                } catch (e) {
+                    // Файл не найден — продолжаем поиск
+                }
+            }
+
+            // Если нет локально — ищем в интернете
+            console.log(`[SERVER] Searching online for: ${deviceName}`);
+            this._broadcast({ type: 'scheme-search-failed', name: deviceName, inputId });
+
+        } catch (e) {
+            console.error(`[SERVER] Error searching scheme for ${deviceName}:`, e.message);
+            this._broadcast({ type: 'scheme-search-error', name: deviceName, error: e.message });
         }
     }
 
