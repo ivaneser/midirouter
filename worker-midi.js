@@ -1,8 +1,7 @@
 /* === MIDI Router Worker — отдельный процесс для роутинга === */
 // Работает независимо от основного процесса, не блокируется веб-запросами
 // API @julusian/midi v3.x: new midi.Input() → input.getPortCount(), input.getPortName(i)
-// Hot-plug: watchdog перечисляет порты каждые 5 сек, обнаруживает новые устройства
-// Auto-discovery (полностью автоматический): когда input шлёт сигнал без маршрута → ждёт 10 сек → если output получил CC → создаёт маршрут → иначе default на output_0
+// Auto-discovery (полностью автоматический): когда input шлёт сигнал без маршрута → ждёт 5 сек → создаёт маршрут на первый доступный порт
 // Запуск: node worker-midi.js
 
 import midi from '@julusian/midi';
@@ -13,7 +12,6 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // portId → RtMidiIn instance
         this.outputs = new Map();  // portId → RtMidiOut instance
         this.routes = new Map();   // inputPortId → [outputPortIds]
-        this.watchdogInterval = null;
 
         // Auto-discovery state (полностью автоматический режим соединения)
         this.discoveryState = {
@@ -27,9 +25,6 @@ class MIDIRouterWorker {
             totalSynthsToConnect: 0,
             testNoteTimeout: null // таймер для тестовой ноты
         };
-
-        // Watchdog — работает только пока нет активных маршрутов (hot-plug detection)
-        this.hasActiveRoutes = false;
 
         // Счётчик сообщений от unrouted входов (для debounce)
         this.unroutedCounters = new Map();  // portId → count
@@ -464,13 +459,6 @@ class MIDIRouterWorker {
         // Сбрасываем счётчик unrouted для этого порта
         this.unroutedCounters.delete(inputId);
 
-        // Если появился первый маршрут — отключаем watchdog (устройства работают, ресурсы не жрём)
-        if (!this.hasActiveRoutes && destinations.length > 0) {
-            console.log('[WORKER] Active routes detected → stopping watchdog');
-            this._stopWatchdog();
-            this.hasActiveRoutes = true;
-        }
-
         // Подтверждаем маршрутизацию
         parentPort.postMessage({
             type: 'route-updated',
@@ -488,14 +476,6 @@ class MIDIRouterWorker {
             if (idx > -1) destinations.splice(idx, 1);
         }
 
-        // Если все маршруты удалены — включаем watchdog обратно (hot-plug detection нужен)
-        const totalRoutes = [...this.routes.values()].reduce((sum, dests) => sum + dests.length, 0);
-        if (totalRoutes === 0 && this.hasActiveRoutes) {
-            console.log('[WORKER] No active routes → restarting watchdog');
-            this._startWatchdog();
-            this.hasActiveRoutes = false;
-        }
-
         parentPort.postMessage({
             type: 'route-removed',
             inputId,
@@ -503,41 +483,17 @@ class MIDIRouterWorker {
         });
     }
 
-    // Остановить watchdog (устройства работают стабильно)
-    _stopWatchdog() {
-        if (this.watchdogInterval) {
-            clearInterval(this.watchdogInterval);
-            this.watchdogInterval = null;
-            console.log('[WORKER] Watchdog stopped');
-        }
-    }
-
-    // Запустить watchdog обратно
-    _startWatchdog(intervalMs = 5000) {
-        console.log(`[WORKER] Watchdog started (${intervalMs}ms)`);
-        this.watchdogInterval = setInterval(() => {
-            this._enumeratePorts(false);
-        }, intervalMs);
-    }
-
-    // Запуск watchdog — периодическое перечисление портов (hot-plug detection)
-    startWatchdog(intervalMs = 5000) {
-        console.log(`[WORKER] Watchdog started (${intervalMs}ms)`);
-        this.watchdogInterval = setInterval(() => {
-            this._enumeratePorts(false);
-        }, intervalMs);
-    }
-
     cleanup() {
         if (this.discoveryState.timer) clearTimeout(this.discoveryState.timer);
-        if (this.watchdogInterval) clearInterval(this.watchdogInterval);
         for (const [, input] of this.inputs) {
-            if (input) input.closePort();
+            if (input) {
+                if (input._handler) input.off('message', input._handler);
+                input.closePort();
+            }
         }
         for (const [, output] of this.outputs) {
             if (output) output.closePort();
         }
-        process.exit(0);
     }
 }
 
@@ -566,10 +522,10 @@ parentPort.on('message', (msg) => {
 
         case 'shutdown':
             worker.cleanup();
+            process.exit(0);
             break;
     }
 });
 
 // Запуск (синхронный — без init())
 worker.init();
-worker.startWatchdog(5000);  // hot-plug detection каждые 5 секунд
