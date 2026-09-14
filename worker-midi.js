@@ -1,6 +1,6 @@
 /* === MIDI Router Worker — отдельный процесс для роутинга === */
 // Работает независимо от основного процесса, не блокируется веб-запросами
-// API @julusian/midi v3.x: midi.Input() / midi.Output() (без init())
+// API @julusian/midi v3.x: new midi.Input() → input.getPortCount(), input.getPortName(i)
 // Запуск: node worker-midi.js
 
 import midi from '@julusian/midi';
@@ -16,22 +16,42 @@ class MIDIRouterWorker {
 
     init() {
         try {
-            // enumerate ports — без init(), сразу работаем
-            const inputNames = midi.getInputNames();
-            const outputNames = midi.getOutputNames();
+            // v3.x API: создаём экземпляр, вызываем методы на нём
+            const tempInput = new midi.Input();
+            const inputCount = tempInput.getPortCount();
+            tempInput.close();  // закрываем сразу — нам только count нужен
+
+            const tempOutput = new midi.Output();
+            const outputCount = tempOutput.getPortCount();
+            tempOutput.close();
 
             console.log(`[WORKER] MIDI initialized`);
-            console.log(`[WORKER] Inputs: ${inputNames.length}, Outputs: ${outputNames.length}`);
+            console.log(`[WORKER] Inputs: ${inputCount}, Outputs: ${outputCount}`);
+
+            // Собираем имена портов
+            const inputNames = [];
+            for (let i = 0; i < inputCount; i++) {
+                const inp = new midi.Input();
+                inputNames.push({ id: `input_${i}`, name: inp.getPortName(i) });
+                inp.close();
+            }
+
+            const outputNames = [];
+            for (let i = 0; i < outputCount; i++) {
+                const out = new midi.Output();
+                outputNames.push({ id: `output_${i}`, name: out.getPortName(i) });
+                out.close();
+            }
 
             // Отправляем список портов основному процессу
             parentPort.postMessage({
                 type: 'ports-enumerated',
-                inputs: inputNames.map((name, i) => ({ id: `input_${i}`, name })),
-                outputs: outputNames.map((name, i) => ({ id: `output_${i}`, name }))
+                inputs: inputNames,
+                outputs: outputNames
             });
 
             // Открываем все input порты для callback
-            for (let i = 0; i < inputNames.length; i++) {
+            for (let i = 0; i < inputCount; i++) {
                 const portId = `input_${i}`;
                 try {
                     const midiIn = new midi.Input();
@@ -44,7 +64,7 @@ class MIDIRouterWorker {
                     });
 
                     this.inputs.set(portId, midiIn);
-                    console.log(`[WORKER] Input opened: ${portId} — ${inputNames[i]}`);
+                    console.log(`[WORKER] Input opened: ${portId} — ${inputNames[i].name}`);
                 } catch (e) {
                     console.error(`[WORKER] Failed to open input ${portId}:`, e.message);
                 }
