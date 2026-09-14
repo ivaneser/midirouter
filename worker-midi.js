@@ -19,11 +19,11 @@ class MIDIRouterWorker {
             // v3.x API: создаём экземпляр, вызываем методы на нём
             const tempInput = new midi.Input();
             const inputCount = tempInput.getPortCount();
-            tempInput.close();  // закрываем сразу — нам только count нужен
+            tempInput.closePort();  // закрываем сразу — нам только count нужен
 
             const tempOutput = new midi.Output();
             const outputCount = tempOutput.getPortCount();
-            tempOutput.close();
+            tempOutput.closePort();
 
             console.log(`[WORKER] MIDI initialized`);
             console.log(`[WORKER] Inputs: ${inputCount}, Outputs: ${outputCount}`);
