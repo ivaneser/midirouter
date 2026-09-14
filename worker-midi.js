@@ -313,26 +313,26 @@ class MIDIRouterWorker {
     _nextSynth() {
         this.discoveryState.currentOutputIndex++;
         
-        // Проверяем все ли синтезаторы подключены
+        // Проверяем все ли целевые устройства подключены
         if (this.discoveryState.currentOutputIndex >= this.discoveryState.unroutedOutputs.length) {
-            console.log('[WORKER] Auto-connect: all synths connected');
+            console.log('[WORKER] Auto-connect: all targets connected');
             this._endDiscovery();
         } else {
-            // Начинаем тестирование следующего синтезатора
-            const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-            console.log(`[WORKER] Auto-connect: testing next synth ${outputId}`);
+            // Начинаем тестирование следующего целевого устройства
+            const targetId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
+            console.log(`[WORKER] Auto-connect: testing next target ${targetId}`);
             
             // Сбрасываем таймер и отправляем тестовую ноту
             if (this.discoveryState.timer) {
                 clearTimeout(this.discoveryState.timer);
             }
             
-            this._sendTestNote(outputId);
+            this._sendTestNoteToInput(targetId);
             
             const self = this;
             this.discoveryState.timer = setTimeout(() => {
-                // Таймаут — пробуем следующий синтезатор
-                console.log(`[WORKER] Auto-connect timeout for ${outputId} → skipping`);
+                // Таймаут — пробуем следующее устройство
+                console.log(`[WORKER] Auto-connect timeout for ${targetId} → skipping`);
                 self._nextSynth();
             }, this.discoveryState.timeoutMs);
         }
@@ -342,49 +342,48 @@ class MIDIRouterWorker {
     startAutoConnect() {
         console.log('[WORKER] Starting auto-connect mode...');
         
-        // Определяем типы устройств по имени
-        const controllers = [];  // контроллеры (CC-устройства)
-        const synths = [];       // синтезаторы
-        
-        for (const [inputId, name] of this.inputs) {
-            const lowerName = name.toLowerCase();
-            
-            // Определяем тип устройства по имени
-            if (lowerName.includes('nt') || 
-                lowerName.includes('craft') || 
-                lowerName.includes('synth') ||
-                lowerName.includes('keyboard')) {
-                synths.push(inputId);
-            } else {
-                controllers.push(inputId);
+        // Собираем все input порты (все устройства шлют CC, значит INPUT)
+        const allInputs = [];
+        for (const [inputId, port] of this.inputs) {
+            if (!this.routes.has(inputId)) {
+                allInputs.push({ id: inputId, name: port._name || 'unknown' });
             }
         }
         
-        console.log(`[WORKER] Found ${controllers.length} controllers, ${synths.length} synths`);
-        console.log(`[WORKER] Controllers:`, controllers);
-        console.log(`[WORKER] Synths:`, synths);
+        console.log(`[WORKER] Found ${allInputs.length} unrouted inputs`);
+        for (const inp of allInputs) {
+            console.log(`  - ${inp.id}: ${inp.name}`);
+        }
         
-        if (controllers.length === 0 || synths.length === 0) {
-            console.log('[WORKER] No matching device pairs found');
+        if (allInputs.length < 2) {
+            console.log('[WORKER] Need at least 2 unrouted inputs to connect');
             return;
         }
         
-        // Активируем discovery режим для маппинга input → input
+        // Первый — контроллер, остальные — целевые устройства
+        const controller = allInputs[0];
+        const targets = allInputs.slice(1);
+        
+        console.log(`[WORKER] Controller: ${controller.id} (${controller.name})`);
+        console.log(`[WORKER] Targets:`, targets.map(t => t.id));
+        
+        // Активируем discovery режим
         this.discoveryState.active = true;
-        this.discoveryState.waitingForInput = null;
+        this.discoveryState.waitingForInput = controller.id;
         this.discoveryState.currentOutputIndex = 0;
-        this.discoveryState.totalSynthsToConnect = synths.length;
+        this.discoveryState.unroutedOutputs = targets.map(t => t.id);
+        this.discoveryState.totalSynthsToConnect = targets.length;
         
-        // Начинаем тестирование первого синтезатора через loopback
-        const synthId = synths[0];
-        console.log(`[WORKER] Sending test note to ${synthId} (synth #1)`);
+        // Начинаем тестирование первого целевого устройства через loopback
+        const targetId = targets[0].id;
+        console.log(`[WORKER] Sending test note to ${targetId} (target #1)`);
         
-        this._sendTestNoteToInput(synthId);
+        this._sendTestNoteToInput(targetId);
         
         // Запускаем таймер 5 секунд ожидания от контроллера
         const self = this;
         this.discoveryState.timer = setTimeout(() => {
-            console.log(`[WORKER] Auto-connect timeout for ${synthId} → skipping`);
+            console.log(`[WORKER] Auto-connect timeout for ${targetId} → skipping`);
             self._nextSynth();
         }, this.discoveryState.timeoutMs);
     }
