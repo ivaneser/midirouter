@@ -24,6 +24,9 @@ class MIDIRouterWorker {
             ccReceived: new Map() // outputId → true
         };
 
+        // Watchdog — работает только пока нет активных маршрутов (hot-plug detection)
+        this.hasActiveRoutes = false;
+
         // Счётчик сообщений от unrouted входов (для debounce)
         this.unroutedCounters = new Map();  // portId → count
     }
@@ -309,6 +312,13 @@ class MIDIRouterWorker {
         // Сбрасываем счётчик unrouted для этого порта
         this.unroutedCounters.delete(inputId);
 
+        // Если появился первый маршрут — отключаем watchdog (устройства работают, ресурсы не жрём)
+        if (!this.hasActiveRoutes && destinations.length > 0) {
+            console.log('[WORKER] Active routes detected → stopping watchdog');
+            this._stopWatchdog();
+            this.hasActiveRoutes = true;
+        }
+
         // Подтверждаем маршрутизацию
         parentPort.postMessage({
             type: 'route-updated',
@@ -326,11 +336,36 @@ class MIDIRouterWorker {
             if (idx > -1) destinations.splice(idx, 1);
         }
 
+        // Если все маршруты удалены — включаем watchdog обратно (hot-plug detection нужен)
+        const totalRoutes = [...this.routes.values()].reduce((sum, dests) => sum + dests.length, 0);
+        if (totalRoutes === 0 && this.hasActiveRoutes) {
+            console.log('[WORKER] No active routes → restarting watchdog');
+            this._startWatchdog();
+            this.hasActiveRoutes = false;
+        }
+
         parentPort.postMessage({
             type: 'route-removed',
             inputId,
             outputId
         });
+    }
+
+    // Остановить watchdog (устройства работают стабильно)
+    _stopWatchdog() {
+        if (this.watchdogInterval) {
+            clearInterval(this.watchdogInterval);
+            this.watchdogInterval = null;
+            console.log('[WORKER] Watchdog stopped');
+        }
+    }
+
+    // Запустить watchdog обратно
+    _startWatchdog(intervalMs = 5000) {
+        console.log(`[WORKER] Watchdog started (${intervalMs}ms)`);
+        this.watchdogInterval = setInterval(() => {
+            this._enumeratePorts(false);
+        }, intervalMs);
     }
 
     // Запуск watchdog — периодическое перечисление портов (hot-plug detection)
