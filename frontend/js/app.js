@@ -140,6 +140,9 @@ class App {
 
             // Обновляем portId в UI контроллеров устройства
             this._updateDevicePortId(device);
+
+            // Создаём карточку устройства если её ещё нет
+            this._createRealDeviceCard(device);
         });
     }
 
@@ -161,6 +164,87 @@ class App {
         sliders.forEach(slider => {
             slider.dataset.portId = portId;
         });
+    }
+
+    // Создать карточку для реального MIDI устройства (по имени из сервера)
+    async _createRealDeviceCard(device) {
+        const container = document.getElementById('devices-container');
+        if (!container) return;
+
+        // Проверяем есть ли уже карточка для этого device.id
+        const existingCards = container.querySelectorAll('.device-card[data-device-id]');
+        for (const card of existingCards) {
+            if (card.dataset.deviceId === device.id) {
+                // Уже есть — просто обновляем portId и не дублируем
+                console.log(`[APP] Card already exists for ${device.id}`);
+                return;
+            }
+        }
+
+        console.log(`[APP] Creating card for real device: ${device.name} (${device.id})`);
+
+        // Ищем схему устройства в device_maps/ по имени
+        let scheme = null;
+        const possibleNames = [
+            device.name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+            device.name.toLowerCase().split(' ').join('_')
+        ];
+
+        for (const name of possibleNames) {
+            try {
+                const resp = await fetch(`/device_maps/${name}.json`);
+                if (resp.ok) {
+                    scheme = await resp.json();
+                    console.log(`[APP] Found scheme: ${name}`);
+                    break;
+                }
+            } catch (e) {}
+        }
+
+        // Создаём карточку
+        const card = document.createElement('div');
+        card.className = 'device-card';
+        card.dataset.deviceId = device.id;
+
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.innerHTML = `<h2>${device.name}</h2><span class="arrow">▶</span>`;
+
+        const body = document.createElement('div');
+        body.className = 'device-body';
+
+        // Заполняем body в зависимости от наличия схемы
+        if (scheme) {
+            card.appendChild(body);
+            this.ui._buildControlsFromBody(body, scheme, device.name, device.id);
+        } else {
+            const hintSection = document.createElement('div');
+            hintSection.style.padding = '20px';
+            hintSection.style.textAlign = 'center';
+            hintSection.style.color = '#999';
+            hintSection.innerHTML = `
+                <p>Схема для этого устройства не найдена.</p>
+                <p style="font-size: 14px;">Пожалуйста, создайте JSON файл в папке device_maps/</p>
+                <code style="background: #333; padding: 4px 8px; border-radius: 4px;">${possibleNames[0]}.json</code>
+            `;
+            body.appendChild(hintSection);
+            card.appendChild(body);
+        }
+
+        // Добавляем collapsible логику на header
+        header.addEventListener('click', () => {
+            const isOpen = body.classList.toggle('open');
+            header.querySelector('.arrow').classList.toggle('open', isOpen);
+        });
+
+        card.appendChild(header);
+        container.appendChild(card);
+
+        // Обновляем счётчик устройств
+        const countEl = document.getElementById('device-count');
+        if (countEl) {
+            countEl.textContent = `${container.querySelectorAll('.device-card[data-device-id]').length} устройств`;
+        }
     }
 
     _portName(portId) {

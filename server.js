@@ -278,8 +278,16 @@ class MIDIRouterWorker {
     // Очистка при закрытии
     cleanup() {
         console.log('[SERVER] Shutting down worker...');
-        this.worker.postMessage({ type: 'shutdown' });
-        this.worker.terminate();
+        if (this.worker) {
+            this.worker.postMessage({ type: 'shutdown' });
+            // Ждём 2 секунды для graceful shutdown, затем принудительно terminate
+            setTimeout(() => {
+                if (this.worker && !this.worker.isTerminated) {
+                    console.log('[SERVER] Worker did not exit gracefully — terminating');
+                    this.worker.terminate();
+                }
+            }, 2000);
+        }
     }
 }
 

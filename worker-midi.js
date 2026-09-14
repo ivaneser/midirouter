@@ -85,7 +85,7 @@ class MIDIRouterWorker {
             const oldInputIds = new Set(this.inputs.keys());
             const newInputIds = new Set(realInputs.map(i => i.id));
 
-            // Удаляем исчезнувшие input порты
+            // Удаляем исчезнувшие/перезаменённые input порты
             for (const id of oldInputIds) {
                 if (!newInputIds.has(id)) {
                     console.log(`[WORKER] Input removed: ${id}`);
@@ -102,6 +102,17 @@ class MIDIRouterWorker {
                     // Удаляем маршруты для этого порта
                     this.routes.delete(id);
                     this.unroutedCounters.delete(id);
+                } else if (this.inputs.get(id)._name !== port.name) {
+                    // Порт с тем же id но другое имя — перезаменяем (hot-plug)
+                    const oldPort = this.inputs.get(id);
+                    console.log(`[WORKER] Input replaced: ${id} (${oldPort._name || 'unknown'} → ${port.name})`);
+                    
+                    if (oldPort._handler) {
+                        oldPort.off('message', oldPort._handler);
+                        oldPort._handler = null;
+                    }
+                    oldPort.closePort();
+                    this.inputs.delete(id);
                 }
             }
 
@@ -120,6 +131,7 @@ class MIDIRouterWorker {
                         };
                         midiIn.on('message', handler);
                         midiIn._handler = handler;  // Сохраняем ссылку для удаления
+                        midiIn._name = port.name;   // Для отслеживания hot-plug
 
                         this.inputs.set(port.id, midiIn);
                         console.log(`[WORKER] Input added: ${port.id} — ${port.name}`);

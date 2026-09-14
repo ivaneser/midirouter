@@ -14,29 +14,13 @@ class ControllerUI {
         // Очищаем контейнер перед загрузкой — предотвращаем дубликаты при hot-plug
         container.innerHTML = '';
 
-        const deviceFiles = [
-            'korg_nts1',
-            'modal_craft_synth_v2',
-            'arturia_microfreak',
-            'waldorf_blofeld',
-            'preenfm2'
-        ];
-
-        for (const file of deviceFiles) {
-            try {
-                const data = await this._loadDeviceMap(file);
-                if (data && data.model) {
-                    container.appendChild(this._createCard(data));
-                }
-            } catch (e) {
-                console.warn(`Failed to load ${file}:`, e);
-            }
-        }
-
+        // НЕ загружаем JSON файлы здесь — карточки создаются только для реальных устройств
+        // через _updateDeviceList() когда приходит сообщение devices от сервера
+        
         // Обновить счётчик устройств
         const countEl = document.getElementById('device-count');
         if (countEl) {
-            countEl.textContent = `${container.children.length} устройств загружено`;
+            countEl.textContent = `0 устройств`;
         }
     }
 
@@ -266,14 +250,75 @@ ControllerUI.prototype.renderDynamicControls = function(deviceName, inputId, sch
 
     console.log(`[CONTROLLER-UI] Rendering dynamic controls for: ${deviceName}`);
 
-    // Создаём карточку для динамического устройства
-    const card = this._createDynamicCard(deviceName, inputId, scheme);
-    container.appendChild(card);
+    // Проверяем есть ли уже карточка для этого устройства (созданная через _createRealDeviceCard)
+    const existingCards = container.querySelectorAll('.device-card[data-device-id]');
+    let targetCard = null;
+    
+    for (const card of existingCards) {
+        const h2 = card.querySelector('h2');
+        if (h2 && h2.textContent === deviceName) {
+            targetCard = card;
+            break;
+        }
+    }
 
-    // Обновляем счётчик устройств
-    const countEl = document.getElementById('device-count');
-    if (countEl) {
-        countEl.textContent = `${container.children.length} устройств`;
+    // Если карточка уже существует — просто добавляем контролы в body существующей карточки
+    if (targetCard) {
+        let body = targetCard.querySelector('.device-body');
+        if (!body) {
+            body = document.createElement('div');
+            body.className = 'device-body';
+            targetCard.appendChild(body);
+        }
+        
+        // Очищаем старые контролы если есть
+        body.innerHTML = '';
+        
+        this._buildControlsFromBody(body, scheme, deviceName, inputId);
+    } else {
+        // Карточки нет — создаём новую (для legacy совместимости)
+        const card = this._createDynamicCard(deviceName, inputId, scheme);
+        container.appendChild(card);
+
+        // Обновляем счётчик устройств
+        const countEl = document.getElementById('device-count');
+        if (countEl) {
+            countEl.textContent = `${container.querySelectorAll('.device-card[data-device-id]').length} устройств`;
+        }
+    }
+};
+
+// Вспомогательный метод — строит контролы из схемы и добавляет в body
+ControllerUI.prototype._buildControlsFromBody = function(body, scheme, deviceName, inputId) {
+    const renderData = { model: deviceName, portId: inputId };
+    
+    if (scheme.controls) {
+        this._renderFlatControls(body, scheme.controls, renderData);
+    } else if (scheme.controls_cc || scheme.controls_nrpn) {
+        if (scheme.controls_cc) {
+            const ccSection = document.createElement('div');
+            ccSection.className = 'section-title';
+            ccSection.textContent = 'MIDI CC Controls';
+            body.appendChild(ccSection);
+            this._renderFlatControls(body, scheme.controls_cc, renderData);
+        }
+        if (scheme.controls_nrpn?.parameters) {
+            const nrpnSection = document.createElement('div');
+            nrpnSection.className = 'section-title';
+            nrpnSection.textContent = 'NRPN Controls';
+            body.appendChild(nrpnSection);
+            this._renderFlatControls(body, scheme.controls_nrpn.parameters, renderData, true);
+        }
+    } else {
+        const nestedKeys = Object.keys(scheme).filter(k => k.startsWith('controls_'));
+        for (const key of sortedNestedKeys(nestedKeys)) {
+            const sectionTitle = document.createElement('div');
+            sectionTitle.className = 'section-title';
+            sectionTitle.textContent = this._formatSectionName(key);
+            body.appendChild(sectionTitle);
+
+            this._renderFlatControls(body, scheme[key], renderData);
+        }
     }
 };
 
