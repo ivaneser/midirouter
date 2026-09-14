@@ -129,7 +129,7 @@ class MIDIRouterWorker {
 
             // Обновляем output порты (для sendFromServer)
             const oldOutputIds = new Set(this.outputs.keys());
-            const newOutputIds = new Set(currentOutputs.map(o => o.id));
+            const newOutputIds = new Set(realOutputs.map(o => o.id));
 
             for (const id of oldOutputIds) {
                 if (!newOutputIds.has(id)) {
@@ -141,21 +141,21 @@ class MIDIRouterWorker {
             }
 
             // Обновляем output порты — не добавляем новые автоматически, только при явном запросе
-            for (const port of currentOutputs) {
+            for (const port of realOutputs) {
                 if (!this.outputs.has(port.id)) {
                     const out = new midi.Output();
                     out.closePort();  // просто проверяем доступность
                 }
             }
 
-            console.log(`[WORKER] Ports: ${currentInputs.length} in, ${currentOutputs.length} out`);
+            console.log(`[WORKER] Ports: ${realInputs.length} in, ${realOutputs.length} out`);
 
             // Отправляем список портов основному процессу
             parentPort.postMessage({
                 type: 'ports-enumerated',
-                inputs: currentInputs,
-                outputs: currentOutputs,
-                added: isInit ? null : currentInputs.filter(i => !oldInputIds.has(i.id)),
+                inputs: realInputs,
+                outputs: realOutputs,
+                added: isInit ? null : realInputs.filter(i => !oldInputIds.has(i.id)),
                 removed: isInit ? null : [...oldInputIds].filter(id => !newInputIds.has(id))
             });
 
@@ -362,24 +362,12 @@ class MIDIRouterWorker {
 
     /** Создать маршрут */
     _createRoute(inputId, outputId) {
+        if (!outputId || !this.routes.has(outputId)) {
+            console.log(`[WORKER] Cannot create route: invalid outputId ${outputId}`);
+            return;
+        }
         console.log(`[WORKER] Creating route: ${inputId} → ${outputId}`);
         this.setRoute(inputId, outputId);
-    }
-
-    /** Завершить discovery режим */
-    _endDiscovery() {
-        if (this.discoveryState.timer) {
-            clearTimeout(this.discoveryState.timer);
-            this.discoveryState.timer = null;
-        }
-        this.discoveryState.active = false;
-        this.discoveryState.inputId = null;
-        this.discoveryState.ccReceived.clear();
-
-        // Уведомляем сервер
-        parentPort.postMessage({
-            type: 'discovery-complete'
-        });
     }
 
     // Отправить MIDI на output порт из основного процесса
