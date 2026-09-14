@@ -33,14 +33,14 @@ class MIDIRouterWorker {
             for (let i = 0; i < inputCount; i++) {
                 const inp = new midi.Input();
                 inputNames.push({ id: `input_${i}`, name: inp.getPortName(i) });
-                inp.close();
+                inp.closePort();
             }
 
             const outputNames = [];
             for (let i = 0; i < outputCount; i++) {
                 const out = new midi.Output();
                 outputNames.push({ id: `output_${i}`, name: out.getPortName(i) });
-                out.close();
+                out.closePort();
             }
 
             // Отправляем список портов основному процессу
@@ -174,10 +174,10 @@ class MIDIRouterWorker {
 
     cleanup() {
         for (const [, input] of this.inputs) {
-            if (input) input.close();
+            if (input) input.closePort();
         }
         for (const [, output] of this.outputs) {
-            if (output) output.close();
+            if (output) output.closePort();
         }
         process.exit(0);
     }
