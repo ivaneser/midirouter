@@ -112,28 +112,10 @@ class MIDIRouterWorker {
                 console.log(`[SERVER] Route removed: ${msg.inputId} → ${msg.outputId}`);
                 break;
 
-            case 'auto-discover-state':
-                this.autoDiscoverMode = msg.active;
-                this._broadcast({
-                    type: 'auto-discover',
-                    active: msg.active
-                });
-                console.log(`[SERVER] Auto-discovery: ${msg.active ? 'ON' : 'OFF'}`);
+            case 'discovery-complete':
+                this._broadcast({ type: 'discovery-complete' });
+                console.log('[SERVER] Auto-discovery completed');
                 break;
-
-            case 'unrouted-input': {
-                // Worker обнаружил сигнал от входа без маршрута → предлагаем пользователю создать маршрут
-                const inputName = this.inputs.get(msg.inputId) || msg.inputId;
-                this._broadcast({
-                    type: 'suggested-route',
-                    inputId: msg.inputId,
-                    inputName,
-                    sampleMessage: msg.message,
-                    sampleCount: msg.sampleCount
-                });
-                console.log(`[SERVER] Unrouted input detected: ${inputName} (sample #${msg.sampleCount})`);
-                break;
-            }
 
             case 'midi-sent':
                 // Можно уведомить клиента об успешной отправке (для логирования)
@@ -288,12 +270,6 @@ async function main() {
                         } else if (message.action === 'remove') {
                             router.removeRoute(message.inputId, message.outputId);
                         }
-                        break;
-                    }
-
-                    case 'auto-discover': {
-                        const active = router.toggleAutoDiscover();
-                        ws.send(JSON.stringify({ type: 'auto-discover', active }));
                         break;
                     }
 

@@ -42,58 +42,10 @@ class App {
             this._logToPanel(`MIDI ← ${this._portName(sourcePort)}: ${Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
         };
 
-        // Обработка suggested-route от worker (Learning Mode)
-        this.dm.onSuggestedRoute = (data) => {
-            console.log('[App] Suggested route:', data);
-            if (this.portManager) {
-                this.portManager.showSuggestedRoute(data);
-            }
-        };
-
         // Обработка кнопки подключения
         const btn = document.getElementById('btn-connect');
         if (btn) {
             btn.addEventListener('click', () => this._handleConnect());
-        }
-
-        // Toggle Learning Mode — показываем только после подключения
-        const toggleEl = document.getElementById('auto-discover-toggle');
-        if (toggleEl) {
-            toggleEl.addEventListener('change', () => {
-                console.log('[App] Toggling auto-discover:', toggleEl.checked);
-                this.dm.autoDiscoverMode = toggleEl.checked;
-                if (this.dm.ws && this.dm.ws.readyState === WebSocket.OPEN) {
-                    this.dm.ws.send(JSON.stringify({
-                        type: 'auto-discover',
-                        active: toggleEl.checked
-                    }));
-                } else {
-                    alert('Сначала подключитесь к серверу');
-                    toggleEl.checked = false;
-                }
-            });
-        }
-
-        // Кнопки модала подтверждения маршрута
-        const btnAccept = document.getElementById('btn-accept-route');
-        if (btnAccept && this.portManager) {
-            btnAccept.addEventListener('click', () => {
-                // Предлагаем первый доступный output порт
-                if (this.portManager.outputs.length > 0) {
-                    const outputId = this.portManager.outputs[0].id;
-                    console.log('[App] Accepting route to:', outputId);
-                    this.portManager.acceptSuggestedRoute(outputId);
-                } else {
-                    alert('Нет доступных выходных портов');
-                }
-            });
-        }
-
-        const btnReject = document.getElementById('btn-reject-route');
-        if (btnReject) {
-            btnReject.addEventListener('click', () => {
-                this.portManager.rejectSuggestedRoute();
-            });
         }
 
         // Загрузка устройства из JSON файлов

@@ -2,7 +2,7 @@
 // Работает независимо от основного процесса, не блокируется веб-запросами
 // API @julusian/midi v3.x: new midi.Input() → input.getPortCount(), input.getPortName(i)
 // Hot-plug: watchdog перечисляет порты каждые 5 сек, обнаруживает новые устройства
-// Auto-discover: когда input шлёт сигнал без маршрута → уведомление серверу → пользователь подтверждает маршрут
+// Auto-discovery (полностью автоматический): когда input шлёт сигнал без маршрута → ждёт 10 сек → если output получил CC → создаёт маршрут → иначе default на output_0
 // Запуск: node worker-midi.js
 
 import midi from '@julusian/midi';
@@ -13,8 +13,16 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // portId → RtMidiIn instance
         this.outputs = new Map();  // portId → RtMidiOut instance
         this.routes = new Map();   // inputPortId → [outputPortIds]
-        this.autoDiscoverMode = false;
         this.watchdogInterval = null;
+
+        // Auto-discovery state (полностью автоматический)
+        this.discoveryState = {
+            active: false,
+            inputId: null,
+            timer: null,
+            timeoutMs: 10000, // 10 секунд
+            ccReceived: new Map() // outputId → true
+        };
 
         // Счётчик сообщений от unrouted входов (для debounce)
         this.unroutedCounters = new Map();  // portId → count
@@ -138,26 +146,55 @@ class MIDIRouterWorker {
     _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
 
-        // === Auto-discover: нет маршрута → уведомляем сервер ===
+        // === Auto-discovery: нет маршрута → начинаем ожидание 10 сек ===
         if (!destinations || destinations.length === 0) {
-            if (this.autoDiscoverMode) {
-                // Debounce: считаем сообщения, шлём уведомление только при первом или каждые N сообщений
-                const count = (this.unroutedCounters.get(inputPortId) || 0) + 1;
-                this.unroutedCounters.set(inputPortId, count);
+            // Debounce: считаем сообщения, шлём уведомление только при первом или каждые N сообщений
+            const count = (this.unroutedCounters.get(inputPortId) || 0) + 1;
+            this.unroutedCounters.set(inputPortId, count);
 
-                if (count <= 3) {  // шлём первые 3 сообщения для надёжности
-                    parentPort.postMessage({
-                        type: 'unrouted-input',
-                        inputId: inputPortId,
-                        message: message,
-                        sampleCount: count
-                    });
+            if (count === 1) {
+                // Первое сообщение — начинаем discovery режим на 10 секунд
+                console.log(`[WORKER] Auto-discovery started for ${inputPortId} (${this.discoveryState.timeoutMs / 1000}s timeout)`);
+                
+                this.discoveryState.active = true;
+                this.discoveryState.inputId = inputPortId;
+                this.discoveryState.ccReceived.clear();
+
+                // Запускаем таймер на 10 секунд
+                if (this.discoveryState.timer) {
+                    clearTimeout(this.discoveryState.timer);
                 }
 
-                // Не маршрутизируем — ждём подтверждения пользователя
+                const self = this;
+                this.discoveryState.timer = setTimeout(() => {
+                    // Таймаут — default на output_0
+                    console.log(`[WORKER] Auto-discovery timeout for ${inputPortId} → default to output_0`);
+                    self._createRoute(inputPortId, 'output_0');
+                    self._endDiscovery();
+                }, this.discoveryState.timeoutMs);
+
+                // Не маршрутизируем — ждём CC от синтезатора
                 return;
-            } else {
-                // Auto-discover выключен — просто игнорируем unrouted
+            } else if (count <= 3) {
+                // Шлём первые 3 сообщения для надёжности
+                parentPort.postMessage({
+                    type: 'unrouted-input',
+                    inputId: inputPortId,
+                    message: message,
+                    sampleCount: count
+                });
+            }
+
+            return;
+        }
+
+        // Проверяем — это CC сообщение? Если да и discovery активен → создаём маршрут
+        if (this.discoveryState.active && this._isCCMessage(message)) {
+            const outputId = this._findOutputReceivingCC(inputPortId, message);
+            if (outputId) {
+                console.log(`[WORKER] Auto-discovery: CC received from ${inputPortId} on ${outputId} → creating route`);
+                this._createRoute(this.discoveryState.inputId, outputId);
+                this._endDiscovery();
                 return;
             }
         }
@@ -179,6 +216,53 @@ class MIDIRouterWorker {
         if (this.unroutedCounters.has(inputPortId)) {
             this.unroutedCounters.set(inputPortId, 0);
         }
+    }
+
+    /** Проверить — это CC сообщение? */
+    _isCCMessage(message) {
+        // Status byte: 0xB0-0xBF = Control Change (channel 1-16)
+        const statusByte = message[0];
+        return (statusByte & 0xF0) === 0xB0;
+    }
+
+    /** Найти output порт который получил CC от этого input */
+    _findOutputReceivingCC(inputId, ccMessage) {
+        // Проверяем все outputs — если есть уже созданный маршрут с этим CC → возвращаем его
+        for (const [outId] of this.outputs) {
+            if (!this.discoveryState.ccReceived.has(outId)) continue;
+            return outId;
+        }
+
+        // Если discovery активен и мы получили CC — создаём маршрут на первый доступный output
+        const firstOutput = [...this.outputs.keys()][0];
+        if (firstOutput) {
+            this.discoveryState.ccReceived.set(firstOutput, true);
+            return firstOutput;
+        }
+
+        return null;
+    }
+
+    /** Создать маршрут */
+    _createRoute(inputId, outputId) {
+        console.log(`[WORKER] Creating route: ${inputId} → ${outputId}`);
+        this.setRoute(inputId, outputId);
+    }
+
+    /** Завершить discovery режим */
+    _endDiscovery() {
+        if (this.discoveryState.timer) {
+            clearTimeout(this.discoveryState.timer);
+            this.discoveryState.timer = null;
+        }
+        this.discoveryState.active = false;
+        this.discoveryState.inputId = null;
+        this.discoveryState.ccReceived.clear();
+
+        // Уведомляем сервер
+        parentPort.postMessage({
+            type: 'discovery-complete'
+        });
     }
 
     // Отправить MIDI на output порт из основного процесса
@@ -249,20 +333,6 @@ class MIDIRouterWorker {
         });
     }
 
-    // Авто-обнаружение
-    setAutoDiscover(active) {
-        this.autoDiscoverMode = active;
-        if (!active) {
-            // Сбрасываем все счётчики при выключении
-            this.unroutedCounters.clear();
-        }
-
-        parentPort.postMessage({
-            type: 'auto-discover-state',
-            active
-        });
-    }
-
     // Запуск watchdog — периодическое перечисление портов (hot-plug detection)
     startWatchdog(intervalMs = 5000) {
         console.log(`[WORKER] Watchdog started (${intervalMs}ms)`);
@@ -272,6 +342,7 @@ class MIDIRouterWorker {
     }
 
     cleanup() {
+        if (this.discoveryState.timer) clearTimeout(this.discoveryState.timer);
         if (this.watchdogInterval) clearInterval(this.watchdogInterval);
         for (const [, input] of this.inputs) {
             if (input) input.closePort();
@@ -300,10 +371,6 @@ parentPort.on('message', (msg) => {
 
         case 'remove-route':
             worker.removeRoute(msg.inputId, msg.outputId);
-            break;
-
-        case 'auto-discover':
-            worker.setAutoDiscover(msg.active);
             break;
 
         case 'shutdown':

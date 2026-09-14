@@ -99,13 +99,9 @@ class DeviceManager {
                 console.log('Auto-discovery:', data.active ? 'ON' : 'OFF');
                 break;
 
-            case 'suggested-route': {
-                // Worker обнаружил сигнал от входа без маршрута → предлагаем маршрут
-                if (this.onSuggestedRoute) {
-                    this.onSuggestedRoute(data);
-                }
+            case 'discovery-complete':
+                console.log('[DeviceManager] Auto-discovery completed — route created');
                 break;
-            }
 
             default:
                 console.warn('Unknown message type:', data.type);
