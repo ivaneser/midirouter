@@ -1,0 +1,213 @@
+{
+  "manufacturer": "Arturia",
+  "model": "MicroFreak",
+  "type": "digital hybrid synth (surface capacitive keyboard)",
+  "midi_version": "5.0+",
+  "controls": [
+    {
+      "cc": 2,
+      "name": "Spice",
+      "min": 0,
+      "max": 127,
+      "type": "dropdown",
+      "options": [
+        "Speech",
+        "Sampler",
+        "Resonant FM",
+        "Analog",
+        "Vacuum",
+        "Oscillator"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 5,
+      "name": "Glide",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "glide"
+    },
+    {
+      "cc": 9,
+      "name": "Osc Type",
+      "min": 0,
+      "max": 127,
+      "type": "dropdown",
+      "options": [
+        "Speech",
+        "Sampler",
+        "Resonant FM",
+        "Analog",
+        "Vacuum",
+        "Wave Table"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 10,
+      "name": "Osc Wave",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "wave",
+      "category": "osc"
+    },
+    {
+      "cc": 12,
+      "name": "Osc Timbre",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 13,
+      "name": "Osc Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 23,
+      "name": "Filter Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "filter",
+      "primary": true
+    },
+    {
+      "cc": 24,
+      "name": "Cycl Env Amt",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "cycl_env"
+    },
+    {
+      "cc": 26,
+      "name": "Filter Amt",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 28,
+      "name": "Cycl Env Hld",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "cycl_env"
+    },
+    {
+      "cc": 29,
+      "name": "Env Sustain",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "env"
+    },
+    {
+      "cc": 64,
+      "name": "Keyboard Hold",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "category": "keyboard"
+    },
+    {
+      "cc": 83,
+      "name": "Filter Resonance",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 91,
+      "name": "Arp Rate Free",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "arp"
+    },
+    {
+      "cc": 92,
+      "name": "Arp Rate Sync",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "sync_rate",
+      "category": "arp"
+    },
+    {
+      "cc": 93,
+      "name": "LFO Rate (NRPN)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "lfo",
+      "note": "NRPN available"
+    },
+    {
+      "cc": 94,
+      "name": "LFO Rate (CC)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "lfo"
+    },
+    {
+      "cc": 102,
+      "name": "Cycl Env Rise",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "cycl_env"
+    },
+    {
+      "cc": 103,
+      "name": "Cycl Env Fall",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "cycl_env"
+    },
+    {
+      "cc": 105,
+      "name": "Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 106,
+      "name": "Env Decay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    }
+  ]
+}

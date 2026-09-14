@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Router — Контроллеры</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Шапка -->
+        <header class="header">
+            <h1>MIDI Router</h1>
+            <div class="status-bar">
+                <span id="connection-status" class="status-indicator disconnected">● Отключено</span>
+                <span id="device-count" class="device-count"></span>
+            </div>
+        </header>
+
+        <!-- Панель подключения -->
+        <section class="connect-panel">
+            <input type="text" id="ws-url" value="ws://localhost:3000" placeholder="WebSocket URL">
+            <button id="btn-connect" class="btn btn-primary">Подключиться</button>
+        </section>
+
+        <!-- Список устройств -->
+        <main id="devices-container" class="devices-grid"></main>
+
+        <!-- Логи (для отладки) -->
+        <details class="debug-panel">
+            <summary>Debug Logs</summary>
+            <div id="logs"></div>
+        </details>
+    </div>
+
+    <script src="/js/device-manager.js"></script>
+    <script src="/js/controller-ui.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

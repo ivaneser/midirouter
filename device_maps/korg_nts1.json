@@ -1,0 +1,323 @@
+{
+  "manufacturer": "Korg",
+  "model": "NTS-1",
+  "type": "digital synth + DSP effects",
+  "midi_version": "2.0",
+  "controls": [
+    {
+      "cc": 14,
+      "name": "Volume EG Type",
+      "min": 0,
+      "max": 5,
+      "type": "dropdown",
+      "options": [
+        "ADSR",
+        "AHR",
+        "AR",
+        "AR loop",
+        "Open"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 16,
+      "name": "Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 19,
+      "name": "Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 20,
+      "name": "Tremolo Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "tremolo"
+    },
+    {
+      "cc": 21,
+      "name": "Tremolo Rate",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "tremolo"
+    },
+    {
+      "cc": 24,
+      "name": "Osc LFO Rate",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "lfo"
+    },
+    {
+      "cc": 26,
+      "name": "Osc LFO Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "lfo"
+    },
+    {
+      "cc": 28,
+      "name": "Mod Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "mod"
+    },
+    {
+      "cc": 29,
+      "name": "Mod Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 30,
+      "name": "Delay Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "delay"
+    },
+    {
+      "cc": 31,
+      "name": "Delay Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "delay"
+    },
+    {
+      "cc": 33,
+      "name": "Mix",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "dry/wet",
+      "category": "mix"
+    },
+    {
+      "cc": 34,
+      "name": "Reverb Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "reverb"
+    },
+    {
+      "cc": 35,
+      "name": "Reverb Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "reverb"
+    },
+    {
+      "cc": 36,
+      "name": "FX Dry/Wet",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "dry/wet",
+      "category": "fx"
+    },
+    {
+      "cc": 42,
+      "name": "Filter Type",
+      "min": 0,
+      "max": 6,
+      "type": "dropdown",
+      "options": [
+        "LP2",
+        "LP4",
+        "BP2",
+        "BP4",
+        "HP2",
+        "HP4",
+        "Off"
+      ],
+      "category": "filter"
+    },
+    {
+      "cc": 43,
+      "name": "Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "filter",
+      "primary": true
+    },
+    {
+      "cc": 44,
+      "name": "Resonance",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 45,
+      "name": "Sweep Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "sweep"
+    },
+    {
+      "cc": 46,
+      "name": "Sweep Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "sweep"
+    },
+    {
+      "cc": 53,
+      "name": "Osc Type",
+      "min": 0,
+      "max": 4,
+      "type": "dropdown",
+      "options": [
+        "Saw",
+        "Tri",
+        "Square",
+        "VPM",
+        "Waves"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 54,
+      "name": "Wave Shaping",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 55,
+      "name": "Alt",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 88,
+      "name": "FX Mod Type",
+      "min": 0,
+      "max": 3,
+      "type": "dropdown",
+      "options": [
+        "Chorus",
+        "Ensemble",
+        "Phase",
+        "Flanger"
+      ],
+      "category": "fx_mod"
+    },
+    {
+      "cc": 89,
+      "name": "FX Delay Type",
+      "min": 0,
+      "max": 3,
+      "type": "dropdown",
+      "options": [
+        "Stereo",
+        "Mono",
+        "PingPong",
+        "Tape"
+      ],
+      "category": "fx_delay"
+    },
+    {
+      "cc": 90,
+      "name": "FX Reverb Type",
+      "min": 0,
+      "max": 4,
+      "type": "dropdown",
+      "options": [
+        "Hall",
+        "Plate",
+        "Space",
+        "Riser",
+        "Submarine"
+      ],
+      "category": "fx_reverb"
+    },
+    {
+      "cc": 117,
+      "name": "Arp Pattern Length",
+      "min": 0,
+      "max": 8,
+      "type": "dropdown",
+      "options": [
+        "Up",
+        "Down",
+        "Up-Down",
+        "Down-Up",
+        "Conv",
+        "Inv",
+        "Random",
+        "Seq",
+        "User"
+      ],
+      "category": "arp"
+    },
+    {
+      "cc": 118,
+      "name": "Arp Intervals",
+      "min": 0,
+      "max": 7,
+      "type": "dropdown",
+      "options": [
+        "Oct",
+        "Maj",
+        "Sus",
+        "Aug",
+        "Min",
+        "Dim"
+      ],
+      "category": "arp"
+    },
+    {
+      "cc": 119,
+      "name": "Arp Length",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "length",
+      "category": "arp"
+    }
+  ]
+}
