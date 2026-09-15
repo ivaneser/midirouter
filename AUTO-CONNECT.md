@@ -25,22 +25,26 @@ case 'ready':
 Воркер собирает все unrouted (без маршрутов) input и output порты:
 
 - **Все unrouted inputs** — становятся контроллерами
-- **Все unrouted outputs** — становятся целями для каждого контроллера
+- **Unrouted outputs, исключая порты тех же физических устройств** — становятся целями
 
 ```js
-// Для каждого controller создаём список целей из всех unrouted outputs
+// Нормализация имени порта → базовое имя устройства
+_deviceBase(name) {
+    let n = name.trim();
+    n = n.replace(/\s+(MIDI|DAW)\s+Port$/i, '');      // "Launchkey DAW Port" → "Launchkey"
+    n = n.replace(/\s+(KBD\/?KNOB|SOUND)$/i, '');     // "NTS-1 KBD/KNOB" → "NTS-1"
+}
+
+// Фильтрация целей: исключаем outputs чьё base совпадает с любым input's base
+const allInputBases = new Set(allInputs.map(c => _deviceBase(c.name)));
 for (const controller of allInputs) {
-    const targets = [...allOutputs.map(o => o.id)];  // все synths
-    
-    this.discoveryState.controllers.set(controller.id, {
-        targets: targets,
-        connectedTargets: new Set(),
-        currentTargetIdx: 0
-    });
+    const targets = allOutputs
+        .filter(o => o.id !== controller.id && !allInputBases.has(_deviceBase(o.name)))
+        .map(o => o.id);  // только синты, не порты контроллера
 }
 ```
 
-**Пример:** Если подключены Launchkey (1 input) и два синтезатора Korg NTS-1 + Craft Synth (2 outputs), то Launchkey получит маршруты на оба синтезатора.
+**Пример:** Launchkey Mini MK3 имеет два порта (`MIDI Port`, `DAW Port`). Оба исключаются из целей для всех контроллеров. Остальные цели: NTS-1 SOUND, Craft Synth 2.0.
 
 ### 3. Обзвон синтезаторов (ping sequence)
 Для каждого целевого устройства запускается последовательность из **5 нот** с интервалом **1 секунда**:
@@ -87,10 +91,12 @@ if inputPortId в controllers:
 ### 5. Подтверждение подключения
 При получении note ON:
 1. Останавливается текущий таймер пинга
-2. Создаётся маршрут `input → output` через `_createRoute()`
+2. Создаётся маршрут `input → output` через `_createRoute()` — **канал = null (все каналы)**
 3. Отправляется двойная нота подтверждения (`_sendConfirmationNote()`) — две ноты C4 с интервалом 200мс каждая
 4. Целевой синтез помечается как подключённый в `connectedTargets`
 5. Переход к следующему синтезу для этого контроллера
+
+> **Важно:** discovery-маршруты не фильтруют по MIDI-каналу — все нажатия клавиш достигают всех подключённых синтезаторов независимо от канала контроллера. Канальная фильтрация доступна только через ручной UI-селектор (dropdown `ALL / CH1–CH16`) для каждого маршрута.
 
 ### 6. Завершение discovery
 ```js
@@ -158,8 +164,14 @@ server.worker.postMessage({ type: 'auto-connect' });
 
 ### Сценарий 3: Защита от бесконечного пинга
 1. Если синтезатор не отвечает — после 5 попыток таймаут
-2. Переход к следующему синтезору, а не зацикливание
+2. Переход к следующему синтезатору, а не зацикливание
 3. Discovery завершается когда все контроллеры обработаны
+
+### Сценарий 4: Multi-port устройство (Launchkey)
+1. Launchkey Mini MK3 обнаруживается как два input-порта (`MIDI Port`, `DAW Port`) и два output-порта
+2. `_deviceBase()` нормализует оба порта к одному базовому имени → оба исключаются из целей
+3. Discovery пингует только NTS-1 SOUND и Craft Synth 2.0
+4. Нажатие клавиши на любом канале Launchkey создаёт маршрут ко всем подключённым синтезаторам (без фильтрации каналов)
 
 ## Ошибки и отладка
 

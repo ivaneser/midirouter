@@ -44,10 +44,19 @@ if (currentIndex !== newPort.index) {
 
 ## Структура данных маршрутов
 ```js
-this.routes = new Map();   // deviceName → [outputPortIds]
+this.routes = new Map();   // deviceName → [{ outputId, channels }]
+// channels = null (по умолчанию) → все MIDI-каналы
+// channels = [1] или [1,3] → фильтрация по указанным каналам
 // Пример:
-// "Launchkey Mini MK3 MIDI Port" → ["NTS-1 digital kit KBD/KNOB", "Craft Synth 2.0"]
+// "Launchkey Mini MK3 MIDI Port" → [
+//   { outputId: "NTS-1 digital kit SOUND", channels: null },
+//   { outputId: "Craft Synth 2.0", channels: [2] }
+// ]
 ```
+
+**Создание маршрутов:**
+- **Auto-connect (discovery):** `channels = null` — все нажатия клавиш достигают подключённого синтезатора независимо от MIDI-канала контроллера.
+- **Ручной UI:** пользователь выбирает канал через dropdown (`ALL / CH1–CH16`) на карточке порта, маршрут получает массив каналов для фильтрации.
 
 ## Обработка hot-plug
 При изменении индекса порта:
@@ -82,6 +91,19 @@ this.routes = new Map();   // deviceName → [outputPortIds]
 ```
 https://api.github.com/search/code?q=...
 ```
+
+## Нормализация устройства (`_deviceBase()`)
+При auto-connect воркер нормализует имена портов, удаляя суффиксы функций:
+
+| Полное имя порта | `_deviceBase()` → базовое имя |
+|------------------|-------------------------------|
+| "Launchkey Mini MK3 MIDI Port" | "Launchkey Mini MK3" |
+| "Launchkey Mini MK3 DAW Port" | "Launchkey Mini MK3" |
+| "NTS-1 digital kit KBD/KNOB" | "NTS-1 digital kit" |
+| "NTS-1 digital kit SOUND" | "NTS-1 digital kit" |
+| "Craft Synth 2.0" | "Craft Synth 2.0" |
+
+**Принцип:** outputs, чьё базовое имя совпадает с любым input's base, исключаются из целей discovery — предотвращает пинг портов контроллера вместо синтезаторов.
 
 ## Типичные имена устройств
 | Устройство | Имя в системе |
