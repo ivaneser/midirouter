@@ -239,12 +239,21 @@ class MIDIRouterWorker {
     _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
 
-        // === Auto-discovery: проверяем если discovery активен и ждём ноту от контроллера ===
+        // === Auto-discovery: проверяем если discovery активен и ждём note ON от контроллера ===
         if (this.discoveryState.active && this.discoveryState.waitingForInput !== null) {
-            // Если нота пришла от того же input который мы ожидаем — создаём маршрут
+            // Фильтруем — ждём ТОЛЬКО note on (0x9x), игнорируем CC (0xBx)
+            const statusByte = message[0];
+            const isNoteOn = (statusByte & 0xF0) === 0x90 && message[2] > 0;
+            
+            if (!isNoteOn) {
+                // Игнорируем CC и другие сообщения во время пинга — они могут быть от synth'ов
+                return;
+            }
+            
+            // Если note on пришла от контроллера — создаём маршрут
             if (inputPortId === this.discoveryState.waitingForInput) {
                 const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-                console.log(`[WORKER] Auto-connect: received note from ${inputPortId} on ${outputId} → creating route`);
+                console.log(`[WORKER] Auto-connect: received note ON from ${inputPortId} on ${outputId} → creating route`);
                 
                 // Останавливаем текущий пинг синтезатора
                 if (this.discoveryState.timer) {
