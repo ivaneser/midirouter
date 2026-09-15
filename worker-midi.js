@@ -478,6 +478,15 @@ class MIDIRouterWorker {
         }, 100);
     }
 
+    /** Normalize port name to device base — "Launchkey … DAW Port" and "… MIDI Port" → same device */
+    _deviceBase(name) {
+        let n = (name || '').trim();
+        // Strip trailing function tokens so ports of the same physical device collapse to one base
+        n = n.replace(/\s+(MIDI|DAW)\s+Port$/i, '');      // "Launchkey Mini MK3 DAW Port" → "Launchkey Mini MK3"
+        n = n.replace(/\s+(KBD\/?KNOB|SOUND|OUT|IN)$/i, '');  // "NTS-1 digital kit KBD/KNOB" → "NTS-1 digital kit"
+        return n;
+    }
+
     /** Запустить автоматическое соединение всех устройств */
     startAutoConnect() {
         console.log('[WORKER] Starting auto-connect mode...');
@@ -533,9 +542,11 @@ class MIDIRouterWorker {
 
         // Для каждого unrouted input создаём список целей из unrouted outputs
         // Исключаем output порты которые принадлежат тем же устройствам что и контроллеры (защита от self-routing)
+        const allInputBases = new Set(allInputs.map(c => this._deviceBase(c.name)));
         let controllersWithTargets = 0;
         for (const controller of allInputs) {
-            const targets = allOutputs.filter(o => o.id !== controller.id).map(o => o.id);
+            // Exclude outputs whose device base matches ANY input's base — i.e. same physical device
+            const targets = allOutputs.filter(o => o.id !== controller.id && !allInputBases.has(this._deviceBase(o.name))).map(o => o.id);
             
             if (targets.length === 0) {
                 console.log(`[WORKER] Controller ${controller.id} (${controller.name}) has no valid targets — skipping`);
