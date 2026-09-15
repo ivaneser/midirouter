@@ -415,36 +415,22 @@ class MIDIRouterWorker {
         pingOnce();
     }
 
-    /** Перейти к следующему синтезатору */
+    /** Перейти к следующему синтезатору (циклично) */
     _nextSynth() {
         this.discoveryState.currentOutputIndex++;
         
-        // Проверяем все ли целевые устройства подключены
-        if (this.discoveryState.currentOutputIndex >= this.discoveryState.unroutedOutputs.length) {
-            console.log('[WORKER] Auto-connect: all targets connected');
-            this._endDiscovery();
-        } else {
-            // Начинаем тестирование следующего целевого устройства
-            const targetId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-            console.log(`[WORKER] Auto-connect: testing next target ${targetId}`);
-            
-            // Сбрасываем таймер и запускаем обзвон
-            if (this.discoveryState.timer) {
-                clearTimeout(this.discoveryState.timer);
-            }
-            
-            const self = this;
-            this._pingSynth(targetId, () => {
-                self._nextSynth();
-            });
-        }
+        // Циклический обзвон — продолжаем с начала если дошли до конца
+        const self = this;
+        setTimeout(() => {
+            self._pingAllSynths();
+        }, 100);
     }
 
     /** Запустить автоматическое соединение всех устройств */
     startAutoConnect() {
         console.log('[WORKER] Starting auto-connect mode...');
         
-        // Собираем все input порты (все устройства шлют CC, значит INPUT)
+        // Собираем все unrouted INPUT порты — это потенциальные контроллеры
         const allInputs = [];
         for (const [inputId, port] of this.inputs) {
             if (!this.routes.has(inputId)) {
@@ -462,24 +448,58 @@ class MIDIRouterWorker {
             return;
         }
         
-        // Первый — контроллер, остальные — целевые устройства
+        // Первый input — контроллер
         const controller = allInputs[0];
-        const targets = allInputs.slice(1);
-        
         console.log(`[WORKER] Controller: ${controller.id} (${controller.name})`);
-        console.log(`[WORKER] Targets:`, targets.map(t => t.id));
         
-        // Активируем discovery режим
+        // Собираем OUTPUT порты как потенциальные синтезаторы
+        const allOutputs = [];
+        for (const [outputId, port] of this.outputs) {
+            if (!this.routes.has(outputId)) {
+                allOutputs.push({ id: outputId, name: port._name || 'unknown' });
+            }
+        }
+        
+        // Исключаем из обзвона те output'ы, которые совпадают с контроллерами (у них тоже есть output)
+        const synthTargets = allOutputs.filter(out => out.id !== controller.id);
+        
+        console.log(`[WORKER] Synths to connect:`, synthTargets.map(s => s.id));
+        
+        if (synthTargets.length === 0) {
+            console.log('[WORKER] No synths found to connect');
+            return;
+        }
+        
+        // Активируем discovery режим — ждём note ON от контроллера
         this.discoveryState.active = true;
         this.discoveryState.waitingForInput = controller.id;
         this.discoveryState.currentOutputIndex = 0;
-        this.discoveryState.unroutedOutputs = targets.map(t => t.id);
-        this.discoveryState.totalSynthsToConnect = targets.length;
+        this.discoveryState.unroutedOutputs = synthTargets.map(s => s.id);
+        this.discoveryState.totalSynthsToConnect = synthTargets.length;
         
-        // Начинаем тестирование первого целевого устройства
-        const targetId = targets[0].id;
-        console.log(`[WORKER] Starting ping sequence for ${targetId}`);
+        // Начинаем обзвон первого синтезатора по кругу
+        console.log(`[WORKER] Starting ping sequence for ${synthTargets[0].id}`);
+        this._pingAllSynths();
+    }
+
+    /** Обзвонить все синты по кругу — циклически пока не подключатся все */
+    _pingAllSynths() {
+        // Проверяем: все ли synths получили маршруты?
+        const allConnected = this.discoveryState.unroutedOutputs.every(s => 
+            [...this.routes.entries()].some(([k, v]) => v.includes(s))
+        );
         
+        if (allConnected && this.discoveryState.unroutedOutputs.length > 0) {
+            console.log('[WORKER] Auto-connect: all synths connected');
+            this._endDiscovery();
+            return;
+        }
+        
+        // Циклически обзваниваем все синтезаторы по очереди
+        const idx = this.discoveryState.currentOutputIndex % this.discoveryState.unroutedOutputs.length;
+        const targetId = this.discoveryState.unroutedOutputs[idx];
+        
+        console.log(`[WORKER] Pinging ${targetId} (cycle #${Math.floor(idx) + 1})`);
         this._pingSynth(targetId, () => {});
     }
 
