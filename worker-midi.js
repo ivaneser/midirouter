@@ -418,12 +418,9 @@ class MIDIRouterWorker {
         const controllerState = this.discoveryState.controllers.get(controllerId);
         if (!controllerState) return;
 
-        // Увеличиваем индекс следующего целевого синтезатора
-        controllerState.currentTargetIdx++;
-
         // Если все цели подключены — завершаем discovery для этого контроллера
         const allConnected = controllerState.connectedTargets.size === controllerState.targets.length;
-        if (allConnected) {
+        if (allConnected && controllerState.targets.length > 0) {
             console.log(`[WORKER] Controller ${controllerId}: all ${controllerState.targets.length} synths connected`);
             this.discoveryState.controllers.delete(controllerId);
 
@@ -435,9 +432,30 @@ class MIDIRouterWorker {
             return;
         }
 
-        // Если дошли до конца списка — начинаем сначала с оставшихся не подключённых
-        if (controllerState.currentTargetIdx >= controllerState.targets.length) {
-            controllerState.currentTargetIdx = 0;
+        // Ищем следующий НЕ подключённый синтезатор
+        let found = false;
+        const startIdx = controllerState.currentTargetIdx;
+        
+        for (let i = 0; i < controllerState.targets.length; i++) {
+            const idx = (startIdx + i) % controllerState.targets.length;
+            if (!controllerState.connectedTargets.has(controllerState.targets[idx])) {
+                controllerState.currentTargetIdx = idx;
+                found = true;
+                break;
+            }
+        }
+
+        // Если все remaining цели таймаутили — удаляем контроллер (все synths не ответили)
+        if (!found) {
+            console.log(`[WORKER] Controller ${controllerId}: all targets timed out, removing`);
+            this.discoveryState.controllers.delete(controllerId);
+
+            // Если все контроллеры завершены — останавливаем discovery
+            if (this.discoveryState.controllers.size === 0) {
+                console.log('[WORKER] Auto-connect: no more controllers to ping');
+                this._endDiscovery();
+            }
+            return;
         }
 
         const self = this;
@@ -500,15 +518,29 @@ class MIDIRouterWorker {
         }
 
         // Для каждого unrouted input создаём список целей из unrouted outputs
+        // Исключаем output порты которые принадлежат тем же устройствам что и контроллеры (защита от self-routing)
+        let controllersWithTargets = 0;
         for (const controller of allInputs) {
-            const targets = [...allOutputs.map(o => o.id)];
+            const targets = allOutputs.filter(o => o.id !== controller.id).map(o => o.id);
+            
+            if (targets.length === 0) {
+                console.log(`[WORKER] Controller ${controller.id} (${controller.name}) has no valid targets — skipping`);
+                continue;
+            }
+
             console.log(`[WORKER] Controller ${controller.id} (${controller.name}) → will connect to ${targets.length} synths`);
+            controllersWithTargets++;
 
             this.discoveryState.controllers.set(controller.id, {
                 targets: targets,
                 connectedTargets: new Set(),
                 currentTargetIdx: 0
             });
+        }
+
+        if (controllersWithTargets === 0) {
+            console.log('[WORKER] No valid controller-target pairs found');
+            return;
         }
 
         // Активируем discovery режим
@@ -531,7 +563,9 @@ class MIDIRouterWorker {
         // Находим первого контроллера с ещё не подключёнными целями
         let foundController = null;
         for (const [controllerId, state] of this.discoveryState.controllers) {
-            if (state.connectedTargets.size < state.targets.length && state.currentTargetIdx < state.targets.length) {
+            if (state.targets.length > 0 &&
+                state.connectedTargets.size < state.targets.length &&
+                state.currentTargetIdx < state.targets.length) {
                 foundController = { id: controllerId, state };
                 break;
             }
