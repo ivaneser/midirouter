@@ -154,24 +154,26 @@ class DeviceManager {
         }));
     }
 
-    // Создать маршрут input → output
-    createRoute(inputId, outputId) {
+    // Создать маршрут input → output с фильтрацией по каналам (channels = null → все каналы)
+    createRoute(inputId, outputId, channels = null) {
         if (!this.ws) return;
         this.ws.send(JSON.stringify({
             type: 'route',
             action: 'add',
             inputId,
-            outputId
+            outputId,
+            channels: channels  // массив каналов [1,3] или null для всех
         }));
     }
 
     // Удалить маршрут
-    removeRoute(inputId) {
+    removeRoute(inputId, outputId) {
         if (!this.ws) return;
         this.ws.send(JSON.stringify({
             type: 'route',
             action: 'remove',
-            inputId
+            inputId,
+            outputId
         }));
     }
 

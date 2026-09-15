@@ -176,6 +176,30 @@ body {
     margin-left: auto;
 }
 
+/* === Channel Selector === */
+.channel-selector {
+    width: 52px;
+    padding: 3px 4px;
+    background: #1a1a2e;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    color: #eee;
+    font-size: 0.7rem;
+    text-align: center;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.channel-selector:hover {
+    border-color: #e94560;
+}
+
+.channel-selector:focus {
+    border-color: #e94560;
+    box-shadow: 0 0 4px rgba(233, 69, 96, 0.3);
+}
+
 .port-icon {
     font-size: 0.8rem;
     color: #888;

@@ -5,7 +5,8 @@ class PortManager {
         this.dm = deviceManager;
         this.inputs = [];  // [{ id, name }]
         this.outputs = []; // [{ id, name }]
-        this.routes = new Map(); // inputId → [outputIds]
+        // routes: Map<inputId, [{ outputId, channels }]> — каждый маршрут с фильтрацией по каналам
+        this.routes = new Map();
         this.dragState = null;   // { sourceId, type: 'input'|'output' }
     }
 
@@ -22,14 +23,21 @@ class PortManager {
             const key = routeMsg.inputId;
             if (!this.routes.has(key)) this.routes.set(key, []);
             const dests = this.routes.get(key);
-            if (!dests.includes(routeMsg.outputId)) {
-                dests.push(routeMsg.outputId);
+            // Проверяем — уже есть такой маршрут с этими каналами?
+            const exists = dests.some(r => r.outputId === routeMsg.outputId && JSON.stringify(r.channels) === JSON.stringify(routeMsg.channels));
+            if (!exists) {
+                dests.push({ outputId: routeMsg.outputId, channels: routeMsg.channels || null });
             }
         } else if (routeMsg.action === 'remove') {
             const dests = this.routes.get(routeMsg.inputId);
             if (dests) {
-                const idx = dests.indexOf(routeMsg.outputId);
-                if (idx > -1) dests.splice(idx, 1);
+                for (let i = dests.length - 1; i >= 0; i--) {
+                    if (dests[i].outputId === routeMsg.outputId &&
+                        JSON.stringify(dests[i].channels) === JSON.stringify(routeMsg.channels)) {
+                        dests.splice(i, 1);
+                        break;
+                    }
+                }
                 if (dests.length === 0) this.routes.delete(routeMsg.inputId);
             }
         }
@@ -40,16 +48,46 @@ class PortManager {
     removeRoute(inputId, outputId) {
         const dests = this.routes.get(inputId);
         if (dests) {
-            const idx = dests.indexOf(outputId);
-            if (idx > -1) dests.splice(idx, 1);
-            this.dm.removeRoute(inputId);
+            for (let i = dests.length - 1; i >= 0; i--) {
+                if (dests[i].outputId === outputId) {
+                    dests.splice(i, 1);
+                    break;
+                }
+            }
+            if (dests.length === 0) this.routes.delete(inputId);
+            this.dm.removeRoute(inputId, outputId);
         }
     }
 
-    /** Создать маршрут input → output */
+    /** Создать маршрут input → output (без каналов = все каналы) */
     createRoute(inputId, outputId) {
         // Уже проверено в _onDrop — отправляем на сервер
         this.dm.createRoute(inputId, outputId);
+    }
+
+    /** Обновить канал маршрута — отправляем новый маршрут с каналами */
+    _updateRouteChannels(inputId, channel) {
+        const dests = this.routes.get(inputId);
+        if (!dests || dests.length === 0) return;
+        
+        // Если выбран "ALL" (null) — удаляем все существующие маршруты и создаём один без фильтра
+        if (channel === null) {
+            for (const route of [...dests]) {
+                this.dm.removeRoute(inputId, route.outputId);
+            }
+            // Создаём новый маршрут без каналов
+            if (dests.length > 0) {
+                this.dm.createRoute(inputId, dests[0].outputId);
+            }
+        } else {
+            // Выбран конкретный канал — удаляем старые маршруты и создаём с каналом
+            for (const route of [...dests]) {
+                this.dm.removeRoute(inputId, route.outputId);
+            }
+            if (dests.length > 0) {
+                this.dm.createRoute(inputId, dests[0].outputId, [channel]);
+            }
+        }
     }
 
     /** Отрисовать всю секцию портов */
@@ -167,18 +205,45 @@ class PortManager {
         card.appendChild(icon);
         card.appendChild(name);
 
-        // Для INPUT: drag start
+        // Для INPUT: drag start + канал-селектор
         if (type === 'input') {
             card.draggable = true;
             card.addEventListener('dragstart', (e) => this._onDragStart(e, port.id));
             card.addEventListener('dragend', (e) => this._onDragEnd(e));
 
+            // Добавляем канал-селектор
+            const channelSelect = document.createElement('select');
+            channelSelect.className = 'channel-selector';
+            channelSelect.dataset.portId = port.id;
+            
+            // Опция "Все каналы" (по умолчанию)
+            const allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'ALL';
+            channelSelect.appendChild(allOption);
+            
+            // Каналы 1-16
+            for (let ch = 1; ch <= 16; ch++) {
+                const opt = document.createElement('option');
+                opt.value = ch;
+                opt.textContent = `CH${ch}`;
+                channelSelect.appendChild(opt);
+            }
+            
+            // Обновление канала — отправляем на сервер
+            channelSelect.addEventListener('change', () => {
+                const newChannel = channelSelect.value ? parseInt(channelSelect.value) : null;
+                this._updateRouteChannels(port.id, newChannel);
+            });
+            
+            card.appendChild(channelSelect);
+
             // Клик — удалить все маршруты из этого порта
             card.addEventListener('dblclick', () => {
                 const dests = this.routes.get(port.id);
                 if (dests) {
-                    for (const outId of dests) {
-                        this.removeRoute(port.id, outId);
+                    for (const route of dests) {
+                        this.removeRoute(port.id, route.outputId);
                     }
                 }
             });
@@ -198,22 +263,24 @@ class PortManager {
             // Двойной клик — удалить маршрут с этого порта
             card.addEventListener('dblclick', () => {
                 for (const [inId, dests] of this.routes) {
-                    const idx = dests.indexOf(port.id);
-                    if (idx > -1) {
-                        dests.splice(idx, 1);
-                        this.dm.removeRoute(inId, port.id);
+                    for (let i = dests.length - 1; i >= 0; i--) {
+                        if (dests[i].outputId === port.id) {
+                            dests.splice(i, 1);
+                            break;
+                        }
                     }
                 }
+                this._render();
             });
         }
 
         return card;
     }
 
-    /** Обновить визуальные линии подключений */
+    /** Обновить визуальные линии подключений + канал-селекторы */
     _updateConnections() {
         // Добавляем индикаторы подключенных состояний на карточки
-        for (const [inputId, outputIds] of this.routes) {
+        for (const [inputId, routes] of this.routes) {
             const inputCard = document.querySelector(`.port-card[data-port-id="${inputId}"][data-type="input"]`);
             if (inputCard) {
                 inputCard.classList.add('connected');
@@ -224,10 +291,24 @@ class PortManager {
                     badge.className = 'route-count';
                     inputCard.appendChild(badge);
                 }
-                badge.textContent = outputIds.length;
+                badge.textContent = routes.length;
 
-                for (const outId of outputIds) {
-                    const outCard = document.querySelector(`.port-card[data-port-id="${outId}"][data-type="output"]`);
+                // Обновляем канал-селектор
+                const selector = inputCard.querySelector('.channel-selector');
+                if (selector) {
+                    // Если все маршруты без каналов — выбираем "ALL"
+                    const allChannels = routes.every(r => !r.channels || r.channels.length === 0);
+                    if (allChannels && routes.length > 0) {
+                        selector.value = '';
+                    } else if (!allChannels && routes.length > 0) {
+                        // Берём каналы первого маршрута
+                        const ch = routes[0].channels?.[0];
+                        selector.value = ch || '';
+                    }
+                }
+
+                for (const route of routes) {
+                    const outCard = document.querySelector(`.port-card[data-port-id="${route.outputId}"][data-type="output"]`);
                     if (outCard) outCard.classList.add('connected');
                 }
             }
@@ -265,12 +346,12 @@ class PortManager {
 
         // Проверяем — уже есть такой маршрут?
         const existing = this.routes.get(inputId);
-        if (existing && existing.includes(outputId)) {
+        if (existing && existing.some(r => r.outputId === outputId)) {
             console.log('[PortManager] Route already exists:', inputId, '→', outputId);
             return;
         }
 
-        // Создаём маршрут
+        // Создаём маршрут — без каналов (все каналы)
         this.createRoute(inputId, outputId);
 
         // Визуальный фидбэк — короткая подсветка

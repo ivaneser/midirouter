@@ -125,9 +125,10 @@ class MIDIRouterWorker {
                     action: 'add',
                     inputId: msg.inputId,
                     outputId: msg.outputId,
+                    channels: msg.channels,  // null = все каналы
                     destinations: msg.allDestinations
                 });
-                console.log(`[SERVER] Route set: ${msg.inputId} → [${msg.allDestinations.join(', ')}]`);
+                console.log(`[SERVER] Route set: ${msg.inputId} → [${msg.allDestinations.join(', ')}] (channels: ${msg.channels || 'all'})`);
                 break;
 
             case 'route-removed':
@@ -140,7 +141,8 @@ class MIDIRouterWorker {
                     type: 'route',
                     action: 'remove',
                     inputId: msg.inputId,
-                    outputId: msg.outputId
+                    outputId: msg.outputId,
+                    channels: msg.channels
                 });
                 console.log(`[SERVER] Route removed: ${msg.inputId} → ${msg.outputId}`);
                 break;

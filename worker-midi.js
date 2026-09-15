@@ -14,7 +14,7 @@ class MIDIRouterWorker {
         this.portIdToName = new Map();  // портId → имя (обратный маппинг)
 
         this.outputs = new Map();  // outputPortId → RtMidiOut instance
-        this.routes = new Map();   // deviceName → [outputPortIds]  ← маршрутизируем по ИМЕНИ
+        // routes: Map<deviceName, [{ outputId, channels }]> — каждый маршрут с фильтрацией по каналам (null = все каналы)
 
         // Auto-discovery state — поддержка нескольких контроллеров одновременно
         this.discoveryState = {
@@ -236,7 +236,11 @@ class MIDIRouterWorker {
     }
 
     _routeMessage(message, inputPortId) {
-        const destinations = this.routes.get(inputPortId);
+        // Извлекаем MIDI-канал из сообщения (первый байт & 0x0F)
+        const statusByte = message[0];
+        const midiChannel = statusByte & 0x0F;
+
+        const routeList = this.routes.get(inputPortId);
 
         // === Auto-discovery: проверяем если discovery активен и ждём note ON от контроллеров ===
         if (this.discoveryState.active && this.discoveryState.controllers.size > 0) {
@@ -276,7 +280,7 @@ class MIDIRouterWorker {
         }
 
         // Если discovery не активен — обычная маршрутизация
-        if (!destinations || destinations.length === 0) {
+        if (!routeList || routeList.length === 0) {
             // Debounce: считаем сообщения, шлём уведомление только при первом или каждые N сообщений
             const count = (this.discoveryState.unroutedCounters.get(inputPortId) || 0) + 1;
             this.discoveryState.unroutedCounters.set(inputPortId, count);
@@ -313,10 +317,18 @@ class MIDIRouterWorker {
             return;
         }
 
-        // Мгновенная отправка через все маршруты — минимальные аллокации
-        for (let i = 0; i < destinations.length; i++) {
-            const outputId = destinations[i];
-            const midiOut = this.outputs.get(outputId);
+        // Отправка через все маршруты с фильтрацией по MIDI-каналу
+        for (let i = 0; i < routeList.length; i++) {
+            const route = routeList[i];
+            
+            // Проверяем канал: если в маршруте указаны каналы, проверяем совпадение
+            if (route.channels && route.channels.length > 0) {
+                if (!route.channels.includes(midiChannel)) {
+                    continue;  // Не этот канал — пропускаем
+                }
+            }
+            
+            const midiOut = this.outputs.get(route.outputId);
             if (midiOut) {
                 try {
                     midiOut.sendMessage(message);
@@ -335,8 +347,8 @@ class MIDIRouterWorker {
         }
 
         // Сбрасываем счётчик при успешной маршрутизации
-        if (this.unroutedCounters.has(inputPortId)) {
-            this.unroutedCounters.set(inputPortId, 0);
+        if (this.discoveryState.unroutedCounters.has(inputPortId)) {
+            this.discoveryState.unroutedCounters.set(inputPortId, 0);
         }
     }
 
@@ -664,41 +676,66 @@ class MIDIRouterWorker {
         }
     }
 
-    // Установить маршрут
-    setRoute(inputId, outputId) {
+    // Установить маршрут с фильтрацией по каналам (channels = null → все каналы)
+    setRoute(inputId, outputId, channels = null) {
         if (!this.routes.has(inputId)) {
             this.routes.set(inputId, []);
         }
 
-        const destinations = this.routes.get(inputId);
-        if (!destinations.includes(outputId)) {
-            destinations.push(outputId);
+        const routeList = this.routes.get(inputId);
+        
+        // Проверяем — уже есть такой маршрут с этими каналами?
+        for (const route of routeList) {
+            if (route.outputId === outputId && JSON.stringify(route.channels) === JSON.stringify(channels)) {
+                return;  // Уже существует
+            }
         }
+
+        // Добавляем новый маршрут с каналами
+        routeList.push({
+            outputId: outputId,
+            channels: channels
+        });
 
         // Сбрасываем счётчик unrouted для этого порта
         this.discoveryState.unroutedCounters.delete(inputId);
 
-        // Подтверждаем маршрутизацию
+        // Формируем список всех outputId (для обратной совместимости)
+        const allDestinations = routeList.map(r => r.outputId);
+
+        // Подтверждаем маршрутизацию с каналами
         parentPort.postMessage({
             type: 'route-updated',
             inputId,
             outputId,
-            allDestinations: [...destinations]
+            channels: channels,  // null = все каналы
+            allDestinations
         });
     }
 
-    // Удалить маршрут
-    removeRoute(inputId, outputId) {
-        const destinations = this.routes.get(inputId);
-        if (destinations) {
-            const idx = destinations.indexOf(outputId);
-            if (idx > -1) destinations.splice(idx, 1);
+    // Удалить маршрут по outputId и каналам
+    removeRoute(inputId, outputId, channels = null) {
+        const routeList = this.routes.get(inputId);
+        if (routeList) {
+            for (let i = routeList.length - 1; i >= 0; i--) {
+                const route = routeList[i];
+                // Удаляем если outputId совпадает и каналы совпадают
+                if (route.outputId === outputId && JSON.stringify(route.channels) === JSON.stringify(channels)) {
+                    routeList.splice(i, 1);
+                    break;
+                }
+            }
+            // Если маршрутов не осталось — удаляем запись
+            if (routeList.length === 0) {
+                this.routes.delete(inputId);
+            }
         }
 
         parentPort.postMessage({
             type: 'route-removed',
             inputId,
-            outputId
+            outputId,
+            channels: channels
         });
     }
 
