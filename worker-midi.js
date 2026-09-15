@@ -256,7 +256,7 @@ class MIDIRouterWorker {
 
             // Если note on пришла от активного контроллера — создаём маршрут к следующему доступному синтезу
             const outputId = controllerState.targets[controllerState.currentTargetIdx];
-            console.log(`[WORKER] Auto-connect: received note ON from ${inputPortId} → connecting to ${outputId}`);
+            console.log(`[WORKER] Auto-connect: received note ON from ${inputPortId} (CH${midiChannel + 1}) → connecting to ${outputId}`);
 
             // Останавливаем текущий пинг синтезатора
             if (this.discoveryState.timer) {
@@ -264,11 +264,11 @@ class MIDIRouterWorker {
                 this.discoveryState.timer = null;
             }
 
-            // Создаём маршрут input → output
-            this._createRoute(inputPortId, outputId);
+            // Создаём маршрут с каналом нажатой ноты — 1 контроллер → несколько синтов по разным каналам
+            this._createRoute(inputPortId, outputId, [midiChannel]);
 
-            // Отправляем двойную ноту подтверждения на этот синтезатор
-            this._sendConfirmationNote(outputId);
+            // Отправляем двойную ноту подтверждения на этот синтезатор (на том же канале)
+            this._sendConfirmationNote(outputId, midiChannel);
 
             // Помечаем целевой синтез как подключённый
             controllerState.connectedTargets.add(outputId);
@@ -337,7 +337,7 @@ class MIDIRouterWorker {
                     parentPort.postMessage({
                         type: 'midi-routed',
                         inputId: inputPortId,
-                        outputId,
+                        outputId: route.outputId,
                         message: message
                     });
                 } catch (e) {
@@ -378,15 +378,15 @@ class MIDIRouterWorker {
     }
 
     /** Отправить двойную ноту подтверждения */
-    _sendConfirmationNote(outputId) {
+    _sendConfirmationNote(outputId, channel = null) {
         const targetPort = this.outputs.get(outputId);
         if (!targetPort) return;
-        
+
         try {
             for (let i = 0; i < 2; i++) {
                 setTimeout(() => {
-                    const testNote = [0x90, 0x3C, 0x7F];
-                    targetPort.sendMessage(testNote);
+                    const noteOn = [0x90 | (channel ?? 0), 0x3C, 0x7F];
+                    targetPort.sendMessage(noteOn);
                     setTimeout(() => {
                         const noteOff = [0x80, 0x3C, 0x00];
                         try { targetPort.sendMessage(noteOff); } catch (e) {}
@@ -612,14 +612,15 @@ class MIDIRouterWorker {
         });
     }
 
-    /** Создать маршрут */
-    _createRoute(inputId, outputId) {
+    /** Создать маршрут (channels = null → все каналы) */
+    _createRoute(inputId, outputId, channels = null) {
         if (!outputId || !this.outputs.has(outputId)) {
             console.log(`[WORKER] Cannot create route: invalid outputId ${outputId} (not found in outputs)`);
             return;
         }
-        console.log(`[WORKER] Creating route: ${inputId} → ${outputId}`);
-        this.setRoute(inputId, outputId);
+        const chStr = channels && channels.length > 0 ? ` (CH${channels.map(c => c + 1).join(',')})` : '';
+        console.log(`[WORKER] Creating route: ${inputId} → ${outputId}${chStr}`);
+        this.setRoute(inputId, outputId, channels);
     }
 
     // Отправить MIDI на output порт из основного процесса
