@@ -454,8 +454,8 @@ class MIDIRouterWorker {
 
     /** Создать маршрут */
     _createRoute(inputId, outputId) {
-        if (!outputId || !this.routes.has(outputId)) {
-            console.log(`[WORKER] Cannot create route: invalid outputId ${outputId}`);
+        if (!outputId || !this.outputs.has(outputId)) {
+            console.log(`[WORKER] Cannot create route: invalid outputId ${outputId} (not found in outputs)`);
             return;
         }
         console.log(`[WORKER] Creating route: ${inputId} → ${outputId}`);
