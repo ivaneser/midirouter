@@ -14,7 +14,7 @@ class MIDIRouterWorker {
         this.portIdToName = new Map();  // портId → имя (обратный маппинг)
 
         this.outputs = new Map();  // outputPortId → RtMidiOut instance
-        // routes: Map<deviceName, [{ outputId, channels }]> — каждый маршрут с фильтрацией по каналам (null = все каналы)
+        this.routes = new Map();   // deviceName → [{ outputId, channels }] — маршруты с фильтрацией по каналам
 
         // Auto-discovery state — поддержка нескольких контроллеров одновременно
         this.discoveryState = {
@@ -489,7 +489,7 @@ class MIDIRouterWorker {
         // Собираем все unrouted INPUT порты — это потенциальные контроллеры
         const allInputs = [];
         for (const [inputId, port] of this.inputs) {
-            if (!this.routes.has(inputId)) {
+            if (!this.routes.has(inputId) || this.routes.get(inputId).length === 0) {
                 allInputs.push({ id: inputId, name: port._name || 'unknown' });
             }
         }
@@ -507,7 +507,7 @@ class MIDIRouterWorker {
         // Собираем OUTPUT порты как потенциальные синтезаторы
         const allOutputs = [];
         for (const [outputId, port] of this.outputs) {
-            if (!this.routes.has(outputId)) {
+            if (!this.routes.has(outputId) || this.routes.get(outputId).length === 0) {
                 allOutputs.push({ id: outputId, name: port._name || 'unknown' });
             }
         }
