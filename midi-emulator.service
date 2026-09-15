@@ -1,0 +1,14 @@
+[Unit]
+Description=MIDI Emulator - Load virtual MIDI ports on boot
+After=syslog.target network.target
+Wants=snd-seq.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/ivaneser/myprojects/midirouter/setup-midi-emulator.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -9,25 +9,28 @@ import { parentPort } from 'worker_threads';
 
 class MIDIRouterWorker {
     constructor() {
-        this.inputs = new Map();   // portId → RtMidiIn instance
-        this.outputs = new Map();  // portId → RtMidiOut instance
-        this.routes = new Map();   // inputPortId → [outputPortIds]
-
-        // Auto-discovery state (полностью автоматический режим соединения)
+        this.inputs = new Map();   // portId → RtMidiIn instance (portId — стабильный индекс устройства)
+        this.nameToPortId = new Map();  // deviceName → portId (маппинг имени на порт для hot-plug)
+        this.portIdToName = new Map();  // портId → имя (обратный маппинг)
+        
+        this.outputs = new Map();  // outputPortId → RtMidiOut instance
+        this.routes = new Map();   // deviceName → [outputPortIds]  ← маршрутизируем по ИМЕНИ
+        
+        // Auto-discovery state
         this.discoveryState = {
             active: false,
-            currentOutputIndex: 0, // индекс текущего output который ждёт ноту от контроллера
-            waitingForInput: null, // inputId который получил ноту и готов к маппингу
+            currentOutputIndex: 0,
+            waitingForInput: null,  // deviceName который ждёт ноту от контроллера
             timer: null,
-            timeoutMs: 5000, // 5 секунд на каждый синтезатор
-            connectedOutputs: new Set(), // output ports которые уже подключены
-            unroutedOutputs: [], // output ports без маршрутов (синтезаторы)
+            timeoutMs: 5000,
+            connectedOutputs: new Set(),
+            unroutedOutputs: [],    // имена устройств без маршрутов
             totalSynthsToConnect: 0,
-            testNoteTimeout: null // таймер для тестовой ноты
+            testNoteTimeout: null
         };
 
         // Счётчик сообщений от unrouted входов (для debounce)
-        this.unroutedCounters = new Map();  // portId → count
+        this.unroutedCounters = new Map();  // deviceName → count
     }
 
     init() {
@@ -57,7 +60,7 @@ class MIDIRouterWorker {
                 const name = inp.getPortName(i);
                 // Оставляем только порты с MIDI-устройствами, исключаем timers/loopback/system
                 if (!name.toLowerCase().includes('timer') && !name.toLowerCase().includes('loopback') && !name.toLowerCase().includes('system')) {
-                    realInputs.push({ id: `input_${i}`, name });
+                    realInputs.push({ index: i, name });
                 } else {
                     console.log(`[WORKER] Skipping non-MIDI input ${i}: ${name}`);
                 }
@@ -69,116 +72,159 @@ class MIDIRouterWorker {
                 const out = new midi.Output();
                 const name = out.getPortName(i);
                 if (!name.toLowerCase().includes('timer') && !name.toLowerCase().includes('loopback') && !name.toLowerCase().includes('system')) {
-                    realOutputs.push({ id: `output_${i}`, name });
+                    realOutputs.push({ index: i, name });
                 } else {
                     console.log(`[WORKER] Skipping non-MIDI output ${i}: ${name}`);
                 }
                 out.closePort();
             }
 
-            // Сравниваем с текущими портами
-            const oldInputIds = new Set(this.inputs.keys());
-            const newInputIds = new Set(realInputs.map(i => i.id));
+            // === INPUT PORTS — маппинг по ИМЕНИ устройства ===
+            const newPortsByName = new Map(realInputs.map(r => [r.name, r]));
 
-            // Удаляем исчезнувшие/перезаменённые input порты
-            for (const id of oldInputIds) {
-                if (!newInputIds.has(id)) {
-                    console.log(`[WORKER] Input removed: ${id}`);
-                    const inp = this.inputs.get(id);
-                    if (inp) {
-                        // Удаляем handler перед закрытием порта
-                        if (inp._handler) {
-                            inp.off('message', inp._handler);
-                            inp._handler = null;
-                        }
-                        inp.closePort();
+            // Удаляем порты которые исчезли (не нашли по имени)
+            for (const [id, port] of this.inputs) {
+                if (!newPortsByName.has(port._name)) {
+                    console.log(`[WORKER] Input removed: ${id} (${port._name || 'unknown'})`);
+                    const inp = port;
+                    if (inp._handler) {
+                        inp.off('message', inp._handler);
+                        inp._handler = null;
                     }
-                    this.inputs.delete(id);
-                    // Удаляем маршруты для этого порта
-                    this.routes.delete(id);
-                    this.unroutedCounters.delete(id);
-                } else if (this.inputs.get(id)._name !== port.name) {
-                    // Порт с тем же id но другое имя — перезаменяем (hot-plug)
-                    const oldPort = this.inputs.get(id);
-                    console.log(`[WORKER] Input replaced: ${id} (${oldPort._name || 'unknown'} → ${port.name})`);
+                    inp.closePort();
+                    this.inputs.delete(oldEntry.id);
                     
-                    if (oldPort._handler) {
-                        oldPort.off('message', oldPort._handler);
-                        oldPort._handler = null;
-                    }
-                    oldPort.closePort();
-                    this.inputs.delete(id);
+                    // Удаляем из маппингов
+                    this.nameToPortId.delete(oldEntry.port._name);
+                    this.portIdToName.delete(oldEntry.id);
+                    
+                    // Удаляем маршруты для этого устройства
+                    this.routes.delete(oldEntry.port._name);
+                    this.unroutedCounters.delete(oldEntry.port._name);
                 }
             }
 
-            // Добавляем новые input порты + автопоиск схемы
-            for (const port of realInputs) {
-                if (!this.inputs.has(port.id)) {
+            // Обновляем/добавляем порты — маппинг по имени (стабильный portId)
+            for (const newPort of realInputs) {
+                const deviceName = newPort.name;
+                
+                if (this.inputs.has(deviceName)) {
+                    // Устройство уже есть — просто обновляем индекс порта если изменился
+                    const existingRtMidiIn = this.inputs.get(deviceName);
+                    const currentIndex = existingRtMidiIn._index;
+                    
+                    if (currentIndex !== newPort.index) {
+                        console.log(`[WORKER] Port index changed for ${deviceName}: ${currentIndex} → ${newPort.index}`);
+                        
+                        // Удаляем старый handler и закрываем порт
+                        if (existingRtMidiIn._handler) {
+                            existingRtMidiIn.off('message', existingRtMidiIn._handler);
+                            existingRtMidiIn._handler = null;
+                        }
+                        existingRtMidiIn.closePort();
+                        
+                        // Открываем новый порт с тем же portId (имя устройства)
+                        const midiIn = new midi.Input();
+                        midiIn.openPort(newPort.index, 'midirouter-in');
+
+                        const self = this;
+                        const handler = (deltaTime, message) => {
+                            self._routeMessage(message, deviceName);  // ← по имени!
+                        };
+                        midiIn.on('message', handler);
+                        midiIn._handler = handler;
+                        midiIn._name = deviceName;
+                        midiIn._portId = deviceName;
+                        midiIn._index = newPort.index;
+
+                        this.inputs.set(deviceName, midiIn);
+                        console.log(`[WORKER] Port reopened for ${deviceName} (index: ${newPort.index})`);
+                    }
+                } else {
+                    // Новое устройство — открываем порт и маппинг по имени
                     try {
                         const midiIn = new midi.Input();
-                        const portIndex = parseInt(port.id.split('_')[1]);
-                        midiIn.openPort(portIndex, 'midirouter-in');
+                        midiIn.openPort(newPort.index, 'midirouter-in');
 
                         // Callback: мгновенная маршрутизация (только один раз!)
                         const self = this;
                         const handler = (deltaTime, message) => {
-                            self._routeMessage(message, port.id);
+                            self._routeMessage(message, deviceName);  // ← по имени!
                         };
                         midiIn.on('message', handler);
-                        midiIn._handler = handler;  // Сохраняем ссылку для удаления
-                        midiIn._name = port.name;   // Для отслеживания hot-plug
+                        midiIn._handler = handler;
+                        midiIn._name = deviceName;
+                        midiIn._portId = deviceName;
+                        midiIn._index = newPort.index;
 
-                        this.inputs.set(port.id, midiIn);
-                        console.log(`[WORKER] Input added: ${port.id} — ${port.name}`);
+                        this.inputs.set(deviceName, midiIn);
+                        
+                        // Обновляем маппинги
+                        this.nameToPortId.set(deviceName, deviceName);  // имя → портId (в нашем случае одинаково)
+                        this.portIdToName.set(deviceName, deviceName);
+
+                        console.log(`[WORKER] Input added: ${deviceName} (index: ${newPort.index})`);
 
                         // Отправляем уведомление о новом устройстве для автопоиска схемы
                         parentPort.postMessage({
                             type: 'new-device-detected',
-                            inputId: port.id,
-                            name: port.name
+                            inputId: deviceName,
+                            name: deviceName
                         });
                     } catch (e) {
-                        console.error(`[WORKER] Failed to open new input ${port.id}:`, e.message);
+                        console.error(`[WORKER] Failed to open new input ${deviceName}:`, e.message);
                     }
                 }
             }
 
-            // Обновляем output порты (для sendFromServer) — просто проверяем доступность
-            const oldOutputIds = new Set(this.outputs.keys());
-            const newOutputIds = new Set(realOutputs.map(o => o.id));
+            // === OUTPUT PORTS — аналогично по имени ===
+            const oldOutputByName = new Map([...this.outputs.entries()].map(([id, port]) => [port._name || id, { id, port }]));
+            const newOutputByName = new Map(realOutputs.map(r => [r.name, r]));
 
-            for (const id of oldOutputIds) {
-                if (!newOutputIds.has(id)) {
-                    console.log(`[WORKER] Output removed: ${id}`);
-                    const out = this.outputs.get(id);
-                    if (out) {
-                        if (out._handler) {
-                            out.off('message', out._handler);
-                            out._handler = null;
-                        }
-                        out.closePort();
+            for (const [, oldEntry] of oldOutputByName) {
+                if (!newOutputByName.has(oldEntry.port._name)) {
+                    console.log(`[WORKER] Output removed: ${oldEntry.id} (${oldEntry.port._name || 'unknown'})`);
+                    const out = oldEntry.port;
+                    if (out._handler) {
+                        out.off('message', out._handler);
+                        out._handler = null;
                     }
-                    this.outputs.delete(id);
+                    out.closePort();
+                    this.outputs.delete(oldEntry.id);
                 }
             }
 
-            // Обновляем output порты — не добавляем новые автоматически, только при явном запросе
-            for (const port of realOutputs) {
-                if (!this.outputs.has(port.id)) {
-                    const out = new midi.Output();
-                    out.closePort();  // просто проверяем доступность
+            for (const newOutput of realOutputs) {
+                const deviceName = newOutput.name;
+                
+                if (!this.outputs.has(deviceName)) {
+                    try {
+                        const out = new midi.Output();
+                        out.openPort(newOutput.index, 'midirouter-out');
+                        
+                        this.outputs.set(deviceName, out);
+                        out._name = deviceName;
+                        out._portId = deviceName;
+                        
+                        console.log(`[WORKER] Output added: ${deviceName} (index: ${newOutput.index})`);
+                    } catch (e) {
+                        console.error(`[WORKER] Failed to open output ${deviceName}:`, e.message);
+                    }
                 }
             }
 
             console.log(`[WORKER] Ports: ${realInputs.length} in, ${realOutputs.length} out`);
 
-            // Отправляем список портов основному процессу
+            // Отправляем список портов основному процессу (по именам устройств)
+            const inputList = [...this.inputs.entries()].map(([id, port]) => ({ id, name: port._name || 'unknown' }));
+            const outputList = [...this.outputs.entries()].map(([id, port]) => ({ id, name: port._name || 'unknown' }));
+
             parentPort.postMessage({
                 type: 'ports-enumerated',
-                inputs: realInputs,
-                outputs: realOutputs,
-                added: isInit ? null : realInputs.filter(i => !oldInputIds.has(i.id)),
-                removed: isInit ? null : [...oldInputIds].filter(id => !newInputIds.has(id))
+                inputs: inputList,
+                outputs: outputList,
+                added: isInit ? null : [...this.inputs.keys()],
+                removed: isInit ? null : []
             });
 
             // На первый запуск — signal ready
@@ -280,7 +326,12 @@ class MIDIRouterWorker {
 
     /** Отправить тестовую ноту на input порт (через loopback) */
     _sendTestNoteToInput(inputId) {
-        const portIndex = parseInt(inputId.split('_')[1]);
+        // inputId теперь deviceName, не index — ищем порт в Map по имени
+        const targetPort = this.inputs.get(inputId);
+        if (!targetPort) {
+            console.error(`[WORKER] Cannot find target port: ${inputId}`);
+            return;
+        }
         
         // Отправляем через ALSA sequencer напрямую
         try {
@@ -289,18 +340,15 @@ class MIDIRouterWorker {
             
             // Для input→input маршрутизации используем loopback порт
             // Ищем loopback output для отправки
-            for (const [outputId] of this.outputs) {
-                const midiOut = this.outputs.get(outputId);
-                if (midiOut) {
-                    try {
-                        midiOut.sendMessage(testNote);
-                        
-                        setTimeout(() => {
-                            const noteOff = [0x80, 0x3C, 0x00];
-                            try { midiOut.sendMessage(noteOff); } catch (e) {}
-                        }, 100);
-                    } catch (e) {}
-                }
+            for (const [outputId, midiOut] of this.outputs) {
+                try {
+                    midiOut.sendMessage(testNote);
+                    
+                    setTimeout(() => {
+                        const noteOff = [0x80, 0x3C, 0x00];
+                        try { midiOut.sendMessage(noteOff); } catch (e) {}
+                    }, 100);
+                } catch (e) {}
             }
             
             console.log(`[WORKER] Test note sent to ${inputId} via loopback`);
@@ -429,14 +477,38 @@ class MIDIRouterWorker {
     }
 
     _ensureOutput(portId) {
+        // portId теперь deviceName, не index — ищем по имени
         if (this.outputs.has(portId)) return this.outputs.get(portId);
 
-        const portIndex = parseInt(portId.split('_')[1]);
+        // Ищем индекс порта по имени устройства
+        const tempOutput = new midi.Output();
+        const outputCount = tempOutput.getPortCount();
+        let foundIndex = -1;
+        
+        for (let i = 0; i < outputCount; i++) {
+            const out = new midi.Output();
+            const name = out.getPortName(i);
+            if (name === portId && !name.toLowerCase().includes('timer') && 
+                !name.toLowerCase().includes('loopback') && 
+                !name.toLowerCase().includes('system')) {
+                foundIndex = i;
+                out.closePort();
+                break;
+            }
+            out.closePort();
+        }
+        tempOutput.closePort();
+        
+        if (foundIndex === -1) {
+            console.error(`[WORKER] Cannot find output port: ${portId}`);
+            return null;
+        }
+        
         try {
             const midiOut = new midi.Output();
-            midiOut.openPort(portIndex, 'midirouter-out');
+            midiOut.openPort(foundIndex, 'midirouter-out');
             this.outputs.set(portId, midiOut);
-            console.log(`[WORKER] Output opened: ${portId}`);
+            console.log(`[WORKER] Output opened: ${portId} (index: ${foundIndex})`);
             return midiOut;
         } catch (e) {
             console.error(`[WORKER] Failed to open output ${portId}:`, e.message);
