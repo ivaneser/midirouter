@@ -324,36 +324,28 @@ class MIDIRouterWorker {
         }
     }
 
-    /** Отправить тестовую ноту на input порт (через loopback) */
-    _sendTestNoteToInput(inputId) {
-        // inputId теперь deviceName, не index — ищем порт в Map по имени
-        const targetPort = this.inputs.get(inputId);
+    /** Отправить тестовую ноту на конкретный output порт */
+    _sendTestNoteToOutput(outputId) {
+        // outputId теперь deviceName — ищем порт в Map по имени
+        const targetPort = this.outputs.get(outputId);
         if (!targetPort) {
-            console.error(`[WORKER] Cannot find target port: ${inputId}`);
+            console.error(`[WORKER] Cannot find output port: ${outputId}`);
             return;
         }
         
-        // Отправляем через ALSA sequencer напрямую
         try {
             // C4 нота: 0x90 (note on ch1), 0x3C (C4), 0x7F (velocity)
             const testNote = [0x90, 0x3C, 0x7F];
             
-            // Для input→input маршрутизации используем loopback порт
-            // Ищем loopback output для отправки
-            for (const [outputId, midiOut] of this.outputs) {
-                try {
-                    midiOut.sendMessage(testNote);
-                    
-                    setTimeout(() => {
-                        const noteOff = [0x80, 0x3C, 0x00];
-                        try { midiOut.sendMessage(noteOff); } catch (e) {}
-                    }, 100);
-                } catch (e) {}
-            }
+            console.log(`[WORKER] Sending test note to output: ${outputId}`);
+            targetPort.sendMessage(testNote);
             
-            console.log(`[WORKER] Test note sent to ${inputId} via loopback`);
+            setTimeout(() => {
+                const noteOff = [0x80, 0x3C, 0x00];
+                try { targetPort.sendMessage(noteOff); } catch (e) {}
+            }, 100);
         } catch (e) {
-            console.error(`[WORKER] Failed to send test note to ${inputId}:`, e.message);
+            console.error(`[WORKER] Failed to send test note to ${outputId}:`, e.message);
         }
     }
 
@@ -375,7 +367,7 @@ class MIDIRouterWorker {
                 clearTimeout(this.discoveryState.timer);
             }
             
-            this._sendTestNoteToInput(targetId);
+            this._sendTestNoteToOutput(targetId);
             
             const self = this;
             this.discoveryState.timer = setTimeout(() => {
