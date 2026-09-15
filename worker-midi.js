@@ -246,8 +246,17 @@ class MIDIRouterWorker {
                 const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
                 console.log(`[WORKER] Auto-connect: received note from ${inputPortId} on ${outputId} → creating route`);
                 
+                // Останавливаем текущий пинг синтезатора
+                if (this.discoveryState.timer) {
+                    clearTimeout(this.discoveryState.timer);
+                    this.discoveryState.timer = null;
+                }
+                
                 // Создаём маршрут input → output
                 this._createRoute(inputPortId, outputId);
+                
+                // Отправляем двойную ноту подтверждения на этот синтезатор
+                this._sendConfirmationNote(outputId);
                 
                 // Переходим к следующему синтезатору
                 this._nextSynth();
@@ -349,6 +358,54 @@ class MIDIRouterWorker {
         }
     }
 
+    /** Отправить двойную ноту подтверждения */
+    _sendConfirmationNote(outputId) {
+        const targetPort = this.outputs.get(outputId);
+        if (!targetPort) return;
+        
+        try {
+            for (let i = 0; i < 2; i++) {
+                setTimeout(() => {
+                    const testNote = [0x90, 0x3C, 0x7F];
+                    targetPort.sendMessage(testNote);
+                    setTimeout(() => {
+                        const noteOff = [0x80, 0x3C, 0x00];
+                        try { targetPort.sendMessage(noteOff); } catch (e) {}
+                    }, 100);
+                }, i * 200);
+            }
+            console.log(`[WORKER] Confirmation sent to ${outputId}`);
+        } catch (e) {
+            console.error(`[WORKER] Failed confirmation to ${outputId}:`, e.message);
+        }
+    }
+
+    /** Запустить обзвон одного синтезатора — 5 нот с интервалом 1 сек */
+    _pingSynth(targetId, callbackOnSuccess) {
+        let sentCount = 0;
+        const maxPings = 5;
+        
+        console.log(`[WORKER] Pinging ${targetId} (${maxPings} times, 1s interval)`);
+        
+        const pingOnce = () => {
+            if (sentCount >= maxPings) {
+                // Все ноты отправлены без ответа — таймаут
+                console.log(`[WORKER] Auto-connect timeout for ${targetId} → skipping`);
+                this._nextSynth();
+                return;
+            }
+            
+            this._sendTestNoteToOutput(targetId);
+            sentCount++;
+            
+            // Следующая нота через 1 секунду
+            const self = this;
+            this.discoveryState.timer = setTimeout(pingOnce, 1000);
+        };
+        
+        pingOnce();
+    }
+
     /** Перейти к следующему синтезатору */
     _nextSynth() {
         this.discoveryState.currentOutputIndex++;
@@ -362,19 +419,15 @@ class MIDIRouterWorker {
             const targetId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
             console.log(`[WORKER] Auto-connect: testing next target ${targetId}`);
             
-            // Сбрасываем таймер и отправляем тестовую ноту
+            // Сбрасываем таймер и запускаем обзвон
             if (this.discoveryState.timer) {
                 clearTimeout(this.discoveryState.timer);
             }
             
-            this._sendTestNoteToOutput(targetId);
-            
             const self = this;
-            this.discoveryState.timer = setTimeout(() => {
-                // Таймаут — пробуем следующее устройство
-                console.log(`[WORKER] Auto-connect timeout for ${targetId} → skipping`);
+            this._pingSynth(targetId, () => {
                 self._nextSynth();
-            }, this.discoveryState.timeoutMs);
+            });
         }
     }
 
@@ -414,18 +467,11 @@ class MIDIRouterWorker {
         this.discoveryState.unroutedOutputs = targets.map(t => t.id);
         this.discoveryState.totalSynthsToConnect = targets.length;
         
-        // Начинаем тестирование первого целевого устройства через loopback
+        // Начинаем тестирование первого целевого устройства
         const targetId = targets[0].id;
-        console.log(`[WORKER] Sending test note to ${targetId} (target #1)`);
+        console.log(`[WORKER] Starting ping sequence for ${targetId}`);
         
-        this._sendTestNoteToInput(targetId);
-        
-        // Запускаем таймер 5 секунд ожидания от контроллера
-        const self = this;
-        this.discoveryState.timer = setTimeout(() => {
-            console.log(`[WORKER] Auto-connect timeout for ${targetId} → skipping`);
-            self._nextSynth();
-        }, this.discoveryState.timeoutMs);
+        this._pingSynth(targetId, () => {});
     }
 
     /** Завершить discovery режим */

@@ -106,12 +106,14 @@ class MIDIRouterWorker {
                     inputs: msg.inputs.length,
                     outputs: msg.outputs.length
                 });
+                break;
 
-                // Автоматическое подключение после первого обнаружения портов
-                if (msg.added && !this.autoConnectStarted) {
+            case 'ready':
+                // Авто-подключение сразу после обнаружения портов (один раз)
+                if (!this.autoConnectStarted) {
                     this.autoConnectStarted = true;
-                    console.log('[SERVER] Auto-connect triggered after port enumeration');
-                    setTimeout(() => this.startAutoConnect(), 100);
+                    console.log('[SERVER] Auto-connect triggered after enumeration');
+                    setTimeout(() => this.startAutoConnect(), 200);
                 }
                 break;
 
