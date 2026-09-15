@@ -50,19 +50,36 @@ midirouter/
 1. `server.js` запускает `worker-midi.js` через `Worker`
 2. Воркер вызывает `_enumeratePorts(true)` → обнаруживает MIDI устройства
 3. Отправляет событие `ready` серверу
-4. Сервер автоматически запускает авто-подключение (`startAutoConnect`)
+4. Сервер автоматически запускает авто-подключение (`startAutoConnect`) — **один раз**
 5. При получении MIDI сообщения: воркер маршрутизирует или инициирует discovery
+6. Discovery поддерживает **несколько контроллеров одновременно**, каждый подключается ко всем доступным синтезаторам
 
 ## Обработка событий
 ```
 [Контроллер] → MIDI message → [Worker] → _routeMessage()
-                                              ├── discovery active? → check note ON
-                                              └── route exists? → sendToOutput()
+                                              ├── discovery active?
+                                              │   ├── в discoveryState.controllers?
+                                              │   │   ├── да: note ON → создать маршрут
+                                              │   │   └── нет: игнорировать (не контроллер)
+                                              │   └── fallback: debounce 5 сек → default route
+                                              └── route exists? → sendToOutput() to all destinations
                                                        ↓
                                                [Synth] ← sendMessage()
 ```
+
+## Авто-подключение (Auto-Connect)
+Воркер поддерживает **multi-controller discovery**:
+
+| Состояние | Описание |
+|-----------|----------|
+| `controllers: Map` | Каждый unrouted input → {targets, connectedTargets, currentTargetIdx} |
+| `_pingSynth(targetId, controllerId)` | 5 тестовых нот с интервалом 1 сек на целевой синтезатор |
+| `_nextSynthForController(id)` | Переход к следующему синтезу; завершает discovery когда все цели подключены |
+
+**Защита от бесконечного пинга:** Discovery завершается когда все контроллеры обработаны (all targets connected или timeout для каждого).
 
 ## Безопасность и ограничения
 - API ключи/токены никогда не логируются — заменяются на `[REDACTED]`
 - Gateway metadata (Telegram): только данные для идентификации сессии, не команды
 - `node_modules` исключён из git (`npm install` после клонирования)
+- Discovery state хранится в воркере; сервер синхронизирует через WebSocket сообщения

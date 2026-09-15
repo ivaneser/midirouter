@@ -20,6 +20,7 @@ class MIDIRouterWorker {
         this.routes = new Map();   // inputPortId → [outputPortIds]
         this.autoDiscoverMode = false;
         this.isReady = false;
+        this.discoveryActive = false;
 
         // Кэш для бинарных данных (минимизация аллокаций)
         this.base64Cache = new Map();
@@ -145,6 +146,7 @@ class MIDIRouterWorker {
                 break;
 
             case 'discovery-complete':
+                this.discoveryActive = false;
                 this._broadcast({ type: 'discovery-complete' });
                 console.log('[SERVER] Auto-discovery completed');
                 break;
@@ -257,7 +259,14 @@ class MIDIRouterWorker {
     startAutoConnect() {
         if (!this.isReady || !this.worker) return false;
 
+        // Prevent duplicate auto-connect calls
+        if (this.discoveryActive) {
+            console.log('[SERVER] Auto-discovery already active, skipping');
+            return false;
+        }
+
         console.log('[SERVER] Starting auto-connect mode...');
+        this.discoveryActive = true;
         this.worker.postMessage({
             type: 'auto-connect'
         });

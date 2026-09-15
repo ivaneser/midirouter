@@ -1,119 +1,119 @@
-# Настройка и развёртывание (Setup & Deployment)
+# SETUP & DEPLOYMENT
 
-## Системные требования
-- **Linux:** Ubuntu 20.04+ с ALSA sequencer (`/dev/snd/seq`)
-- **macOS:** CoreMIDI через RtMidi (нативно, без ALSA проблем)
-- **Raspberry Pi:** ALSA sequencer предпочтительнее PipeWire MIDI
+## Установка на Ubuntu (Raspberry Pi)
 
-## Зависимости проекта
+### Системные требования
+- Node.js v22+ 
+- ALSA Sequencer (`/dev/snd/seq`) — драйвер MIDI ядра Linux
+- Права доступа к `/dev/snd/*` (группа `audio` или `plugdev`)
+
+### Установка зависимостей
 ```bash
-npm install  # @julusian/midi ^3.8.1, ws ^8.16.0
-```
-
-**Важно:** `node_modules/` и `package-lock.json` исключены из git репозитория. После клонирования всегда запускайте `npm install`.
-
-## Запуск сервера
-```bash
-# Linux / Raspberry Pi
 cd ~/myprojects/midirouter
-node server.js
-
-# macOS (CoreMIDI)
-git pull --rebase && npm install && node server.js
+npm install
 ```
 
-Сервер запускается на:
-- HTTP/WS: `http://localhost:3000`
-- Worker Thread: ALSA/CoreMIDI routing (<2ms latency)
+### Настройка ALSA Sequencer
 
-## Настройка виртуальных MIDI портов (Ubuntu)
-
-### Проблема UMP Mode
-Modern Ubuntu 24.04+ использует PipeWire UMP MIDI2 вместо legacy ALSA sequencer. В этом режиме виртуальные порты не видны RtMidi — они появляются как PipeWire MIDI2 клиенты, а не ALSA endpoints.
-
-### Решение: отключение UMP
-Создан файл `/etc/modprobe.d/snd-seq-ump.conf`:
-```
-options snd-seq enable_ump=0
-```
-
-### Загрузка виртуальных модулей
-После перезагрузки или ручной загрузки:
+#### 1. Загрузка виртуальных MIDI портов (для тестирования)
 ```bash
-# Требуется sudo доступ (настроен через /etc/sudoers.d/midirouter)
+# Автоматический скрипт:
+sudo bash setup-midi-emulator.sh
+
+# Или вручную:
 sudo modprobe snd-seq-dummy midi_devs=2
 sudo modprobe snd-seq-virmidi midi_devs=2
-
-# Проверка
-aconnect -o  # Должно показать виртуальные порты
-cat /proc/asound/seq/clients | grep "User Legacy"
 ```
 
-### Автоматическая загрузка при старте
-Используйте предоставленные файлы:
-- `setup-midi-emulator.sh` — ручной скрипт загрузки модулей
-- `midi-emulator.service` — systemd unit для автозагрузки
+#### 2. Отключение UMP Mode (Universal MIDI Ports)
+ALSA 1.2+ работает в режиме UMP, который скрывает legacy порты от `aconnect`.
 
+**Решение:** Создать конфигурационный файл:
+```bash
+sudo bash -c 'echo "options snd-seq enable_ump=0" > /etc/modprobe.d/snd-seq-ump.conf'
+```
+⚠️ **Требует перезагрузки системы!** Без этого `aconnect` не покажет виртуальные порты.
+
+#### 3. Права доступа к `/dev/snd/seq`
+Если ошибка `Permission denied`:
+```bash
+# Добавить пользователя в группу audio:
+sudo usermod -aG audio $USER
+sudo usermod -aG plugdev $USER
+# Перезайти в систему!
+```
+
+#### 4. Проверка работы
+```bash
+aconnect -o        # Показать output порты
+aconnect -i        # Показать input порты  
+lsmod | grep snd   # Загруженные модули ALSA
+cat /proc/asound/seq/devices  # Устройства sequencer
+```
+
+### Автозагрузка эмулятора (systemd)
 ```bash
 sudo cp midi-emulator.service /etc/systemd/system/
-sudo systemctl enable --now midi-emulator.service
+sudo systemctl daemon-reload
+sudo systemctl enable midi-emulator.service
+sudo systemctl start midi-emulator.service
 ```
 
-### Права доступа к ALSA sequencer
-Пользователь должен иметь доступ к `/dev/snd/seq`:
-- Группа `audio` или `plugdev`
-- Или udev правила для разрешения доступа
+## Установка на macOS (Mac Mini)
 
-## Настройка на Mac Mini (CoreMIDI)
-На macOS проблем с UMP нет — CoreMIDI работает нативно через RtMidi.
+На Mac ALSA отсутствует — используется нативный CoreMIDI через RtMidi.
 
+### Установка
 ```bash
 cd ~/myprojects/midirouter
-git pull --rebase
 npm install
 node server.js
 ```
 
-Все USB-MIDI устройства видны напрямую:
-- Контроллеры (Launchkey, nanoKONTROL2)
-- Синтезаторы (NTS-1, Craft Synth 2.0, MODALapp)
+CoreMIDI работает без дополнительных настроек. Все USB-MIDI устройства автоматически обнаруживаются системой.
 
-## Docker развёртывание
-Проект поддерживает контейнеризацию через `Dockerfile` и supervisord.
-
+## Запуск сервера
 ```bash
-# Сборка образа
-docker build -t midirouter .
+# Обычный режим:
+node server.js
 
-# Запуск
+# Режим разработки (автоперезагрузка):
+node --watch server.js
+```
+
+Сервер запускается на `http://localhost:3000` и WebSocket на порту 3000.
+
+## Контейнеризация (Docker)
+```bash
+docker build -t midirouter .
 docker run --privileged -p 3000:3000 midirouter
 ```
 
-## Troubleshooting
+Файлы `Dockerfile` и `docker/etc/supervisord.conf` предоставляют базовую конфигурацию.
 
-### Port не виден в aconnect
-```bash
-# Проверьте загружены ли модули
-lsmod | grep snd_seq
+## Структура данных устройств
 
-# Перезагрузите с отключённым UMP
-sudo rmmod snd-seq-dummy snd-seq-virmidi 2>/dev/null
-sudo modprobe snd-seq enable_ump=0 midi_devs=2 virmidi_midi_devs=2 dummy_midi_devs=2
+### device_maps/*.json
+Описания MIDI устройств для динамического рендеринга контролов в UI:
+- `arturia_microfreak.json`
+- `korg_nts1.json`  
+- `modal_craft_synth_v2.json`
+- `preenfm2.json`
+- `waldorf_blofeld.json`
 
-# Проверьте права доступа
-ls -la /dev/snd/seq
+Формат:
+```json
+{
+    "name": "NTS-1",
+    "controls": [
+        {"cc": 20, "label": "PITCH BEND", "min": -8192, "max": 8191},
+        {"cc": 37, "label": "BANK SELECT", "min": 0, "max": 127}
+    ]
+}
 ```
 
-### Permission denied на sequencer
-```bash
-# Добавьте пользователя в группу audio (требует logout/relogin)
-sudo usermod -aG audio $USER
-
-# Или временное разрешение (не рекомендуется для production)
-sudo chmod 666 /dev/snd/seq
+### Автопоиск схем маппинга
+При отсутствии локального JSON — серверный запрос к GitHub API:
 ```
-
-### RtMidi не видит USB устройства
-- Проверьте что устройства подключены до запуска сервера
-- Убедитесь что нет конфликта с другими MIDI приложениями
-- На macOS: System Preferences → Security & Privacy → MIDI access (разрешить)
+https://api.github.com/search/code?q=...
+```

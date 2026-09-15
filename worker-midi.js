@@ -12,25 +12,22 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // portId → RtMidiIn instance (portId — стабильный индекс устройства)
         this.nameToPortId = new Map();  // deviceName → portId (маппинг имени на порт для hot-plug)
         this.portIdToName = new Map();  // портId → имя (обратный маппинг)
-        
+
         this.outputs = new Map();  // outputPortId → RtMidiOut instance
         this.routes = new Map();   // deviceName → [outputPortIds]  ← маршрутизируем по ИМЕНИ
-        
-        // Auto-discovery state
+
+        // Auto-discovery state — поддержка нескольких контроллеров одновременно
         this.discoveryState = {
             active: false,
-            currentOutputIndex: 0,
-            waitingForInput: null,  // deviceName который ждёт ноту от контроллера
-            timer: null,
             timeoutMs: 5000,
-            connectedOutputs: new Set(),
-            unroutedOutputs: [],    // имена устройств без маршрутов
-            totalSynthsToConnect: 0,
-            testNoteTimeout: null
-        };
+            timer: null,
 
-        // Счётчик сообщений от unrouted входов (для debounce)
-        this.unroutedCounters = new Map();  // deviceName → count
+            // Map<controllerId, { targets: string[], connectedTargets: Set, currentTargetIdx: number }>
+            controllers: new Map(),
+
+            // Счётчик сообщений от unrouted входов (для fallback discovery)
+            unroutedCounters: new Map()  // deviceName → count
+        };
     }
 
     init() {
@@ -92,15 +89,17 @@ class MIDIRouterWorker {
                         inp._handler = null;
                     }
                     inp.closePort();
-                    this.inputs.delete(oldEntry.id);
-                    
+                    this.inputs.delete(id);
+
                     // Удаляем из маппингов
-                    this.nameToPortId.delete(oldEntry.port._name);
-                    this.portIdToName.delete(oldEntry.id);
-                    
+                    this.nameToPortId.delete(port._name);
+                    this.portIdToName.delete(id);
+
                     // Удаляем маршруты для этого устройства
-                    this.routes.delete(oldEntry.port._name);
-                    this.unroutedCounters.delete(oldEntry.port._name);
+                    this.routes.delete(port._name);
+                    if (this.discoveryState.unroutedCounters) {
+                        this.discoveryState.unroutedCounters?.delete(port._name);
+                    }
                 }
             }
 
@@ -239,68 +238,67 @@ class MIDIRouterWorker {
     _routeMessage(message, inputPortId) {
         const destinations = this.routes.get(inputPortId);
 
-        // === Auto-discovery: проверяем если discovery активен и ждём note ON от контроллера ===
-        if (this.discoveryState.active && this.discoveryState.waitingForInput !== null) {
+        // === Auto-discovery: проверяем если discovery активен и ждём note ON от контроллеров ===
+        if (this.discoveryState.active && this.discoveryState.controllers.size > 0) {
+            const controllerState = this.discoveryState.controllers.get(inputPortId);
+
             // Фильтруем — ждём ТОЛЬКО note on (0x9x), игнорируем CC (0xBx)
             const statusByte = message[0];
             const isNoteOn = (statusByte & 0xF0) === 0x90 && message[2] > 0;
-            
-            if (!isNoteOn) {
-                // Игнорируем CC и другие сообщения во время пинга — они могут быть от synth'ов
+
+            if (!isNoteOn || !controllerState) {
                 return;
             }
-            
-            // Если note on пришла от контроллера — создаём маршрут
-            if (inputPortId === this.discoveryState.waitingForInput) {
-                const outputId = this.discoveryState.unroutedOutputs[this.discoveryState.currentOutputIndex];
-                console.log(`[WORKER] Auto-connect: received note ON from ${inputPortId} on ${outputId} → creating route`);
-                
-                // Останавливаем текущий пинг синтезатора
-                if (this.discoveryState.timer) {
-                    clearTimeout(this.discoveryState.timer);
-                    this.discoveryState.timer = null;
-                }
-                
-                // Создаём маршрут input → output
-                this._createRoute(inputPortId, outputId);
-                
-                // Отправляем двойную ноту подтверждения на этот синтезатор
-                this._sendConfirmationNote(outputId);
-                
-                // Переходим к следующему синтезатору
-                this._nextSynth();
+
+            // Если note on пришла от активного контроллера — создаём маршрут к следующему доступному синтезу
+            const outputId = controllerState.targets[controllerState.currentTargetIdx];
+            console.log(`[WORKER] Auto-connect: received note ON from ${inputPortId} → connecting to ${outputId}`);
+
+            // Останавливаем текущий пинг синтезатора
+            if (this.discoveryState.timer) {
+                clearTimeout(this.discoveryState.timer);
+                this.discoveryState.timer = null;
             }
-            
+
+            // Создаём маршрут input → output
+            this._createRoute(inputPortId, outputId);
+
+            // Отправляем двойную ноту подтверждения на этот синтезатор
+            this._sendConfirmationNote(outputId);
+
+            // Помечаем целевой синтез как подключённый
+            controllerState.connectedTargets.add(outputId);
+
+            // Переходим к следующему синтезу для этого контроллера
+            this._nextSynthForController(inputPortId);
+
             return;
         }
 
         // Если discovery не активен — обычная маршрутизация
         if (!destinations || destinations.length === 0) {
             // Debounce: считаем сообщения, шлём уведомление только при первом или каждые N сообщений
-            const count = (this.unroutedCounters.get(inputPortId) || 0) + 1;
-            this.unroutedCounters.set(inputPortId, count);
+            const count = (this.discoveryState.unroutedCounters.get(inputPortId) || 0) + 1;
+            this.discoveryState.unroutedCounters.set(inputPortId, count);
 
-            if (count === 1) {
-                // Первое сообщение — начинаем discovery режим на 5 секунд
+            if (count === 1 && !this.discoveryState.active) {
+                // Первое сообщение — начинаем fallback discovery режим на 5 секунд
                 console.log(`[WORKER] Auto-discovery started for ${inputPortId} (${this.discoveryState.timeoutMs / 1000}s timeout)`);
-                
+
                 this.discoveryState.active = true;
-                this.discoveryState.waitingForInput = inputPortId;
-                
-                // Запускаем таймер на 5 секунд
-                if (this.discoveryState.timer) {
-                    clearTimeout(this.discoveryState.timer);
-                }
 
                 const self = this;
                 this.discoveryState.timer = setTimeout(() => {
-                    // Таймаут — default на output_0
-                    console.log(`[WORKER] Auto-discovery timeout for ${inputPortId} → default to output_0`);
-                    self._createRoute(inputPortId, 'output_0');
+                    // Таймаут — маршрутизируем на первый доступный output порт
+                    const firstOutput = [...this.outputs.keys()][0];
+                    if (firstOutput) {
+                        console.log(`[WORKER] Auto-discovery timeout for ${inputPortId} → routing to ${firstOutput}`);
+                        self._createRoute(inputPortId, firstOutput);
+                    }
                     self._endDiscovery();
                 }, this.discoveryState.timeoutMs);
 
-                // Не маршрутизируем — ждём CC от синтезатора
+                // Не маршрутизируем — ждём сигнал от синтезатора
                 return;
             } else if (count <= 3) {
                 // Шлём первые 3 сообщения для надёжности
@@ -390,36 +388,58 @@ class MIDIRouterWorker {
     }
 
     /** Запустить обзвон одного синтезатора — 5 нот с интервалом 1 сек */
-    _pingSynth(targetId, callbackOnSuccess) {
+    _pingSynth(targetId, controllerId) {
         let sentCount = 0;
         const maxPings = 5;
-        
-        console.log(`[WORKER] Pinging ${targetId} (${maxPings} times, 1s interval)`);
-        
+
+        console.log(`[WORKER] Pinging ${targetId} (controller: ${controllerId}, ${maxPings} times, 1s interval)`);
+
         const pingOnce = () => {
             if (sentCount >= maxPings) {
                 // Все ноты отправлены без ответа — таймаут
                 console.log(`[WORKER] Auto-connect timeout for ${targetId} → skipping`);
-                this._nextSynth();
+                this._nextSynthForController(controllerId);
                 return;
             }
-            
+
             this._sendTestNoteToOutput(targetId);
             sentCount++;
-            
+
             // Следующая нота через 1 секунду
             const self = this;
             this.discoveryState.timer = setTimeout(pingOnce, 1000);
         };
-        
+
         pingOnce();
     }
 
-    /** Перейти к следующему синтезатору (циклично) */
-    _nextSynth() {
-        this.discoveryState.currentOutputIndex++;
-        
-        // Циклический обзвон — продолжаем с начала если дошли до конца
+    /** Перейти к следующему синтезатору для конкретного контроллера */
+    _nextSynthForController(controllerId) {
+        const controllerState = this.discoveryState.controllers.get(controllerId);
+        if (!controllerState) return;
+
+        // Увеличиваем индекс следующего целевого синтезатора
+        controllerState.currentTargetIdx++;
+
+        // Если все цели подключены — завершаем discovery для этого контроллера
+        const allConnected = controllerState.connectedTargets.size === controllerState.targets.length;
+        if (allConnected) {
+            console.log(`[WORKER] Controller ${controllerId}: all ${controllerState.targets.length} synths connected`);
+            this.discoveryState.controllers.delete(controllerId);
+
+            // Если все контроллеры завершены — останавливаем discovery
+            if (this.discoveryState.controllers.size === 0) {
+                console.log('[WORKER] Auto-connect: all controllers connected to their synths');
+                this._endDiscovery();
+            }
+            return;
+        }
+
+        // Если дошли до конца списка — начинаем сначала с оставшихся не подключённых
+        if (controllerState.currentTargetIdx >= controllerState.targets.length) {
+            controllerState.currentTargetIdx = 0;
+        }
+
         const self = this;
         setTimeout(() => {
             self._pingAllSynths();
@@ -429,7 +449,13 @@ class MIDIRouterWorker {
     /** Запустить автоматическое соединение всех устройств */
     startAutoConnect() {
         console.log('[WORKER] Starting auto-connect mode...');
-        
+
+        // Если discovery уже активен — не запускаем повторно
+        if (this.discoveryState.active) {
+            console.log('[WORKER] Auto-discovery already active, skipping restart');
+            return;
+        }
+
         // Собираем все unrouted INPUT порты — это потенциальные контроллеры
         const allInputs = [];
         for (const [inputId, port] of this.inputs) {
@@ -437,21 +463,17 @@ class MIDIRouterWorker {
                 allInputs.push({ id: inputId, name: port._name || 'unknown' });
             }
         }
-        
+
         console.log(`[WORKER] Found ${allInputs.length} unrouted inputs`);
         for (const inp of allInputs) {
             console.log(`  - ${inp.id}: ${inp.name}`);
         }
-        
-        if (allInputs.length < 2) {
-            console.log('[WORKER] Need at least 2 unrouted inputs to connect');
+
+        if (allInputs.length === 0) {
+            console.log('[WORKER] No unrouted inputs found');
             return;
         }
-        
-        // Первый input — контроллер
-        const controller = allInputs[0];
-        console.log(`[WORKER] Controller: ${controller.id} (${controller.name})`);
-        
+
         // Собираем OUTPUT порты как потенциальные синтезаторы
         const allOutputs = [];
         for (const [outputId, port] of this.outputs) {
@@ -459,49 +481,75 @@ class MIDIRouterWorker {
                 allOutputs.push({ id: outputId, name: port._name || 'unknown' });
             }
         }
-        
-        // Исключаем из обзвона те output'ы, которые совпадают с контроллерами (у них тоже есть output)
-        const synthTargets = allOutputs.filter(out => out.id !== controller.id);
-        
-        console.log(`[WORKER] Synths to connect:`, synthTargets.map(s => s.id));
-        
-        if (synthTargets.length === 0) {
-            console.log('[WORKER] No synths found to connect');
+
+        console.log(`[WORKER] Found ${allOutputs.length} unrouted outputs`);
+        for (const out of allOutputs) {
+            console.log(`  - ${out.id}: ${out.name}`);
+        }
+
+        if (allOutputs.length === 0) {
+            console.log('[WORKER] No unrouted outputs found');
             return;
         }
-        
-        // Активируем discovery режим — ждём note ON от контроллера
+
+        // Очищаем состояние discovery перед запуском
+        this.discoveryState.controllers.clear();
+        if (this.discoveryState.timer) {
+            clearTimeout(this.discoveryState.timer);
+            this.discoveryState.timer = null;
+        }
+
+        // Для каждого unrouted input создаём список целей из unrouted outputs
+        for (const controller of allInputs) {
+            const targets = [...allOutputs.map(o => o.id)];
+            console.log(`[WORKER] Controller ${controller.id} (${controller.name}) → will connect to ${targets.length} synths`);
+
+            this.discoveryState.controllers.set(controller.id, {
+                targets: targets,
+                connectedTargets: new Set(),
+                currentTargetIdx: 0
+            });
+        }
+
+        // Активируем discovery режим
         this.discoveryState.active = true;
-        this.discoveryState.waitingForInput = controller.id;
-        this.discoveryState.currentOutputIndex = 0;
-        this.discoveryState.unroutedOutputs = synthTargets.map(s => s.id);
-        this.discoveryState.totalSynthsToConnect = synthTargets.length;
-        
-        // Начинаем обзвон первого синтезатора по кругу
-        console.log(`[WORKER] Starting ping sequence for ${synthTargets[0].id}`);
+        console.log(`[WORKER] Discovery active for ${this.discoveryState.controllers.size} controllers`);
+
+        // Начинаем обзвон всех синтезаторов по кругу
         this._pingAllSynths();
     }
 
     /** Обзвонить все синты по кругу — циклически пока не подключатся все */
     _pingAllSynths() {
-        // Проверяем: все ли synths получили маршруты?
-        const allConnected = this.discoveryState.unroutedOutputs.every(s => 
-            [...this.routes.entries()].some(([k, v]) => v.includes(s))
-        );
-        
-        if (allConnected && this.discoveryState.unroutedOutputs.length > 0) {
-            console.log('[WORKER] Auto-connect: all synths connected');
+        // Если discovery больше не активен (все контроллеры завершены) — выходим
+        if (this.discoveryState.controllers.size === 0) {
+            console.log('[WORKER] Auto-connect: all controllers done');
             this._endDiscovery();
             return;
         }
-        
-        // Циклически обзваниваем все синтезаторы по очереди
-        const idx = this.discoveryState.currentOutputIndex % this.discoveryState.unroutedOutputs.length;
-        const targetId = this.discoveryState.unroutedOutputs[idx];
-        
-        console.log(`[WORKER] Pinging ${targetId} (cycle #${Math.floor(idx) + 1})`);
-        this._pingSynth(targetId, () => {});
+
+        // Находим первого контроллера с ещё не подключёнными целями
+        let foundController = null;
+        for (const [controllerId, state] of this.discoveryState.controllers) {
+            if (state.connectedTargets.size < state.targets.length && state.currentTargetIdx < state.targets.length) {
+                foundController = { id: controllerId, state };
+                break;
+            }
+        }
+
+        // Если все контроллеры подключились ко всем своим целям — завершаем
+        if (!foundController) {
+            console.log('[WORKER] Auto-connect: all controllers fully connected');
+            this._endDiscovery();
+            return;
+        }
+
+        const currentTarget = foundController.state.targets[foundController.state.currentTargetIdx];
+        console.log(`[WORKER] Pinging ${currentTarget} (controller: ${foundController.id})`);
+        this._pingSynth(currentTarget, foundController.id);
     }
+
+
 
     /** Завершить discovery режим */
     _endDiscovery() {
@@ -510,9 +558,8 @@ class MIDIRouterWorker {
             this.discoveryState.timer = null;
         }
         this.discoveryState.active = false;
-        this.discoveryState.waitingForInput = null;
-        this.discoveryState.currentOutputIndex = 0;
-        
+        this.discoveryState.controllers.clear();
+
         // Уведомляем сервер
         parentPort.postMessage({
             type: 'discovery-complete'
@@ -595,7 +642,7 @@ class MIDIRouterWorker {
         }
 
         // Сбрасываем счётчик unrouted для этого порта
-        this.unroutedCounters.delete(inputId);
+        this.discoveryState.unroutedCounters.delete(inputId);
 
         // Подтверждаем маршрутизацию
         parentPort.postMessage({
