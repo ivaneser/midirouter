@@ -264,11 +264,13 @@ class MIDIRouterWorker {
                 this.discoveryState.timer = null;
             }
 
-            // Создаём маршрут с каналом нажатой ноты — 1 контроллер → несколько синтов по разным каналам
-            this._createRoute(inputPortId, outputId, [midiChannel]);
+            // Создаём маршрут — канал нажатой ноты для UI-логирования, сам маршрут = все каналы
+            // (auto-connect: 1 контроллер → несколько синтов без фильтрации каналов;
+            //  per-channel filtering = ручная настройка через UI dropdown)
+            this._createRoute(inputPortId, outputId);
 
-            // Отправляем двойную ноту подтверждения на этот синтезатор (на том же канале)
-            this._sendConfirmationNote(outputId, midiChannel);
+            // Отправляем двойную ноту подтверждения на этот синтезатор
+            this._sendConfirmationNote(outputId);
 
             // Помечаем целевой синтез как подключённый
             controllerState.connectedTargets.add(outputId);
