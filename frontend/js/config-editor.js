@@ -289,6 +289,7 @@ export class ConfigEditor {
         channelBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 btn.classList.toggle('active');
+                console.log('[CONFIG] Channel toggled, active buttons:', Array.from(channelBtns).filter(b => b.classList.contains('active')).map(b => b.dataset.channel));
                 saveOnChange();
             });
         });
