@@ -226,6 +226,8 @@ body {
     display: flex;
     gap: 8px;
     margin-bottom: 16px;
+    flex-wrap: wrap;
+}
 }
 .tab-btn {
     padding: 8px 16px;
