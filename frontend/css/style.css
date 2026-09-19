@@ -36,6 +36,7 @@ body {
 /* === Connect Panel === */
 .connect-panel {
     display: flex;
+    justify-content: center;
     gap: 10px;
     padding: 16px 20px;
     background: #0f3460;

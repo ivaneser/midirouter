@@ -7,12 +7,14 @@ import { ConfigEditor } from './config-editor.js';
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {
     const wsUrlInput = document.getElementById('ws-url');
-    if (!wsUrlInput) return;
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    wsUrlInput.value = `${protocol}//${location.host}`;
-})();
+    })();
 
-const wsUrlInput = document.getElementById('ws-url');
+// Auto-detect WebSocket URL from page location
+function getWsUrl() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${location.host}`;
+}
+
 const connectBtn = document.getElementById('btn-connect');
 const statusEl = document.getElementById('connection-status');
 const logsDiv = document.getElementById('logs');
@@ -38,8 +40,7 @@ window.app = {
 // === WebSocket ===
 
 function connect() {
-    const url = wsUrlInput.value.trim();
-    if (!url) return;
+    const url = getWsUrl();
 
     log('Подключение к ' + url + '...');
     statusEl.textContent = '● Подключение...';
