@@ -98,6 +98,11 @@ class MIDIRouterWorker {
                 console.log('[SERVER] Worker ready — auto-connect all to all');
                 break;
 
+            case 'config_reloaded':
+                console.log('[SERVER] Config reloaded — mappings applied');
+                this._broadcast({ type: 'config_reloaded' });
+                break;
+
             case 'daw_midi':
                 // DAW-события для визуализации (запись/проигрывание нот) в UI
                 this._broadcast({ type: 'daw_event', payload: msg.data });

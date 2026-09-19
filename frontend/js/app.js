@@ -119,6 +119,10 @@ function handleMessage(msg) {
             configEditor.handleConfigSaved();
             break;
 
+        case 'config_reloaded':
+            log('✅ Configuration applied — routes active');
+            break;
+
         case 'config_error':
             log('Ошибка конфигурации: ' + msg.message);
             break;
