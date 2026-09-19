@@ -267,7 +267,8 @@ class MIDIRouterWorker {
         // Filters
         if (mapping.filters) {
             if (mapping.filters.channels) {
-                console.log(`[WORKER] Adding channel filter for ${name}:`, mapping.filters.channels);
+                const wl = mapping.filters.channels.whitelist || [];
+                console.log(`[WORKER] Adding channel filter for ${name}: whitelist=[${wl.join(', ')}]`);
                 filters.push(new ChannelFilter(mapping.filters.channels));
             }
             if (mapping.filters.velocity) {
