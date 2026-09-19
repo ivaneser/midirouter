@@ -15,19 +15,9 @@ export class ConfigEditor {
     
     _initEventListeners() {
         document.getElementById('btn-add-mapping')?.addEventListener('click', () => this._addMapping());
-        document.getElementById('btn-add-device')?.addEventListener('click', () => this._addDevice());
+
         document.getElementById('btn-save-config')?.addEventListener('click', () => this._saveConfig());
         document.getElementById('btn-load-config')?.addEventListener('click', () => this._loadConfig());
-        document.getElementById('btn-format-json')?.addEventListener('click', () => this._formatJSON());
-        
-        document.getElementById('config-json')?.addEventListener('input', (e) => {
-            try {
-                this.config = JSON.parse(e.target.value);
-                this._syncUIFromConfig();
-            } catch (e) {
-                // Invalid JSON, don't update UI
-            }
-        });
         
         this._handleHotplugEvent = (msg) => this._handleHotplug(msg);
     }
@@ -41,8 +31,6 @@ export class ConfigEditor {
         
         if (this.currentTab === 'mappings') {
             this._renderMappings();
-        } else if (this.currentTab === 'devices') {
-            this._renderDevices();
         }
         this._renderJSON();
     }
@@ -83,7 +71,6 @@ export class ConfigEditor {
         }
         this._syncUIFromConfig();
         this._renderMappings();
-        this._renderDevices();
         this._renderJSON();
     }
     
@@ -308,109 +295,9 @@ export class ConfigEditor {
         this._saveToServer();
     }
     
-    // ---- Render devices ----
-    _renderDevices() {
-        const container = document.getElementById('device-config-list');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        const devices = this.config.devices || {};
-        
-        for (const [name, device] of Object.entries(devices)) {
-            const deviceEl = this._createDeviceEditor(name, device);
-            container.appendChild(deviceEl);
-        }
-        
-        if (Object.keys(devices).length === 0) {
-            container.innerHTML = '<p class="empty-state">No devices defined. Click "+ Add Device" to add one.</p>';
-        }
-    }
-    
-    _createDeviceEditor(name, device) {
-        const container = document.createElement('div');
-        container.className = 'device-editor';
-        
-        container.innerHTML = `
-            <div class="device-header">
-                <input type="text" class="device-name" value="${name}" placeholder="nickname">
-                <button class="btn btn-danger btn-sm device-delete">Delete</button>
-            </div>
-            <div class="device-fields">
-                <input type="text" class="device-full-name" placeholder="Full device name" value="${device.name || ''}">
-                <input type="number" class="device-port" placeholder="Port" min="0" value="${device.port ?? ''}">
-            </div>
-        `;
-        
-        const nameInput = container.querySelector('.device-name');
-        const fullNameInput = container.querySelector('.device-full-name');
-        const portInput = container.querySelector('.device-port');
-        const deleteBtn = container.querySelector('.device-delete');
-        
-        // Delete device
-        deleteBtn.addEventListener('click', () => {
-            if (confirm(`Delete device "${name}"?`)) {
-                delete this.config.devices[name];
-                this._renderDevices();
-                this._saveToServer();
-            }
-        });
-        
-        // Rename device
-        nameInput.addEventListener('change', (e) => {
-            const newName = e.target.value.trim();
-            if (newName && newName !== name) {
-                this.config.devices[newName] = this.config.devices[name];
-                delete this.config.devices[name];
-                this._renderDevices();
-                this._saveToServer();
-            }
-        });
-        
-        // Save on change
-        const saveOnChange = () => {
-            const deviceName = nameInput.value.trim() || name;
-            const fullName = fullNameInput.value.trim();
-            const port = parseInt(portInput.value);
-            
-            if (name !== deviceName) {
-                delete this.config.devices[name];
-            }
-            
-            this.config.devices[deviceName] = {
-                name: fullName,
-                port: isNaN(port) ? 0 : port
-            };
-            
-            this._renderJSON();
-            this._saveToServer();
-        };
-        
-        nameInput.addEventListener('change', saveOnChange);
-        fullNameInput.addEventListener('input', saveOnChange);
-        portInput.addEventListener('input', saveOnChange);
-        
-        return container;
-    }
-    
     // ---- Render JSON ----
     _renderJSON() {
-        const textarea = document.getElementById('config-json');
-        if (textarea) {
-            textarea.value = JSON.stringify(this.config, null, 2);
-        }
-    }
-    
-    _formatJSON() {
-        const textarea = document.getElementById('config-json');
-        if (textarea) {
-            try {
-                const config = JSON.parse(textarea.value);
-                textarea.value = JSON.stringify(config, null, 2);
-            } catch (e) {
-                alert('Formatting error: invalid JSON');
-            }
-        }
+        // JSON textarea removed from UI
     }
     
     // ---- Add ----
@@ -426,17 +313,6 @@ export class ConfigEditor {
         this._saveToServer();
     }
     
-    _addDevice() {
-        const name = `device_${Object.keys(this.config.devices).length + 1}`;
-        this.config.devices[name] = {
-            name: '',
-            port: 0
-        };
-        this._renderDevices();
-        this._renderJSON();
-        this._saveToServer();
-    }
-    
     // ---- Save/Load ----
     _saveConfig() {
         this.app.log('💾 Saving configuration...');
@@ -444,28 +320,26 @@ export class ConfigEditor {
     }
     
     _loadConfig() {
-        const textarea = document.getElementById('config-json');
-        if (textarea) {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = '.json';
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        try {
-                            const config = JSON.parse(event.target.result);
-                            this.loadConfig(config);
-                        } catch (e) {
-                            alert('Load error: invalid JSON');
-                        }
-                    };
-                    reader.readAsText(file);
-                }
-            });
-            fileInput.click();
-        }
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const config = JSON.parse(event.target.result);
+                        this.loadConfig(config);
+                    } catch (e) {
+                        alert('Load error: invalid JSON');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+        fileInput.click();
+    }
     }
     
     _saveToServer() {

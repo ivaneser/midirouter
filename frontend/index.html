@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=7">
+    <link rel="stylesheet" href="/css/style.css?v=8">
 </head>
 <body>
     <div id="app">
@@ -35,23 +35,7 @@
                 <button class="btn btn-primary" id="btn-add-mapping">+ Add Route</button>
             </div>
             
-            <!-- Devices -->
-            <div class="config-section">
-                <h3>🎛 Devices</h3>
-                <p class="tab-hint">Device nicknames make routes easier to manage.</p>
-                <div class="device-config-list" id="device-config-list"></div>
-                <button class="btn btn-primary" id="btn-add-device">+ Add Device</button>
-            </div>
-            
-            <!-- JSON -->
-            <div class="config-section">
-                <h3>📄 JSON</h3>
-                <p class="tab-hint">Edit raw config, then click Save above.</p>
-                <textarea id="config-json" class="config-textarea" placeholder="JSON configuration"></textarea>
-                <div class="config-actions">
-                    <button class="btn" id="btn-format-json">Format</button>
-                </div>
-            </div>
+
         </section>
 
         <!-- DAW / Clip controls -->
@@ -98,6 +82,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=7"></script>
+    <script type="module" src="/js/app.js?v=8"></script>
 </body>
 </html>

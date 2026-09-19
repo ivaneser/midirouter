@@ -358,49 +358,7 @@ body {
     gap: 8px;
 }
 
-/* Device Editor */
-.device-editor {
-    background: #1a1a2e;
-    border: 2px solid #0f3460;
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 12px;
-}
-.device-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-.device-fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-.device-fields input {
-    flex: 1;
-    min-width: 150px;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 6px;
-    background: #0f3460;
-    color: #eee;
-    font-size: 0.85rem;
-}
-
-/* JSON Editor */
-.config-textarea {
-    width: 100%;
-    min-height: 300px;
-    padding: 12px;
-    border: none;
-    border-radius: 6px;
-    background: #0f3460;
-    color: #eee;
-    font-family: 'Courier New', monospace;
-    font-size: 0.85rem;
-    resize: vertical;
-}
+/* Config Actions */
 .config-actions {
     display: flex;
     gap: 8px;
