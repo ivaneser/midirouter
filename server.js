@@ -226,10 +226,13 @@ class MIDIRouterWorker {
         console.log('[SERVER] Shutting down worker...');
         if (this.worker) {
             this.worker.postMessage({ type: 'shutdown' });
+            // Wait for worker to exit, then terminate if needed
             setTimeout(() => {
-                if (this.worker && !this.worker.isTerminated) {
+                if (this.worker && !this.worker.isTerminated && this.worker.exitCode === null) {
                     console.log('[SERVER] Worker did not exit gracefully — terminating');
                     this.worker.terminate();
+                } else {
+                    console.log('[SERVER] Worker exited cleanly');
                 }
             }, 2000);
         }
