@@ -424,10 +424,16 @@ function startServer() {
     });
 
     // Graceful shutdown
+    let isShuttingDown = false;
     process.on('SIGINT', () => {
+        if (isShuttingDown) return;
+        isShuttingDown = true;
         console.log('\n[SERVER] Shutting down...');
         router.cleanup();
-        wss.close(() => server.close(() => process.exit(0)));
+        wss.close(() => server.close(() => {
+            console.log('[SERVER] All connections closed. Exiting.');
+            process.exit(0);
+        }));
     });
 }
 
