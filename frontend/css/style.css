@@ -34,8 +34,6 @@ body {
 .status-indicator.disconnected { background: #8b0000; }
 .status-bar .btn {
     margin-left: 12px;
-    padding: 4px 16px;
-    font-size: 0.85rem;
 }
 
 /* === Connect Panel (removed — button in header) === */
@@ -52,16 +50,18 @@ body {
 
 /* === Buttons === */
 .btn {
-    padding: 8px 20px;
+    padding: 6px 16px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     transition: opacity 0.2s;
+    white-space: nowrap;
 }
-
 .btn:hover { opacity: 0.85; }
 .btn-primary { background: #e94560; color: white; }
+.btn-danger { background: #8b0000; color: white; }
+.btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 
 /* === Port Section (two columns) === */
 .port-section {
@@ -166,7 +166,7 @@ body {
     font-size: 0.85rem;
 }
 .daw-controls label.chk { text-transform: none; }
-.daw-controls .btn { padding: 6px 14px; }
+
 
 .pad-grid {
     display: flex;
@@ -286,8 +286,7 @@ body {
     font-size: 0.9rem;
     margin-right: 8px;
 }
-.btn-sm { padding: 4px 12px; font-size: 0.8rem; }
-.btn-danger { background: #8b0000; color: white; }
+
 
 .mapping-section {
     margin-bottom: 12px;
