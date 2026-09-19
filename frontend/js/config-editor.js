@@ -329,6 +329,8 @@ export class ConfigEditor {
             const selectedInputs = Array.from(inputsSelect.selectedOptions).map(o => o.value);
             const selectedOutputs = Array.from(outputsSelect.selectedOptions).map(o => o.value);
             
+            console.log('[CONFIG] saveOnChange: inputs=', selectedInputs, 'outputs=', selectedOutputs);
+            
             // Remove "all" if specific devices selected
             let finalInputs = selectedInputs.filter(v => v !== 'all');
             let finalOutputs = selectedOutputs.filter(v => v !== 'all');
