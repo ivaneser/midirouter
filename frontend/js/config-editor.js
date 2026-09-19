@@ -314,7 +314,7 @@ export class ConfigEditor {
             e.preventDefault();
             if (confirm('Delete this route?')) {
                 delete this.config.mappings[name];
-                this.app.log('✅ Route deleted and applied');
+                this.app.log('🗑 Route deleted — applying...');
                 this._renderMappings();
                 this._saveToServer();
             }
@@ -553,10 +553,13 @@ export class ConfigEditor {
     
     _saveToServer() {
         if (this.app.ws && this.app.ws.readyState === WebSocket.OPEN) {
+            console.log('[CONFIG] Sending config to server...');
             this.app.ws.send(JSON.stringify({
                 type: 'save-config',
                 config: this.config
             }));
+        } else {
+            console.warn('[CONFIG] WebSocket not open, cannot save');
         }
     }
     
