@@ -288,8 +288,11 @@ export class ConfigEditor {
         // Channel button toggle
         channelBtns.forEach(btn => {
             btn.addEventListener('click', () => {
+                const wasActive = btn.classList.contains('active');
                 btn.classList.toggle('active');
-                console.log('[CONFIG] Channel toggled, active buttons:', Array.from(channelBtns).filter(b => b.classList.contains('active')).map(b => b.dataset.channel));
+                const isActive = btn.classList.contains('active');
+                console.log('[CONFIG] Channel', btn.dataset.channel, 'toggled:', wasActive, '->', isActive);
+                console.log('[CONFIG] All active:', Array.from(channelBtns).filter(b => b.classList.contains('active')).map(b => b.dataset.channel));
                 saveOnChange();
             });
         });
