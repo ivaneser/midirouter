@@ -314,7 +314,7 @@ export class ConfigEditor {
             e.preventDefault();
             if (confirm('Delete this route?')) {
                 delete this.config.mappings[name];
-                log('✅ Route deleted and applied');
+                this.app.log('✅ Route deleted and applied');
                 this._renderMappings();
                 this._saveToServer();
             }

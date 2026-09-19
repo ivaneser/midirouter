@@ -34,7 +34,8 @@ window.app = {
     deviceManager,
     dawUI,
     configEditor,
-    ws: null
+    ws: null,
+    log
 };
 
 // === WebSocket ===
