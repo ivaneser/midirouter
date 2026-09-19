@@ -353,13 +353,11 @@ export class ConfigEditor {
             if (newName !== name) {
                 this.config.mappings[newName] = { ...this.config.mappings[name] };
                 delete this.config.mappings[name];
-                // Update all references to use newName
-                const oldContainer = container;
-                const inputPorts = this.app.deviceManager?.inputs || [];
-                const outputPorts = this.app.deviceManager?.outputs || [];
-                const devices = this.config.devices || {};
-                const newContainer = this._createMappingEditor(newName, this.config.mappings[newName], inputPorts, outputPorts, devices);
-                oldContainer.parentNode.replaceChild(newContainer, oldContainer);
+                // Update route name display
+                const routeName = container.querySelector('.route-name');
+                if (routeName) {
+                    routeName.textContent = `${inName} → ${outName}`;
+                }
             }
             
             // Update config
