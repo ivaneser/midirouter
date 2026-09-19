@@ -374,9 +374,16 @@ export class ConfigEditor {
                     activeChannels.push(parseInt(btn.dataset.channel));
                 }
             });
-            if (activeChannels.length > 0 && activeChannels.length < 16) {
+            // Empty whitelist (all channels active) = no filter
+            // Partial whitelist = filter to those channels
+            if (activeChannels.length === 16) {
+                // All channels active = no filter
+                delete this.config.mappings[newName].filters.channels;
+            } else if (activeChannels.length > 0) {
+                // Some channels active = whitelist
                 this.config.mappings[newName].filters.channels = { whitelist: activeChannels };
             } else {
+                // No channels active = delete filter
                 delete this.config.mappings[newName].filters.channels;
             }
             
