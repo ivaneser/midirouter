@@ -340,7 +340,6 @@ export class ConfigEditor {
         });
         fileInput.click();
     }
-    }
     
     _saveToServer() {
         const ws = window.app?.ws;
