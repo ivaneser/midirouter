@@ -140,6 +140,13 @@ export class ConfigEditor {
         
         const routeName = routeHeader.querySelector('.route-name');
         
+        // Set initial route name from mapping
+        const inPort = mapping.inputs?.[0];
+        const outPort = mapping.outputs?.[0];
+        const inName = inPort ? getDisplayName(inPort) : 'All';
+        const outName = outPort ? getDisplayName(outPort) : 'All';
+        routeName.textContent = `${inName} → ${outName}`;
+        
         // Inputs + Outputs side by side
         const rowDiv = document.createElement('div');
         rowDiv.className = 'mapping-row';
