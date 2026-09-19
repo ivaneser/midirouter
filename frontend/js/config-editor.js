@@ -349,8 +349,8 @@ export class ConfigEditor {
             const outName = finalOutputs.length > 0 ? getDisplayName(finalOutputs[0]).replace(/[^a-zA-Z0-9]/g, '_') : 'all';
             const newName = `${inName}_to_${outName}`;
             
-            // Rename mapping if name changed
-            if (newName !== name) {
+            // Rename mapping if name changed AND no collision with other routes
+            if (newName !== name && !this.config.mappings[newName]) {
                 this.config.mappings[newName] = { ...this.config.mappings[name] };
                 delete this.config.mappings[name];
                 // Update route name display
@@ -360,8 +360,9 @@ export class ConfigEditor {
                 }
             }
             
-            // Update config
-            this.config.mappings[newName] = {
+            // Update config - use newName if no collision, otherwise keep original name
+            const targetName = this.config.mappings[newName] ? name : newName;
+            this.config.mappings[targetName] = {
                 inputs: finalInputs,
                 outputs: finalOutputs,
                 filters: {}
@@ -378,12 +379,12 @@ export class ConfigEditor {
             // 1-15 active = whitelist with those channels
             // 0 active = no filter (delete whitelist, all channels restricted until user selects)
             if (activeChannels.length === 16) {
-                delete this.config.mappings[newName].filters.channels;
+                delete this.config.mappings[targetName].filters.channels;
             } else if (activeChannels.length > 0) {
-                this.config.mappings[newName].filters.channels = { whitelist: activeChannels };
+                this.config.mappings[targetName].filters.channels = { whitelist: activeChannels };
             } else {
                 // No channels selected = no filter
-                delete this.config.mappings[newName].filters.channels;
+                delete this.config.mappings[targetName].filters.channels;
             }
             
             console.log('[CONFIG] Filters:', JSON.stringify(this.config.mappings[newName].filters));
