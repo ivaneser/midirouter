@@ -115,7 +115,7 @@ function handleMessage(msg) {
             break;
 
         case 'config_saved':
-            log('Конфигурация сохранена');
+            configEditor.handleConfigSaved();
             break;
 
         case 'config_error':

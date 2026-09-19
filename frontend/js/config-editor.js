@@ -109,8 +109,14 @@ export class ConfigEditor {
         this._renderJSON();
     }
     
-    _showNotification(message) {
-        // Создаём элемент уведомления
+    _showNotification(message, type = 'info') {
+        const colors = {
+            success: { bg: '#0a7c2e', border: '#4ade80' },
+            error: { bg: '#8b0000', border: '#e94560' },
+            info: { bg: '#0f3460', border: '#e94560' }
+        };
+        const c = colors[type] || colors.info;
+        
         const notification = document.createElement('div');
         notification.className = 'hotplug-notification';
         notification.textContent = message;
@@ -118,22 +124,22 @@ export class ConfigEditor {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #0f3460;
+            background: ${c.bg};
             color: #eee;
             padding: 12px 20px;
             border-radius: 8px;
-            border: 2px solid #e94560;
+            border: 2px solid ${c.border};
             z-index: 1000;
             animation: slideIn 0.3s ease;
+            font-size: 0.9rem;
         `;
         
         document.body.appendChild(notification);
         
-        // Удаляем через 5 секунд
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.3s ease';
             setTimeout(() => notification.remove(), 300);
-        }, 5000);
+        }, 3000);
     }
     
     // ---- Загрузка конфигурации ----
@@ -572,5 +578,10 @@ export class ConfigEditor {
                 config: this.config
             }));
         }
+    }
+    
+    // Handle config saved message from server
+    handleConfigSaved() {
+        this._showNotification('✅ Configuration saved to config.json', 'success');
     }
 }
