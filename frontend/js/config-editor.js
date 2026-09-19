@@ -18,6 +18,7 @@ export class ConfigEditor {
     _initEventListeners() {
         // Добавить маппинг
         document.getElementById('btn-add-mapping')?.addEventListener('click', () => {
+            console.log('[CONFIG] Add route button clicked');
             this._addMapping();
         });
         
@@ -505,12 +506,14 @@ export class ConfigEditor {
     
     // ---- Добавление ----
     _addMapping() {
+        console.log('[CONFIG] _addMapping called, current mappings:', Object.keys(this.config.mappings));
         const name = `mapping_${Object.keys(this.config.mappings).length + 1}`;
         this.config.mappings[name] = {
             inputs: [],
             outputs: [],
             filters: {}
         };
+        console.log('[CONFIG] Added mapping:', name);
         this._renderMappings();
         this._renderJSON();
         this._saveToServer();
