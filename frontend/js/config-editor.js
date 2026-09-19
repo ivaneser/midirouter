@@ -312,8 +312,9 @@ export class ConfigEditor {
         // Delete route
         deleteBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            console.log('[DELETE] Clicked, ws readyState:', this.app.ws?.readyState);
-            if (!this.app.ws || this.app.ws.readyState !== WebSocket.OPEN) {
+            const ws = window.app?.ws;
+            console.log('[DELETE] Clicked, ws readyState:', ws?.readyState);
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
                 this.app.log('⚠️ Not connected — cannot delete route');
                 return;
             }
@@ -548,9 +549,10 @@ export class ConfigEditor {
     }
     
     _saveToServer() {
-        if (this.app.ws && this.app.ws.readyState === WebSocket.OPEN) {
+        const ws = window.app?.ws;
+        if (ws && ws.readyState === WebSocket.OPEN) {
             console.log('[CONFIG] Sending config to server...');
-            this.app.ws.send(JSON.stringify({
+            ws.send(JSON.stringify({
                 type: 'save-config',
                 config: this.config
             }));
