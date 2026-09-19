@@ -251,13 +251,23 @@ body {
     display: block;
 }
 
-/* Mapping Editor */
+/* Mapping Editor — 2 per row on desktop, 1 on mobile */
+.mapping-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 800px) {
+    .mapping-list {
+        grid-template-columns: 1fr;
+    }
+}
 .mapping-editor {
     background: #1a1a2e;
     border: 2px solid #0f3460;
     border-radius: 8px;
     padding: 16px;
-    margin-bottom: 12px;
+    break-inside: avoid;
 }
 .mapping-header {
     display: flex;
