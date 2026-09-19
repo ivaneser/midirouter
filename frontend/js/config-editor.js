@@ -354,6 +354,7 @@ export class ConfigEditor {
                 delete this.config.mappings[name].filters.channels;
             }
             
+            console.log('[CONFIG] Filters:', JSON.stringify(this.config.mappings[name].filters));
             this._renderJSON();
             this._saveToServer();
         };
