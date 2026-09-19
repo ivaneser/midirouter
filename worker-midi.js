@@ -527,7 +527,7 @@ class MIDIRouterWorker {
     _onIncomingMessage(deviceName, deltaTime, bytes) {
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
-        const channel = type + 1;
+        const channel = type >= 8 ? (status & 0x0f) + 1 : 1;
         const label = {
             '9': `noteOn   ch${channel} n${bytes[1]} v${bytes[2]}`,
             '8': `noteOff  ch${channel} n${bytes[1]}`,
