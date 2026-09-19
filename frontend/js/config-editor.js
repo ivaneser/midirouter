@@ -217,7 +217,10 @@ export class ConfigEditor {
         summary.innerHTML = `<strong>${inputNames}</strong> → <strong>${outputNames}</strong>`;
         container.appendChild(summary);
         
-        // Inputs
+        // Inputs + Outputs side by side
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'mapping-row';
+        
         const inputsDiv = document.createElement('div');
         inputsDiv.className = 'mapping-section';
         inputsDiv.innerHTML = '<h4>📥 Input (source)</h4>';
@@ -240,7 +243,7 @@ export class ConfigEditor {
             inputsSelect.appendChild(option);
         });
         inputsDiv.appendChild(inputsSelect);
-        container.appendChild(inputsDiv);
+        rowDiv.appendChild(inputsDiv);
         
         // Outputs
         const outputsDiv = document.createElement('div');
@@ -265,7 +268,9 @@ export class ConfigEditor {
             outputsSelect.appendChild(option);
         });
         outputsDiv.appendChild(outputsSelect);
-        container.appendChild(outputsDiv);
+        rowDiv.appendChild(outputsDiv);
+        
+        container.appendChild(rowDiv);
         
         // Filters (collapsed by default)
         const filtersDiv = document.createElement('div');

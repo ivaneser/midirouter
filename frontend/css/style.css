@@ -296,6 +296,18 @@ body {
     font-size: 0.85rem;
 }
 
+/* Side by side layout for input/output */
+.mapping-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 600px) {
+    .mapping-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Filters */
 .filter-group {
     display: flex;
