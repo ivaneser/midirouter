@@ -1,0 +1,715 @@
+{
+  "manufacturer": "Waldorf Music",
+  "model": "Blofeld",
+  "type": "polyphonic wavetable/analog synth (16-part multitimbral)",
+  "midi_version": "2.x",
+  "midi_learn": true,
+  "controls_osc1": [
+    {
+      "cc": 35,
+      "name": "Octave",
+      "min": 0,
+      "max": 127,
+      "type": "dropdown",
+      "options": [
+        "-2",
+        "-1",
+        "0",
+        "+1",
+        "+2"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 36,
+      "name": "Semitone",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "semitones",
+      "category": "osc"
+    },
+    {
+      "cc": 29,
+      "name": "Detune",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 30,
+      "name": "FM Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "fm"
+    },
+    {
+      "cc": 31,
+      "name": "Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 33,
+      "name": "PW (Pulse Width)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 34,
+      "name": "PWM Modulation",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 52,
+      "name": "Level",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "level",
+      "category": "osc"
+    }
+  ],
+  "controls_osc2": [
+    {
+      "cc": 42,
+      "name": "Octave",
+      "min": 0,
+      "max": 127,
+      "type": "dropdown",
+      "options": [
+        "-2",
+        "-1",
+        "0",
+        "+1",
+        "+2"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 43,
+      "name": "Semitone",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "semitones",
+      "category": "osc"
+    },
+    {
+      "cc": 37,
+      "name": "Detune",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 38,
+      "name": "FM Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "fm"
+    },
+    {
+      "cc": 39,
+      "name": "Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 40,
+      "name": "PW (Pulse Width)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 41,
+      "name": "PWM Modulation",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 56,
+      "name": "Level",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "level",
+      "category": "osc"
+    }
+  ],
+  "controls_osc3": [
+    {
+      "cc": 44,
+      "name": "Octave",
+      "min": 0,
+      "max": 127,
+      "type": "dropdown",
+      "options": [
+        "-2",
+        "-1",
+        "0",
+        "+1",
+        "+2"
+      ],
+      "category": "osc"
+    },
+    {
+      "cc": 45,
+      "name": "Semitone",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "semitones",
+      "category": "osc"
+    },
+    {
+      "cc": 46,
+      "name": "Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 47,
+      "name": "PW (Pulse Width)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 48,
+      "name": "PWM Modulation",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 58,
+      "name": "Level",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "level",
+      "category": "osc"
+    }
+  ],
+  "controls_noise": [
+    {
+      "cc": 60,
+      "name": "Level",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "level",
+      "category": "noise"
+    },
+    {
+      "cc": 62,
+      "name": "Noise Colour",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "options": [
+        "White",
+        "Pink"
+      ],
+      "category": "noise"
+    }
+  ],
+  "controls_filter1": [
+    {
+      "cc": 68,
+      "name": "Type",
+      "min": 0,
+      "max": 7,
+      "type": "dropdown",
+      "options": [
+        "LP 12dB",
+        "LP 24dB",
+        "BP",
+        "HP 12dB",
+        "HP 24dB",
+        "Notch",
+        "Comb",
+        "Rack"
+      ],
+      "category": "filter"
+    },
+    {
+      "cc": 69,
+      "name": "Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "filter",
+      "primary": true
+    },
+    {
+      "cc": 70,
+      "name": "Resonance",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 71,
+      "name": "Drive",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 72,
+      "name": "Keytrack",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "category": "filter"
+    },
+    {
+      "cc": 73,
+      "name": "Env Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 74,
+      "name": "Env Velocity",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 75,
+      "name": "Cutoff Mod",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 76,
+      "name": "FM Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "fm"
+    }
+  ],
+  "controls_filter2": [
+    {
+      "cc": 79,
+      "name": "Type",
+      "min": 0,
+      "max": 7,
+      "type": "dropdown",
+      "options": [
+        "LP 12dB",
+        "LP 24dB",
+        "BP",
+        "HP 12dB",
+        "HP 24dB",
+        "Notch"
+      ],
+      "category": "filter"
+    },
+    {
+      "cc": 80,
+      "name": "Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "filter"
+    },
+    {
+      "cc": 81,
+      "name": "Resonance",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 82,
+      "name": "Drive",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    }
+  ],
+  "controls_env": [
+    {
+      "cc": 95,
+      "name": "Filt1 Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 96,
+      "name": "Filt1 Decay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 97,
+      "name": "Filt1 Sustain",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "env"
+    },
+    {
+      "cc": 98,
+      "name": "Filt1 Decay2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 99,
+      "name": "Filt1 Sustain2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "env"
+    },
+    {
+      "cc": 100,
+      "name": "Filt1 Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 101,
+      "name": "Filt2 Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 102,
+      "name": "Filt2 Decay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 103,
+      "name": "Filt2 Sustain",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "env"
+    },
+    {
+      "cc": 104,
+      "name": "Filt2 Decay2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 105,
+      "name": "Filt2 Sustain2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "env"
+    },
+    {
+      "cc": 106,
+      "name": "Filt2 Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    }
+  ],
+  "controls_lfo": [
+    {
+      "cc": 15,
+      "name": "LFO1 Shape",
+      "min": 0,
+      "max": 8,
+      "type": "dropdown",
+      "options": [
+        "Sine",
+        "Triangle",
+        "Sample & Hold",
+        "Ramp Up",
+        "Down Ramp",
+        "Square",
+        "Random",
+        "Linear Glide",
+        "Exponential Glide"
+      ],
+      "category": "lfo"
+    },
+    {
+      "cc": 16,
+      "name": "LFO1 Speed",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "lfo"
+    },
+    {
+      "cc": 18,
+      "name": "LFO1 Delay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "lfo"
+    },
+    {
+      "cc": 19,
+      "name": "LFO2 Shape",
+      "min": 0,
+      "max": 8,
+      "type": "dropdown",
+      "options": [
+        "Sine",
+        "Triangle",
+        "Sample & Hold",
+        "Ramp Up",
+        "Down Ramp",
+        "Square"
+      ],
+      "category": "lfo"
+    },
+    {
+      "cc": 20,
+      "name": "LFO2 Speed",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "lfo"
+    },
+    {
+      "cc": 22,
+      "name": "LFO2 Delay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "lfo"
+    }
+  ],
+  "controls_arp": [
+    {
+      "cc": 12,
+      "name": "Range",
+      "min": 0,
+      "max": 4,
+      "type": "dropdown",
+      "options": [
+        "1 Octave",
+        "2 Octaves",
+        "4 Octaves",
+        "8 Octaves",
+        "Arp Off"
+      ],
+      "category": "arp"
+    },
+    {
+      "cc": 13,
+      "name": "Length",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "steps",
+      "category": "arp"
+    },
+    {
+      "cc": 14,
+      "name": "Active",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "category": "arp"
+    }
+  ],
+  "controls_global": [
+    {
+      "cc": 1,
+      "name": "Modulation Wheel",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 2,
+      "name": "Breath Control",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 4,
+      "name": "Foot Control",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "category": "mod"
+    },
+    {
+      "cc": 5,
+      "name": "Glide Rate",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "glide"
+    },
+    {
+      "cc": 50,
+      "name": "Pitchmod Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "pitchmod"
+    },
+    {
+      "cc": 51,
+      "name": "Glide Mode",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "options": [
+        "Legato",
+        "Free"
+      ],
+      "category": "glide"
+    },
+    {
+      "cc": 90,
+      "name": "Amp Volume",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "amp",
+      "primary": true
+    },
+    {
+      "cc": 91,
+      "name": "Amp Velocity",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "amp"
+    },
+    {
+      "cc": 92,
+      "name": "Amp Mod",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "amp"
+    },
+    {
+      "cc": 93,
+      "name": "FX1 Mix",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "fx"
+    },
+    {
+      "cc": 94,
+      "name": "FX2 Mix",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "fx"
+    }
+  ]
+}

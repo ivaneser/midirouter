@@ -1,0 +1,177 @@
+{
+  "manufacturer": "Modal Electronics",
+  "model": "Craft Synth 2.0",
+  "type": "analog polyphonic synth",
+  "midi_version": "1.x",
+  "controls": [
+    {
+      "cc": 1,
+      "name": "Modulation",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod"
+    },
+    {
+      "cc": 5,
+      "name": "Portamento Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "portamento"
+    },
+    {
+      "cc": 7,
+      "name": "Volume",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "amp"
+    },
+    {
+      "cc": 11,
+      "name": "Panpot",
+      "min": -64,
+      "max": 63,
+      "type": "slider",
+      "unit": "pan",
+      "center": 0,
+      "category": "amp"
+    },
+    {
+      "cc": 64,
+      "name": "Hold 1 (Sustain)",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "category": "keyboard"
+    },
+    {
+      "cc": 66,
+      "name": "Portamento",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "on_threshold": 64,
+      "category": "portamento"
+    },
+    {
+      "cc": 72,
+      "name": "Resonance",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 73,
+      "name": "Release Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 74,
+      "name": "Attack Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 75,
+      "name": "Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "filter",
+      "primary": true
+    },
+    {
+      "cc": 76,
+      "name": "Decay Time",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "env"
+    },
+    {
+      "cc": 77,
+      "name": "Vibrato Rate",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "rate",
+      "category": "vibrato"
+    },
+    {
+      "cc": 78,
+      "name": "Vibrato Depth",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "vibrato"
+    },
+    {
+      "cc": 80,
+      "name": "Vibrato Delay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "vibrato"
+    },
+    {
+      "cc": 81,
+      "name": "FILTER Knob",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "user_assignable": true,
+      "category": "filter",
+      "primary": true
+    },
+    {
+      "cc": 82,
+      "name": "MOD Knob",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "user_assignable": true,
+      "category": "mod"
+    },
+    {
+      "cc": 83,
+      "name": "FX Knob",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "user_assignable": true,
+      "category": "fx"
+    },
+    {
+      "cc": 84,
+      "name": "SOUND Knob",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "user_assignable": true,
+      "category": "sound"
+    }
+  ]
+}

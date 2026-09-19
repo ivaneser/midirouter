@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head><title>WS Test</title></head>
+<body>
+<h1>WebSocket Test</h1>
+<div id="status">Connecting...</div>
+<div id="logs"></div>
+<script>
+const ws = new WebSocket('ws://localhost:3000/');
+ws.onopen = () => {
+    document.getElementById('status').textContent = 'CONNECTED ✓';
+    document.getElementById('status').style.color = 'green';
+    log('Connected');
+    ws.send(JSON.stringify({ type: 'get-devices' }));
+};
+ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    log('Received: ' + msg.type + ' (inputs: ' + (msg.inputs?.length||0) + ')');
+    ws.close();
+};
+ws.onclose = (e) => log('Closed: ' + e.code);
+ws.onerror = (e) => {
+    document.getElementById('status').textContent = 'ERROR ✗';
+    document.getElementById('status').style.color = 'red';
+    log('Error');
+};
+function log(msg) {
+    const d = document.createElement('div');
+    d.textContent = msg;
+    document.getElementById('logs').appendChild(d);
+}
+</script>
+</body>
+</html>

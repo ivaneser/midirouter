@@ -1,0 +1,437 @@
+/* === MIDI Router — авто-соединение всех со всеми === */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+}
+
+/* === Header === */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #16213e;
+    border-bottom: 2px solid #0f3460;
+}
+
+.header h1 { font-size: 1.4rem; color: #e94560; }
+
+.status-bar { display: flex; align-items: center; gap: 8px; }
+
+.status-indicator {
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: #333;
+    font-size: 0.85rem;
+}
+
+.status-indicator.connected { background: #0a7c2e; }
+.status-indicator.disconnected { background: #8b0000; }
+
+/* === Connect Panel === */
+.connect-panel {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px;
+    background: #0f3460;
+}
+
+.connect-panel input {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: #1a1a2e;
+    color: #eee;
+}
+
+/* === Buttons === */
+.btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: opacity 0.2s;
+}
+
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #e94560; color: white; }
+
+/* === Port Section (two columns) === */
+.port-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+}
+
+.port-column h2 {
+    font-size: 0.95rem;
+    color: #e94560;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #0f3460;
+    border-radius: 6px;
+}
+
+.device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* === Device Items (all connected automatically) === */
+.device-item {
+    padding: 10px 14px;
+    background: #1a1a2e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.device-item.connected {
+    border-color: #0a7c2e;
+    background: #16213e;
+}
+
+.device-item.disabled {
+    opacity: 0.4;
+}
+
+/* === Debug Panel === */
+.debug-panel {
+    margin: 20px;
+    background: #16213e;
+    border-radius: 8px;
+}
+
+.debug-panel summary {
+    padding: 10px 16px;
+    cursor: pointer;
+    color: #888;
+}
+
+#logs {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 10px 16px;
+    font-family: monospace;
+    font-size: 0.7rem;
+    color: #555;
+}
+
+#logs div { padding: 2px 0; }
+
+/* === DAW Panel (Clips & Record) === */
+.daw-panel {
+    padding: 20px;
+    background: #16213e;
+    border-radius: 8px;
+    margin: 20px;
+}
+.daw-panel h2 {
+    font-size: 0.95rem;
+    color: #e94560;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #0f3460;
+    border-radius: 6px;
+}
+.daw-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.daw-controls label {
+    font-size: 0.85rem;
+    color: #ccc;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.daw-controls select, .daw-controls input[type="number"], .daw-controls input[type="text"] {
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #eee;
+    font-size: 0.85rem;
+}
+.daw-controls label.chk { text-transform: none; }
+.daw-controls .btn { padding: 6px 14px; }
+
+.pad-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+.daw-track-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.daw-track-label {
+    width: 42px;
+    font-size: 0.75rem;
+    color: #e94560;
+    text-align: right;
+    flex-shrink: 0;
+}
+.daw-pad {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    border: 2px solid #0f3460;
+    background: #1a1a2e;
+    color: #888;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: transform 0.05s, background 0.15s;
+}
+.daw-pad:hover { border-color: #e94560; }
+.daw-pad:active { transform: scale(0.92); }
+.daw-pad.has-content { color: #eee; background: #163a5e; border-color: #0a7c2e; }
+.daw-pad.playing { background: #0a7c2e; border-color: #3ddc84; color: #fff; box-shadow: 0 0 10px #3ddc84; }
+.daw-pad.flash { background: #e94560; }
+.daw-pad.unmapped { opacity: 0.35; }
+.daw-hint { font-size: 0.75rem; color: #888; margin-top: 8px; }
+
+/* === Configuration Panel === */
+.config-panel {
+    padding: 20px;
+    background: #16213e;
+    border-radius: 8px;
+    margin: 20px;
+}
+.config-panel h2 {
+    font-size: 0.95rem;
+    color: #e94560;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #0f3460;
+    border-radius: 6px;
+}
+
+/* Tabs */
+.config-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.tab-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+.tab-btn:hover { background: #0f3460; }
+.tab-btn.active {
+    background: #e94560;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+.tab-content.active {
+    display: block;
+}
+
+/* Mapping Editor */
+.mapping-editor {
+    background: #1a1a2e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.mapping-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.mapping-name {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.9rem;
+    margin-right: 8px;
+}
+.btn-sm { padding: 4px 12px; font-size: 0.8rem; }
+.btn-danger { background: #8b0000; color: white; }
+
+.mapping-section {
+    margin-bottom: 12px;
+}
+.mapping-section h4 {
+    font-size: 0.85rem;
+    color: #ccc;
+    margin-bottom: 8px;
+}
+.mapping-select {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 6px;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.85rem;
+}
+
+/* Filters */
+.filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.filter-select {
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.85rem;
+}
+.filter-input {
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.85rem;
+    flex: 1;
+    min-width: 100px;
+}
+.velocity-inputs {
+    display: flex;
+    gap: 8px;
+}
+
+/* Device Editor */
+.device-editor {
+    background: #1a1a2e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.device-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.device-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.device-fields input {
+    flex: 1;
+    min-width: 150px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #0f3460;
+    color: #eee;
+    font-size: 0.85rem;
+}
+
+/* JSON Editor */
+.config-textarea {
+    width: 100%;
+    min-height: 300px;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #0f3460;
+    color: #eee;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    resize: vertical;
+}
+.config-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: #888;
+    font-size: 0.9rem;
+}
+
+/* Quick Guide */
+.quick-guide {
+    padding: 16px 20px;
+    background: #16213e;
+    border-left: 4px solid #e94560;
+    margin: 16px 20px;
+    border-radius: 0 8px 8px 0;
+}
+.quick-guide h3 {
+    color: #e94560;
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+.quick-guide ol {
+    padding-left: 20px;
+    color: #ccc;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+.quick-guide strong {
+    color: #fff;
+}
+
+/* Route summary */
+.route-summary {
+    padding: 8px 12px;
+    background: #0f3460;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+    color: #aaa;
+}
+.route-summary strong {
+    color: #4ade80;
+}
+
+/* Tab hint */
+.tab-hint {
+    padding: 8px 12px;
+    color: #888;
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    font-style: italic;
+}
+
+/* Filters section (collapsed by default) */
+.filters-section {
+    border-top: 1px solid #0f3460;
+    padding-top: 12px;
+    margin-top: 12px;
+}

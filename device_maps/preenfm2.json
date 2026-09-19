@@ -1,0 +1,336 @@
+{
+  "manufacturer": "Mutable Instruments / Polyend",
+  "model": "PreenFM2",
+  "type": "FM synth (Yamaha DX7-style, 6 operators)",
+  "midi_version": "3.x",
+  "nrpn_support": true,
+  "controls_cc": [
+    {
+      "cc": 16,
+      "name": "Algorithm",
+      "min": 0,
+      "max": 28,
+      "type": "dropdown",
+      "options": [
+        "Alg 0-28"
+      ],
+      "category": "algorithm"
+    },
+    {
+      "cc": 22,
+      "name": "Volume",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "amp",
+      "primary": true
+    },
+    {
+      "cc": 23,
+      "name": "Pan",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "pan",
+      "center": 64,
+      "category": "amp"
+    },
+    {
+      "cc": 50,
+      "name": "Op 1 Frequency (Carrier)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "operator_1"
+    },
+    {
+      "cc": 62,
+      "name": "Mod Op Env Attack (all mod ops)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "mod_env"
+    },
+    {
+      "cc": 63,
+      "name": "Mod Op Env Release (all mod ops)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "mod_env"
+    },
+    {
+      "cc": 80,
+      "name": "Carrier Env Attack (all carriers)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "car_env"
+    },
+    {
+      "cc": 81,
+      "name": "Carrier Env Release (all carriers)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "car_env"
+    },
+    {
+      "cc": 97,
+      "name": "Arp Clock",
+      "min": 0,
+      "max": 2,
+      "type": "dropdown",
+      "options": [
+        "Off",
+        "Free",
+        "Sync"
+      ],
+      "category": "arp"
+    },
+    {
+      "cc": 98,
+      "name": "Arp Direction",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "direction",
+      "category": "arp"
+    },
+    {
+      "cc": 99,
+      "name": "Arp Octave",
+      "min": 0,
+      "max": 127,
+      "type": "dropdown",
+      "options": [
+        "-2",
+        "-1",
+        "0",
+        "+1",
+        "+2"
+      ],
+      "category": "arp"
+    },
+    {
+      "cc": 100,
+      "name": "Arp Pattern",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "pattern",
+      "category": "arp"
+    }
+  ],
+  "controls_nrpn": {
+    "description": "PreenFM2 использует NRPN для большинства параметров FM-синтеза",
+    "parameters": [
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 0,
+        "name": "Algorithm (NRPN)",
+        "min": 0,
+        "max": 28,
+        "type": "dropdown",
+        "category": "algorithm"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 1,
+        "name": "Velocity Sensitivity",
+        "min": 0,
+        "max": 16,
+        "type": "slider",
+        "unit": "sensitivity",
+        "category": "velocity"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 2,
+        "name": "Voice Count",
+        "min": 0,
+        "max": 16,
+        "type": "slider",
+        "unit": "voices",
+        "category": "voice"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 3,
+        "name": "Glide Time",
+        "min": 0,
+        "max": 10,
+        "type": "slider",
+        "unit": "time",
+        "category": "glide"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 4,
+        "name": "Operator 1 Frequency Type",
+        "min": 0,
+        "max": 1,
+        "type": "toggle",
+        "options": [
+          "Fixed",
+          "Track"
+        ],
+        "category": "operator_1"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 68,
+        "name": "Op 1 Env Attack",
+        "min": 0,
+        "max": 1600,
+        "type": "slider",
+        "unit": "time",
+        "note": "NRPN value / 100 = real time",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 74,
+        "name": "Op 1 Env Decay",
+        "min": 0,
+        "max": 1600,
+        "type": "slider",
+        "unit": "time",
+        "note": "NRPN value / 100 = real time",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 72,
+        "name": "Op 1 Env Sustain",
+        "min": 0,
+        "max": 100,
+        "type": "slider",
+        "unit": "%",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 69,
+        "name": "Op 1 Env Attack Level",
+        "min": 0,
+        "max": 100,
+        "type": "slider",
+        "unit": "%",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 70,
+        "name": "Op 1 Env Decay Level",
+        "min": 0,
+        "max": 100,
+        "type": "slider",
+        "unit": "%",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 71,
+        "name": "Op 1 Env Decay2",
+        "min": 0,
+        "max": 1600,
+        "type": "slider",
+        "unit": "time",
+        "note": "NRPN value / 100 = real time",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 0,
+        "nrpn_ls": 75,
+        "name": "Op 1 Env Release",
+        "min": 0,
+        "max": 1600,
+        "type": "slider",
+        "unit": "time",
+        "note": "NRPN value / 100 = real time",
+        "category": "car_env"
+      },
+      {
+        "nrpn_ms": 4,
+        "name": "Modulation Index 1 (IM)",
+        "min": 0,
+        "max": 1600,
+        "type": "slider",
+        "unit": "index",
+        "note": "NRPN value / 100 = real index",
+        "category": "mod_index"
+      },
+      {
+        "nrpn_ms": 5,
+        "name": "Modulation Index 1 (Velocity)",
+        "min": 0,
+        "max": 1600,
+        "type": "slider",
+        "unit": "index_vel",
+        "note": "NRPN value / 100 = real index",
+        "category": "mod_index"
+      },
+      {
+        "nrpn_ms": 6,
+        "name": "Mix Operator 2",
+        "min": 0,
+        "max": 100,
+        "type": "slider",
+        "unit": "%",
+        "note": "NRPN value / 2 = real pan (0=left, 100=center, 200=right)",
+        "category": "mix"
+      },
+      {
+        "nrpn_ms": 7,
+        "name": "Pan Operator 2",
+        "min": 0,
+        "max": 200,
+        "type": "slider",
+        "unit": "pan",
+        "note": "NRPN value / 2 = real pan",
+        "category": "mix"
+      },
+      {
+        "nrpn_ms": 16,
+        "name": "Matrix Source (rows 1-3)",
+        "min": 0,
+        "max": 127,
+        "type": "slider",
+        "unit": "source",
+        "note": "CC 116 + (n-1)*4",
+        "category": "matrix"
+      },
+      {
+        "nrpn_ms": 17,
+        "name": "Matrix Multiplier (rows 1-3)",
+        "min": -1000,
+        "max": 1000,
+        "type": "slider",
+        "unit": "multiplier",
+        "note": "CC 117 + (n-1)*4, value/2000 = multiplier (-10 to +10)",
+        "category": "matrix"
+      },
+      {
+        "nrpn_ms": 18,
+        "name": "Matrix Destination (rows 1-3)",
+        "min": 0,
+        "max": 127,
+        "type": "slider",
+        "unit": "destination",
+        "note": "CC 118 + (n-1)*4",
+        "category": "matrix"
+      }
+    ]
+  },
+  "controls_sysex": {
+    "description": "Полный маппинг параметров через SysEx для загрузки/сохранения пресетов",
+    "note": "Используется для полного бэкапа, не для realtime управления"
+  }
+}

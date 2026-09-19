@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Router</title>
+    <link rel="stylesheet" href="/css/style.css?v=4">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>🎹 MIDI Router</h1>
+            <div class="status-bar">
+                <span id="connection-status" class="status-indicator disconnected">● Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Connection -->
+        <section class="connect-panel">
+            <input type="text" id="ws-url" value="ws://localhost:3000" placeholder="ws://192.168.x.x:3000">
+            <button id="btn-connect" class="btn btn-primary">Connect</button>
+        </section>
+
+        <!-- Quick Guide -->
+        <section class="quick-guide">
+            <h3>📖 Quick Start</h3>
+            <ol>
+                <li>Click <strong>Connect</strong> above</li>
+                <li>Go to <strong>Routes</strong> tab → click <strong>+ Add Route</strong></li>
+                <li>Select an <strong>Input</strong> (e.g. your controller) and an <strong>Output</strong> (e.g. your synth)</li>
+                <li>Go to <strong>JSON</strong> tab → click <strong>💾 Save</strong> to persist</li>
+            </ol>
+        </section>
+
+        <!-- Configuration Panel -->
+        <section class="config-panel">
+            <h2>⚙️ Configuration</h2>
+            
+            <!-- Tabs -->
+            <div class="config-tabs">
+                <button class="tab-btn active" data-tab="routes">🔌 Routes</button>
+                <button class="tab-btn" data-tab="devices">🎛 Devices</button>
+                <button class="tab-btn" data-tab="json">📄 JSON</button>
+            </div>
+            
+            <!-- Routes Tab -->
+            <div class="tab-content active" id="tab-routes">
+                <p class="tab-hint">A route sends MIDI from one input device to one output device.</p>
+                <div class="mapping-list" id="mapping-list"></div>
+                <button class="btn btn-primary" id="btn-add-mapping">+ Add Route</button>
+            </div>
+            
+            <!-- Devices Tab -->
+            <div class="tab-content" id="tab-devices">
+                <p class="tab-hint">Device nicknames make routes easier to manage. They're optional — routes work with full device names too.</p>
+                <div class="device-config-list" id="device-config-list"></div>
+                <button class="btn btn-primary" id="btn-add-device">+ Add Device</button>
+            </div>
+            
+            <!-- JSON Tab -->
+            <div class="tab-content" id="tab-json">
+                <p class="tab-hint">Edit the raw config here, then click Save to apply.</p>
+                <textarea id="config-json" class="config-textarea" placeholder="JSON configuration"></textarea>
+                <div class="config-actions">
+                    <button class="btn" id="btn-format-json">Format</button>
+                    <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
+                    <button class="btn" id="btn-load-config">📂 Load</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- DAW / Clip controls -->
+        <section class="daw-panel">
+            <h2>🎵 DAW — Clips & Record</h2>
+            <div class="daw-controls">
+                <label>Mode:
+                    <select id="record-mode">
+                        <option value="none">Play</option>
+                        <option value="replace">Replace</option>
+                        <option value="overdub">Overdub</option>
+                    </select>
+                </label>
+                <label>BPM:
+                    <input type="number" id="tempo" min="20" max="300" step="1" value="120">
+                </label>
+                <button id="tap-tempo" class="btn">Tap Tempo</button>
+                <label>Slots/track:
+                    <select id="slots">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="4">4</option>
+                        <option value="8">8</option>
+                    </select>
+                </label>
+                <label class="chk"><input type="checkbox" id="auto-assign" checked> auto-assign pads</label>
+                <label>Preset:
+                    <input type="text" id="preset-name" placeholder="name">
+                </label>
+                <button id="preset-save" class="btn">Save</button>
+                <select id="preset-load">
+                    <option value="">-- load --</option>
+                </select>
+            </div>
+
+            <div id="pad-grid" class="pad-grid"></div>
+            <p class="daw-hint">Press pads on your LaunchKey: note-on = arm/trigger, note-off = finish + play. Notes you play get recorded into the active clip.</p>
+        </section>
+
+        <!-- Logs -->
+        <details class="debug-panel">
+            <summary>Logs</summary>
+            <div id="logs"></div>
+        </details>
+    </div>
+
+    <script type="module" src="/js/app.js?v=4"></script>
+</body>
+</html>
