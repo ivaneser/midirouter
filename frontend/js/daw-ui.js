@@ -12,6 +12,7 @@ export class DAWUI {
         const modeSelect = document.getElementById('record-mode');
         const tempoInput = document.getElementById('tempo');
         const slotsInput = document.getElementById('slots');
+        const sessionModeSelect = document.getElementById('session-record-mode');
 
         if (modeSelect) {
             modeSelect.addEventListener('change', () => this._send({ type: 'daw-set-record-mode', mode: modeSelect.value }));
@@ -30,9 +31,24 @@ export class DAWUI {
         if (slotsInput) {
             slotsInput.addEventListener('change', () => this._send({ type: 'daw-set-slots', n: parseInt(slotsInput.value, 10) }));
         }
+        if (sessionModeSelect) {
+            sessionModeSelect.addEventListener('change', () => this._send({ type: 'daw-set-record-mode', mode: sessionModeSelect.value }));
+        }
         const autoChk = document.getElementById('auto-assign');
         if (autoChk) {
             autoChk.addEventListener('change', () => this._send({ type: 'daw-pad-learn', on: autoChk.checked }));
+        }
+        // Metronome controls
+        const metroBtn = document.getElementById('metronome-toggle');
+        if (metroBtn) {
+            metroBtn.addEventListener('click', () => this._send({ type: 'daw-metronome-toggle' }));
+        }
+        const metroBeatsInput = document.getElementById('metro-beats');
+        if (metroBeatsInput) {
+            metroBeatsInput.addEventListener('change', () => {
+                const beats = parseInt(metroBeatsInput.value, 10);
+                if (beats) this._send({ type: 'daw-metronome-beats-per-measure', bpm: beats });
+            });
         }
         // presets
         const saveName = document.getElementById('preset-name');
@@ -67,9 +83,26 @@ export class DAWUI {
         const modeSelect = document.getElementById('record-mode');
         const tempoInput = document.getElementById('tempo');
         const slotsInput = document.getElementById('slots');
+        const sessionModeSelect = document.getElementById('session-record-mode');
         if (modeSelect) modeSelect.value = this.dawState.recordMode;
         if (tempoInput) tempoInput.value = Math.round(this.dawState.tempo);
         if (slotsInput) slotsInput.value = String(this.dawState.slotsPerTrack);
+        if (sessionModeSelect) sessionModeSelect.value = this.dawState.recordMode;
+        // Metronome controls
+        this._syncMetronomeControls();
+    }
+
+    _syncMetronomeControls() {
+        const metroBtn = document.getElementById('metronome-toggle');
+        const metroBeatsSelect = document.getElementById('metro-beats');
+        if (metroBtn) {
+            const enabled = this.dawState.metronomeEnabled;
+            metroBtn.classList.toggle('active', !!enabled);
+            metroBtn.textContent = enabled ? '♫ Metro ON' : '♪ Metro';
+        }
+        if (metroBeatsSelect && this.dawState.metronomeBeatsPerMeasure != null) {
+            metroBeatsSelect.value = String(this.dawState.metronomeBeatsPerMeasure);
+        }
     }
 
     _renderPresets(names) {
@@ -89,7 +122,11 @@ export class DAWUI {
     }
 
     _renderGrid() {
-        const grid = document.getElementById('pad-grid');
+        this._renderSessionGrid();
+    }
+
+    _renderSessionGrid() {
+        const grid = document.getElementById('session-grid');
         if (!grid || !this.dawState || !Array.isArray(this.dawState.tracks)) return;
         grid.innerHTML = '';
         const slots = this.dawState.slotsPerTrack || 1;
@@ -98,31 +135,31 @@ export class DAWUI {
             const ch = this.dawState.tracks[t];
             if (!ch) continue;
             const row = document.createElement('div');
-            row.className = 'daw-track-row';
+            row.className = 'session-row';
 
             const label = document.createElement('div');
-            label.className = 'daw-track-label';
+            label.className = 'session-track-label';
             label.textContent = `Ch${ch.channel}`;
             row.appendChild(label);
 
             for (let s = 0; s < slots; s++) {
                 const clip = ch.clips[s];
-                const pad = document.createElement('button');
+                const slot = document.createElement('button');
                 const key = `${t}-${s}`;
                 const note = this.padNotes[key];
-                pad.className = 'daw-pad' +
+                slot.className = 'session-slot' +
                     (ch.playing ? ' playing' : '') +
                     (clip && clip.notes > 0 ? ' has-content' : '') +
                     (note != null ? '' : ' unmapped');
-                pad.dataset.track = t;
-                pad.dataset.slot = s;
-                pad.title = note != null ? `assigned: note ${note}` : 'unmapped';
-                pad.textContent = clip && clip.notes > 0 ? clip.notes : '';
+                slot.dataset.track = t;
+                slot.dataset.slot = s;
+                slot.title = note != null ? `assigned: note ${note}` : 'unmapped';
+                slot.textContent = clip && clip.notes > 0 ? `${clip.notes}n` : '';
 
-                pad.addEventListener('click', () => {
+                slot.addEventListener('click', () => {
                     this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
                 });
-                row.appendChild(pad);
+                row.appendChild(slot);
             }
             grid.appendChild(row);
         }

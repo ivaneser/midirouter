@@ -205,6 +205,29 @@ body {
 .daw-pad.unmapped { opacity: 0.35; }
 .daw-hint { font-size: 0.75rem; color: #888; margin-top: 8px; }
 
+/* Metronome controls */
+.metronome-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+}
+.metro-beats {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+}
+.metro-beats select {
+    width: 50px;
+    padding: 4px 6px;
+}
+#metronome-toggle.active {
+    background: #3ddc84;
+    color: #1a1a2e;
+    font-weight: bold;
+}
+
 /* === Configuration Panel === */
 .config-panel {
     padding: 20px;
@@ -455,4 +478,98 @@ body {
     background: #e94560;
     border-color: #e94560;
     color: white;
+}
+
+/* === Session Grid (Ableton-style) === */
+.session-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+    overflow-x: auto;
+}
+.session-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: fit-content;
+}
+.session-track-label {
+    width: 48px;
+    font-size: 0.7rem;
+    color: #e94560;
+    text-align: right;
+    flex-shrink: 0;
+    font-weight: bold;
+}
+.session-slot {
+    width: 64px;
+    height: 40px;
+    border-radius: 4px;
+    border: 2px solid #0f3460;
+    background: #1a1a2e;
+    color: #666;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.session-slot:hover {
+    border-color: #e94560;
+    color: #ccc;
+}
+.session-slot:active {
+    transform: scale(0.95);
+}
+.session-slot.has-content {
+    color: #ccc;
+    background: #163a5e;
+    border-color: #0a7c2e;
+}
+.session-slot.playing {
+    background: #0a7c2e;
+    border-color: #3ddc84;
+    color: #fff;
+    box-shadow: 0 0 8px #3ddc84;
+}
+.session-slot.recording {
+    background: #8b0000;
+    border-color: #e94560;
+    color: #fff;
+    animation: pulse-record 1s infinite;
+}
+.session-slot.armed {
+    border-color: #e94560;
+    background: #3a1a1a;
+    color: #e94560;
+}
+.session-slot.flash {
+    background: #e94560;
+}
+@keyframes pulse-record {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+.session-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.session-mode-label {
+    font-size: 0.8rem;
+    color: #ccc;
+}
+#session-record-mode {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    background: #1a1a2e;
+    color: #eee;
+    font-size: 0.8rem;
 }

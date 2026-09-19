@@ -46,6 +46,13 @@ class DAWEngine {
         this._playAnchorTime = 0;           // performance.now() начала текущего цикла
         this._currentBeat = 0;              // биты текущего цикла [0, loopLen)
 
+        // Metronome / click track
+        this._metronomeEnabled = false;
+        this._metronomeTimer = null;
+        this._metronomeNote = 60;           // default click note (C4)
+        this._metronomeAccentNote = 62;     // accent on beat 1 (D4)
+        this._metronomeBeatsPerMeasure = 4; // 4/4 default
+
         this._onEvent = () => {};           // (evt) => void  — колбэк для форварда MIDI
         this._onProgress = () => {};        // (beat, progress) => void — для UI
     }
@@ -81,6 +88,64 @@ class DAWEngine {
             this.tempo = Math.max(20, Math.min(300, 60 / avg));
         }
         this._lastTap = now;
+    }
+
+    // ---- Metronome ----
+    setMetronome(enabled) {
+        this._metronomeEnabled = !!enabled;
+        if (this._metronomeEnabled && this.playing) {
+            this._startMetronome();
+        } else {
+            this._stopMetronome();
+        }
+    }
+
+    setMetronomeNote(note) {
+        this._metronomeNote = Math.max(0, Math.min(127, note));
+    }
+
+    setMetronomeAccentNote(note) {
+        this._metronomeAccentNote = Math.max(0, Math.min(127, note));
+    }
+
+    setMetronomeBeatsPerMeasure(n) {
+        this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, n));
+    }
+
+    _startMetronome() {
+        if (this._metronomeTimer) return;
+        const self = this;
+        let beatInMeasure = 0;
+
+        // Метроном тикает синхронно с транспортом — каждые 50ms проверяем
+        // и тикаем когда _currentBeat пересекает границу бита
+        this._metronomeTimer = setInterval(() => {
+            if (!this.playing) {
+                this._stopMetronome();
+                return;
+            }
+            const beatMs = (60 / this.tempo / 4) * 1000;
+            const elapsed = performance.now() - this._playAnchorTime;
+            const currentBeatFloat = (elapsed / 1000) / (beatMs / 1000);
+            const currentBeatInt = Math.floor(currentBeatFloat % this.loopLenBeats);
+            
+            // Если перешли на новый бит — тикаем
+            if (currentBeatInt !== beatInMeasure && currentBeatInt >= 0) {
+                const isAccent = (beatInMeasure % this._metronomeBeatsPerMeasure === 0);
+                const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
+                const vel = isAccent ? 100 : 70;
+                self._onEvent({ type: 'midi', data: noteOn(1, note, vel) });
+                self._onEvent({ type: 'midi', data: noteOff(1, note) });
+                beatInMeasure = currentBeatInt;
+            }
+        }, 50);
+    }
+
+    _stopMetronome() {
+        if (this._metronomeTimer) {
+            clearInterval(this._metronomeTimer);
+            this._metronomeTimer = null;
+        }
     }
 
     setRecordMode(mode) {
@@ -255,6 +320,10 @@ class DAWEngine {
 
             // Если темп поменялся — цикл уже идёт, коррекция на след. тике ок
         }, 50);
+        // Start metronome when transport starts
+        if (this._metronomeEnabled) {
+            this._startMetronome();
+        }
     }
 
     stopTransport() {
@@ -262,6 +331,8 @@ class DAWEngine {
         if (this._playLoopTimer) clearInterval(this._playLoopTimer);
         this._playLoopTimer = null;
         this._currentBeat = 0;
+        // Stop metronome when transport stops
+        this._stopMetronome();
     }
 
     // Выход MIDI-байт на выходы (форвард в worker)
@@ -298,6 +369,7 @@ class DAWEngine {
             recordMode: this.recordMode,
             slotsPerTrack: this.slotsPerTrack,
             loopLenBeats: this.loopLenBeats,
+            metronomeEnabled: this._metronomeEnabled,
             tracks,
         };
     }

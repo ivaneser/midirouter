@@ -418,11 +418,40 @@ class MIDIRouterWorker {
     // Incoming MIDI note from a controller: trigger pad / arm-rec / finalize
     _handleControllerNote(note, velocity, channel, now) {
         const isPad = this.padMap.has(note);
+        const isDAWPad = channel === 1 && note >= 112 && note <= 127; // DAW mode pads
 
         // While recording and the pressed key is NOT a mapped pad -> record it
-        if (this.daw.recording && !isPad) {
+        if (this.daw.recording && !isPad && !isDAWPad) {
             const statusByte = 0x90 | ((channel - 1) & 0x0f);
             this.daw.recordEvent(statusByte, note, velocity, now);
+        }
+
+        // Handle DAW mode pads (Ch1, notes 112-127)
+        if (isDAWPad) {
+            if (velocity > 0) {
+                // Find the pad mapping for this note
+                let padMapping = null;
+                for (const [padNote, m] of this.padMap.entries()) {
+                    if (padNote === note) {
+                        padMapping = m;
+                        break;
+                    }
+                }
+                if (padMapping) {
+                    const { trackIdx, slot } = padMapping;
+                    const res = this.daw.triggerPad(trackIdx, slot, now);
+                    if (res.action === 'play') {
+                        this.daw.setClipPlay(trackIdx, slot, now);
+                        this._startTrackPlayback(trackIdx, slot);
+                    } else if (res.action === 'stop') {
+                        this.daw.setClipPlay(trackIdx, slot, now);
+                        this._stopTrackPlayback(trackIdx);
+                    } else if (res.action === 'record' || res.action === 'overdub') {
+                        this._armLed(trackIdx);
+                    }
+                }
+            }
+            return; // DAW mode pads handled separately
         }
 
         if (velocity > 0) {
@@ -449,6 +478,47 @@ class MIDIRouterWorker {
                 this.daw.quantizeClip(trackIdx, slot);
                 this.daw.setClipPlay(trackIdx, slot, now);
                 this._startTrackPlayback(trackIdx, slot);
+            }
+        }
+    }
+
+    // ---- Обработка кнопок транспорта и записи (CC) ----
+    // Launchkey Mini MK3 DAW mode:
+    // Ch16, CC 115 = Play, CC 116 = Stop, CC 117 = Record, CC 118 = Loop
+    // Ch7, CC 29 = pad mode (0x02=DAW, 0x01=Drum, 0x0F=DAW Drum)
+    _handleControllerCC(cc, value, channel, now) {
+        if (channel === 16) {
+            // Transport commands on Ch16
+            if (cc === 115) { // Play
+                if (value > 0) {
+                    this.handleDawControl({ type: 'daw_start_transport' });
+                }
+            } else if (cc === 116) { // Stop
+                if (value > 0) {
+                    this.handleDawControl({ type: 'daw_stop_transport' });
+                }
+            } else if (cc === 117) { // Record
+                if (value > 0) {
+                    // Toggle record mode: none -> replace -> overdub -> none
+                    const modes = ['none', 'replace', 'overdub'];
+                    const currentIdx = modes.indexOf(this.daw.recordMode);
+                    const nextMode = modes[(currentIdx + 1) % modes.length];
+                    this.handleDawControl({ type: 'daw_set_record_mode', mode: nextMode });
+                }
+            } else if (cc === 118) { // Loop
+                if (value > 0) {
+                    // Toggle loop mode on/off
+                    this.handleDawControl({ type: 'daw_toggle_loop' });
+                }
+            }
+        } else if (channel === 7 && cc === 29) {
+            // Pad mode selection on Ch7
+            if (value === 0x02) {
+                console.log('[WORKER] DAW mode activated (pad mode 0x02)');
+            } else if (value === 0x01) {
+                console.log('[WORKER] Drum mode activated (pad mode 0x01)');
+            } else if (value === 0x0F) {
+                console.log('[WORKER] DAW Drum mode activated (pad mode 0x0F)');
             }
         }
     }
@@ -600,6 +670,14 @@ class MIDIRouterWorker {
             this._handleLaunchkeySysEx(deviceName, bytes);
             return;
         }
+        
+        // Обработка CC (контроллер транспорта/записи)
+        if (type === 7) {
+            const cc = bytes[1];
+            const value = bytes[2] || 0;
+            const now = performance.now();
+            this._handleControllerCC(cc, value, channel, now);
+        }
 
         // Create message object for filters
         const message = {
@@ -697,7 +775,47 @@ class MIDIRouterWorker {
                 if (msg.state.tempo != null) daw.setTempo(msg.state.tempo);
                 if (msg.state.recordMode != null) daw.setRecordMode(msg.state.recordMode);
                 if (msg.state.slotsPerTrack != null) daw.setSlotsPerTrack(msg.state.slotsPerTrack);
+                if (msg.state.metronomeEnabled != null) daw.setMetronome(msg.state.metronomeEnabled);
                 this._broadcastState();
+                break;
+            case 'daw_metronome_toggle':
+                daw.setMetronome(!daw._metronomeEnabled);
+                this._broadcastState();
+                break;
+            case 'daw_metronome_on':
+                daw.setMetronome(true);
+                this._broadcastState();
+                break;
+            case 'daw_metronome_off':
+                daw.setMetronome(false);
+                this._broadcastState();
+                break;
+            case 'daw_metronome_note':
+                if (msg.note != null) daw.setMetronomeNote(msg.note);
+                break;
+            case 'daw_metronome_beats_per_measure':
+                if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
+                this._broadcastState();
+                break;
+            case 'daw_start_transport':
+                if (!this._transportPlaying) {
+                    daw.startTransport();
+                    this._transportPlaying = true;
+                }
+                this._broadcastState();
+                break;
+            case 'daw_stop_transport':
+                if (this._transportPlaying) {
+                    daw.stopTransport();
+                    this._transportPlaying = false;
+                }
+                this._broadcastState();
+                break;
+            case 'daw_toggle_loop':
+                // Toggle loop mode: toggle loopLenBeats between 16 and 4
+                daw.loopLenBeats = daw.loopLenBeats === 16 ? 4 : 16;
+                this._broadcastState();
+                console.log(`[WORKER] Loop toggled to ${daw.loopLenBeats} beats`);
                 break;
         }
     }
@@ -736,8 +854,16 @@ class MIDIRouterWorker {
     _applyDefaultPadMap() {
         // Apply default pad mapping for Launchkey Mini MK3
         if (this.padMap.size > 0) return; // Don't overwrite existing mapping
-        for (const pad of this._defaultPadMap) {
-            this.padMap.set(pad.note, { trackIdx: pad.trackIdx, slot: pad.slot });
+        
+        // DAW Mode pads: Ch1, notes 112-127 (0x70-0x7F)
+        // 2 rows x 8 columns -> 8 tracks, 2 slots
+        // Bottom row (112-119): slot 0
+        // Top row (120-127): slot 1
+        for (let col = 0; col < 8; col++) {
+            // Bottom row -> slot 0
+            this.padMap.set(112 + col, { trackIdx: col, slot: 0 });
+            // Top row -> slot 1
+            this.padMap.set(120 + col, { trackIdx: col, slot: 1 });
         }
         console.log('[WORKER] Default pad map applied:', this.padMap.size, 'pads');
         this._broadcastPadMap();

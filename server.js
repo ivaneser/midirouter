@@ -335,6 +335,26 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_set_slots', n: message.n });
                         break;
 
+                    case 'daw-metronome-toggle':
+                        router.worker.postMessage({ type: 'daw_metronome_toggle' });
+                        break;
+
+                    case 'daw-metronome-on':
+                        router.worker.postMessage({ type: 'daw_metronome_on' });
+                        break;
+
+                    case 'daw-metronome-off':
+                        router.worker.postMessage({ type: 'daw_metronome_off' });
+                        break;
+
+                    case 'daw-metronome-note':
+                        router.worker.postMessage({ type: 'daw_metronome_note', note: message.note });
+                        break;
+
+                    case 'daw-metronome-beats-per-measure':
+                        router.worker.postMessage({ type: 'daw_metronome_beats_per_measure', bpm: message.bpm });
+                        break;
+
                     case 'daw-pad-learn':
                         router.worker.postMessage({ type: 'daw_pad_learn', on: !!message.on });
                         break;

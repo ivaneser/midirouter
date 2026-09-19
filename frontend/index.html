@@ -53,6 +53,22 @@
                     <input type="number" id="tempo" min="20" max="300" step="1" value="120">
                 </label>
                 <button id="tap-tempo" class="btn">Tap Tempo</button>
+                <div class="metronome-controls">
+                    <button id="metronome-toggle" class="btn" title="Toggle metronome">♪ Metro</button>
+                    <label class="metro-beats">
+                        Beats:
+                        <select id="metro-beats">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4" selected>4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                        </select>
+                    </label>
+                </div>
                 <label>Slots/track:
                     <select id="slots">
                         <option value="1">1</option>
@@ -71,7 +87,16 @@
                 </select>
             </div>
 
-            <div id="pad-grid" class="pad-grid"></div>
+            <div class="session-controls">
+                <label class="chk"><input type="checkbox" id="auto-assign" checked> auto-assign pads</label>
+                <span class="session-mode-label">Session Mode:</span>
+                <select id="session-record-mode">
+                    <option value="none">Play</option>
+                    <option value="replace">Replace</option>
+                    <option value="overdub">Overdub</option>
+                </select>
+            </div>
+            <div id="session-grid" class="session-grid"></div>
             <p class="daw-hint">Press pads on your LaunchKey: note-on = arm/trigger, note-off = finish + play. Notes you play get recorded into the active clip.</p>
         </section>
 
