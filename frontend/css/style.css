@@ -463,3 +463,30 @@ body {
     padding-top: 12px;
     margin-top: 12px;
 }
+
+/* Channel buttons */
+.channel-buttons {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+}
+.channel-btn {
+    padding: 8px 0;
+    border: 2px solid #0f3460;
+    border-radius: 6px;
+    background: #1a1a2e;
+    color: #888;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.channel-btn:hover {
+    border-color: #e94560;
+    color: #eee;
+}
+.channel-btn.active {
+    background: #e94560;
+    border-color: #e94560;
+    color: white;
+}

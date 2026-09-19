@@ -279,19 +279,21 @@ export class ConfigEditor {
         filtersDiv.className = 'mapping-section filters-section';
         filtersDiv.innerHTML = '<h4>⚙️ Filters (optional)</h4>';
         
-        // Channel filter
+        // Channel filter — 16 toggle buttons
         const channelFilter = mapping.filters?.channels || {};
         const channelDiv = document.createElement('div');
-        channelDiv.className = 'filter-group';
-        channelDiv.innerHTML = `
-            <label>Channel:</label>
-            <select class="filter-select channel-mode">
-                <option value="none" ${(channelFilter.whitelist?.length === 0 && channelFilter.blacklist?.length === 0) ? 'selected' : ''}>All channels</option>
-                <option value="whitelist" ${(channelFilter.whitelist?.length > 0) ? 'selected' : ''}>Whitelist (pass only these)</option>
-                <option value="blacklist" ${(channelFilter.blacklist?.length > 0) ? 'selected' : ''}>Blacklist (block these)</option>
-            </select>
-            <input type="text" class="filter-input channel-values" placeholder="1,2,3" value="${channelFilter.whitelist?.join(',') || channelFilter.blacklist?.join(',') || ''}">
-        `;
+        channelDiv.className = 'channel-buttons';
+        const whitelist = channelFilter.whitelist || [];
+        const allChannels = whitelist.length === 0; // true = all channels allowed
+        
+        for (let ch = 1; ch <= 16; ch++) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'channel-btn' + (allChannels || whitelist.includes(ch) ? ' active' : '');
+            btn.textContent = ch;
+            btn.dataset.channel = ch;
+            channelDiv.appendChild(btn);
+        }
         filtersDiv.appendChild(channelDiv);
         
         // Velocity filter
@@ -317,11 +319,18 @@ export class ConfigEditor {
         
         // Event listeners
         const deleteBtn = container.querySelector('.mapping-delete');
-        const channelMode = container.querySelector('.channel-mode');
-        const channelValues = container.querySelector('.channel-values');
+        const channelBtns = container.querySelectorAll('.channel-btn');
         const velocityMode = container.querySelector('.velocity-mode');
         const velocityMin = container.querySelector('.velocity-min');
         const velocityMax = container.querySelector('.velocity-max');
+        
+        // Channel button toggle
+        channelBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.classList.toggle('active');
+                saveOnChange();
+            });
+        });
         
         // Update route name display when selection changes
         const updateRouteName = () => {
@@ -371,14 +380,17 @@ export class ConfigEditor {
                 filters: {}
             };
             
-            // Channel filter
-            if (channelMode.value !== 'none' && channelValues.value.trim()) {
-                const values = channelValues.value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
-                if (channelMode.value === 'whitelist') {
-                    this.config.mappings[mappingName].filters.channels = { whitelist: values };
-                } else if (channelMode.value === 'blacklist') {
-                    this.config.mappings[mappingName].filters.channels = { blacklist: values };
+            // Channel filter — collect active buttons
+            const activeChannels = [];
+            channelBtns.forEach(btn => {
+                if (btn.classList.contains('active')) {
+                    activeChannels.push(parseInt(btn.dataset.channel));
                 }
+            });
+            if (activeChannels.length > 0 && activeChannels.length < 16) {
+                this.config.mappings[mappingName].filters.channels = { whitelist: activeChannels };
+            } else {
+                delete this.config.mappings[mappingName].filters.channels;
             }
             
             // Velocity filter
