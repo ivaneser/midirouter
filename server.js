@@ -430,7 +430,16 @@ function startServer() {
         isShuttingDown = true;
         console.log('\n[SERVER] Shutting down...');
         router.cleanup();
+        
+        // Force exit after 3 seconds if graceful close doesn't complete
+        const forceExit = setTimeout(() => {
+            console.log('[SERVER] Force exiting...');
+            process.exit(1);
+        }, 3000);
+        forceExit.unref();
+        
         wss.close(() => server.close(() => {
+            clearTimeout(forceExit);
             console.log('[SERVER] All connections closed. Exiting.');
             process.exit(0);
         }));
