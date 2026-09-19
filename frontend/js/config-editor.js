@@ -360,9 +360,6 @@ export class ConfigEditor {
         
         inputsSelect.addEventListener('change', saveOnChange);
         outputsSelect.addEventListener('change', saveOnChange);
-        velocityMode.addEventListener('change', saveOnChange);
-        velocityMin.addEventListener('input', saveOnChange);
-        velocityMax.addEventListener('input', saveOnChange);
         
         return container;
     }
