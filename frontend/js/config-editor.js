@@ -280,8 +280,8 @@ export class ConfigEditor {
             <label>Channel:</label>
             <select class="filter-select channel-mode">
                 <option value="none" ${(channelFilter.whitelist?.length === 0 && channelFilter.blacklist?.length === 0) ? 'selected' : ''}>All channels</option>
-                <option value="whitelist" ${(channelFilter.whitelist?.length > 0) ? 'selected' : ''}>Whitelist</option>
-                <option value="blacklist" ${(channelFilter.blacklist?.length > 0) ? 'selected' : ''}>Blacklist</option>
+                <option value="whitelist" ${(channelFilter.whitelist?.length > 0) ? 'selected' : ''}>Whitelist (pass only these)</option>
+                <option value="blacklist" ${(channelFilter.blacklist?.length > 0) ? 'selected' : ''}>Blacklist (block these)</option>
             </select>
             <input type="text" class="filter-input channel-values" placeholder="1,2,3" value="${channelFilter.whitelist?.join(',') || channelFilter.blacklist?.join(',') || ''}">
         `;
@@ -295,9 +295,9 @@ export class ConfigEditor {
             <label>Velocity:</label>
             <select class="filter-select velocity-mode">
                 <option value="none" ${!velocityFilter.min && !velocityFilter.max ? 'selected' : ''}>None</option>
-                <option value="clip" ${velocityFilter.mode === 'clip' ? 'selected' : ''}>Clip</option>
-                <option value="drop" ${velocityFilter.mode === 'drop' ? 'selected' : ''}>Drop</option>
-                <option value="scaled" ${velocityFilter.mode === 'scaled' ? 'selected' : ''}>Scaled</option>
+                <option value="clip" ${velocityFilter.mode === 'clip' ? 'selected' : ''}>Clip (clamp to range)</option>
+                <option value="drop" ${velocityFilter.mode === 'drop' ? 'selected' : ''}>Drop (block if outside)</option>
+                <option value="scaled" ${velocityFilter.mode === 'scaled' ? 'selected' : ''}>Scaled (remap)</option>
             </select>
             <div class="velocity-inputs">
                 <input type="number" class="filter-input velocity-min" placeholder="Min" min="0" max="127" value="${velocityFilter.min || ''}">
