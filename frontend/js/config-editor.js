@@ -265,14 +265,15 @@ export class ConfigEditor {
         const channelDiv = document.createElement('div');
         channelDiv.className = 'channel-buttons';
         const whitelist = channelFilter.whitelist || [];
-        const allChannels = whitelist.length === 0; // true = all channels allowed (no filter)
+        // If whitelist exists and is not empty, use it; otherwise all channels restricted (empty)
+        const isAllChannels = whitelist.length === 16;
         
-        console.log('[CONFIG] Channel filter:', { whitelist, allChannels });
+        console.log('[CONFIG] Channel filter:', { whitelist, isAllChannels });
         
         for (let ch = 1; ch <= 16; ch++) {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'channel-btn' + (allChannels || whitelist.includes(ch) ? ' active' : '');
+            btn.className = 'channel-btn' + (isAllChannels || whitelist.includes(ch) ? ' active' : '');
             btn.textContent = ch;
             btn.dataset.channel = ch;
             channelDiv.appendChild(btn);
@@ -374,16 +375,15 @@ export class ConfigEditor {
                     activeChannels.push(parseInt(btn.dataset.channel));
                 }
             });
-            // Empty whitelist (all channels active) = no filter
-            // Partial whitelist = filter to those channels
+            // All 16 active = no filter (delete whitelist)
+            // 1-15 active = whitelist with those channels
+            // 0 active = no filter (delete whitelist, all channels restricted until user selects)
             if (activeChannels.length === 16) {
-                // All channels active = no filter
                 delete this.config.mappings[newName].filters.channels;
             } else if (activeChannels.length > 0) {
-                // Some channels active = whitelist
                 this.config.mappings[newName].filters.channels = { whitelist: activeChannels };
             } else {
-                // No channels active = delete filter
+                // No channels selected = no filter
                 delete this.config.mappings[newName].filters.channels;
             }
             
