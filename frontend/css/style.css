@@ -32,15 +32,13 @@ body {
 
 .status-indicator.connected { background: #0a7c2e; }
 .status-indicator.disconnected { background: #8b0000; }
-
-/* === Connect Panel === */
-.connect-panel {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    padding: 16px 20px;
-    background: #0f3460;
+.status-bar .btn {
+    margin-left: 12px;
+    padding: 4px 16px;
+    font-size: 0.85rem;
 }
+
+/* === Connect Panel (removed — button in header) === */
 
 .connect-panel input {
     flex: 1;
