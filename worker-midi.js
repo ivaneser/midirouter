@@ -566,10 +566,15 @@ class MIDIRouterWorker {
             for (const filter of mapping.filters) {
                 const result = filter.process(processed);
                 if (result === false) {
-                    console.log(`[MIDI] [FILTER] Dropped: ${name}`);
+                    console.log(`[MIDI] [FILTER] Dropped: ${name} channel=${processed.channel+1}`);
                     return;
                 }
                 processed = result;
+            }
+            
+            // Debug: log filtered message
+            if (mapping.filters.length > 0) {
+                console.log(`[MIDI] [FILTER] Passed: ${name} channel=${processed.channel+1}`);
             }
             
             // Send to outputs
