@@ -310,7 +310,8 @@ export class ConfigEditor {
         };
         
         // Delete route
-        deleteBtn.addEventListener('click', () => {
+        deleteBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             if (confirm('Delete this route?')) {
                 delete this.config.mappings[name];
                 this._renderMappings();
