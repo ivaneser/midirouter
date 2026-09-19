@@ -131,8 +131,12 @@ export class ConfigEditor {
     
     // ---- Рендеринг маппингов ----
     _renderMappings() {
+        console.log('[CONFIG] _renderMappings called, mappings:', Object.keys(this.config.mappings || {}));
         const container = document.getElementById('mapping-list');
-        if (!container) return;
+        if (!container) {
+            console.error('[CONFIG] mapping-list container not found');
+            return;
+        }
         
         container.innerHTML = '';
         
@@ -141,9 +145,16 @@ export class ConfigEditor {
         const outputPorts = this.app.deviceManager?.outputs || [];
         const devices = this.config.devices || {};
         
+        console.log('[CONFIG] inputPorts:', inputPorts.length, 'outputPorts:', outputPorts.length);
+        
         for (const [name, mapping] of Object.entries(mappings)) {
-            const mappingEl = this._createMappingEditor(name, mapping, inputPorts, outputPorts, devices);
-            container.appendChild(mappingEl);
+            try {
+                const mappingEl = this._createMappingEditor(name, mapping, inputPorts, outputPorts, devices);
+                container.appendChild(mappingEl);
+                console.log('[CONFIG] Added mapping:', name);
+            } catch (e) {
+                console.error('[CONFIG] Error rendering mapping:', name, e);
+            }
         }
         
         if (Object.keys(mappings).length === 0) {
