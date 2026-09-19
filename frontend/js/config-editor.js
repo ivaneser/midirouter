@@ -200,22 +200,29 @@ export class ConfigEditor {
             return portId.split(':')[0]; // Just the base name
         };
         
-        // Header
+        // Auto-generate route name from selection
+        const generateRouteName = () => {
+            const selInputs = container.querySelector('.mapping-select')?.selectedOptions;
+            const selOutputs = container.querySelectorAll('.mapping-select')[1]?.selectedOptions;
+            if (!selInputs || !selOutputs) return name;
+            const inName = selInputs[0]?.value === 'all' ? 'All' : getDisplayName(selInputs[0]?.value);
+            const outName = selOutputs[0]?.value === 'all' ? 'All' : getDisplayName(selOutputs[0]?.value);
+            return `${inName} → ${outName}`;
+        };
+        
+        // Header with delete button only
         const header = document.createElement('div');
         header.className = 'mapping-header';
         header.innerHTML = `
-            <input type="text" class="mapping-name" value="${name}" placeholder="route name">
             <button class="btn btn-danger btn-sm mapping-delete">Delete</button>
         `;
         container.appendChild(header);
         
-        // Route summary
-        const summary = document.createElement('div');
-        summary.className = 'route-summary';
-        const inputNames = (mapping.inputs || []).map(id => getDisplayName(id)).join(', ') || 'All inputs';
-        const outputNames = (mapping.outputs || []).map(id => getDisplayName(id)).join(', ') || 'All outputs';
-        summary.innerHTML = `<strong>${inputNames}</strong> → <strong>${outputNames}</strong>`;
-        container.appendChild(summary);
+        // Auto-generated route name
+        const routeName = document.createElement('div');
+        routeName.className = 'route-name';
+        routeName.textContent = generateRouteName();
+        container.appendChild(routeName);
         
         // Inputs + Outputs side by side
         const rowDiv = document.createElement('div');
@@ -310,7 +317,6 @@ export class ConfigEditor {
         container.appendChild(filtersDiv);
         
         // Event listeners
-        const nameInput = container.querySelector('.mapping-name');
         const deleteBtn = container.querySelector('.mapping-delete');
         const channelMode = container.querySelector('.channel-mode');
         const channelValues = container.querySelector('.channel-values');
@@ -318,20 +324,18 @@ export class ConfigEditor {
         const velocityMin = container.querySelector('.velocity-min');
         const velocityMax = container.querySelector('.velocity-max');
         
+        // Update route name display when selection changes
+        const updateRouteName = () => {
+            const inVal = inputsSelect.value;
+            const outVal = outputsSelect.value;
+            const inName = inVal === 'all' ? 'All' : getDisplayName(inVal);
+            const outName = outVal === 'all' ? 'All' : getDisplayName(outVal);
+            routeName.textContent = `${inName} → ${outName}`;
+        };
+        
         // Delete route
         deleteBtn.addEventListener('click', () => {
-            if (confirm(`Delete route "${name}"?`)) {
-                delete this.config.mappings[name];
-                this._renderMappings();
-                this._saveToServer();
-            }
-        });
-        
-        // Rename route
-        nameInput.addEventListener('change', (e) => {
-            const newName = e.target.value.trim();
-            if (newName && newName !== name) {
-                this.config.mappings[newName] = this.config.mappings[name];
+            if (confirm('Delete this route?')) {
                 delete this.config.mappings[name];
                 this._renderMappings();
                 this._saveToServer();
@@ -350,6 +354,9 @@ export class ConfigEditor {
             // "All" means empty array (route everything)
             if (selectedInputs.includes('all')) finalInputs = [];
             if (selectedOutputs.includes('all')) finalOutputs = [];
+            
+            // Update route name display
+            updateRouteName();
             
             // Get route name
             const mappingName = nameInput.value.trim() || name;
