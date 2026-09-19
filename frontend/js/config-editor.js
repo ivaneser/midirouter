@@ -268,7 +268,7 @@ export class ConfigEditor {
         // If whitelist exists and is not empty, use it; otherwise all channels restricted (empty)
         const isAllChannels = whitelist.length === 16;
         
-        console.log('[CONFIG] Channel filter:', { whitelist, isAllChannels });
+        console.log('[CONFIG] Channel filter for', name, ':', { whitelist, isAllChannels, rawFilter: mapping.filters?.channels });
         
         for (let ch = 1; ch <= 16; ch++) {
             const btn = document.createElement('button');
