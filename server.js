@@ -375,12 +375,10 @@ function startServer() {
                     case 'get-config':
                         // Получить текущую конфигурацию
                         try {
-                            console.log('[SERVER] Sending config to client...');
                             const configPath = join(import.meta.dirname, 'config.json');
                             if (existsSync(configPath)) {
                                 const config = JSON.parse(readFileSync(configPath, 'utf8'));
                                 ws.send(JSON.stringify({ type: 'config', config }));
-                                console.log('[SERVER] ✅ Config sent to client');
                             } else {
                                 ws.send(JSON.stringify({ type: 'config', config: null }));
                             }
@@ -393,14 +391,11 @@ function startServer() {
                     case 'save-config':
                         // Сохранить конфигурацию в config.json
                         try {
-                            console.log('[SERVER] ✅ Received save-config message');
                             const configPath = join(import.meta.dirname, 'config.json');
                             writeFileSync(configPath, JSON.stringify(message.config, null, 2));
-                            console.log('[SERVER] ✅ Config saved to', configPath);
                             ws.send(JSON.stringify({ type: 'config_saved' }));
                             // Перезагрузить конфигурацию
                             if (router.worker) {
-                                console.log('[SERVER] Reloading config in worker...');
                                 router.worker.postMessage({ type: 'reload_config' });
                             }
                         } catch (e) {

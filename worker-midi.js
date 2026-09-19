@@ -267,8 +267,6 @@ class MIDIRouterWorker {
         // Filters
         if (mapping.filters) {
             if (mapping.filters.channels) {
-                const wl = mapping.filters.channels.whitelist || [];
-                console.log(`[WORKER] Adding channel filter for ${name}: whitelist=[${wl.join(', ')}]`);
                 filters.push(new ChannelFilter(mapping.filters.channels));
             }
             if (mapping.filters.velocity) {
@@ -530,11 +528,6 @@ class MIDIRouterWorker {
         const type = (status & 0xf0) >> 4;
         const channel = type >= 8 ? (status & 0x0f) + 1 : 1;
         
-        // Debug: log raw bytes for note messages
-        if (type === 9 || type === 8) {
-            console.log(`[MIDI] RAW: device=${deviceName} bytes=[${bytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}] type=${type} channel=${channel}`);
-        }
-        
         const label = {
             '9': `noteOn   ch${channel} n${bytes[1]} v${bytes[2]}`,
             '8': `noteOff  ch${channel} n${bytes[1]}`,
@@ -578,11 +571,6 @@ class MIDIRouterWorker {
                     return;
                 }
                 processed = result;
-            }
-            
-            // Debug: log filtered message
-            if (mapping.filters.length > 0) {
-                console.log(`[MIDI] [FILTER] Passed: ${name} channel=${processed.channel+1}`);
             }
             
             // Send to outputs

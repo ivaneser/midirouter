@@ -1,4 +1,4 @@
-/* === Configuration Editor — визуальный редактор конфигурации MIDI Router === */
+/* === Configuration Editor — MIDI Router configuration management === */
 
 export class ConfigEditor {
     constructor(app) {
@@ -9,72 +9,41 @@ export class ConfigEditor {
             mappings: {}
         };
         this.currentTab = 'mappings';
-        this.editingMapping = null;
-        this.editingDevice = null;
         
         this._initEventListeners();
     }
     
     _initEventListeners() {
-        // Добавить маппинг
-        document.getElementById('btn-add-mapping')?.addEventListener('click', () => {
-            console.log('[CONFIG] Add route button clicked');
-            this._addMapping();
-        });
+        document.getElementById('btn-add-mapping')?.addEventListener('click', () => this._addMapping());
+        document.getElementById('btn-add-device')?.addEventListener('click', () => this._addDevice());
+        document.getElementById('btn-save-config')?.addEventListener('click', () => this._saveConfig());
+        document.getElementById('btn-load-config')?.addEventListener('click', () => this._loadConfig());
+        document.getElementById('btn-format-json')?.addEventListener('click', () => this._formatJSON());
         
-        // Добавить устройство
-        document.getElementById('btn-add-device')?.addEventListener('click', () => {
-            this._addDevice();
-        });
-        
-        // Сохранить конфигурацию
-        document.getElementById('btn-save-config')?.addEventListener('click', () => {
-            this._saveConfig();
-        });
-        
-        // Загрузить конфигурацию
-        document.getElementById('btn-load-config')?.addEventListener('click', () => {
-            this._loadConfig();
-        });
-        
-        // Форматировать JSON
-        document.getElementById('btn-format-json')?.addEventListener('click', () => {
-            this._formatJSON();
-        });
-        
-        // Автообновление JSON при редактировании
         document.getElementById('config-json')?.addEventListener('input', (e) => {
             try {
                 this.config = JSON.parse(e.target.value);
                 this._syncUIFromConfig();
             } catch (e) {
-                // Не обновляем UI при ошибке парсинга
+                // Invalid JSON, don't update UI
             }
         });
         
-        // Обработка hot-plug событий
-        this._handleHotplugEvent = (msg) => {
-            this._handleHotplug(msg);
-        };
+        this._handleHotplugEvent = (msg) => this._handleHotplug(msg);
     }
     
     _handleHotplug(msg) {
         const { deviceName, action, direction } = msg;
-        const emoji = action === 'added' ? '🔌' : '🔌';
         const directionLabel = direction === 'input' ? 'input' : 'output';
         const actionLabel = action === 'added' ? 'connected' : 'disconnected';
         
-        // Show notification
-        this._showNotification(`${emoji} ${deviceName} (${directionLabel}) — ${actionLabel}`);
+        this._showNotification(`🔌 ${deviceName} (${directionLabel}) — ${actionLabel}`);
         
-        // Обновляем UI если нужно
         if (this.currentTab === 'mappings') {
             this._renderMappings();
         } else if (this.currentTab === 'devices') {
             this._renderDevices();
         }
-        
-        // Обновляем JSON
         this._renderJSON();
     }
     
@@ -90,28 +59,21 @@ export class ConfigEditor {
         notification.className = 'hotplug-notification';
         notification.textContent = message;
         notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: ${c.bg};
-            color: #eee;
-            padding: 12px 20px;
-            border-radius: 8px;
-            border: 2px solid ${c.border};
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-            font-size: 0.9rem;
+            position: fixed; top: 20px; right: 20px;
+            background: ${c.bg}; color: #eee;
+            padding: 12px 20px; border-radius: 8px;
+            border: 2px solid ${c.border}; z-index: 1000;
+            animation: slideIn 0.3s ease; font-size: 0.9rem;
         `;
         
         document.body.appendChild(notification);
-        
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.3s ease';
             setTimeout(() => notification.remove(), 300);
         }, 3000);
     }
     
-    // ---- Загрузка конфигурации ----
+    // ---- Load configuration ----
     loadConfig(config) {
         if (config) {
             this.config = { ...this.config, ...config };
@@ -126,18 +88,13 @@ export class ConfigEditor {
     }
     
     _syncUIFromConfig() {
-        // Синхронизация UI с конфигурацией
-        // (если нужно)
+        // Sync UI with config (if needed)
     }
     
-    // ---- Рендеринг маппингов ----
+    // ---- Render mappings ----
     _renderMappings() {
-        console.log('[CONFIG] _renderMappings called, mappings:', Object.keys(this.config.mappings || {}));
         const container = document.getElementById('mapping-list');
-        if (!container) {
-            console.error('[CONFIG] mapping-list container not found');
-            return;
-        }
+        if (!container) return;
         
         container.innerHTML = '';
         
@@ -146,16 +103,9 @@ export class ConfigEditor {
         const outputPorts = this.app.deviceManager?.outputs || [];
         const devices = this.config.devices || {};
         
-        console.log('[CONFIG] inputPorts:', inputPorts.length, 'outputPorts:', outputPorts.length);
-        
         for (const [name, mapping] of Object.entries(mappings)) {
-            try {
-                const mappingEl = this._createMappingEditor(name, mapping, inputPorts, outputPorts, devices);
-                container.appendChild(mappingEl);
-                console.log('[CONFIG] Added mapping:', name);
-            } catch (e) {
-                console.error('[CONFIG] Error rendering mapping:', name, e);
-            }
+            const mappingEl = this._createMappingEditor(name, mapping, inputPorts, outputPorts, devices);
+            container.appendChild(mappingEl);
         }
         
         if (Object.keys(mappings).length === 0) {
@@ -169,7 +119,6 @@ export class ConfigEditor {
         
         // Helper: get display name (nickname if exists, else full name)
         const getDisplayName = (portId) => {
-            // Handle objects from loaded config (e.g. {name: '...', channels: null})
             if (typeof portId === 'object' && portId !== null) {
                 return portId.name || String(portId);
             }
@@ -177,20 +126,10 @@ export class ConfigEditor {
             for (const [nick, dev] of Object.entries(devices || {})) {
                 if (dev.name && portId.startsWith(dev.name)) return nick;
             }
-            return portId.split(':')[0]; // Just the base name
+            return portId.split(':')[0];
         };
         
-        // Auto-generate route name from selection
-        const generateRouteName = () => {
-            const selInputs = container.querySelector('.mapping-select')?.selectedOptions;
-            const selOutputs = container.querySelectorAll('.mapping-select')[1]?.selectedOptions;
-            if (!selInputs || !selOutputs) return name;
-            const inName = selInputs[0]?.value === 'all' ? 'All' : getDisplayName(selInputs[0]?.value);
-            const outName = selOutputs[0]?.value === 'all' ? 'All' : getDisplayName(selOutputs[0]?.value);
-            return `${inName} → ${outName}`;
-        };
-        
-        // Route name with delete button on same line
+        // Route name with delete button
         const routeHeader = document.createElement('div');
         routeHeader.className = 'route-header';
         routeHeader.innerHTML = `
@@ -199,14 +138,13 @@ export class ConfigEditor {
         `;
         container.appendChild(routeHeader);
         
-        // Auto-generated route name
         const routeName = routeHeader.querySelector('.route-name');
-        routeName.textContent = generateRouteName();
         
         // Inputs + Outputs side by side
         const rowDiv = document.createElement('div');
         rowDiv.className = 'mapping-row';
         
+        // Inputs
         const inputsDiv = document.createElement('div');
         inputsDiv.className = 'mapping-section';
         inputsDiv.innerHTML = '<h4>📥 Input (source)</h4>';
@@ -222,7 +160,7 @@ export class ConfigEditor {
         inputs.forEach(input => {
             const option = document.createElement('option');
             option.value = input.id;
-            option.textContent = input.name; // Full ALSA name
+            option.textContent = input.name;
             const inputIds = (mapping.inputs || []).map(i => typeof i === 'object' ? i.name : i);
             option.selected = inputIds.includes(input.id) || inputIds.includes(input.name);
             inputsSelect.appendChild(option);
@@ -246,7 +184,7 @@ export class ConfigEditor {
         outputs.forEach(output => {
             const option = document.createElement('option');
             option.value = output.id;
-            option.textContent = output.name; // Full ALSA name
+            option.textContent = output.name;
             const outputIds = (mapping.outputs || []).map(o => typeof o === 'object' ? o.name : o);
             option.selected = outputIds.includes(output.id) || outputIds.includes(output.name);
             outputsSelect.appendChild(option);
@@ -256,7 +194,7 @@ export class ConfigEditor {
         
         container.appendChild(rowDiv);
         
-        // Filters (collapsed by default)
+        // Filters
         const filtersDiv = document.createElement('div');
         filtersDiv.className = 'mapping-section filters-section';
         filtersDiv.innerHTML = '<h4>⚙️ Filters (optional)</h4>';
@@ -266,10 +204,7 @@ export class ConfigEditor {
         const channelDiv = document.createElement('div');
         channelDiv.className = 'channel-buttons';
         const whitelist = channelFilter.whitelist || [];
-        // If whitelist exists and is not empty, use it; otherwise all channels restricted (empty)
         const isAllChannels = whitelist.length === 16;
-        
-        console.log('[CONFIG] Channel filter for', name, ':', { whitelist, isAllChannels, rawFilter: mapping.filters?.channels });
         
         for (let ch = 1; ch <= 16; ch++) {
             const btn = document.createElement('button');
@@ -280,7 +215,6 @@ export class ConfigEditor {
             channelDiv.appendChild(btn);
         }
         filtersDiv.appendChild(channelDiv);
-        
         container.appendChild(filtersDiv);
         
         // Event listeners
@@ -289,18 +223,13 @@ export class ConfigEditor {
         
         // Channel button toggle
         channelBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                console.log('[CONFIG] Button clicked:', btn.dataset.channel, 'before toggle:', btn.classList.contains('active'));
-                const wasActive = btn.classList.contains('active');
+            btn.addEventListener('click', () => {
                 btn.classList.toggle('active');
-                const isActive = btn.classList.contains('active');
-                console.log('[CONFIG] After toggle:', isActive);
-                console.log('[CONFIG] All active:', Array.from(channelBtns).filter(b => b.classList.contains('active')).map(b => b.dataset.channel));
-                saveOnChange();
+                this._saveMapping(name, inputsSelect, outputsSelect, channelBtns, getDisplayName);
             });
         });
         
-        // Update route name display when selection changes
+        // Update route name display
         const updateRouteName = () => {
             const inVal = inputsSelect.value;
             const outVal = outputsSelect.value;
@@ -313,13 +242,11 @@ export class ConfigEditor {
         deleteBtn.addEventListener('click', (e) => {
             e.preventDefault();
             const ws = window.app?.ws;
-            console.log('[DELETE] Clicked, ws readyState:', ws?.readyState);
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 this.app.log('⚠️ Not connected — cannot delete route');
                 return;
             }
             if (confirm('Delete this route?')) {
-                console.log('[DELETE] Deleting route:', name);
                 delete this.config.mappings[name];
                 this.app.log('🗑 Route deleted — applying...');
                 this._renderMappings();
@@ -327,70 +254,10 @@ export class ConfigEditor {
             }
         });
         
-        // Save on change
+        // Save on input/output change
         const saveOnChange = () => {
-            const selectedInputs = Array.from(inputsSelect.selectedOptions).map(o => o.value);
-            const selectedOutputs = Array.from(outputsSelect.selectedOptions).map(o => o.value);
-            
-            console.log('[CONFIG] saveOnChange: inputs=', selectedInputs, 'outputs=', selectedOutputs);
-            
-            // Remove "all" if specific devices selected
-            let finalInputs = selectedInputs.filter(v => v !== 'all');
-            let finalOutputs = selectedOutputs.filter(v => v !== 'all');
-            
-            // "All" means empty array (route everything)
-            if (selectedInputs.includes('all')) finalInputs = [];
-            if (selectedOutputs.includes('all')) finalOutputs = [];
-            
-            // Update route name display
+            this._saveMapping(name, inputsSelect, outputsSelect, channelBtns, getDisplayName);
             updateRouteName();
-            
-            // Generate new name from input/output selection
-            const inName = finalInputs.length > 0 ? getDisplayName(finalInputs[0]).replace(/[^a-zA-Z0-9]/g, '_') : 'all';
-            const outName = finalOutputs.length > 0 ? getDisplayName(finalOutputs[0]).replace(/[^a-zA-Z0-9]/g, '_') : 'all';
-            const newName = `${inName}_to_${outName}`;
-            
-            // Rename mapping if name changed AND no collision with other routes
-            if (newName !== name && !this.config.mappings[newName]) {
-                this.config.mappings[newName] = { ...this.config.mappings[name] };
-                delete this.config.mappings[name];
-                // Update route name display
-                const routeName = container.querySelector('.route-name');
-                if (routeName) {
-                    routeName.textContent = `${inName} → ${outName}`;
-                }
-            }
-            
-            // Update config - use newName if no collision, otherwise keep original name
-            const targetName = this.config.mappings[newName] ? name : newName;
-            this.config.mappings[targetName] = {
-                inputs: finalInputs,
-                outputs: finalOutputs,
-                filters: {}
-            };
-            
-            // Channel filter — collect active buttons
-            const activeChannels = [];
-            channelBtns.forEach(btn => {
-                if (btn.classList.contains('active')) {
-                    activeChannels.push(parseInt(btn.dataset.channel));
-                }
-            });
-            // All 16 active = no filter (delete whitelist)
-            // 1-15 active = whitelist with those channels
-            // 0 active = no filter (delete whitelist, all channels restricted until user selects)
-            if (activeChannels.length === 16) {
-                delete this.config.mappings[targetName].filters.channels;
-            } else if (activeChannels.length > 0) {
-                this.config.mappings[targetName].filters.channels = { whitelist: activeChannels };
-            } else {
-                // No channels selected = no filter
-                delete this.config.mappings[targetName].filters.channels;
-            }
-            
-            console.log('[CONFIG] Filters:', JSON.stringify(this.config.mappings[newName].filters));
-            this._renderJSON();
-            this._saveToServer();
         };
         
         inputsSelect.addEventListener('change', saveOnChange);
@@ -399,7 +266,42 @@ export class ConfigEditor {
         return container;
     }
     
-    // ---- Device rendering ----
+    _saveMapping(name, inputsSelect, outputsSelect, channelBtns, getDisplayName) {
+        const selectedInputs = Array.from(inputsSelect.selectedOptions).map(o => o.value);
+        const selectedOutputs = Array.from(outputsSelect.selectedOptions).map(o => o.value);
+        
+        let finalInputs = selectedInputs.filter(v => v !== 'all');
+        let finalOutputs = selectedOutputs.filter(v => v !== 'all');
+        
+        if (selectedInputs.includes('all')) finalInputs = [];
+        if (selectedOutputs.includes('all')) finalOutputs = [];
+        
+        // Collect active channel buttons
+        const activeChannels = [];
+        channelBtns.forEach(btn => {
+            if (btn.classList.contains('active')) {
+                activeChannels.push(parseInt(btn.dataset.channel));
+            }
+        });
+        
+        // Build filters
+        const filters = {};
+        if (activeChannels.length > 0 && activeChannels.length < 16) {
+            filters.channels = { whitelist: activeChannels };
+        }
+        
+        // Update config
+        this.config.mappings[name] = {
+            inputs: finalInputs,
+            outputs: finalOutputs,
+            filters
+        };
+        
+        this._renderJSON();
+        this._saveToServer();
+    }
+    
+    // ---- Render devices ----
     _renderDevices() {
         const container = document.getElementById('device-config-list');
         if (!container) return;
@@ -484,7 +386,7 @@ export class ConfigEditor {
         return container;
     }
     
-    // ---- Рендеринг JSON ----
+    // ---- Render JSON ----
     _renderJSON() {
         const textarea = document.getElementById('config-json');
         if (textarea) {
@@ -499,23 +401,19 @@ export class ConfigEditor {
                 const config = JSON.parse(textarea.value);
                 textarea.value = JSON.stringify(config, null, 2);
             } catch (e) {
-                alert('Ошибка форматирования: неверный JSON');
+                alert('Formatting error: invalid JSON');
             }
         }
     }
     
-    // ---- Добавление ----
+    // ---- Add ----
     _addMapping() {
-        console.log('[CONFIG] _addMapping called, current mappings:', Object.keys(this.config.mappings));
-        const oldCount = Object.keys(this.config.mappings).length;
-        const name = `mapping_${oldCount + 1}`;
+        const name = `mapping_${Object.keys(this.config.mappings).length + 1}`;
         this.config.mappings[name] = {
             inputs: [],
             outputs: [],
             filters: {}
         };
-        const newCount = Object.keys(this.config.mappings).length;
-        console.log('[CONFIG] Added mapping:', name, '(count:', oldCount, '->', newCount, ')');
         this._renderMappings();
         this._renderJSON();
         this._saveToServer();
@@ -532,9 +430,8 @@ export class ConfigEditor {
         this._saveToServer();
     }
     
-    // ---- Сохранение/загрузка ----
+    // ---- Save/Load ----
     _saveConfig() {
-        // Save the current config (already updated in memory from UI changes)
         this.app.log('💾 Saving configuration...');
         this._saveToServer();
     }
@@ -554,7 +451,7 @@ export class ConfigEditor {
                             const config = JSON.parse(event.target.result);
                             this.loadConfig(config);
                         } catch (e) {
-                            alert('Ошибка загрузки: неверный JSON');
+                            alert('Load error: invalid JSON');
                         }
                     };
                     reader.readAsText(file);
@@ -567,7 +464,6 @@ export class ConfigEditor {
     _saveToServer() {
         const ws = window.app?.ws;
         if (ws && ws.readyState === WebSocket.OPEN) {
-            console.log('[CONFIG] Sending config to server...');
             ws.send(JSON.stringify({
                 type: 'save-config',
                 config: this.config

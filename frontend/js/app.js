@@ -112,7 +112,6 @@ function handleMessage(msg) {
             break;
 
         case 'config':
-            console.log('[APP] Received config message, routes:', Object.keys(msg.config?.mappings || {}).length);
             if (msg.config) {
                 configEditor.loadConfig(msg.config);
                 log('📋 Configuration loaded');
