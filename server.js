@@ -375,14 +375,17 @@ function startServer() {
                     case 'get-config':
                         // Получить текущую конфигурацию
                         try {
+                            console.log('[SERVER] Sending config to client...');
                             const configPath = join(import.meta.dirname, 'config.json');
                             if (existsSync(configPath)) {
                                 const config = JSON.parse(readFileSync(configPath, 'utf8'));
                                 ws.send(JSON.stringify({ type: 'config', config }));
+                                console.log('[SERVER] ✅ Config sent to client');
                             } else {
                                 ws.send(JSON.stringify({ type: 'config', config: null }));
                             }
                         } catch (e) {
+                            console.error('[SERVER] Get config error:', e.message);
                             ws.send(JSON.stringify({ type: 'config_error', message: e.message }));
                         }
                         break;
