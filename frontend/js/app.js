@@ -26,7 +26,8 @@ const deviceManager = new DeviceManager();
 const dawUI = new DAWUI(deviceManager);
 const configEditor = new ConfigEditor({
     deviceManager,
-    ws: null // будет установлен после подключения
+    ws: null, // будет установлен после подключения
+    log
 });
 
 // Глобальные ссылки для других модулей
