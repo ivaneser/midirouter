@@ -34,6 +34,33 @@ class MIDIRouterWorker {
         this.autoAssign = true;
         this._learnCursor = 0;
         this.padMap = new Map();   // note(number) -> { trackIdx, slot }
+
+        // DAW mode activation for Novation Launchkey Mini MK3
+        // Controller enters DAW/Session mode only when it receives a special
+        // MIDI message (as if from Ableton Live): Ch16, note=12 (C-1), vel=127
+        this._dawModeSent = false;
+
+        // Default pad map for Launchkey Mini MK3 (16 pads: 2 rows × 8 cols)
+        // Bottom row: C1(36) C#1(37) D1(38) D#1(39) E1(40) F1(41) F#1(42) G1(43)
+        // Top row:    G#1(44) A1(45) A#1(46) B1(47) C2(48) C#2(49) D2(50) D#2(51)
+        this._defaultPadMap = [
+            { note: 36, trackIdx: 0, slot: 0 }, // C1
+            { note: 37, trackIdx: 1, slot: 0 }, // C#1
+            { note: 38, trackIdx: 2, slot: 0 }, // D1
+            { note: 39, trackIdx: 3, slot: 0 }, // D#1
+            { note: 40, trackIdx: 0, slot: 1 }, // E1
+            { note: 41, trackIdx: 1, slot: 1 }, // F1
+            { note: 42, trackIdx: 2, slot: 1 }, // F#1
+            { note: 43, trackIdx: 3, slot: 1 }, // G1
+            { note: 44, trackIdx: 4, slot: 0 }, // G#1
+            { note: 45, trackIdx: 5, slot: 0 }, // A1
+            { note: 46, trackIdx: 6, slot: 0 }, // A#1
+            { note: 47, trackIdx: 7, slot: 0 }, // B1
+            { note: 48, trackIdx: 4, slot: 1 }, // C2
+            { note: 49, trackIdx: 5, slot: 1 }, // C#2
+            { note: 50, trackIdx: 6, slot: 1 }, // D2
+            { note: 51, trackIdx: 7, slot: 1 }, // D#2
+        ];
         
         // Configuration
         this._config = null;
@@ -507,6 +534,13 @@ class MIDIRouterWorker {
 
             for (const name of newInputNames) this.controllerInputs.add(name);
 
+            // Auto-activate DAW mode and apply default pad map for Launchkey Mini MK3
+            const hasLaunchkey = [...newInputNames, ...newOutputNames].some(n => n.toLowerCase().includes('launchkey'));
+            if (hasLaunchkey) {
+                this._enterDawMode();
+                this._applyDefaultPadMap();
+            }
+
             const inputList = [...this.inputs.entries()].map(([id, port]) => ({ id, name: id }));
             const outputList = [...this.outputs.entries()].map(([id, port]) => ({ id, name: id }));
 
@@ -669,13 +703,42 @@ class MIDIRouterWorker {
         });
     }
 
+    _enterDawMode() {
+        // Send DAW mode activation to Launchkey Mini MK3
+        // Message: Note On on channel 16, note=12 (C-1), velocity=127
+        // This tells the controller to enter Session mode (same protocol Ableton Live uses)
+        if (this._dawModeSent) return;
+        const bytes = [0x9f, 12, 127]; // Note On ch16, note 12, vel 127
+        for (const [name, output] of this.outputs) {
+            if (name.toLowerCase().includes('launchkey')) {
+                try {
+                    output.sendMessage(bytes);
+                    console.log('[WORKER] DAW mode activation sent to', name);
+                } catch (e) {
+                    console.error('[WORKER] Failed to send DAW mode to', name, e.message);
+                }
+            }
+        }
+        this._dawModeSent = true;
+    }
+
+    _applyDefaultPadMap() {
+        // Apply default pad mapping for Launchkey Mini MK3
+        if (this.padMap.size > 0) return; // Don't overwrite existing mapping
+        for (const pad of this._defaultPadMap) {
+            this.padMap.set(pad.note, { trackIdx: pad.trackIdx, slot: pad.slot });
+        }
+        console.log('[WORKER] Default pad map applied:', this.padMap.size, 'pads');
+        this._broadcastPadMap();
+    }
+
     cleanup() {
         // Stop hot-plug detection
         if (this._hotplugCheckInterval) {
             clearInterval(this._hotplugCheckInterval);
             this._hotplugCheckInterval = null;
         }
-        
+
         for (const [, t] of this._trackPlayTimers) clearInterval(t);
         this._trackPlayTimers.clear();
         for (const [, input] of this.inputs) {
