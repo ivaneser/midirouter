@@ -30,7 +30,13 @@ class DAWEngine {
         // tracks[channel(1..16)] -> { channel, clips: [ {notes:[], length:beats} ] }
         this.tracks = [];
         for (let c = 1; c <= 16; c++) {
-            this.tracks.push({ channel: c, clips: this._makeClips() });
+            this.tracks.push({ 
+                channel: c, 
+                clips: this._makeClips(),
+                armed: false,
+                muted: false,
+                soloed: false
+            });
         }
 
         // текущее проигрываемое состояние по клипам: trackIdx -> slotIdx | -1 stopped
@@ -304,6 +310,25 @@ class DAWEngine {
     }
 
     // ---- Transport play / loop playback ----
+    // Track controls
+    armTrack(trackIdx) {
+        const track = this.tracks[trackIdx];
+        if (!track) return;
+        track.armed = !track.armed;
+    }
+    
+    muteTrack(trackIdx) {
+        const track = this.tracks[trackIdx];
+        if (!track) return;
+        track.muted = !track.muted;
+    }
+    
+    soloTrack(trackIdx) {
+        const track = this.tracks[trackIdx];
+        if (!track) return;
+        track.soloed = !track.soloed;
+    }
+
     startTransport() {
         if (this.playing) return;
         this.playing = true;
@@ -363,6 +388,10 @@ class DAWEngine {
             slotCount: this.slotsPerTrack,
             clips: t.clips.map(c => ({ notes: c.notes.length, length: c.length })),
             playing: this.clipState[i] >= 0,
+            activeSlot: this.clipState[i],
+            armed: t.armed,
+            muted: t.muted,
+            soloed: t.soloed,
         }));
         return {
             tempo: this.tempo,

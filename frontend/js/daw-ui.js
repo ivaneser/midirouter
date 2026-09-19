@@ -1,4 +1,4 @@
-/* === DAW / Clip UI — LaunchKey controller as main interface === */
+/* === DAW / Clip UI — Ableton Session View style === */
 
 export class DAWUI {
     constructor(deviceManager) {
@@ -9,36 +9,42 @@ export class DAWUI {
     }
 
     _initControls() {
-        const modeSelect = document.getElementById('record-mode');
-        const tempoInput = document.getElementById('tempo');
-        const slotsInput = document.getElementById('slots');
-        const sessionModeSelect = document.getElementById('session-record-mode');
-
-        if (modeSelect) {
-            modeSelect.addEventListener('change', () => this._send({ type: 'daw-set-record-mode', mode: modeSelect.value }));
+        // Transport buttons
+        const playBtn = document.getElementById('btn-play');
+        if (playBtn) playBtn.addEventListener('click', () => this._send({ type: 'daw-play' }));
+        
+        const stopBtn = document.getElementById('btn-stop');
+        if (stopBtn) stopBtn.addEventListener('click', () => this._send({ type: 'daw-stop' }));
+        
+        const recArmBtn = document.getElementById('btn-record-arm');
+        if (recArmBtn) {
+            recArmBtn.addEventListener('click', () => this._send({ type: 'daw-rec-arm-toggle' }));
         }
+
+        // Record mode
+        const modeSelect = document.getElementById('record-mode');
+        if (modeSelect) {
+            modeSelect.addEventListener('change', () => 
+                this._send({ type: 'daw-set-record-mode', mode: modeSelect.value })
+            );
+        }
+
+        // Tempo
+        const tempoInput = document.getElementById('tempo');
         if (tempoInput) {
             tempoInput.addEventListener('change', () => {
                 const bpm = parseFloat(tempoInput.value);
                 if (bpm) this._send({ type: 'daw-set-tempo', bpm });
             });
         }
+
+        // Tap tempo
         const tapBtn = document.getElementById('tap-tempo');
-        if (tapBtn) tapBtn.addEventListener('click', () => {
-            this._send({ type: 'daw-tap-tempo' });
-            this._log('Tap tempo...');
-        });
-        if (slotsInput) {
-            slotsInput.addEventListener('change', () => this._send({ type: 'daw-set-slots', n: parseInt(slotsInput.value, 10) }));
+        if (tapBtn) {
+            tapBtn.addEventListener('click', () => this._send({ type: 'daw-tap-tempo' }));
         }
-        if (sessionModeSelect) {
-            sessionModeSelect.addEventListener('change', () => this._send({ type: 'daw-set-record-mode', mode: sessionModeSelect.value }));
-        }
-        const autoChk = document.getElementById('auto-assign');
-        if (autoChk) {
-            autoChk.addEventListener('change', () => this._send({ type: 'daw-pad-learn', on: autoChk.checked }));
-        }
-        // Metronome controls
+
+        // Metronome
         const metroBtn = document.getElementById('metronome-toggle');
         if (metroBtn) {
             metroBtn.addEventListener('click', () => this._send({ type: 'daw-metronome-toggle' }));
@@ -50,17 +56,8 @@ export class DAWUI {
                 if (beats) this._send({ type: 'daw-metronome-beats-per-measure', bpm: beats });
             });
         }
-        // presets
-        const saveName = document.getElementById('preset-name');
-        const saveBtn = document.getElementById('preset-save');
-        if (saveBtn) saveBtn.addEventListener('click', () => {
-            const name = (saveName.value || 'default').trim();
-            this._send({ type: 'daw-save', name });
-        });
-        const loadSel = document.getElementById('preset-load');
-        if (loadSel) loadSel.addEventListener('change', () => this._send({ type: 'daw-load', name: loadSel.value }));
 
-        // initial request
+        // Initial request
         this._send({ type: 'daw-get' });
     }
 
@@ -70,10 +67,7 @@ export class DAWUI {
             this.dawState = msg.payload;
             this._syncControls();
             this._renderGrid();
-        } else if (msg.type === 'daw-presets') {
-            this._renderPresets(msg.names);
-        } else if (msg.type === 'daw_pad_map_list') {
-            this._updatePadMap(msg.map, msg.learnMode);
+            this._renderTrackControls();
         } else if (msg.type === 'daw_event') {
             this._flashPad(msg.payload);
         }
@@ -82,92 +76,136 @@ export class DAWUI {
     _syncControls() {
         const modeSelect = document.getElementById('record-mode');
         const tempoInput = document.getElementById('tempo');
-        const slotsInput = document.getElementById('slots');
-        const sessionModeSelect = document.getElementById('session-record-mode');
+        
         if (modeSelect) modeSelect.value = this.dawState.recordMode;
         if (tempoInput) tempoInput.value = Math.round(this.dawState.tempo);
-        if (slotsInput) slotsInput.value = String(this.dawState.slotsPerTrack);
-        if (sessionModeSelect) sessionModeSelect.value = this.dawState.recordMode;
-        // Metronome controls
-        this._syncMetronomeControls();
-    }
-
-    _syncMetronomeControls() {
+        
+        // Metronome
         const metroBtn = document.getElementById('metronome-toggle');
-        const metroBeatsSelect = document.getElementById('metro-beats');
         if (metroBtn) {
             const enabled = this.dawState.metronomeEnabled;
             metroBtn.classList.toggle('active', !!enabled);
             metroBtn.textContent = enabled ? '♫ Metro ON' : '♪ Metro';
         }
-        if (metroBeatsSelect && this.dawState.metronomeBeatsPerMeasure != null) {
-            metroBeatsSelect.value = String(this.dawState.metronomeBeatsPerMeasure);
-        }
-    }
-
-    _renderPresets(names) {
-        const loadSel = document.getElementById('preset-load');
-        if (loadSel) {
-            loadSel.innerHTML = '<option value="">-- load --</option>' +
-                names.map(n => `<option value="${n}">${n}</option>`).join('');
-        }
-    }
-
-    _updatePadMap(map, learnMode) {
-        this.padNotes = {};
-        for (const m of map) this.padNotes[`${m.trackIdx}-${m.slot}`] = m.note;
-        const autoChk = document.getElementById('auto-assign');
-        if (autoChk) autoChk.checked = learnMode;
-        this._renderGrid();
     }
 
     _renderGrid() {
-        this._renderSessionGrid();
-    }
-
-    _renderSessionGrid() {
         const grid = document.getElementById('session-grid');
+        const sceneNamesDiv = document.getElementById('scene-names');
+        
         if (!grid || !this.dawState || !Array.isArray(this.dawState.tracks)) return;
+        
         grid.innerHTML = '';
-        const slots = this.dawState.slotsPerTrack || 1;
+        sceneNamesDiv.innerHTML = '';
+        
+        // Render scene names (top row)
+        for (let s = 0; s < this.dawState.slotsPerTrack; s++) {
+            const nameEl = document.createElement('div');
+            nameEl.className = 'scene-name';
+            nameEl.textContent = `Scene ${s + 1}`;
+            sceneNamesDiv.appendChild(nameEl);
+        }
 
+        // Render track rows
         for (let t = 0; t < 16; t++) {
             const ch = this.dawState.tracks[t];
             if (!ch) continue;
+            
             const row = document.createElement('div');
             row.className = 'session-row';
 
+            // Track label
             const label = document.createElement('div');
             label.className = 'session-track-label';
             label.textContent = `Ch${ch.channel}`;
             row.appendChild(label);
 
-            for (let s = 0; s < slots; s++) {
+            // Clip slots
+            for (let s = 0; s < this.dawState.slotsPerTrack; s++) {
                 const clip = ch.clips[s];
                 const slot = document.createElement('button');
                 const key = `${t}-${s}`;
                 const note = this.padNotes[key];
-                slot.className = 'session-slot' +
-                    (ch.playing ? ' playing' : '') +
-                    (clip && clip.notes > 0 ? ' has-content' : '') +
-                    (note != null ? '' : ' unmapped');
+                
+                let cls = 'session-slot';
+                if (!clip || clip.notes === 0) {
+                    cls += ' empty';
+                } else {
+                    cls += ' has-content';
+                }
+                if (ch.playing && s === ch.activeSlot) {
+                    cls += ' playing';
+                }
+                slot.className = cls;
+                
                 slot.dataset.track = t;
                 slot.dataset.slot = s;
-                slot.title = note != null ? `assigned: note ${note}` : 'unmapped';
+                slot.title = note != null ? `Pad: note ${note}` : 'unmapped';
                 slot.textContent = clip && clip.notes > 0 ? `${clip.notes}n` : '';
 
+                // Click to trigger clip
                 slot.addEventListener('click', () => {
                     this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
                 });
+                
                 row.appendChild(slot);
             }
+            
             grid.appendChild(row);
+        }
+    }
+
+    _renderTrackControls() {
+        const container = document.getElementById('track-controls');
+        if (!container || !this.dawState) return;
+        
+        container.innerHTML = '';
+        
+        for (let t = 0; t < 16; t++) {
+            const ch = this.dawState.tracks[t];
+            if (!ch) continue;
+            
+            const group = document.createElement('div');
+            group.className = 'track-control-group';
+            
+            // Arm button
+            const armBtn = document.createElement('button');
+            armBtn.className = `btn-track-arm ${ch.armed ? 'active' : ''}`;
+            armBtn.textContent = '●';
+            armBtn.title = `Track ${t + 1} - Arm for recording`;
+            armBtn.addEventListener('click', () => {
+                this._send({ type: 'daw-track-arm', trackIdx: t });
+            });
+            
+            // Mute button
+            const muteBtn = document.createElement('button');
+            muteBtn.className = `btn-track-mute ${ch.muted ? 'muted' : ''}`;
+            muteBtn.textContent = 'M';
+            muteBtn.title = `Track ${t + 1} - Mute`;
+            muteBtn.addEventListener('click', () => {
+                this._send({ type: 'daw-track-mute', trackIdx: t });
+            });
+            
+            // Solo button
+            const soloBtn = document.createElement('button');
+            soloBtn.className = `btn-track-solo ${ch.soloed ? 'soloed' : ''}`;
+            soloBtn.textContent = 'S';
+            soloBtn.title = `Track ${t + 1} - Solo`;
+            soloBtn.addEventListener('click', () => {
+                this._send({ type: 'daw-track-solo', trackIdx: t });
+            });
+            
+            group.appendChild(armBtn);
+            group.appendChild(muteBtn);
+            group.appendChild(soloBtn);
+            
+            container.appendChild(group);
         }
     }
 
     _flashPad(evt) {
         if (evt == null || evt.trackIdx == null || evt.slot == null) return;
-        const el = document.querySelector(`.daw-pad[data-track="${evt.trackIdx}"][data-slot="${evt.slot}"]`);
+        const el = document.querySelector(`.session-slot[data-track="${evt.trackIdx}"][data-slot="${evt.slot}"]`);
         if (!el) return;
         el.classList.add('flash');
         setTimeout(() => el.classList.remove('flash'), 120);
@@ -177,15 +215,5 @@ export class DAWUI {
         if (window.app && window.app.ws && window.app.ws.readyState === WebSocket.OPEN) {
             window.app.ws.send(JSON.stringify(msg));
         }
-    }
-
-    _log(msg) {
-        const logsDiv = document.getElementById('logs');
-        if (!logsDiv) return;
-        const time = new Date().toLocaleTimeString();
-        const entry = document.createElement('div');
-        entry.textContent = '[' + time + '] ' + msg;
-        logsDiv.appendChild(entry);
-        logsDiv.scrollTop = logsDiv.scrollHeight;
     }
 }

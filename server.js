@@ -383,6 +383,33 @@ function startServer() {
                         router._loadConfig(message.name);
                         break;
 
+                    // Transport controls
+                    case 'daw-play':
+                        router.worker.postMessage({ type: 'daw_start_transport' });
+                        break;
+
+                    case 'daw-stop':
+                        router.worker.postMessage({ type: 'daw_stop_transport' });
+                        break;
+
+                    case 'daw-rec-arm-toggle':
+                        // Toggle global record arm (used by Launchkey)
+                        this._sendToAll({ type: 'daw_rec_arm_toggle' });
+                        break;
+
+                    // Track controls
+                    case 'daw-track-arm':
+                        router.worker.postMessage({ type: 'daw_arm_track', trackIdx: message.trackIdx });
+                        break;
+
+                    case 'daw-track-mute':
+                        router.worker.postMessage({ type: 'daw_mute_track', trackIdx: message.trackIdx });
+                        break;
+
+                    case 'daw-track-solo':
+                        router.worker.postMessage({ type: 'daw_solo_track', trackIdx: message.trackIdx });
+                        break;
+
                     case 'midi-send':
                         // Отправить сырой MIDI-сообщение на указанный выход
                         if (message.data && message.target) {

@@ -824,6 +824,24 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 console.log(`[WORKER] Loop toggled to ${daw.loopLenBeats} beats`);
                 break;
+            case 'daw_arm_track':
+                if (msg.trackIdx != null) {
+                    daw.armTrack(msg.trackIdx);
+                    this._broadcastState();
+                }
+                break;
+            case 'daw_mute_track':
+                if (msg.trackIdx != null) {
+                    daw.muteTrack(msg.trackIdx);
+                    this._broadcastState();
+                }
+                break;
+            case 'daw_solo_track':
+                if (msg.trackIdx != null) {
+                    daw.soloTrack(msg.trackIdx);
+                    this._broadcastState();
+                }
+                break;
         }
     }
 

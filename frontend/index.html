@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=8">
+    <link rel="stylesheet" href="/css/style.css?v=9">
 </head>
 <body>
     <div id="app">
@@ -38,10 +38,25 @@
 
         </section>
 
-        <!-- DAW / Clip controls -->
+        <!-- DAW — Session View -->
         <section class="daw-panel">
-            <h2>🎵 DAW — Clips & Record</h2>
-            <div class="daw-controls">
+            <h2>🎵 Session View (Ableton-style)</h2>
+            
+            <!-- Transport Controls -->
+            <div class="transport-controls">
+                <button id="btn-play" class="btn btn-green">▶ Play</button>
+                <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
+                <button id="btn-record-arm" class="btn btn-orange">● Rec Arm</button>
+                
+                <div class="transport-separator"></div>
+                
+                <label>BPM:
+                    <input type="number" id="tempo" min="20" max="300" step="1" value="120">
+                </label>
+                <button id="tap-tempo" class="btn btn-sm">Tap</button>
+                
+                <div class="transport-separator"></div>
+                
                 <label>Mode:
                     <select id="record-mode">
                         <option value="none">Play</option>
@@ -49,55 +64,38 @@
                         <option value="overdub">Overdub</option>
                     </select>
                 </label>
-                <label>BPM:
-                    <input type="number" id="tempo" min="20" max="300" step="1" value="120">
-                </label>
-                <button id="tap-tempo" class="btn">Tap Tempo</button>
-                <div class="metronome-controls">
-                    <button id="metronome-toggle" class="btn" title="Toggle metronome">♪ Metro</button>
-                    <label class="metro-beats">
-                        Beats:
-                        <select id="metro-beats">
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4" selected>4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                        </select>
-                    </label>
-                </div>
-                <label>Slots/track:
-                    <select id="slots">
+                
+                <div class="transport-separator"></div>
+                
+                <button id="metronome-toggle" class="btn btn-sm" title="Toggle metronome">♪ Metro</button>
+                <label class="metro-beats">
+                    Beats:
+                    <select id="metro-beats">
                         <option value="1">1</option>
                         <option value="2">2</option>
-                        <option value="4">4</option>
+                        <option value="3">3</option>
+                        <option value="4" selected>4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
                         <option value="8">8</option>
                     </select>
                 </label>
-                <label class="chk"><input type="checkbox" id="auto-assign" checked> auto-assign pads</label>
-                <label>Preset:
-                    <input type="text" id="preset-name" placeholder="name">
-                </label>
-                <button id="preset-save" class="btn">Save</button>
-                <select id="preset-load">
-                    <option value="">-- load --</option>
-                </select>
             </div>
 
-            <div class="session-controls">
-                <label class="chk"><input type="checkbox" id="auto-assign" checked> auto-assign pads</label>
-                <span class="session-mode-label">Session Mode:</span>
-                <select id="session-record-mode">
-                    <option value="none">Play</option>
-                    <option value="replace">Replace</option>
-                    <option value="overdub">Overdub</option>
-                </select>
+            <!-- Session Grid -->
+            <div class="session-container">
+                <div id="scene-names" class="scene-names"></div>
+                <div id="session-grid" class="session-grid"></div>
             </div>
-            <div id="session-grid" class="session-grid"></div>
-            <p class="daw-hint">Press pads on your LaunchKey: note-on = arm/trigger, note-off = finish + play. Notes you play get recorded into the active clip.</p>
+            
+            <!-- Track Controls -->
+            <div id="track-controls" class="track-controls"></div>
+
+            <p class="daw-hint">
+                🎹 Launchkey pads trigger clips. Press pad = arm/trigger, release = play.<br>
+                Click track buttons: 🔴 Arm (rec), 🔇 Mute, 🔊 Solo
+            </p>
         </section>
 
         <!-- Logs -->
@@ -107,6 +105,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=8"></script>
+    <script type="module" src="/js/app.js?v=9"></script>
 </body>
 </html>
