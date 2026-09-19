@@ -334,15 +334,8 @@ export class ConfigEditor {
             // Update route name display
             updateRouteName();
             
-            // Get route name
-            const mappingName = nameInput.value.trim() || name;
-            
             // Update config
-            if (name !== mappingName) {
-                delete this.config.mappings[name];
-            }
-            
-            this.config.mappings[mappingName] = {
+            this.config.mappings[name] = {
                 inputs: finalInputs,
                 outputs: finalOutputs,
                 filters: {}
