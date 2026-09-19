@@ -390,14 +390,18 @@ function startServer() {
                     case 'save-config':
                         // Сохранить конфигурацию в config.json
                         try {
+                            console.log('[SERVER] ✅ Received save-config message');
                             const configPath = join(import.meta.dirname, 'config.json');
                             writeFileSync(configPath, JSON.stringify(message.config, null, 2));
+                            console.log('[SERVER] ✅ Config saved to', configPath);
                             ws.send(JSON.stringify({ type: 'config_saved' }));
                             // Перезагрузить конфигурацию
                             if (router.worker) {
+                                console.log('[SERVER] Reloading config in worker...');
                                 router.worker.postMessage({ type: 'reload_config' });
                             }
                         } catch (e) {
+                            console.error('[SERVER] Save config error:', e.message);
                             ws.send(JSON.stringify({ type: 'config_error', message: e.message }));
                         }
                         break;
