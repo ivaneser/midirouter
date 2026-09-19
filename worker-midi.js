@@ -654,11 +654,18 @@ class MIDIRouterWorker {
         }[String(type)];
         const name = label || (type >= 8 ? `sys  ${bytes[0] === 0xf8 ? 'timing clock' : bytes[0] === 0xfa ? 'start' : bytes[0] === 0xfb ? 'continue' : bytes[0] === 0xfc ? 'stop' : bytes[0] === 0xfe ? 'active sensing' : 'unknown sys'}` : `raw#${bytes.join(',')}`);
 
-        // Skip loopback/timer/DAW ports to prevent feedback loops
+        // Skip loopback/timer/Midi Through ports to prevent feedback loops
         const isLoopback = deviceName.toLowerCase().includes('loopback') ||
                            deviceName.toLowerCase().includes('timer') ||
-                           deviceName.toLowerCase().includes('daw port');
+                           deviceName.toLowerCase().includes('midi through');
+        const isDAWPort = deviceName.toLowerCase().includes('daw port');
         const isSysEx = bytes[0] === 0xf0; // SysEx starts with 0xF0
+        
+        // DAW Port: полностью блокируем (эхо activation message)
+        if (isDAWPort) {
+            console.log(`[MIDI] [LOOPBACK] Ignoring DAW Port: ${name}`);
+            return;
+        }
         
         if (isLoopback) {
             console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
