@@ -265,7 +265,9 @@ export class ConfigEditor {
         const channelDiv = document.createElement('div');
         channelDiv.className = 'channel-buttons';
         const whitelist = channelFilter.whitelist || [];
-        const allChannels = whitelist.length === 0; // true = all channels allowed
+        const allChannels = whitelist.length === 0; // true = all channels allowed (no filter)
+        
+        console.log('[CONFIG] Channel filter:', { whitelist, allChannels });
         
         for (let ch = 1; ch <= 16; ch++) {
             const btn = document.createElement('button');
