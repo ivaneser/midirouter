@@ -264,33 +264,11 @@ export class ConfigEditor {
         }
         filtersDiv.appendChild(channelDiv);
         
-        // Velocity filter
-        const velocityFilter = mapping.filters?.velocity || {};
-        const velocityDiv = document.createElement('div');
-        velocityDiv.className = 'filter-group';
-        velocityDiv.innerHTML = `
-            <label>Velocity:</label>
-            <select class="filter-select velocity-mode">
-                <option value="none" ${!velocityFilter.min && !velocityFilter.max ? 'selected' : ''}>None</option>
-                <option value="clip" ${velocityFilter.mode === 'clip' ? 'selected' : ''}>Clip (clamp to range)</option>
-                <option value="drop" ${velocityFilter.mode === 'drop' ? 'selected' : ''}>Drop (block if outside)</option>
-                <option value="scaled" ${velocityFilter.mode === 'scaled' ? 'selected' : ''}>Scaled (remap)</option>
-            </select>
-            <div class="velocity-inputs">
-                <input type="number" class="filter-input velocity-min" placeholder="Min" min="0" max="127" value="${velocityFilter.min || ''}">
-                <input type="number" class="filter-input velocity-max" placeholder="Max" min="0" max="127" value="${velocityFilter.max || ''}">
-            </div>
-        `;
-        filtersDiv.appendChild(velocityDiv);
-        
         container.appendChild(filtersDiv);
         
         // Event listeners
         const deleteBtn = container.querySelector('.mapping-delete');
         const channelBtns = container.querySelectorAll('.channel-btn');
-        const velocityMode = container.querySelector('.velocity-mode');
-        const velocityMin = container.querySelector('.velocity-min');
-        const velocityMax = container.querySelector('.velocity-max');
         
         // Channel button toggle
         channelBtns.forEach(btn => {
@@ -361,17 +339,6 @@ export class ConfigEditor {
                 this.config.mappings[name].filters.channels = { whitelist: activeChannels };
             } else {
                 delete this.config.mappings[name].filters.channels;
-            }
-            
-            // Velocity filter
-            if (velocityMode.value !== 'none') {
-                const min = parseInt(velocityMin.value);
-                const max = parseInt(velocityMax.value);
-                this.config.mappings[name].filters.velocity = {
-                    mode: velocityMode.value,
-                    min: isNaN(min) ? 0 : min,
-                    max: isNaN(max) ? 127 : max
-                };
             }
             
             this._renderJSON();
