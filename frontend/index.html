@@ -26,8 +26,6 @@
                 <button class="tab-btn active" data-tab="routes">🔌 Routes</button>
                 <button class="tab-btn" data-tab="devices">🎛 Devices</button>
                 <button class="tab-btn" data-tab="json">📄 JSON</button>
-                <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
-                <button class="btn" id="btn-load-config">📂 Load</button>
             </div>
             
             <!-- Routes Tab -->
@@ -46,9 +44,11 @@
             
             <!-- JSON Tab -->
             <div class="tab-content" id="tab-json">
-                <p class="tab-hint">Edit the raw config here, then click Save above to apply.</p>
+                <p class="tab-hint">Edit the raw config here, then click Save to apply.</p>
                 <textarea id="config-json" class="config-textarea" placeholder="JSON configuration"></textarea>
                 <div class="config-actions">
+                    <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
+                    <button class="btn" id="btn-load-config">📂 Load</button>
                     <button class="btn" id="btn-format-json">Format</button>
                 </div>
             </div>
