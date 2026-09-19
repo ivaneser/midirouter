@@ -334,8 +334,23 @@ export class ConfigEditor {
             // Update route name display
             updateRouteName();
             
+            // Generate new name from input/output selection
+            const inName = finalInputs.length > 0 ? getDisplayName(finalInputs[0]).replace(/[^a-zA-Z0-9]/g, '_') : 'all';
+            const outName = finalOutputs.length > 0 ? getDisplayName(finalOutputs[0]).replace(/[^a-zA-Z0-9]/g, '_') : 'all';
+            const newName = `${inName}_to_${outName}`;
+            
+            // Rename mapping if name changed
+            if (newName !== name) {
+                this.config.mappings[newName] = { ...this.config.mappings[name] };
+                delete this.config.mappings[name];
+                // Update all references to use newName
+                const oldContainer = container;
+                const newContainer = this._createMappingEditor(newName, this.config.mappings[newName], inputPorts, outputPorts, devices);
+                oldContainer.parentNode.replaceChild(newContainer, oldContainer);
+            }
+            
             // Update config
-            this.config.mappings[name] = {
+            this.config.mappings[newName] = {
                 inputs: finalInputs,
                 outputs: finalOutputs,
                 filters: {}
@@ -349,12 +364,12 @@ export class ConfigEditor {
                 }
             });
             if (activeChannels.length > 0 && activeChannels.length < 16) {
-                this.config.mappings[name].filters.channels = { whitelist: activeChannels };
+                this.config.mappings[newName].filters.channels = { whitelist: activeChannels };
             } else {
-                delete this.config.mappings[name].filters.channels;
+                delete this.config.mappings[newName].filters.channels;
             }
             
-            console.log('[CONFIG] Filters:', JSON.stringify(this.config.mappings[name].filters));
+            console.log('[CONFIG] Filters:', JSON.stringify(this.config.mappings[newName].filters));
             this._renderJSON();
             this._saveToServer();
         };
