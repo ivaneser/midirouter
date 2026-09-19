@@ -211,7 +211,8 @@ export class ConfigEditor {
             const option = document.createElement('option');
             option.value = input.id;
             option.textContent = input.name; // Full ALSA name
-            option.selected = (mapping.inputs || []).includes(input.id);
+            const inputIds = (mapping.inputs || []).map(i => typeof i === 'object' ? i.name : i);
+            option.selected = inputIds.includes(input.id) || inputIds.includes(input.name);
             inputsSelect.appendChild(option);
         });
         inputsDiv.appendChild(inputsSelect);
@@ -234,7 +235,8 @@ export class ConfigEditor {
             const option = document.createElement('option');
             option.value = output.id;
             option.textContent = output.name; // Full ALSA name
-            option.selected = (mapping.outputs || []).includes(output.id);
+            const outputIds = (mapping.outputs || []).map(o => typeof o === 'object' ? o.name : o);
+            option.selected = outputIds.includes(output.id) || outputIds.includes(output.name);
             outputsSelect.appendChild(option);
         });
         outputsDiv.appendChild(outputsSelect);
