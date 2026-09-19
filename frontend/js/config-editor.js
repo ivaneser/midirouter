@@ -410,8 +410,6 @@ export class ConfigEditor {
         
         inputsSelect.addEventListener('change', saveOnChange);
         outputsSelect.addEventListener('change', saveOnChange);
-        channelMode.addEventListener('change', saveOnChange);
-        channelValues.addEventListener('input', saveOnChange);
         velocityMode.addEventListener('change', saveOnChange);
         velocityMin.addEventListener('input', saveOnChange);
         velocityMax.addEventListener('input', saveOnChange);
