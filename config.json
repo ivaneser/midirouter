@@ -1,5 +1,9 @@
 {
-  "ignore": ["loopback", "timer", "announce"],
+  "ignore": [
+    "loopback",
+    "timer",
+    "announce"
+  ],
   "devices": {
     "craft_synth": {
       "name": "Craft Synth 2.0",
@@ -15,50 +19,50 @@
     }
   },
   "mappings": {
-    "craft_synth_to_nts1": {
+    "mapping_1": {
       "inputs": [
-        {
-          "name": "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 20:0",
-          "channels": null
-        }
+        "Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 24:0"
       ],
       "outputs": [
-        {
-          "name": "NTS-1 digital kit:NTS-1 digital kit _ SOUND 28:0",
-          "channels": null
-        }
+        "NTS-1 digital kit:NTS-1 digital kit _ SOUND 28:0"
       ],
-      "filters": {}
+      "filters": {
+        "channels": {
+          "whitelist": [
+            1
+          ]
+        }
+      }
     },
-    "launchkey_to_craft_synth": {
+    "mapping_2": {
       "inputs": [
-        {
-          "name": "Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 24:0",
-          "channels": null
-        }
+        "nanoPAD2:nanoPAD2 _ CTRL 40:0"
       ],
       "outputs": [
-        {
-          "name": "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 20:0",
-          "channels": null
-        }
+        "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 20:0"
       ],
-      "filters": {}
+      "filters": {
+        "channels": {
+          "whitelist": [
+            1
+          ]
+        }
+      }
     },
-    "launchkey_to_nts1": {
+    "mapping_3": {
       "inputs": [
-        {
-          "name": "Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 24:0",
-          "channels": null
-        }
+        "Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 24:0"
       ],
       "outputs": [
-        {
-          "name": "NTS-1 digital kit:NTS-1 digital kit _ SOUND 28:0",
-          "channels": null
-        }
+        "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 20:0"
       ],
-      "filters": {}
+      "filters": {
+        "channels": {
+          "whitelist": [
+            2
+          ]
+        }
+      }
     }
   }
 }

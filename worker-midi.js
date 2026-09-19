@@ -193,6 +193,8 @@ class MIDIRouterWorker {
                 
                 // Build mappings from config
                 if (config.mappings) {
+                    const mappingNames = Object.keys(config.mappings);
+                    console.log(`[WORKER] Loading ${mappingNames.length} mappings: ${mappingNames.join(', ')}`);
                     for (const [name, mapping] of Object.entries(config.mappings)) {
                         this._buildMapping(name, mapping);
                     }
@@ -234,6 +236,13 @@ class MIDIRouterWorker {
             const records = portIndex.find(portName);
             if (records.length > 0) {
                 return records.map(r => ({ name: r.name }));
+            }
+            // Fallback: try matching by device name (first part before colon)
+            const deviceName = portName.split(':')[0].trim();
+            for (const [key] of portMap) {
+                if (key.includes(deviceName)) {
+                    return [{ name: key }];
+                }
             }
             return [];
         };
