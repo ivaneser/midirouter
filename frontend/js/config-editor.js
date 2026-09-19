@@ -507,13 +507,15 @@ export class ConfigEditor {
     // ---- Добавление ----
     _addMapping() {
         console.log('[CONFIG] _addMapping called, current mappings:', Object.keys(this.config.mappings));
-        const name = `mapping_${Object.keys(this.config.mappings).length + 1}`;
+        const oldCount = Object.keys(this.config.mappings).length;
+        const name = `mapping_${oldCount + 1}`;
         this.config.mappings[name] = {
             inputs: [],
             outputs: [],
             filters: {}
         };
-        console.log('[CONFIG] Added mapping:', name);
+        const newCount = Object.keys(this.config.mappings).length;
+        console.log('[CONFIG] Added mapping:', name, '(count:', oldCount, '->', newCount, ')');
         this._renderMappings();
         this._renderJSON();
         this._saveToServer();
