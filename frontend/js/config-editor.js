@@ -511,19 +511,9 @@ export class ConfigEditor {
     
     // ---- Сохранение/загрузка ----
     _saveConfig() {
-        const textarea = document.getElementById('config-json');
-        if (textarea) {
-            try {
-                const config = JSON.parse(textarea.value);
-                this.config = config;
-                this._syncUIFromConfig();
-                this._renderMappings();
-                this._renderDevices();
-                this._saveToServer();
-            } catch (e) {
-                alert('Ошибка: неверный JSON');
-            }
-        }
+        // Save the current config (already updated in memory from UI changes)
+        this.app.log('💾 Saving configuration...');
+        this._saveToServer();
     }
     
     _loadConfig() {
