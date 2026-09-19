@@ -267,6 +267,7 @@ class MIDIRouterWorker {
         // Filters
         if (mapping.filters) {
             if (mapping.filters.channels) {
+                console.log(`[WORKER] Adding channel filter for ${name}:`, mapping.filters.channels);
                 filters.push(new ChannelFilter(mapping.filters.channels));
             }
             if (mapping.filters.velocity) {
