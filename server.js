@@ -96,6 +96,10 @@ class MIDIRouterWorker {
 
             case 'ready':
                 console.log('[SERVER] Worker ready — auto-connect all to all');
+                // Отправить panic note-off чтобы сбросить зажатые ноты
+                if (this.worker) {
+                    this.worker.postMessage({ type: 'panic_note_off' });
+                }
                 break;
 
             case 'config_reloaded':
@@ -230,6 +234,8 @@ class MIDIRouterWorker {
     cleanup() {
         console.log('[SERVER] Shutting down worker...');
         if (this.worker) {
+            // Отправить panic note-off перед выключением
+            this.worker.postMessage({ type: 'panic_note_off' });
             this.worker.postMessage({ type: 'shutdown' });
             // Wait for worker to exit, then terminate if needed
             setTimeout(() => {

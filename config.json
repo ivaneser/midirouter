@@ -18,51 +18,5 @@
       "port": 0
     }
   },
-  "mappings": {
-    "mapping_1": {
-      "inputs": [
-        "Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 24:0"
-      ],
-      "outputs": [
-        "NTS-1 digital kit:NTS-1 digital kit _ SOUND 28:0"
-      ],
-      "filters": {
-        "channels": {
-          "whitelist": [
-            1
-          ]
-        }
-      }
-    },
-    "mapping_2": {
-      "inputs": [
-        "nanoPAD2:nanoPAD2 _ CTRL 40:0"
-      ],
-      "outputs": [
-        "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 20:0"
-      ],
-      "filters": {
-        "channels": {
-          "whitelist": [
-            1
-          ]
-        }
-      }
-    },
-    "mapping_3": {
-      "inputs": [
-        "Launchkey Mini MK3:Launchkey Mini MK3 MIDI Port 24:0"
-      ],
-      "outputs": [
-        "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 20:0"
-      ],
-      "filters": {
-        "channels": {
-          "whitelist": [
-            2
-          ]
-        }
-      }
-    }
-  }
+  "mappings": {}
 }

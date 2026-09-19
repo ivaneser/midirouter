@@ -541,6 +541,9 @@ class MIDIRouterWorker {
                 this._applyDefaultPadMap();
             }
 
+            // Отправить panic note-off чтобы сбросить зажатые ноты при запуске
+            this.sendPanicNoteOff();
+
             const inputList = [...this.inputs.entries()].map(([id, port]) => ({ id, name: id }));
             const outputList = [...this.outputs.entries()].map(([id, port]) => ({ id, name: id }));
 
@@ -581,12 +584,20 @@ class MIDIRouterWorker {
         }[String(type)];
         const name = label || (type >= 8 ? `sys  ${bytes[0] === 0xf8 ? 'timing clock' : bytes[0] === 0xfa ? 'start' : bytes[0] === 0xfb ? 'continue' : bytes[0] === 0xfc ? 'stop' : bytes[0] === 0xfe ? 'active sensing' : 'unknown sys'}` : `raw#${bytes.join(',')}`);
 
-        // Skip loopback/timer ports to prevent feedback loops
+        // Skip loopback/timer/DAW ports to prevent feedback loops
         const isLoopback = deviceName.toLowerCase().includes('loopback') ||
                            deviceName.toLowerCase().includes('timer') ||
-                           deviceName.toLowerCase().includes('midi through');
+                           deviceName.toLowerCase().includes('daw port');
+        const isSysEx = bytes[0] === 0xf0; // SysEx starts with 0xF0
+        
         if (isLoopback) {
             console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
+            return;
+        }
+        
+        // Обработка SysEx от любого порта (Launchkey DAW, Midi Through и т.д.)
+        if (isSysEx) {
+            this._handleLaunchkeySysEx(deviceName, bytes);
             return;
         }
 
@@ -731,6 +742,59 @@ class MIDIRouterWorker {
         console.log('[WORKER] Default pad map applied:', this.padMap.size, 'pads');
         this._broadcastPadMap();
     }
+    
+    // ---- Обработка SysEx от Launchkey Mini MK3 DAW Port ----
+    _handleLaunchkeySysEx(deviceName, bytes) {
+        // Novation SysEx формат: F0 00 20 29 02 05 [data] F7
+        // Проверяем заголовок Novation
+        if (bytes.length < 8 || bytes[0] !== 0xf0) return;
+        if (bytes[1] !== 0x00 || bytes[2] !== 0x20 || bytes[3] !== 0x29 || bytes[4] !== 0x02 || bytes[5] !== 0x05) return;
+        
+        // bytes[6] = device ID, bytes[7] = command type
+        const cmdType = bytes[7];
+        const cmdData = bytes.slice(8, bytes.length > 8 ? bytes.length - 1 : bytes.length); // без F7
+        
+        console.log(`[MIDI] [LAUNCHKEY SYX] ${deviceName}: ${bytes.slice(1, bytes.length > 8 ? bytes.length - 1 : bytes.length).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`);
+        
+        // Команды Launchkey Mini MK3 в Session mode:
+        // 0x01 = DAW status (состояние DAW)
+        // 0x02 = Pad state (состояние пэдов)
+        // 0x03 = Transport (play/stop/record)
+        // 0x04 = Clip slot state
+        
+        switch (cmdType) {
+            case 0x01: // DAW status
+                this._handleDawStatus(cmdData);
+                break;
+            case 0x02: // Pad state
+                this._handlePadState(cmdData);
+                break;
+            case 0x03: // Transport
+                this._handleTransport(cmdData);
+                break;
+            case 0x04: // Clip slot
+                this._handleClipSlot(cmdData);
+                break;
+            default:
+                console.log(`[MIDI] [LAUNCHKEY SYX] Unknown cmd: 0x${cmdType.toString(16)}`);
+        }
+    }
+    
+    _handleDawStatus(data) {
+        console.log(`[MIDI] [LAUNCHKEY] DAW status:`, data);
+    }
+    
+    _handlePadState(data) {
+        console.log(`[MIDI] [LAUNCHKEY] Pad state:`, data);
+    }
+    
+    _handleTransport(data) {
+        console.log(`[MIDI] [LAUNCHKEY] Transport:`, data);
+    }
+    
+    _handleClipSlot(data) {
+        console.log(`[MIDI] [LAUNCHKEY] Clip slot:`, data);
+    }
 
     cleanup() {
         // Stop hot-plug detection
@@ -766,12 +830,30 @@ class MIDIRouterWorker {
         }
         console.log('[WORKER] Mappings rebuilt');
     }
+    
+    // ---- Panic: send All Notes Off to all outputs on all channels ----
+    sendPanicNoteOff() {
+        if (this.outputs.size === 0) return;
+        console.log('[WORKER] Sending All Notes Off to all outputs...');
+        try {
+            this.outputs.forEach((out) => {
+                for (let channel = 0; channel < 16; channel++) {
+                    out.sendMessage(Buffer.from([0xB0 | channel, 123, 0]));
+                }
+            });
+            console.log('[WORKER] All Notes Off sent');
+        } catch (e) {
+            console.error('[WORKER] All Notes Off failed:', e.message);
+        }
+    }
 }
 
 const worker = new MIDIRouterWorker();
 
 parentPort.on('message', (msg) => {
     if (msg.type === 'shutdown') {
+        // Отправить panic note-off перед выключением чтобы сбросить зажатые ноты
+        worker.sendPanicNoteOff();
         worker.cleanup();
         // Force exit after 1 second to prevent blocking
         setTimeout(() => process.exit(0), 1000);
@@ -793,6 +875,9 @@ parentPort.on('message', (msg) => {
         } else {
             console.warn(`[MIDI] [SERVER] Target not found: ${targetName}`);
         }
+    } else if (msg.type === 'panic_note_off') {
+        // Отправить panic note-off на все выходы
+        worker.sendPanicNoteOff();
     } else if (msg.type === 'reload_config') {
         // Перезагрузить конфигурацию
         worker._loadConfig();
