@@ -358,16 +358,16 @@ export class ConfigEditor {
                 }
             });
             if (activeChannels.length > 0 && activeChannels.length < 16) {
-                this.config.mappings[mappingName].filters.channels = { whitelist: activeChannels };
+                this.config.mappings[name].filters.channels = { whitelist: activeChannels };
             } else {
-                delete this.config.mappings[mappingName].filters.channels;
+                delete this.config.mappings[name].filters.channels;
             }
             
             // Velocity filter
             if (velocityMode.value !== 'none') {
                 const min = parseInt(velocityMin.value);
                 const max = parseInt(velocityMax.value);
-                this.config.mappings[mappingName].filters.velocity = {
+                this.config.mappings[name].filters.velocity = {
                     mode: velocityMode.value,
                     min: isNaN(min) ? 0 : min,
                     max: isNaN(max) ? 127 : max
