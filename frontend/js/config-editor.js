@@ -210,19 +210,18 @@ export class ConfigEditor {
             return `${inName} → ${outName}`;
         };
         
-        // Header with delete button only
-        const header = document.createElement('div');
-        header.className = 'mapping-header';
-        header.innerHTML = `
+        // Route name with delete button on same line
+        const routeHeader = document.createElement('div');
+        routeHeader.className = 'route-header';
+        routeHeader.innerHTML = `
+            <span class="route-name"></span>
             <button class="btn btn-danger btn-sm mapping-delete">Delete</button>
         `;
-        container.appendChild(header);
+        container.appendChild(routeHeader);
         
         // Auto-generated route name
-        const routeName = document.createElement('div');
-        routeName.className = 'route-name';
+        const routeName = routeHeader.querySelector('.route-name');
         routeName.textContent = generateRouteName();
-        container.appendChild(routeName);
         
         // Inputs + Outputs side by side
         const rowDiv = document.createElement('div');
