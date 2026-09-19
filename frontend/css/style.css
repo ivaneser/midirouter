@@ -297,12 +297,13 @@ body {
 }
 .mapping-select {
     width: 100%;
-    padding: 8px;
+    padding: 8px 12px;
     border: none;
     border-radius: 6px;
     background: #0f3460;
     color: #eee;
     font-size: 0.85rem;
+    cursor: pointer;
 }
 
 /* Side by side layout for input/output */

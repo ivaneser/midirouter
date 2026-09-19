@@ -226,8 +226,6 @@ export class ConfigEditor {
         inputsDiv.innerHTML = '<h4>📥 Input (source)</h4>';
         const inputsSelect = document.createElement('select');
         inputsSelect.className = 'mapping-select';
-        inputsSelect.multiple = true;
-        inputsSelect.size = Math.min(inputs.length, 5);
         
         const allOption = document.createElement('option');
         allOption.value = 'all';
@@ -238,7 +236,7 @@ export class ConfigEditor {
         inputs.forEach(input => {
             const option = document.createElement('option');
             option.value = input.id;
-            option.textContent = getDisplayName(input.id);
+            option.textContent = input.name; // Full ALSA name
             option.selected = (mapping.inputs || []).includes(input.id);
             inputsSelect.appendChild(option);
         });
@@ -251,8 +249,6 @@ export class ConfigEditor {
         outputsDiv.innerHTML = '<h4>📤 Output (target)</h4>';
         const outputsSelect = document.createElement('select');
         outputsSelect.className = 'mapping-select';
-        outputsSelect.multiple = true;
-        outputsSelect.size = Math.min(outputs.length, 5);
         
         const allOptionOut = document.createElement('option');
         allOptionOut.value = 'all';
@@ -263,7 +259,7 @@ export class ConfigEditor {
         outputs.forEach(output => {
             const option = document.createElement('option');
             option.value = output.id;
-            option.textContent = getDisplayName(output.id);
+            option.textContent = output.name; // Full ALSA name
             option.selected = (mapping.outputs || []).includes(output.id);
             outputsSelect.appendChild(option);
         });
