@@ -252,6 +252,14 @@ body {
     display: block;
 }
 
+/* Config sections (no tabs) */
+.config-section {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #1a1a2e;
+    border-radius: 8px;
+}
+
 /* Mapping Editor — 2 per row on desktop, 1 on mobile */
 .mapping-list {
     display: grid;

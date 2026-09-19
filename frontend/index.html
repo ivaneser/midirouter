@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=4">
+    <link rel="stylesheet" href="/css/style.css?v=6">
 </head>
 <body>
     <div id="app">
@@ -21,34 +21,34 @@
         <section class="config-panel">
             <h2>⚙️ Configuration</h2>
             
-            <!-- Tabs -->
-            <div class="config-tabs">
-                <button class="tab-btn active" data-tab="routes">🔌 Routes</button>
-                <button class="tab-btn" data-tab="devices">🎛 Devices</button>
-                <button class="tab-btn" data-tab="json">📄 JSON</button>
+            <!-- Save/Load buttons -->
+            <div class="config-actions" style="margin-bottom: 16px;">
+                <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
+                <button class="btn" id="btn-load-config">📂 Load</button>
             </div>
             
-            <!-- Routes Tab -->
-            <div class="tab-content active" id="tab-routes">
+            <!-- Routes -->
+            <div class="config-section">
+                <h3>🔌 Routes</h3>
                 <p class="tab-hint">A route sends MIDI from one input device to one output device.</p>
                 <div class="mapping-list" id="mapping-list"></div>
                 <button class="btn btn-primary" id="btn-add-mapping">+ Add Route</button>
             </div>
             
-            <!-- Devices Tab -->
-            <div class="tab-content" id="tab-devices">
-                <p class="tab-hint">Device nicknames make routes easier to manage. They're optional — routes work with full device names too.</p>
+            <!-- Devices -->
+            <div class="config-section">
+                <h3>🎛 Devices</h3>
+                <p class="tab-hint">Device nicknames make routes easier to manage.</p>
                 <div class="device-config-list" id="device-config-list"></div>
                 <button class="btn btn-primary" id="btn-add-device">+ Add Device</button>
             </div>
             
-            <!-- JSON Tab -->
-            <div class="tab-content" id="tab-json">
-                <p class="tab-hint">Edit the raw config here, then click Save to apply.</p>
+            <!-- JSON -->
+            <div class="config-section">
+                <h3>📄 JSON</h3>
+                <p class="tab-hint">Edit raw config, then click Save above.</p>
                 <textarea id="config-json" class="config-textarea" placeholder="JSON configuration"></textarea>
                 <div class="config-actions">
-                    <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
-                    <button class="btn" id="btn-load-config">📂 Load</button>
                     <button class="btn" id="btn-format-json">Format</button>
                 </div>
             </div>
@@ -98,6 +98,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=5"></script>
+    <script type="module" src="/js/app.js?v=6"></script>
 </body>
 </html>

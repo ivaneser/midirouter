@@ -12,39 +12,7 @@ export class ConfigEditor {
         this.editingMapping = null;
         this.editingDevice = null;
         
-        this._initTabs();
         this._initEventListeners();
-    }
-    
-    _initTabs() {
-        const tabs = document.querySelectorAll('.tab-btn');
-        const contents = document.querySelectorAll('.tab-content');
-        
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const targetTab = tab.dataset.tab;
-                this._switchTab(targetTab);
-            });
-        });
-    }
-    
-    _switchTab(tabName) {
-        this.currentTab = tabName;
-        
-        // Update tabs
-        document.querySelectorAll('.tab-btn').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.tab === tabName);
-        });
-        
-        // Update content
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.toggle('active', content.id === `tab-${tabName}`);
-        });
-        
-        // Refresh content
-        if (tabName === 'mappings') this._renderMappings();
-        else if (tabName === 'devices') this._renderDevices();
-        else if (tabName === 'json') this._renderJSON();
     }
     
     _initEventListeners() {
