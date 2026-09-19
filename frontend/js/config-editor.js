@@ -312,11 +312,13 @@ export class ConfigEditor {
         // Delete route
         deleteBtn.addEventListener('click', (e) => {
             e.preventDefault();
+            console.log('[DELETE] Clicked, ws readyState:', this.app.ws?.readyState);
             if (!this.app.ws || this.app.ws.readyState !== WebSocket.OPEN) {
                 this.app.log('⚠️ Not connected — cannot delete route');
                 return;
             }
             if (confirm('Delete this route?')) {
+                console.log('[DELETE] Deleting route:', name);
                 delete this.config.mappings[name];
                 this.app.log('🗑 Route deleted — applying...');
                 this._renderMappings();
