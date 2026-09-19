@@ -183,6 +183,11 @@ export class ConfigEditor {
         
         // Helper: get display name (nickname if exists, else full name)
         const getDisplayName = (portId) => {
+            // Handle objects from loaded config (e.g. {name: '...', channels: null})
+            if (typeof portId === 'object' && portId !== null) {
+                return portId.name || String(portId);
+            }
+            portId = String(portId);
             for (const [nick, dev] of Object.entries(devices || {})) {
                 if (dev.name && portId.startsWith(dev.name)) return nick;
             }
