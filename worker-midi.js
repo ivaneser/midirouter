@@ -670,10 +670,10 @@ class MIDIRouterWorker {
         this._trackPlayTimers.clear();
         for (const [, input] of this.inputs) {
             if (input._handler) input.off('message', input._handler);
-            input.closePort();
+            try { input.closePort(); } catch(e) {}
         }
         for (const [, output] of this.outputs) {
-            output.closePort();
+            try { output.closePort(); } catch(e) {}
         }
     }
     
@@ -700,6 +700,8 @@ const worker = new MIDIRouterWorker();
 parentPort.on('message', (msg) => {
     if (msg.type === 'shutdown') {
         worker.cleanup();
+        // Force exit after 1 second to prevent blocking
+        setTimeout(() => process.exit(0), 1000);
         process.exit(0);
     } else if (msg.type.startsWith('daw_')) {
         worker.handleDawControl(msg);
