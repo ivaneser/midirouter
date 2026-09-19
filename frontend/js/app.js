@@ -4,6 +4,14 @@ import { DeviceManager } from './device-manager.js';
 import { DAWUI } from './daw-ui.js';
 import { ConfigEditor } from './config-editor.js';
 
+// Auto-detect WebSocket URL from current page location
+(function autoDetectWsUrl() {
+    const wsUrlInput = document.getElementById('ws-url');
+    if (!wsUrlInput) return;
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    wsUrlInput.value = `${protocol}//${location.host}`;
+})();
+
 const wsUrlInput = document.getElementById('ws-url');
 const connectBtn = document.getElementById('btn-connect');
 const statusEl = document.getElementById('connection-status');
