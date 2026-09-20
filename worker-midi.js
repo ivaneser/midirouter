@@ -804,6 +804,10 @@ class MIDIRouterWorker {
                 if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
                 this._broadcastState();
                 break;
+            case 'daw_request_state':
+                // Отправить текущее состояние DAW при запросе
+                this._broadcastState();
+                break;
             case 'daw_start_transport':
                 if (!this._transportPlaying) {
                     daw.startTransport();
