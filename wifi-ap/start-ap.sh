@@ -45,15 +45,34 @@ echo "[AP] Stopping any existing hostapd/dnsmasq on ${AP_INTERFACE}..."
 systemctl stop hostapd 2>/dev/null || true
 systemctl stop dnsmasq 2>/dev/null || true
 
-# Kill any leftover hostapd/dnsmasq processes for this interface
+# Stop wpa_supplicant service — it conflicts with hostapd on the same interface
+# (hostapd needs exclusive access to the WiFi interface to set channels and broadcast)
+systemctl stop wpa_supplicant.service 2>/dev/null || true
+systemctl disable --now wpa_supplicant.service 2>/dev/null || true
+
+# Kill any leftover hostapd/dnsmasq/wpa_supplicant processes for this interface
 pkill -f "hostapd ${HOSTAPD_CONF}" 2>/dev/null || true
 pkill -f "dnsmasq --conf-file=${DNSMASQ_CONF}" 2>/dev/null || true
+pkill -f "wpa_supplicant" 2>/dev/null || true
+
+# ---- Tell NetworkManager to ignore the AP interface ----
+# (prevents NM from managing wlan0 and restarting wpa_supplicant)
+echo "[AP] Telling NetworkManager to ignore ${AP_INTERFACE}..."
+nmcli device set "${AP_INTERFACE}" managed no 2>/dev/null || true
 
 # ---- Bring down the AP interface and reconfigure it ----
 echo "[AP] Configuring ${AP_INTERFACE} with static IP..."
 ip link set down "${AP_INTERFACE}" 2>/dev/null || true
 sleep 1
 ip addr flush dev "${AP_INTERFACE}" 2>/dev/null || true
+
+# Set the interface to AP mode (required for hostapd)
+echo "[AP] Setting ${AP_INTERFACE} to AP mode..."
+iw dev "${AP_INTERFACE}" set type __ap 2>/dev/null || \
+    (echo "[AP] WARNING: Could not set AP mode via iw, trying with nl80211 driver" && \
+     iw dev "${AP_INTERFACE}" set type __ap 2>/dev/null || \
+     echo "[AP] WARNING: Interface mode change skipped - hostapd may handle this")
+
 ip addr add "${SUBNET}" dev "${AP_INTERFACE}"
 ip link set up "${AP_INTERFACE}"
 sleep 1
@@ -112,12 +131,14 @@ chown -R $(id -u dnsmasq):$(id -g dnsmasq) /var/lib/misc 2>/dev/null || true
 touch /var/lib/misc/dnsmasq.leases 2>/dev/null || true
 chmod 644 /var/lib/misc/dnsmasq.leases 2>/dev/null || true
 
-DNSMASQ_UID=$(id -u dnsmasq 2>/dev/null || echo "988")
-DNSMASQ_GID=$(id -g dnsmasq 2>/dev/null || echo "65534")
+# Use the actual username (not numeric UID) — this version of dnsmasq
+# can't resolve numeric UIDs via nsswitch in some environments.
+DNSMASQ_USER="dnsmasq"
+DNSMASQ_GROUP="nogroup"
 
 dnsmasq --conf-file="${DNSMASQ_CONF}" \
-        --user="${DNSMASQ_UID}" \
-        --group="${DNSMASQ_GID}" \
+        --user="${DNSMASQ_USER}" \
+        --group="${DNSMASQ_GROUP}" \
         --pid-file=/run/midirouter-dnsmasq.pid \
         --log-facility=/var/log/midirouter-dnsmasq.log
 
@@ -130,8 +151,7 @@ echo "[AP] dnsmasq started (PID: $(pidof dnsmasq))"
 # ---- Start hostapd ----
 echo "[AP] Starting hostapd..."
 hostapd "${HOSTAPD_CONF}" -B \
-    --logger-stdout=1 \
-    --logger-stdout-level=2 \
+    -f /var/log/midirouter-hostapd.log \
     -P /run/midirouter-hostapd.pid
 
 if ! pidof hostapd &> /dev/null; then

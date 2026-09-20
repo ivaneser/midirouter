@@ -69,6 +69,11 @@ ip addr flush dev "${AP_INTERFACE}" 2>/dev/null || true
 rm -f /run/midirouter-hostapd.pid
 rm -f /run/midirouter-dnsmasq.pid
 
+# ---- Restore NetworkManager management of wlan0 ----
+echo "[AP] Restoring NetworkManager management of ${AP_INTERFACE}..."
+nmcli device set "${AP_INTERFACE}" managed yes 2>/dev/null || true
+systemctl enable --now wpa_supplicant.service 2>/dev/null || true
+
 echo "[AP] WiFi Access Point stopped."
 echo ""
 echo "  To reconnect to your existing WiFi network, use:"
