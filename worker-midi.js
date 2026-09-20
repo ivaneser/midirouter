@@ -18,6 +18,7 @@ class MIDIRouterWorker {
         this.outputs = new Map();  // deviceName -> RtMidiOut instance
 
         // DAW engine — metronome/clip events go to UI AND physical MIDI outputs
+        this.daw = new DAWEngine();
         this.daw._onEvent = (evt) => {
             // Forward to all output ports so metronome/clip audio is audible
             if (evt && evt.data && Array.isArray(evt.data)) {
@@ -839,6 +840,10 @@ class MIDIRouterWorker {
     handleDawControl(msg) {
         const daw = this.daw;
         switch (msg.type) {
+            case 'daw_request_state':
+                // Отправить текущее состояние DAW при запросе от фронтенда
+                this._broadcastState();
+                break;
             case 'daw_set_tempo':
                 daw.setTempo(msg.bpm);
                 this._broadcastState();
@@ -901,10 +906,6 @@ class MIDIRouterWorker {
                 break;
             case 'daw_metronome_beats_per_measure':
                 if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
-                this._broadcastState();
-                break;
-            case 'daw_request_state':
-                // Отправить текущее состояние DAW при запросе
                 this._broadcastState();
                 break;
             case 'daw_start_transport':

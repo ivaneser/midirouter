@@ -281,13 +281,16 @@ body {
     50% { opacity: 0.7; }
 }
 
-/* Track Controls */
+/* Track Controls — now rendered per-track inside session grid; strip kept for compat */
 .track-controls {
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
     overflow-x: auto;
     padding: 8px 0;
+}
+.track-controls:empty {
+    display: none;
 }
 .track-control-group {
     display: flex;
@@ -334,6 +337,22 @@ body {
 .btn-track-solo.soloed {
     background: #ffaa00;
     color: #1a1a2e;
+}
+
+/* Per-track column: header + vertical clips + control buttons below */
+.track-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: fit-content;
+}
+/* Row of control buttons centered under the clip column */
+.track-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
 }
 
 .daw-hint { font-size: 0.75rem; color: #888; margin-top: 8px; }
@@ -616,8 +635,8 @@ body {
 /* === Session Grid (Ableton-style) === */
 .session-grid {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-direction: row;
+    gap: 8px;
     margin-top: 12px;
     overflow-x: auto;
 }

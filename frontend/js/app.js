@@ -61,6 +61,8 @@ function connect() {
         send({ type: 'get-devices' });
         // Запросить конфигурацию
         send({ type: 'get-config' });
+        // Запросить состояние DAW (клипы, сетку) — должно быть ПОСЛЕ подключения WS
+        send({ type: 'daw-get' });
     };
 
     ws.onclose = () => {

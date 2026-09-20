@@ -57,8 +57,8 @@ export class DAWUI {
             });
         }
 
-        // Initial request
-        this._send({ type: 'daw-get' });
+        // Note: daw-get is now sent from app.js after WebSocket connects.
+        // (Sending it here at module-load time fails because window.app.ws is null.)
     }
 
     /** Обработка сообщений от сервера */
@@ -113,29 +113,29 @@ export class DAWUI {
         grid.innerHTML = '';
         sceneNamesDiv.innerHTML = '';
         
-        // Render scene names (top row)
+        // Render scene names (top row) — one per clip slot row
         for (let s = 0; s < this.dawState.slotsPerTrack; s++) {
             const nameEl = document.createElement('div');
             nameEl.className = 'scene-name';
-            nameEl.textContent = `Scene ${s + 1}`;
+            nameEl.textContent = `Slot ${s + 1}`;
             sceneNamesDiv.appendChild(nameEl);
         }
 
-        // Render track rows
+        // Render track columns — each track gets a column: header + vertical clips + buttons below
         for (let t = 0; t < 16; t++) {
             const ch = this.dawState.tracks[t];
             if (!ch) continue;
             
-            const row = document.createElement('div');
-            row.className = 'session-row';
+            const block = document.createElement('div');
+            block.className = 'track-block';
 
-            // Track label
+            // Track label (column header)
             const label = document.createElement('div');
             label.className = 'session-track-label';
             label.textContent = `Ch${ch.channel}`;
-            row.appendChild(label);
+            block.appendChild(label);
 
-            // Clip slots
+            // Clip slots (vertical column under the track label)
             for (let s = 0; s < this.dawState.slotsPerTrack; s++) {
                 const clip = ch.clips[s];
                 const slot = document.createElement('button');
@@ -163,25 +163,12 @@ export class DAWUI {
                     this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
                 });
                 
-                row.appendChild(slot);
+                block.appendChild(slot);
             }
-            
-            grid.appendChild(row);
-        }
-    }
 
-    _renderTrackControls() {
-        const container = document.getElementById('track-controls');
-        if (!container || !this.dawState) return;
-        
-        container.innerHTML = '';
-        
-        for (let t = 0; t < 16; t++) {
-            const ch = this.dawState.tracks[t];
-            if (!ch) continue;
-            
-            const group = document.createElement('div');
-            group.className = 'track-control-group';
+            // Control buttons (arm/mute/solo) below the clip column
+            const controlsRow = document.createElement('div');
+            controlsRow.className = 'track-controls-row';
             
             // Arm button
             const armBtn = document.createElement('button');
@@ -210,12 +197,18 @@ export class DAWUI {
                 this._send({ type: 'daw-track-solo', trackIdx: t });
             });
             
-            group.appendChild(armBtn);
-            group.appendChild(muteBtn);
-            group.appendChild(soloBtn);
+            controlsRow.appendChild(armBtn);
+            controlsRow.appendChild(muteBtn);
+            controlsRow.appendChild(soloBtn);
+            block.appendChild(controlsRow);
             
-            container.appendChild(group);
+            grid.appendChild(block);
         }
+    }
+
+    _renderTrackControls() {
+        // Track controls are now rendered inside each track block in _renderGrid().
+        // This method is kept for compatibility but no longer renders a separate strip.
     }
 
     _flashPad(evt) {
