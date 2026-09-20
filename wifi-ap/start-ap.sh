@@ -101,10 +101,24 @@ echo "[AP] iptables rules configured."
 
 # ---- Start dnsmasq (DHCP + DNS) ----
 echo "[AP] Starting dnsmasq..."
+# Ensure the dnsmasq user exists
+if ! id dnsmasq &>/dev/null; then
+    echo "[AP] Creating dnsmasq system user..."
+    useradd -r -s /usr/sbin/nologin -d /var/lib/misc dnsmasq 2>/dev/null || true
+fi
+# Ensure the lease file directory exists and is writable
+mkdir -p /var/lib/misc
+chown -R $(id -u dnsmasq):$(id -g dnsmasq) /var/lib/misc 2>/dev/null || true
+touch /var/lib/misc/dnsmasq.leases 2>/dev/null || true
+chmod 644 /var/lib/misc/dnsmasq.leases 2>/dev/null || true
+
+DNSMASQ_UID=$(id -u dnsmasq 2>/dev/null || echo "988")
+DNSMASQ_GID=$(id -g dnsmasq 2>/dev/null || echo "65534")
+
 dnsmasq --conf-file="${DNSMASQ_CONF}" \
-        --user=dnsmasq \
-        --group=dnsmasq \
-        --pidfile=/run/midirouter-dnsmasq.pid \
+        --user="${DNSMASQ_UID}" \
+        --group="${DNSMASQ_GID}" \
+        --pid-file=/run/midirouter-dnsmasq.pid \
         --log-facility=/var/log/midirouter-dnsmasq.log
 
 if ! pidof dnsmasq &> /dev/null; then
