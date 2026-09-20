@@ -137,7 +137,8 @@ class DAWEngine {
             
             // Если перешли на новый бит — тикаем
             if (currentBeatInt !== beatInMeasure && currentBeatInt >= 0) {
-                const isAccent = (beatInMeasure % this._metronomeBeatsPerMeasure === 0);
+                // Акцент на первую долю такта (по новому биту)
+                const isAccent = (currentBeatInt % this._metronomeBeatsPerMeasure === 0);
                 const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
                 const vel = isAccent ? 100 : 70;
                 self._onEvent({ type: 'midi', data: noteOn(1, note, vel) });

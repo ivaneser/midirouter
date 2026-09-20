@@ -116,6 +116,11 @@ class MIDIRouterWorker {
                 this._broadcast({ type: 'daw_state', payload: msg.state });
                 break;
 
+            case 'daw_pad_map_list':
+                // Обновление карты пэдов — перенаправляем во фронтенд
+                this._broadcast({ type: 'daw_pad_map_list', map: msg.map, learnMode: msg.learnMode });
+                break;
+
             case 'hotplug':
                 // Пересборка маппингов при hot-plug событии
                 if (this.worker) {

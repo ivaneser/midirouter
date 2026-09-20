@@ -4,6 +4,7 @@ import { parentPort } from 'worker_threads';
 import { DAWEngine, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
+import { CCMapper } from './cc-mapper.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,9 +17,15 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // deviceName -> RtMidiIn instance
         this.outputs = new Map();  // deviceName -> RtMidiOut instance
 
-        // DAW engine
-        this.daw = new DAWEngine();
-        this.daw._onEvent = (evt) => parentPort.postMessage({ type: 'daw_midi', data: evt.data });
+        // DAW engine — metronome/clip events go to UI AND physical MIDI outputs
+        this.daw._onEvent = (evt) => {
+            // Forward to all output ports so metronome/clip audio is audible
+            if (evt && evt.data && Array.isArray(evt.data)) {
+                this._sendToAllOutputs(evt.data, 'daw-midi');
+            }
+            // Also notify UI via WebSocket
+            parentPort.postMessage({ type: 'daw_midi', data: evt.data });
+        };
 
         // track playback timers (loop): trackIdx -> intervalId
         this._trackPlayTimers = new Map();
@@ -34,6 +41,9 @@ class MIDIRouterWorker {
         this.autoAssign = true;
         this._learnCursor = 0;
         this.padMap = new Map();   // note(number) -> { trackIdx, slot }
+
+        // CC Mapper — трансляция команд контроллера в команды синта
+        this.ccMapper = new CCMapper();
 
         // DAW mode activation for Novation Launchkey Mini MK3
         // Controller enters DAW/Session mode only when it receives a special
@@ -328,7 +338,8 @@ class MIDIRouterWorker {
         const leadNote = this._padNoteForTrack(trackIdx, slot);
         if (leadNote != null) {
             // clear any prior glow on this note (e.g. red arm -> cyan play)
-            try { this.outputs.forEach(o => o.sendMessage([0x80 | 0, leadNote & 0x7f, 0])); } catch (e) {}
+            const cleared = this._sendToAllOutputs([0x80 | 0, leadNote & 0x7f, 0], 'clear-led');
+            if (cleared === 0) console.warn(`[WORKER] Failed to clear LED for note ${leadNote}`);
             this._ledGlow.set(trackIdx, { note: leadNote, color: 'cyan' });
             this._setLed(leadNote, 'cyan', 0.5);   // steady glow
         }
@@ -359,10 +370,17 @@ class MIDIRouterWorker {
         if (glow) { this._clearLed(glow.note); this._ledGlow.delete(trackIdx); }
     }
 
-    _sendToAllOutputs(bytes) {
-        for (const [, midiOut] of this.outputs) {
-            try { midiOut.sendMessage(bytes); } catch (e) {}
+    _sendToAllOutputs(bytes, label = '') {
+        let sent = 0;
+        for (const [name, midiOut] of this.outputs) {
+            try {
+                midiOut.sendMessage(bytes);
+                sent++;
+            } catch (e) {
+                console.warn(`[WORKER] Failed to send ${label} to ${name}: ${e.message}`);
+            }
         }
+        return sent;
     }
 
     // ---- LED feedback (LaunchKey RGB pads via note velocity) ----
@@ -390,21 +408,25 @@ class MIDIRouterWorker {
     _setLed(note, color, brightness) {
         const vel = this._ledVelocity(color, brightness);
         if (vel === 0) return;
-        try { this.outputs.forEach(o => o.sendMessage([0x90 | 0, note & 0x7f, vel])); } catch (e) {}
+        const sent = this._sendToAllOutputs([0x90 | 0, note & 0x7f, vel], `LED ${color}`);
+        if (sent === 0) console.warn(`[WORKER] Failed to set LED ${color} for note ${note}`);
     }
 
     // flash: bright pulse that auto-offers after ms
     _flashLed(note, brightness, ms) {
         const vel = this._ledVelocity('red', brightness);   // downbeat = bright red pulse
         if (vel === 0) return;
-        try { this.outputs.forEach(o => o.sendMessage([0x90 | 0, note & 0x7f, vel])); } catch (e) {}
+        const sent = this._sendToAllOutputs([0x90 | 0, note & 0x7f, vel], `LED flash`);
+        if (sent === 0) console.warn(`[WORKER] Failed to flash LED for note ${note}`);
         setTimeout(() => {
-            try { this.outputs.forEach(o => o.sendMessage([0x80 | 0, note & 0x7f, 0])); } catch (e) {}
+            const cleared = this._sendToAllOutputs([0x80 | 0, note & 0x7f, 0], 'clear-led');
+            if (cleared === 0) console.warn(`[WORKER] Failed to clear flash LED for note ${note}`);
         }, ms);
     }
 
     _clearLed(note) {
-        try { this.outputs.forEach(o => o.sendMessage([0x80 | 0, note & 0x7f, 0])); } catch (e) {}
+        const cleared = this._sendToAllOutputs([0x80 | 0, note & 0x7f, 0], 'clear-led');
+        if (cleared === 0) console.warn(`[WORKER] Failed to clear LED for note ${note}`);
     }
 
     // arm-rec glow: red pulse for the track's pad(s)
@@ -430,25 +452,24 @@ class MIDIRouterWorker {
         if (isDAWPad) {
             if (velocity > 0) {
                 // Find the pad mapping for this note
-                let padMapping = null;
-                for (const [padNote, m] of this.padMap.entries()) {
-                    if (padNote === note) {
-                        padMapping = m;
-                        break;
-                    }
-                }
+                const padMapping = this.padMap.get(note);
                 if (padMapping) {
                     const { trackIdx, slot } = padMapping;
                     const res = this.daw.triggerPad(trackIdx, slot, now);
                     if (res.action === 'play') {
-                        this.daw.setClipPlay(trackIdx, slot, now);
                         this._startTrackPlayback(trackIdx, slot);
                     } else if (res.action === 'stop') {
-                        this.daw.setClipPlay(trackIdx, slot, now);
                         this._stopTrackPlayback(trackIdx);
                     } else if (res.action === 'record' || res.action === 'overdub') {
                         this._armLed(trackIdx);
                     }
+                }
+            } else {
+                // DAW pad release: clear LED glow if not recording
+                const padMapping = this.padMap.get(note);
+                if (padMapping && !this.daw.recording) {
+                    const glow = this._ledGlow.get(padMapping.trackIdx);
+                    if (glow) { this._clearLed(glow.note); this._ledGlow.delete(padMapping.trackIdx); }
                 }
             }
             return; // DAW mode pads handled separately
@@ -459,10 +480,8 @@ class MIDIRouterWorker {
                 const { trackIdx, slot } = this.padMap.get(note);
                 const res = this.daw.triggerPad(trackIdx, slot, now);
                 if (res.action === 'play') {
-                    this.daw.setClipPlay(trackIdx, slot, now);
                     this._startTrackPlayback(trackIdx, slot);
                 } else if (res.action === 'stop') {
-                    this.daw.setClipPlay(trackIdx, slot, now);
                     this._stopTrackPlayback(trackIdx);
                 } else if (res.action === 'record' || res.action === 'overdub') {
                     // armed for recording -> red glow on the pad
@@ -476,8 +495,11 @@ class MIDIRouterWorker {
                 const { trackIdx, slot } = this.padMap.get(note);
                 this.daw._stopRecording();
                 this.daw.quantizeClip(trackIdx, slot);
-                this.daw.setClipPlay(trackIdx, slot, now);
                 this._startTrackPlayback(trackIdx, slot);
+            } else if (isPad) {
+                // Non-recording pad release: clear LED glow
+                const glow = this._ledGlow.get(this.padMap.get(note).trackIdx);
+                if (glow) { this._clearLed(glow.note); this._ledGlow.delete(this.padMap.get(note).trackIdx); }
             }
         }
     }
@@ -661,15 +683,52 @@ class MIDIRouterWorker {
         const isDAWPort = deviceName.toLowerCase().includes('daw port');
         const isSysEx = bytes[0] === 0xf0; // SysEx starts with 0xF0
         
-        // DAW Port: полностью блокируем (эхо activation message)
-        if (isDAWPort) {
-            console.log(`[MIDI] [LOOPBACK] Ignoring DAW Port: ${name}`);
-            return;
-        }
-        
         if (isLoopback) {
             console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
             return;
+        }
+        
+        // DAW Port: разрешаем CC, SysEx и все Note On (транспорт/пэды)
+        if (isDAWPort) {
+            const isCC = type === 7;
+            const isSysExMsg = bytes[0] === 0xf0;
+            const isNoteOn = type === 9 && bytes.length >= 3; // Все Note On
+            if (!isCC && !isSysExMsg && !isNoteOn) {
+                console.log(`[MIDI] [LOOPBACK] Ignoring DAW Port: ${name}`);
+                return;
+            }
+            
+            // CC команды от knobs — транслируем и маршрутизируем
+            if (isCC) {
+                const message = {
+                    bytes: Buffer.from(bytes),
+                    type: type,
+                    channel: channel - 1,
+                    velocity: bytes[2] || 0,
+                    note: bytes[1] || 0
+                };
+                
+                // Транслируем через CCMapper ко всем выходам кроме DAW Port
+                for (const [, outputPort] of this.outputs) {
+                    const outName = [...this.outputs.keys()][[...this.outputs.values()].indexOf(outputPort)];
+                    if (!outName.toLowerCase().includes('daw port')) {
+                        try {
+                            const transformed = this.ccMapper.transformCC(message, deviceName, outName, 'default');
+                            outputPort.sendMessage(transformed.bytes);
+                            console.log(`[MIDI] ${deviceName} -> ${outName}: CC${transformed.bytes[1]} (transl)`);
+                        } catch (e) {
+                            console.warn(`[MIDI] Failed to transform/send CC from ${deviceName} -> ${outName}: ${e.message}`);
+                        }
+                    }
+                }
+                return;
+            }
+            
+            // Note On — обрабатываем внутренне, не маршрутизируем
+            if (isNoteOn) {
+                this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
+                return; // Не маршрутизируем дальше
+            }
         }
         
         // Обработка SysEx от любого порта (Launchkey DAW, Midi Through и т.д.)
@@ -697,7 +756,7 @@ class MIDIRouterWorker {
 
         // Process through mappings
         let processed = message;
-        for (const [, mapping] of this._mappings) {
+        for (const [routeId, mapping] of this._mappings) {
             // Check if this input is in the mapping
             const isInMapping = mapping.inputs.some(input => input.name === deviceName);
             if (!isInMapping) continue;
@@ -712,27 +771,67 @@ class MIDIRouterWorker {
                 processed = result;
             }
             
-            // Send to outputs
-            for (const output of mapping.outputs) {
-                const outputPort = this.outputs.get(output.name);
-                if (outputPort) {
-                    try {
-                        outputPort.sendMessage(processed.bytes);
-                        console.log(`[MIDI] ${deviceName} -> ${output.name}: ${name}`);
-                    } catch (e) {
-                        console.error(`[MIDI] Failed to send to ${output.name}:`, e.message);
+            // Трансляция CC команд через CCMapper
+            if (type === 7) { // Control Change
+                for (const output of mapping.outputs) {
+                    const outputPort = this.outputs.get(output.name);
+                    if (outputPort) {
+                        const transformed = this.ccMapper.transformCC(
+                            processed, deviceName, output.name, routeId
+                        );
+                        if (transformed) {
+                            try {
+                                outputPort.sendMessage(transformed.bytes);
+                                console.log(`[MIDI] ${deviceName} -> ${output.name}: CC${processed.bytes[1]} (transl)`);
+                            } catch (e) {
+                                console.error(`[MIDI] Failed to send to ${output.name}:`, e.message);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Note/other messages — обычная маршрутизация
+                for (const output of mapping.outputs) {
+                    const outputPort = this.outputs.get(output.name);
+                    if (outputPort) {
+                        try {
+                            outputPort.sendMessage(processed.bytes);
+                            console.log(`[MIDI] ${deviceName} -> ${output.name}: ${name}`);
+                        } catch (e) {
+                            console.error(`[MIDI] Failed to send to ${output.name}:`, e.message);
+                        }
                     }
                 }
             }
         }
         
         // If no mappings matched, use default all-to-all routing
-        if (this._mappings.size === 0) {
+        // Но DAW Port сообщения не маршрутизируем — они только для внутреннего управления
+        if (this._mappings.size === 0 && !isDAWPort) {
             let sent = 0;
             for (const [, midiOut] of this.outputs) {
-                try { midiOut.sendMessage(Buffer.from(bytes)); sent++; } catch (e) {}
+                try {
+                    let outMsg = Buffer.from(bytes);
+                    // Трансляция CC команд — преобразуем CC номера через CCMapper
+                    if (type === 7) {
+                        const transformed = this.ccMapper.transformCC(
+                            message, deviceName, 'default', 'default'
+                        );
+                        if (transformed && transformed.bytes) {
+                            outMsg = transformed.bytes;
+                        }
+                    }
+                    midiOut.sendMessage(outMsg);
+                    sent++;
+                } catch (e) {
+                    console.warn(`[MIDI] Failed to send ${name} to ${midiOut._name || 'unknown'}: ${e.message}`);
+                }
             }
-            console.log(`[MIDI] ${deviceName} -> ${sent}/${this.outputs.size} outs: ${name}`);
+            if (sent > 0) {
+                console.log(`[MIDI] ${deviceName} -> ${sent}/${this.outputs.size} outs: ${name}`);
+            }
+        } else if (isDAWPort && this._mappings.size === 0) {
+            console.log(`[MIDI] DAW Port message processed internally only: ${name}`);
         }
     }
 
@@ -935,20 +1034,95 @@ class MIDIRouterWorker {
         }
     }
     
+    /**
+     * Обработка DAW status от Launchkey Mini MK3
+     * Формат данных: bytes[0] = статус (0x00=off, 0x01=on)
+     */
     _handleDawStatus(data) {
-        console.log(`[MIDI] [LAUNCHKEY] DAW status:`, data);
+        if (!data || data.length === 0) return;
+        const status = data[0];
+        console.log(`[MIDI] [LAUNCHKEY] DAW status: ${status}`);
+        // Запрашиваем текущее состояние у worker'а
+        this.handleDawControl({ type: 'daw_request_state' });
     }
     
+    /**
+     * Обработка состояния пэдов (нажатие/отпускание)
+     * Формат: bytes[0] = номер пэда (1-32), bytes[1] = velocity (0=release, 1-127=press)
+     */
     _handlePadState(data) {
-        console.log(`[MIDI] [LAUNCHKEY] Pad state:`, data);
+        if (!data || data.length < 2) return;
+        const padNum = data[0];  // 1-based номер пэда
+        const velocity = data[1];
+        
+        // Преобразуем номер пэда в MIDI note (DAW mode: notes 112-127)
+        // Pad 1 -> note 112, Pad 2 -> note 113, ...
+        const midiNote = 111 + padNum;
+        
+        console.log(`[MIDI] [LAUNCHKEY] Pad ${padNum} (note ${midiNote}) velocity ${velocity}`);
+        
+        // Симулируем входящее MIDI-событие NoteOn/NoteOff
+        const now = performance.now();
+        if (velocity > 0) {
+            this._handleControllerNote(midiNote, velocity, 1, now);
+        } else {
+            // Pad release — обрабатываем как note-off
+            this._handleControllerNote(midiNote, 0, 1, now);
+        }
     }
     
+    /**
+     * Обработка команд транспорта (Play/Stop/Record)
+     * Формат: bytes[0] = команда (0x01=play, 0x02=stop, 0x03=record)
+     */
     _handleTransport(data) {
-        console.log(`[MIDI] [LAUNCHKEY] Transport:`, data);
+        if (!data || data.length === 0) return;
+        const cmd = data[0];
+        
+        switch (cmd) {
+            case 0x01: // Play
+                console.log('[MIDI] [LAUNCHKEY] Transport: PLAY');
+                this.handleDawControl({ type: 'daw_start_transport' });
+                break;
+            case 0x02: // Stop
+                console.log('[MIDI] [LAUNCHKEY] Transport: STOP');
+                this.handleDawControl({ type: 'daw_stop_transport' });
+                break;
+            case 0x03: // Record
+                console.log('[MIDI] [LAUNCHKEY] Transport: RECORD');
+                // Toggle record mode
+                const modes = ['none', 'replace', 'overdub'];
+                const currentIdx = modes.indexOf(this.daw.recordMode);
+                const nextMode = modes[(currentIdx + 1) % modes.length];
+                this.handleDawControl({ type: 'daw_set_record_mode', mode: nextMode });
+                break;
+            default:
+                console.log(`[MIDI] [LAUNCHKEY] Transport unknown cmd: 0x${cmd.toString(16)}`);
+        }
     }
     
+    /**
+     * Обработка состояния слота клипа
+     * Формат: bytes[0] = track number (0-based), bytes[1] = slot state (0=stopped, 1=playing)
+     */
     _handleClipSlot(data) {
-        console.log(`[MIDI] [LAUNCHKEY] Clip slot:`, data);
+        if (!data || data.length < 2) return;
+        const trackNum = data[0];
+        const slotState = data[1];
+        
+        console.log(`[MIDI] [LAUNCHKEY] Clip slot: track=${trackNum} state=${slotState}`);
+        // Синхронизируем состояние — запрашиваем актуальное состояние у worker'а
+        if (slotState === 0) {
+            // Слот остановлен — если у нас он играет, останавливаем
+            const currentTrack = this.daw.clipState[trackNum];
+            if (currentTrack >= 0) {
+                this._stopTrackPlayback(trackNum);
+                this.daw.setClipPlay(trackNum, -1);
+            }
+        } else {
+            // Слот играет — запрашиваем обновление состояния
+            this.handleDawControl({ type: 'daw_request_state' });
+        }
     }
 
     cleanup() {

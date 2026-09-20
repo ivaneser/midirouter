@@ -68,6 +68,19 @@ export class DAWUI {
             this._syncControls();
             this._renderGrid();
             this._renderTrackControls();
+        } else if (msg.type === 'daw_pad_map_list') {
+            // Обновляем карту пэдов: note -> trackIdx-slot
+            this.padNotes = {};
+            for (const entry of (msg.map || [])) {
+                const key = `${entry.trackIdx}-${entry.slot}`;
+                this.padNotes[key] = entry.note;
+            }
+            // Обновляем состояние learn mode
+            if (document.getElementById('btn-learn')) {
+                document.getElementById('btn-learn').classList.toggle('active', !!msg.learnMode);
+            }
+            // Перерисовываем сетку с новыми подсказками пэдов
+            this._renderGrid();
         } else if (msg.type === 'daw_event') {
             this._flashPad(msg.payload);
         }
@@ -93,7 +106,9 @@ export class DAWUI {
         const grid = document.getElementById('session-grid');
         const sceneNamesDiv = document.getElementById('scene-names');
         
-        if (!grid || !this.dawState || !Array.isArray(this.dawState.tracks)) return;
+        if (!grid) { console.warn('[DAWUI] session-grid not found'); return; }
+        if (!this.dawState) { console.warn('[DAWUI] dawState is null, skipping render'); return; }
+        if (!Array.isArray(this.dawState.tracks)) { console.warn('[DAWUI] tracks is not array:', typeof this.dawState.tracks); return; }
         
         grid.innerHTML = '';
         sceneNamesDiv.innerHTML = '';
