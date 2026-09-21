@@ -111,11 +111,11 @@ class PortManager {
         const sectionHTML = `
             <section id="port-section" class="port-section">
                 <div class="port-column">
-                    <h2>INPUTS (источники)</h2>
+                    <h2>INPUTS (sources)</h2>
                     <div class="port-list input-ports"></div>
                 </div>
                 <div class="port-column outputs-column">
-                    <h2>OUTPUTS (приёмники)</h2>
+                    <h2>OUTPUTS (sinks)</h2>
                     <div class="port-list output-ports"></div>
                 </div>
             </section>
@@ -137,8 +137,8 @@ class PortManager {
 
         // Рендерим INPUTS
         if (this.inputs.length === 0 && this.outputs.length === 0) {
-            inputList.innerHTML = '<p class="empty-hint">Нет подключённых MIDI-устройств</p>';
-            outputList.innerHTML = '<p class="empty-hint">Нет доступных OUTPUT портов</p>';
+            inputList.innerHTML = '<p class="empty-hint">No connected MIDI devices</p>';
+            outputList.innerHTML = '<p class="empty-hint">No available OUTPUT ports</p>';
             return;
         }
 
@@ -367,10 +367,10 @@ class PortManager {
 
         const inputName = data.inputName || data.inputId;
         // Показываем только первый output порт как предложение
-        const suggestedOutput = this.outputs[0]?.name || 'любой доступный';
+        const suggestedOutput = this.outputs[0]?.name || 'any available';
         
         document.getElementById('suggested-route-text').textContent = 
-            `Обнаружен сигнал с ${inputName}. Создать маршрут?`;
+            `Signal detected from ${inputName}. Create route?`;
 
         modal.style.display = 'flex';
 

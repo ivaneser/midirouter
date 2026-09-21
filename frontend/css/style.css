@@ -63,6 +63,95 @@ body {
 .btn-danger { background: #8b0000; color: white; }
 .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 
+/* === Collapsible Panels === */
+.collapsible-panel {
+    margin: 20px;
+    border-radius: 8px;
+    background: #16213e;
+}
+
+.collapsible-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    background: #0f3460;
+    border-radius: 6px;
+    color: #e94560;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.collapsible-header:hover {
+    background: #1a4a7a;
+}
+
+.collapsible-header::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible-header .arrow {
+    font-size: 0.8rem;
+    transition: transform 0.2s;
+}
+
+.collapsible-panel[open] .collapsible-header .arrow {
+    transform: rotate(90deg);
+}
+
+.collapsible-panel .daw-panel-content,
+.collapsible-panel .config-panel-content {
+    padding: 20px;
+}
+
+/* Help panel specific */
+.help-header {
+    color: #4ec9d4;
+}
+
+.help-header:hover {
+    background: #1a4a5a;
+}
+
+.collapsible-panel[open] .help-header {
+    background: #0f4a5a;
+}
+
+.help-content {
+    padding: 20px;
+    color: #ddd;
+}
+
+.help-content h4 {
+    color: #4ec9d4;
+    font-size: 0.9rem;
+    margin: 16px 0 8px 0;
+}
+
+.help-content h4:first-child {
+    margin-top: 0;
+}
+
+.help-content ul {
+    margin: 0 0 12px 0;
+    padding-left: 20px;
+}
+
+.help-content li {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #ccc;
+    margin-bottom: 4px;
+}
+
+.help-content strong {
+    color: #eee;
+}
+
 /* === Port Section (two columns) === */
 .port-section {
     display: grid;
@@ -154,12 +243,23 @@ body {
     background: #0f3460;
     border-radius: 8px;
 }
-.transport-controls label {
+.transport-settings-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.transport-buttons-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.transport-label {
     font-size: 0.85rem;
     color: #ccc;
     display: flex;
     align-items: center;
     gap: 6px;
+    white-space: nowrap;
 }
 .transport-controls select, .transport-controls input[type="number"] {
     padding: 6px 8px;
@@ -204,83 +304,6 @@ body {
 }
 
 /* Session Grid (Ableton-style) */
-.session-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: fit-content;
-}
-.session-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-.session-track-label {
-    width: 76px;
-    font-size: 0.75rem;
-    color: #e94560;
-    text-align: right;
-    flex-shrink: 0;
-    padding-right: 8px;
-    font-weight: bold;
-}
-.session-slot {
-    width: 72px;
-    height: 36px;
-    border-radius: 4px;
-    border: 2px solid #0f3460;
-    background: #1a1a2e;
-    color: #555;
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.1s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    overflow: hidden;
-}
-.session-slot:hover {
-    border-color: #e94560;
-    color: #ccc;
-    background: #2a2a4e;
-}
-.session-slot:active { transform: scale(0.95); }
-
-/* Clip States */
-.session-slot.empty { opacity: 0.6; }
-.session-slot.has-content {
-    background: #163a5e;
-    border-color: #0a7c2e;
-    color: #4ade80;
-}
-.session-slot.playing {
-    background: #0a7c2e;
-    border-color: #3ddc84;
-    color: #fff;
-    box-shadow: 0 0 12px rgba(61, 220, 132, 0.5);
-}
-.session-slot.recording {
-    background: #cc3333;
-    border-color: #ff4444;
-    color: #fff;
-    animation: pulse-record 1s infinite;
-}
-.session-slot.armed {
-    border-color: #e94560;
-    background: rgba(233, 69, 96, 0.2);
-    color: #e94560;
-}
-.session-slot.muted { opacity: 0.4; }
-.session-slot.solo-only {
-    border-color: #ffaa00;
-    background: rgba(255, 170, 0, 0.1);
-}
-@keyframes pulse-record {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
 /* Track Controls — now rendered per-track inside session grid; strip kept for compat */
 .track-controls {
     display: flex;
@@ -345,7 +368,8 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    min-width: fit-content;
+    flex: 0 0 auto;
+    width: 160px;
 }
 /* Row of control buttons centered under the clip column */
 .track-controls-row {
@@ -636,9 +660,9 @@ body {
 .session-grid {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 12px;
-    overflow-x: auto;
 }
 .session-row {
     display: flex;
@@ -724,4 +748,308 @@ body {
     background: #1a1a2e;
     color: #eee;
     font-size: 0.8rem;
+}
+
+/* === Mobile / Narrow Screen Responsive === */
+@media (max-width: 768px) {
+    .collapsible-panel {
+        margin: 12px;
+    }
+
+    .collapsible-header {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+    }
+
+    .daw-panel-content,
+    .config-panel-content {
+        padding: 12px;
+    }
+
+    .transport-controls {
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+    }
+
+    .transport-settings-group,
+    .transport-buttons-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        width: 100%;
+    }
+
+    .transport-settings-group {
+        justify-content: flex-start;
+    }
+
+    .transport-buttons-group {
+        justify-content: flex-start;
+    }
+
+    .transport-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: auto;
+    }
+
+    .transport-separator {
+        width: 100%;
+        height: 1px;
+        margin: 3px 0;
+    }
+
+    .session-grid {
+        gap: 6px;
+    }
+
+    .track-block {
+        width: 130px;
+    }
+
+    .session-track-label {
+        width: 40px;
+        font-size: 0.65rem;
+    }
+
+    .session-slot {
+        width: 52px;
+        height: 32px;
+        font-size: 0.6rem;
+    }
+
+    .track-controls-row {
+        gap: 2px;
+    }
+
+    .track-controls-row button {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    .scene-names {
+        padding-left: 50px;
+    }
+
+    .scene-name {
+        width: 52px;
+        height: 24px;
+        font-size: 0.6rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .collapsible-panel {
+        margin: 8px;
+    }
+
+    .daw-panel-content,
+    .config-panel-content {
+        padding: 10px;
+    }
+
+    .track-block {
+        width: 110px;
+    }
+
+    .session-track-label {
+        width: 36px;
+        font-size: 0.6rem;
+    }
+
+    .session-slot {
+        width: 44px;
+        height: 28px;
+        font-size: 0.55rem;
+    }
+
+    .track-controls-row button {
+        padding: 3px 6px;
+        font-size: 0.65rem;
+    }
+
+    .btn {
+        padding: 5px 12px;
+        font-size: 0.8rem;
+    }
+
+    .btn-sm {
+        padding: 3px 8px;
+        font-size: 0.7rem;
+    }
+}
+
+/* === Mobile Landscape / Horizontal (481px - 896px) === */
+@media (min-width: 481px) and (max-width: 896px) {
+    .collapsible-panel {
+        margin: 12px;
+    }
+
+    .collapsible-header {
+        font-size: 0.85rem;
+        padding: 7px 14px;
+    }
+
+    .daw-panel-content,
+    .config-panel-content {
+        padding: 14px;
+    }
+
+    /* Transport controls — settings left, buttons right */
+    .transport-controls {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .transport-settings-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 240px;
+    }
+
+    .transport-buttons-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .transport-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .transport-separator {
+        width: 1px;
+        height: 30px;
+        margin: 0 4px;
+    }
+
+    /* Session grid — wider track blocks */
+    .session-grid {
+        gap: 8px;
+    }
+
+    .track-block {
+        width: 140px;
+    }
+
+    .session-track-label {
+        width: 44px;
+        font-size: 0.7rem;
+    }
+
+    .session-slot {
+        width: 56px;
+        height: 34px;
+        font-size: 0.65rem;
+    }
+
+    .track-controls-row button {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    .scene-names {
+        padding-left: 60px;
+    }
+
+    .scene-name {
+        width: 56px;
+        height: 26px;
+        font-size: 0.65rem;
+    }
+}
+
+/* === iPad Portrait (769px - 1024px) === */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .collapsible-panel {
+        margin: 16px;
+    }
+
+    .daw-panel-content,
+    .config-panel-content {
+        padding: 16px;
+    }
+
+    /* Transport controls — settings left, buttons right */
+    .transport-controls {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .transport-settings-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+        min-width: 300px;
+    }
+
+    .transport-buttons-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .transport-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+    }
+
+    .transport-separator {
+        width: 1px;
+        height: 32px;
+        margin: 0 6px;
+    }
+
+    /* Session grid — more tracks visible */
+    .session-grid {
+        gap: 10px;
+    }
+
+    .track-block {
+        width: 170px;
+    }
+
+    .session-track-label {
+        width: 50px;
+        font-size: 0.75rem;
+    }
+
+    .session-slot {
+        width: 62px;
+        height: 38px;
+        font-size: 0.7rem;
+    }
+
+    .track-controls-row button {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+    }
+
+    .scene-names {
+        padding-left: 70px;
+    }
+
+    .scene-name {
+        width: 62px;
+        height: 28px;
+        font-size: 0.7rem;
+    }
 }

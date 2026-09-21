@@ -20,7 +20,7 @@ class ControllerUI {
         // Обновить счётчик устройств
         const countEl = document.getElementById('device-count');
         if (countEl) {
-            countEl.textContent = `0 устройств`;
+            countEl.textContent = `0 devices`;
         }
     }
 
@@ -283,7 +283,7 @@ ControllerUI.prototype.renderDynamicControls = function(deviceName, inputId, sch
         // Обновляем счётчик устройств
         const countEl = document.getElementById('device-count');
         if (countEl) {
-            countEl.textContent = `${container.querySelectorAll('.device-card[data-device-id]').length} устройств`;
+            countEl.textContent = `${container.querySelectorAll('.device-card[data-device-id]').length} devices`;}
         }
     }
 };

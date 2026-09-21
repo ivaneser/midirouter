@@ -1,4 +1,4 @@
-/* === MIDI Router — авто-соединение всех со всеми === */
+/* === MIDI Router — auto-connect all to all === */
 
 import { DeviceManager } from './device-manager.js';
 import { DAWUI } from './daw-ui.js';
@@ -21,16 +21,16 @@ const logsDiv = document.getElementById('logs');
 
 let ws = null;
 
-// Инициализация менеджеров
+// Initialize managers
 const deviceManager = new DeviceManager();
 const dawUI = new DAWUI(deviceManager);
 const configEditor = new ConfigEditor({
     deviceManager,
-    ws: null, // будет установлен после подключения
+    ws: null, // will be set after connection
     log
 });
 
-// Глобальные ссылки для других модулей
+// Global references for other modules
 window.app = {
     deviceManager,
     dawUI,
@@ -44,38 +44,38 @@ window.app = {
 function connect() {
     const url = getWsUrl();
 
-    log('Подключение к ' + url + '...');
-    statusEl.textContent = '● Подключение...';
+    log('Connecting to ' + url + '...');
+    statusEl.textContent = '● Connecting...';
     statusEl.className = 'status-indicator disconnected';
 
     ws = new WebSocket(url);
     window.app.ws = ws;
 
     ws.onopen = () => {
-        statusEl.textContent = '● Подключено';
+        statusEl.textContent = '● Connected';
         statusEl.className = 'status-indicator connected';
-        connectBtn.textContent = 'Отключиться';
-        log('Подключено');
+        connectBtn.textContent = 'Disconnect';
+        log('Connected');
         
-        // Запросить устройства после подключения
+        // Request devices after connecting
         send({ type: 'get-devices' });
-        // Запросить конфигурацию
+        // Request configuration
         send({ type: 'get-config' });
-        // Запросить состояние DAW (клипы, сетку) — должно быть ПОСЛЕ подключения WS
+        // Request DAW state (clips, grid) — must be AFTER WS connection
         send({ type: 'daw-get' });
     };
 
     ws.onclose = () => {
-        statusEl.textContent = '● Отключено';
+        statusEl.textContent = '● Disconnected';
         statusEl.className = 'status-indicator disconnected';
-        connectBtn.textContent = 'Подключиться';
-        log('Отключено');
+        connectBtn.textContent = 'Connect';
+        log('Disconnected');
         window.app.ws = null;
     };
 
     ws.onerror = () => {
-        log('WS ошибка — проверьте URL и что сервер запущен');
-        statusEl.textContent = '● Ошибка';
+        log('WS error — check URL and that server is running');
+        statusEl.textContent = '● Error';
         statusEl.className = 'status-indicator disconnected';
     };
 
@@ -84,7 +84,7 @@ function connect() {
             const msg = JSON.parse(event.data);
             handleMessage(msg);
         } catch (e) {
-            log('Ошибка парсинга: ' + e.message);
+            log('Parse error: ' + e.message);
         }
     };
 }
@@ -103,7 +103,7 @@ function handleMessage(msg) {
     switch (msg.type) {
         case 'devices':
             deviceManager.updatePorts(msg.inputs || [], msg.outputs || []);
-            log(`Устройства: ${msg.inputs?.length || 0} input, ${msg.outputs?.length || 0} output`);
+            log(`Devices: ${msg.inputs?.length || 0} input, ${msg.outputs?.length || 0} output`);
             break;
 
         case 'daw_state':
@@ -129,28 +129,28 @@ function handleMessage(msg) {
             break;
 
         case 'config_error':
-            log('Ошибка конфигурации: ' + msg.message);
+            log('Configuration error: ' + msg.message);
             break;
 
         case 'hotplug-notification':
             if (configEditor && configEditor._handleHotplugEvent) {
                 configEditor._handleHotplug(msg);
             }
-            log(`🔌 ${msg.deviceName} (${msg.direction}) — ${msg.action === 'added' ? 'подключено' : 'отключено'}`);
+            log(`🔌 ${msg.deviceName} (${msg.direction}) — ${msg.action === 'added' ? 'connected' : 'disconnected'}`);
             break;
 
         default:
-            log('Сообщение: ' + msg.type);
+            log('Message: ' + msg.type);
     }
 }
 
-// === Рендер устройств ===
+// === Render devices ===
 
 function renderDevices() {
     deviceManager.render();
 }
 
-// === Отправка на сервер ===
+// === Send to server ===
 
 function send(msg) {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -158,7 +158,7 @@ function send(msg) {
     }
 }
 
-// === Логи ===
+// === Logs ===
 
 function log(msg) {
     if (!logsDiv) return;

@@ -17,70 +17,57 @@
             </div>
         </header>
 
-        <!-- Configuration Panel -->
-        <section class="config-panel">
-            <h2>⚙️ Configuration</h2>
-            
-            <!-- Save/Load buttons -->
-            <div class="config-actions" style="margin-bottom: 16px;">
-                <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
-                <button class="btn" id="btn-load-config">📂 Load</button>
-            </div>
-            
-            <!-- Routes -->
-            <div class="config-section">
-                <h3>🔌 Routes</h3>
-                <p class="tab-hint">A route sends MIDI from one input device to one output device.</p>
-                <div class="mapping-list" id="mapping-list"></div>
-                <button class="btn btn-primary" id="btn-add-mapping">+ Add Route</button>
-            </div>
-            
+        <!-- DAW — Session View (collapsible) -->
+        <details class="collapsible-panel daw-details" open>
+            <summary class="collapsible-header">
+                <span class="arrow">▶</span>
+                🎵 Session View (Ableton-style)
+            </summary>
+            <div class="daw-panel-content">
 
-        </section>
-
-        <!-- DAW — Session View -->
-        <section class="daw-panel">
-            <h2>🎵 Session View (Ableton-style)</h2>
-            
             <!-- Transport Controls -->
             <div class="transport-controls">
-                <button id="btn-play" class="btn btn-green">▶ Play</button>
-                <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
-                <button id="btn-record-arm" class="btn btn-orange">● Rec Arm</button>
+                <!-- Settings group (left side) -->
+                <div class="transport-settings-group">
+                    <label class="transport-label">
+                        Mode:
+                        <select id="record-mode">
+                            <option value="none">Play</option>
+                            <option value="replace">Replace</option>
+                            <option value="overdub">Overdub</option>
+                        </select>
+                    </label>
+                    
+                    <label class="transport-label">
+                        BPM:
+                        <input type="number" id="tempo" min="20" max="300" step="1" value="120">
+                        <button id="tap-tempo" class="btn btn-sm">Tap</button>
+                    </label>
+                    
+                    <label class="transport-label">
+                        <button id="metronome-toggle" class="btn btn-sm" title="Toggle metronome">♪ Metro</button>
+                        Beats:
+                        <select id="metro-beats">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4" selected>4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                        </select>
+                    </label>
+                </div>
                 
                 <div class="transport-separator"></div>
                 
-                <label>BPM:
-                    <input type="number" id="tempo" min="20" max="300" step="1" value="120">
-                </label>
-                <button id="tap-tempo" class="btn btn-sm">Tap</button>
-                
-                <div class="transport-separator"></div>
-                
-                <label>Mode:
-                    <select id="record-mode">
-                        <option value="none">Play</option>
-                        <option value="replace">Replace</option>
-                        <option value="overdub">Overdub</option>
-                    </select>
-                </label>
-                
-                <div class="transport-separator"></div>
-                
-                <button id="metronome-toggle" class="btn btn-sm" title="Toggle metronome">♪ Metro</button>
-                <label class="metro-beats">
-                    Beats:
-                    <select id="metro-beats">
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4" selected>4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                        <option value="7">7</option>
-                        <option value="8">8</option>
-                    </select>
-                </label>
+                <!-- Transport buttons (right side) -->
+                <div class="transport-buttons-group">
+                    <button id="btn-play" class="btn btn-green">▶ Play</button>
+                    <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
+                    <button id="btn-record-arm" class="btn btn-orange">● Rec Arm</button>
+                </div>
             </div>
 
             <!-- Session Grid -->
@@ -96,7 +83,78 @@
                 🎹 Launchkey pads trigger clips. Press pad = arm/trigger, release = play.<br>
                 Click track buttons: 🔴 Arm (rec), 🔇 Mute, 🔊 Solo
             </p>
-        </section>
+            </div>
+        </details>
+
+        <!-- Configuration Panel (collapsible) -->
+        <details class="collapsible-panel config-details">
+            <summary class="collapsible-header">
+                <span class="arrow">▶</span>
+                ⚙️ Configuration
+            </summary>
+            <div class="config-panel-content">
+
+            <!-- Save/Load buttons -->
+            <div class="config-actions" style="margin-bottom: 16px;">
+                <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
+                <button class="btn" id="btn-load-config">📂 Load</button>
+            </div>
+
+            <!-- Routes -->
+            <div class="config-section">
+                <h3>🔌 Routes</h3>
+                <p class="tab-hint">A route sends MIDI from one input device to one output device.</p>
+                <div class="mapping-list" id="mapping-list"></div>
+                <button class="btn btn-primary" id="btn-add-mapping">+ Add Route</button>
+            </div>
+
+            </div>
+        </details>
+
+        <!-- Help (collapsible, collapsed by default) -->
+        <details class="collapsible-panel help-details">
+            <summary class="collapsible-header help-header">
+                <span class="arrow">▶</span>
+                ❓ How to Play
+            </summary>
+            <div class="help-content">
+                <h4>🎹 Using LaunchKey Pads</h4>
+                <ul>
+                    <li><strong>Click a pad once</strong> — it auto-connects to the next free track/slot.</li>
+                    <li><strong>Press & hold a pad</strong> in Replace/Overdub mode — records your notes, releases to play them back.</li>
+                    <li><strong>Tap a pad again</strong> while a clip plays — stops it.</li>
+                    <li><strong>Tap tempo</strong> with any pad or use the Tap button to set BPM.</li>
+                </ul>
+
+                <h4>🎛️ Transport Controls</h4>
+                <ul>
+                    <li><strong>▶ Play</strong> — starts playback of the current clip.</li>
+                    <li><strong>⏹ Stop</strong> — stops all playback.</li>
+                    <li><strong>● Rec Arm</strong> — arms the selected track for recording.</li>
+                    <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown.</li>
+                </ul>
+
+                <h4>📝 Recording Modes</h4>
+                <ul>
+                    <li><strong>Play</strong> — clips loop; tap pad to stop.</li>
+                    <li><strong>Replace</strong> — each pad press overwrites the clip in that slot.</li>
+                    <li><strong>Overdub</strong> — layer new notes on top of existing playback.</li>
+                </ul>
+
+                <h4>💾 Saving & Loading</h4>
+                <ul>
+                    <li><strong>Save</strong> — store your current DAW state (BPM, modes, clips) to a preset file.</li>
+                    <li><strong>Load</strong> — restore a previously saved preset.</li>
+                </ul>
+
+                <h4>🔌 MIDI Routing</h4>
+                <ul>
+                    <li>All connected MIDI devices are auto-linked (all-to-all routing).</li>
+                    <li>Add custom routes in the Configuration section to route specific inputs to outputs.</li>
+                    <li>Devices appear automatically when plugged in (hot-plug supported).</li>
+                </ul>
+            </div>
+        </details>
 
         <!-- Logs -->
         <details class="debug-panel">
