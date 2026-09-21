@@ -668,7 +668,7 @@ class MIDIRouterWorker {
         }
     }
 
-    // ---- ENUMERATE PORTS (all-to-all passthrough + DAW capture) ----
+    // ---- ENUMERATE PORTS (two-phase: open new first, then close old) ----
     _enumeratePorts() {
         try {
             // Use one persistent RtMidi object for enumeration to avoid ALSA client leak
@@ -677,97 +677,159 @@ class MIDIRouterWorker {
 
             const realInputs = this._filterPorts(this._enumIn, 'in');
             const realOutputs = this._filterPorts(this._enumOut, 'out');
-
-            // INPUT PORTS
             const newInputNames = new Set(realInputs.map(r => r.name));
+            const newOutputNames = new Set(realOutputs.map(r => r.name));
+
+            // PHASE 1: Determine what to add / remove / reopen
+            const inputsToOpen = [];     // { name, index }
+            const inputsToRemove = [];     // name
+            const inputsToReopen = [];     // { name, oldPort, newIndex }
+
             for (const [deviceName, input] of this.inputs) {
                 if (!newInputNames.has(deviceName)) {
+                    inputsToRemove.push(deviceName);
+                } else {
+                    const newPort = realInputs.find(r => r.name === deviceName);
+                    if (newPort && input._index !== undefined && input._index !== newPort.index) {
+                        inputsToReopen.push({ name: deviceName, oldPort: input, newIndex: newPort.index });
+                    }
+                }
+            }
+            for (const newPort of realInputs) {
+                if (!this.inputs.has(newPort.name)) {
+                    inputsToOpen.push({ name: newPort.name, index: newPort.index });
+                }
+            }
+
+            const outputsToOpen = [];     // { name, index }
+            const outputsToRemove = [];   // name
+            for (const [deviceName] of this.outputs) {
+                if (!newOutputNames.has(deviceName)) {
+                    outputsToRemove.push(deviceName);
+                }
+            }
+            for (const newPort of realOutputs) {
+                if (!this.outputs.has(newPort.name)) {
+                    outputsToOpen.push({ name: newPort.name, index: newPort.index });
+                }
+            }
+
+            // PHASE 2: Open new inputs (if ANY fails, abort — don't touch existing)
+            const openedInputs = new Map();
+            for (const { name, index } of inputsToOpen) {
+                try {
+                    const midiIn = new midi.Input();
+                    midiIn.openPort(index, 'midirouter-in');
+                    const self = this;
+                    const handler = (deltaTime, message) => self._onIncomingMessage(name, deltaTime, Array.from(message));
+                    midiIn.on('message', handler);
+                    midiIn._handler = handler;
+                    midiIn._index = index;
+                    openedInputs.set(name, midiIn);
+                    console.log(`[WORKER] Input opened: ${name} (index: ${index})`);
+                } catch (e) {
+                    console.error(`[WORKER] Failed to open input ${name}:`, e.message);
+                    // Close any already-opened inputs to avoid partial state
+                    for (const [, inp] of openedInputs) {
+                        try { inp.off('message', inp._handler); inp.closePort(); } catch (_) {}
+                    }
+                    console.warn('[WORKER] _enumeratePorts aborted: input open failed');
+                    return; // Keep existing inputs untouched
+                }
+            }
+
+            // PHASE 3: Open new outputs
+            const openedOutputs = new Map();
+            for (const { name, index } of outputsToOpen) {
+                try {
+                    const out = new midi.Output();
+                    out.openPort(index, 'midirouter-out');
+                    out._index = index;
+                    openedOutputs.set(name, out);
+                    console.log(`[WORKER] Output opened: ${name} (index: ${index})`);
+                } catch (e) {
+                    console.error(`[WORKER] Failed to open output ${name}:`, e.message);
+                    for (const [, inp] of openedInputs) {
+                        try { inp.off('message', inp._handler); inp.closePort(); } catch (_) {}
+                    }
+                    for (const [, out] of openedOutputs) {
+                        try { out.closePort(); } catch (_) {}
+                    }
+                    console.warn('[WORKER] _enumeratePorts aborted: output open failed');
+                    return;
+                }
+            }
+
+            // PHASE 4: Close removed inputs
+            for (const deviceName of inputsToRemove) {
+                const input = this.inputs.get(deviceName);
+                if (input) {
                     console.log(`[WORKER] Input removed: ${deviceName}`);
                     if (input._handler) input.off('message', input._handler);
-                    input.closePort();
+                    try { input.closePort(); } catch (_) {}
                     this.inputs.delete(deviceName);
                     this.controllerInputs.delete(deviceName);
                 }
             }
-            for (const newPort of realInputs) {
-                const deviceName = newPort.name;
-                if (!this.inputs.has(deviceName)) {
-                    try {
-                        const midiIn = new midi.Input();
-                        midiIn.openPort(newPort.index, 'midirouter-in');
-                        const self = this;
-                        const handler = (deltaTime, message) => self._onIncomingMessage(deviceName, deltaTime, Array.from(message));
-                        midiIn.on('message', handler);
-                        midiIn._handler = handler;
-                        this.inputs.set(deviceName, midiIn);
-                        console.log(`[WORKER] Input opened: ${deviceName} (index: ${newPort.index})`);
-                    } catch (e) {
-                        console.error(`[WORKER] Failed to open input ${deviceName}:`, e.message);
-                    }
-                } else if (this.inputs.get(deviceName)._index !== newPort.index) {
-                    const existing = this.inputs.get(deviceName);
-                    if (existing._handler) existing.off('message', existing._handler);
-                    existing.closePort();
+
+            // PHASE 5: Reopen moved inputs (close old, swap in new)
+            for (const { name, oldPort, newIndex } of inputsToReopen) {
+                try {
+                    if (oldPort._handler) oldPort.off('message', oldPort._handler);
+                    try { oldPort.closePort(); } catch (_) {}
                     const midiIn = new midi.Input();
-                    midiIn.openPort(newPort.index, 'midirouter-in');
+                    midiIn.openPort(newIndex, 'midirouter-in');
                     const self = this;
-                    const handler = (deltaTime, message) => self._onIncomingMessage(deviceName, deltaTime, Array.from(message));
+                    const handler = (deltaTime, message) => self._onIncomingMessage(name, deltaTime, Array.from(message));
                     midiIn.on('message', handler);
                     midiIn._handler = handler;
-                    midiIn._index = newPort.index;
-                    this.inputs.set(deviceName, midiIn);
-                    console.log(`[WORKER] Input reopened: ${deviceName} (index: ${newPort.index})`);
+                    midiIn._index = newIndex;
+                    this.inputs.set(name, midiIn);
+                    console.log(`[WORKER] Input reopened: ${name} (index: ${newIndex})`);
+                } catch (e) {
+                    console.error(`[WORKER] Failed to reopen input ${name}:`, e.message);
                 }
             }
 
-            // OUTPUT PORTS
-            const newOutputNames = new Set(realOutputs.map(r => r.name));
-            for (const [deviceName, output] of this.outputs) {
-                if (!newOutputNames.has(deviceName)) {
+            // PHASE 6: Close removed outputs
+            for (const deviceName of outputsToRemove) {
+                const output = this.outputs.get(deviceName);
+                if (output) {
                     console.log(`[WORKER] Output removed: ${deviceName}`);
-                    output.closePort();
+                    try { output.closePort(); } catch (_) {}
                     this.outputs.delete(deviceName);
-                    // Reset DAW mode trigger if Launchkey was removed
                     if (deviceName.toLowerCase().includes('launchkey')) {
                         this._dawModeSent = false;
                         console.log('[WORKER] Launchkey removed — DAW mode flag reset');
                     }
                 }
             }
-            for (const newOutput of realOutputs) {
-                const deviceName = newOutput.name;
-                if (!this.outputs.has(deviceName)) {
-                    try {
-                        const out = new midi.Output();
-                        out.openPort(newOutput.index, 'midirouter-out');
-                        this.outputs.set(deviceName, out);
-                        console.log(`[WORKER] Output opened: ${deviceName} (index: ${newOutput.index})`);
-                    } catch (e) {
-                        console.error(`[WORKER] Failed to open output ${deviceName}:`, e.message);
-                    }
-                }
+
+            // PHASE 7: Commit newly opened ports
+            for (const [name, input] of openedInputs) {
+                this.inputs.set(name, input);
+            }
+            for (const [name, output] of openedOutputs) {
+                this.outputs.set(name, output);
             }
 
             for (const name of newInputNames) this.controllerInputs.add(name);
 
-            // Auto-activate DAW mode and apply default pad map for Launchkey Mini MK3
+            // Auto-activate DAW mode for Launchkey
             const hasLaunchkey = [...newInputNames, ...newOutputNames].some(n => n.toLowerCase().includes('launchkey'));
             if (hasLaunchkey) {
                 this._enterDawMode();
                 this._applyDefaultPadMap();
             }
 
-            // Отправить panic note-off чтобы сбросить зажатые ноты при запуске
             this.sendPanicNoteOff();
 
-            const inputList = [...this.inputs.entries()].map(([id, port]) => ({ id, name: id }));
-            const outputList = [...this.outputs.entries()].map(([id, port]) => ({ id, name: id }));
+            const inputList = [...this.inputs.entries()].map(([id]) => ({ id, name: id }));
+            const outputList = [...this.outputs.entries()].map(([id]) => ({ id, name: id }));
 
             parentPort.postMessage({ type: 'ports-enumerated', inputs: inputList, outputs: outputList });
             parentPort.postMessage({ type: 'ready' });
 
-            // Sync hot-plug tracker so the first _checkHotplug() doesn't
-            // spuriously re-enumerate everything as "new".
             this._lastInputNames = new Set(realInputs.map(r => r.name));
             this._lastOutputNames = new Set(realOutputs.map(r => r.name));
         } catch (e) {
