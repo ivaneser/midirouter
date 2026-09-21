@@ -113,8 +113,11 @@ class MIDIRouterWorker {
 
         // Automatic pad assignment: any newly pressed key is auto-assigned to the
         // next free (track, slot). This makes the LaunchKey work as the main
-        // interface with ZERO web-UI setup. Set autoAssign=false to force manual.
-        this.autoAssign = true;
+        // interface with ZERO web-UI setup. Set autoAssign=true to enable
+        // auto-mapping for non-keyboard controllers. By default: only
+        // Launchkey DAW Port session pads (112-127) are hard-mapped;
+        // everything else routes to synths.
+        this.autoAssign = false;
         this._learnCursor = 0;
         this.padMap = new Map();   // note(number) -> { trackIdx, slot }
 
@@ -183,22 +186,20 @@ class MIDIRouterWorker {
     
     _checkHotplug() {
         try {
-            // Query ALSA directly for new port names (not just already-opened ports)
+            // Re-use persistent enumeration objects (do NOT create new ALSA clients every tick)
+            if (!this._enumIn) this._enumIn = new midi.Input();
+            if (!this._enumOut) this._enumOut = new midi.Output();
             const currentInputNames = new Set();
             const currentOutputNames = new Set();
             
             try {
-                const tmpIn = new midi.Input();
-                const ports = this._filterPorts(tmpIn, 'in');
+                const ports = this._filterPorts(this._enumIn, 'in');
                 for (const p of ports) currentInputNames.add(p.name);
-                tmpIn.closePort();
             } catch(e) {}
             
             try {
-                const tmpOut = new midi.Output();
-                const ports = this._filterPorts(tmpOut, 'out');
+                const ports = this._filterPorts(this._enumOut, 'out');
                 for (const p of ports) currentOutputNames.add(p.name);
-                tmpOut.closePort();
             } catch(e) {}
             
             const addedInputs = [];
@@ -239,15 +240,23 @@ class MIDIRouterWorker {
                     parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'output' });
                 }
                 
+                // Update tracker BEFORE re-enumeration so we don't loop forever if ALSA fails
+                this._lastInputNames = currentInputNames;
+                this._lastOutputNames = currentOutputNames;
+                
                 // FULL re-enumeration to open/close actual RtMidi ports
-                this._enumeratePorts();
-                if (this._autoRouteOnHotplug) {
-                    this._rebuildMappings();
+                try {
+                    this._enumeratePorts();
+                    if (this._autoRouteOnHotplug) {
+                        this._rebuildMappings();
+                    }
+                } catch (e) {
+                    console.error('[WORKER] HOT-PLUG re-enumeration failed:', e.message);
                 }
+            } else {
+                this._lastInputNames = currentInputNames;
+                this._lastOutputNames = currentOutputNames;
             }
-            
-            this._lastInputNames = currentInputNames;
-            this._lastOutputNames = currentOutputNames;
         } catch (e) {
             console.error('[WORKER] Hot-plug check failed:', e.message);
         }
@@ -662,16 +671,12 @@ class MIDIRouterWorker {
     // ---- ENUMERATE PORTS (all-to-all passthrough + DAW capture) ----
     _enumeratePorts() {
         try {
-            const tempInput = new midi.Input();
-            const inputCount = tempInput.getPortCount();
-            tempInput.closePort();
+            // Use one persistent RtMidi object for enumeration to avoid ALSA client leak
+            if (!this._enumIn) { this._enumIn = new midi.Input(); }
+            if (!this._enumOut) { this._enumOut = new midi.Output(); }
 
-            const tempOutput = new midi.Output();
-            const outputCount = tempOutput.getPortCount();
-            tempOutput.closePort();
-
-            const realInputs = this._filterPorts(tempInput, 'in');
-            const realOutputs = this._filterPorts(tempOutput, 'out');
+            const realInputs = this._filterPorts(this._enumIn, 'in');
+            const realOutputs = this._filterPorts(this._enumOut, 'out');
 
             // INPUT PORTS
             const newInputNames = new Set(realInputs.map(r => r.name));
@@ -858,12 +863,13 @@ class MIDIRouterWorker {
             return;
         }
 
-        // DAW Port internal handling (CC → synths, Note On → DAW clips)
+        // DAW Port internal handling (CC → synths, Note → DAW clips)
         if (isDAWPort) {
             const isCC = type === 7;
             const isSysExMsg = bytes[0] === 0xf0;
             const isNoteOn = type === 9 && bytes.length >= 3;
-            if (!isCC && !isSysExMsg && !isNoteOn) {
+            const isNoteOff = type === 8 && bytes.length >= 3;
+            if (!isCC && !isSysExMsg && !isNoteOn && !isNoteOff) {
                 console.log(`[MIDI] [LOOPBACK] Ignoring DAW Port: ${name}`);
                 return;
             }
@@ -884,8 +890,8 @@ class MIDIRouterWorker {
                 return;
             }
 
-            if (isNoteOn) {
-                console.log(`[DAW] DAW Port note ${bytes[1]} -> clip handler`);
+            if (isNoteOn || isNoteOff) {
+                console.log(`[DAW] DAW Port note ${bytes[1]} vel ${bytes[2]} -> clip handler`);
                 this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
                 return;
             }
@@ -913,11 +919,12 @@ class MIDIRouterWorker {
             const vel = bytes[2] || 0;
             let isMappedPad = this.padMap.has(n);
 
-            const isLaunchkeyMidiPort = deviceName.toLowerCase().includes('launchkey')
-                && !deviceName.toLowerCase().includes('daw port');
-            const shouldAutoLearn = !isLaunchkeyMidiPort;
+            // Auto-learn: only for notes >= 60 (pad controllers, not keyboard keybed).
+            // If autoAssign is OFF, only hardcoded Launchkey DAW Port session pads work.
+            const isSessionPadRange = n >= 60;
+            const shouldAutoLearn = this.autoAssign && isSessionPadRange;
 
-            if (this.autoAssign && shouldAutoLearn && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
+            if (shouldAutoLearn && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
                 const trackIdx = this._learnCursor % 8;
                 const slot = Math.floor(this._learnCursor / 8) % 2;
                 this.padMap.set(n, { trackIdx, slot });
@@ -927,8 +934,10 @@ class MIDIRouterWorker {
                 console.log(`[WORKER] Auto-mapped note ${n} -> track ${trackIdx}, slot ${slot}`);
             }
 
-            if (isMappedPad && this.controllerInputs.has(deviceName)) {
-                console.log(`[DAW] Mapped pad note ${n} -> clip handler (NOT routing to synths)`);
+            // Mapped pads: ONLY session-range notes (>=60) act as clip triggers.
+            // Musical notes (<60) always route to synths even if accidentally mapped.
+            if (isMappedPad && isSessionPadRange && this.controllerInputs.has(deviceName)) {
+                console.log(`[DAW] Mapped session pad ${n} -> clip handler`);
                 this._handleControllerNote(n, vel, channel, performance.now());
                 return;
             }
@@ -1319,6 +1328,9 @@ class MIDIRouterWorker {
         for (const [, output] of this.outputs) {
             try { output.closePort(); } catch(e) {}
         }
+        // Close persistent enumeration objects
+        if (this._enumIn) { try { this._enumIn.closePort(); } catch(e) {} this._enumIn = null; }
+        if (this._enumOut) { try { this._enumOut.closePort(); } catch(e) {} this._enumOut = null; }
     }
     
     // ---- Hot-plug: пересборка портов при подключении/отключении устройств ----
