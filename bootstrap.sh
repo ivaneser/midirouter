@@ -99,34 +99,17 @@ $SUDO -u "$USER_NAME" npm install --omit=dev
 # -----------------------------------------------------------------------------
 # 6. Автозапуск через systemd (сервер стартует при включении Pi)
 # -----------------------------------------------------------------------------
-cat > /etc/systemd/system/midirouter.service <<EOF
-[Unit]
-Description=MIDI Router / DAW Looper (midirouter)
-After=network-online.target snd-seq.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=${USER_NAME}
-Group=audio
-SupplementaryGroups=audio
-# дать доступ к /dev/snd как non-root (CAP_SYS_RAWIO), иначе snd_seq_open -> EPERM
-AmbientCapabilities=CAP_SYS_RAWIO
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-WorkingDirectory=${REPO_DIR}
-ExecStart=/usr/bin/node server.js
-Restart=always
-RestartSec=3
-# /dev/snd должен быть доступен сервису
-PrivateDevices=no
-DeviceAllow=/dev/snd rw
-
-[Install]
-WantedBy=multi-user.target
-EOF
+$SUDO cp "${REPO_DIR}/midirouter.service" /etc/systemd/system/midirouter.service
+$SUDO cp "${REPO_DIR}/metronome.service" /etc/systemd/system/metronome.service
+# Patch user / working directory from variables
+$SUDO sed -i "s|^User=.*|User=${USER_NAME}|" /etc/systemd/system/midirouter.service
+$SUDO sed -i "s|^WorkingDirectory=.*|WorkingDirectory=${REPO_DIR}|" /etc/systemd/system/midirouter.service
+$SUDO sed -i "s|^User=.*|User=${USER_NAME}|" /etc/systemd/system/metronome.service
+$SUDO sed -i "s|^WorkingDirectory=.*|WorkingDirectory=${REPO_DIR}|" /etc/systemd/system/metronome.service
 
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now midirouter.service
+$SUDO systemctl enable --now metronome.service
 log "midirouter.service enabled and started"
 
 # -----------------------------------------------------------------------------
