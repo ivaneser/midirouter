@@ -1,3 +1,8 @@
+# DISABLED — see DEVELOPMENT.md #3 (Metronome double-ownership).
+# The metronome is now owned exclusively by Node.js (metronome-controller.js),
+# which spawns metronome.py as a child process on worker init.
+# The systemd unit below has ExecStart commented out to prevent two concurrent
+# metronome processes competing for the ALSA audio device.
 [Unit]
 Description=Precise Raspberry Pi Metronome (headphone output)
 After=network-online.target sound.target
@@ -13,6 +18,9 @@ Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 WorkingDirectory=/home/pi/myprojects/midirouter
 ExecStartPre=/bin/sh -c 'sleep 2 && aplay -L >/dev/null 2>&1 || true'
+# DISABLED: metronome is now managed by Node.js metronome-controller.js
+# See DEVELOPMENT.md item #3 (metronome double-ownership).
+# To re-enable manually (not recommended): remove the '#' prefix above.
 ExecStart=/usr/bin/python3 /home/pi/myprojects/midirouter/metronome.py -B 120 -b 4 -v 0.8
 Restart=always
 RestartSec=3

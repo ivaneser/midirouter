@@ -133,6 +133,8 @@ function handleMessage(msg) {
             break;
 
         case 'hotplug-notification':
+            // Re-fetch full device list so the Devices panel stays in sync
+            send({ type: 'get-devices' });
             if (configEditor && configEditor._handleHotplugEvent) {
                 configEditor._handleHotplug(msg);
             }

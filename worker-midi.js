@@ -114,11 +114,18 @@ class MIDIRouterWorker {
         // Automatic pad assignment: any newly pressed key is auto-assigned to the
         // next free (track, slot). This makes the LaunchKey work as the main
         // interface with ZERO web-UI setup. Set autoAssign=true to enable
-        // auto-mapping for non-keyboard controllers. By default: only
-        // Launchkey DAW Port session pads (112-127) are hard-mapped;
-        // everything else routes to synths.
-        this.autoAssign = false;
+        // auto-mapping for non-keyboard controllers.
+        // Device-specific rules:
+        //   - Launchkey MIDI Port (keybed) -> NEVER auto-learn, always route to synths
+        //   - Launchkey DAW Port (session pads 112-127) -> hard-mapped by _applyDefaultPadMap
+        //   - nanoPAD / other drum pads -> auto-learn to next free slot
+        //   - Keyboard controllers without DAW Port -> auto-learn all notes
+        this.autoAssign = true;
         this._learnCursor = 0;
+
+        // Hot-plug back-off state (exponential back-off on ALSA failures)
+        this._hotplugBackoffMs = 5000;   // default interval between checks
+        this._consecutiveHotplugFailures = 0;
         this.padMap = new Map();   // note(number) -> { trackIdx, slot }
 
         // CC Mapper — трансляция команд контроллера в команды синта
@@ -177,14 +184,35 @@ class MIDIRouterWorker {
     }
     
     _startHotplugDetection() {
-        // Check for device changes every 2 seconds
-        this._hotplugCheckInterval = setInterval(() => {
-            this._checkHotplug();
-        }, 2000);
-        console.log('[WORKER] Hot-plug detection started (interval: 2s)');
+        // Use recursive setTimeout with back-off instead of fixed interval.
+        // Back-off range: 5s (healthy) -> 30s (after repeated ALSA failures).
+        this._hotplugCheckLoop();
+        console.log('[WORKER] Hot-plug detection started (back-off: 5-30s)');
+    }
+
+    _hotplugCheckLoop() {
+        this._checkHotplug().then((success) => {
+            if (success) {
+                // Healthy: back off to 5s quickly
+                this._consecutiveHotplugFailures = 0;
+                this._hotplugBackoffMs = 5000;
+            } else {
+                // ALSA failure: exponential back-off up to 30s
+                this._consecutiveHotplugFailures++;
+                const maxBackoff = 30000;
+                this._hotplugBackoffMs = Math.min(maxBackoff, 5000 * Math.pow(2, this._consecutiveHotplugFailures - 1));
+                console.log(`[WORKER] Hot-plug back-off: ${this._hotplugBackoffMs / 1000}s (failures: ${this._consecutiveHotplugFailures})`);
+            }
+        }).catch((e) => {
+            console.error('[WORKER] Hot-plug check loop error:', e.message);
+            this._consecutiveHotplugFailures++;
+            this._hotplugBackoffMs = Math.min(30000, 5000 * Math.pow(2, this._consecutiveHotplugFailures - 1));
+        });
+
+        setTimeout(() => this._hotplugCheckLoop(), this._hotplugBackoffMs);
     }
     
-    _checkHotplug() {
+    async _checkHotplug() {
         try {
             // Re-use persistent enumeration objects (do NOT create new ALSA clients every tick)
             if (!this._enumIn) this._enumIn = new midi.Input();
@@ -250,15 +278,19 @@ class MIDIRouterWorker {
                     if (this._autoRouteOnHotplug) {
                         this._rebuildMappings();
                     }
+                    return true; // success
                 } catch (e) {
                     console.error('[WORKER] HOT-PLUG re-enumeration failed:', e.message);
+                    return false;
                 }
             } else {
                 this._lastInputNames = currentInputNames;
                 this._lastOutputNames = currentOutputNames;
+                return true; // no changes = healthy
             }
         } catch (e) {
             console.error('[WORKER] Hot-plug check failed:', e.message);
+            return false;
         }
     }
     
@@ -822,7 +854,16 @@ class MIDIRouterWorker {
                 this._applyDefaultPadMap();
             }
 
-            this.sendPanicNoteOff();
+            // Send panic only on initial startup or when an input was removed.
+            // Do NOT send panic on output add (causes clicks in synths).
+            const hadInputsBefore = this.inputs.size > 0;
+            if (!hadInputsBefore) {
+                // Initial startup — send panic to silence any stuck notes
+                this.sendPanicNoteOff();
+            } else if (inputsToRemove.length > 0) {
+                // An input was removed — send panic on remaining outputs
+                this.sendPanicNoteOff();
+            }
 
             const inputList = [...this.inputs.entries()].map(([id]) => ({ id, name: id }));
             const outputList = [...this.outputs.entries()].map(([id]) => ({ id, name: id }));
@@ -953,6 +994,13 @@ class MIDIRouterWorker {
             }
 
             if (isNoteOn || isNoteOff) {
+                // Filter out control/meta notes (0-19) on DAW Port — these are
+                // not session pads. Note 12 (C-1, ch16) is the DAW mode
+                // activation handshake from Launchkey, not a clip trigger.
+                if (bytes[1] < 20) {
+                    console.log(`[DAW] Ignoring control note ${bytes[1]} on DAW Port`);
+                    return;
+                }
                 console.log(`[DAW] DAW Port note ${bytes[1]} vel ${bytes[2]} -> clip handler`);
                 this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
                 return;
@@ -981,12 +1029,13 @@ class MIDIRouterWorker {
             const vel = bytes[2] || 0;
             let isMappedPad = this.padMap.has(n);
 
-            // Auto-learn: only for notes >= 60 (pad controllers, not keyboard keybed).
-            // If autoAssign is OFF, only hardcoded Launchkey DAW Port session pads work.
-            const isSessionPadRange = n >= 60;
-            const shouldAutoLearn = this.autoAssign && isSessionPadRange;
+            // Auto-learn rules based on device name (not note number):
+            //   - Launchkey MIDI Port (keybed) -> NEVER auto-learn; always route to synths
+            //   - Everything else (nanoPAD, DAW Port, other controllers) -> auto-learn when enabled
+            const isLaunchkeyMidiPort = deviceName.toLowerCase().includes('launchkey')
+                && !deviceName.toLowerCase().includes('daw port');
 
-            if (shouldAutoLearn && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
+            if (!isLaunchkeyMidiPort && this.autoAssign && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
                 const trackIdx = this._learnCursor % 8;
                 const slot = Math.floor(this._learnCursor / 8) % 2;
                 this.padMap.set(n, { trackIdx, slot });
@@ -996,9 +1045,9 @@ class MIDIRouterWorker {
                 console.log(`[WORKER] Auto-mapped note ${n} -> track ${trackIdx}, slot ${slot}`);
             }
 
-            // Mapped pads: ONLY session-range notes (>=60) act as clip triggers.
-            // Musical notes (<60) always route to synths even if accidentally mapped.
-            if (isMappedPad && isSessionPadRange && this.controllerInputs.has(deviceName)) {
+            // Mapped pads act as clip triggers (Launchkey DAW Port 112-127,
+            // auto-mapped nanoPAD pads, etc.).
+            if (isMappedPad && this.controllerInputs.has(deviceName)) {
                 console.log(`[DAW] Mapped session pad ${n} -> clip handler`);
                 this._handleControllerNote(n, vel, channel, performance.now());
                 return;

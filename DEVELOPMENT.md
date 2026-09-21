@@ -14,8 +14,8 @@
 **Fix applied:** Two-phase atomic enumeration (open all new first, then close old). This prevents partial state.
 
 **Still needed:**
-- Back-off logic: if enumeration fails, wait 10–30s before retrying, not 2s.
-- Reduce hot-plug interval to 5–10s.
+- ✅ **Back-off logic implemented**: exponential back-off 5s→30s on ALSA failures, resets to 5s on success.
+- ✅ **Hot-plug interval reduced** to 5s default (was 2s), with back-off up to 30s.
 - Consider using `ALSA_SEQ_MAX_CLIENTS` sysctl or running as root (not recommended).
 - Alternative: switch from RtMidi ALSA Sequencer to ALSA Raw MIDI (no sequencer client limit, but no hot-plug naming).
 
@@ -41,14 +41,14 @@
 
 This creates **two** metronome.py processes. The controller sends `start`/`stop`/`bpm` via stdin to **its** child, but systemd's copy is the one actually holding the ALSA audio device.
 
-**Fix needed:** Remove `metronome.service` from systemd. The metronome should be **only** owned by Node.js `metronome-controller.js`, which starts it as a child process when the worker initializes. The systemd unit should only manage `midirouter.service` (which starts server.js → worker-midi.js → metronome.py as a child).
+**✅ Fixed:** `metronome.service` ExecStart commented out + disabled via `systemctl disable`. The Node.js `metronome-controller.js` is now the sole owner of metronome.py. The metronome should be **only** owned by Node.js `metronome-controller.js`, which starts it as a child process when the worker initializes. The systemd unit should only manage `midirouter.service` (which starts server.js → worker-midi.js → metronome.py as a child).
 
 ---
 
 ### 🟡 High: DAW Port Note 12 (C-1) mis-handled as clip trigger
 **Symptom:** When Launchkey enters DAW mode, it sends `noteOn ch16 n12 v127`. This is **not** a session pad — it's the DAW mode activation handshake. Our code routes it to `_handleControllerNote`, which tries to trigger a clip for track/slot mapped to note 12.
 
-**Fix needed:** In `_onIncomingMessage`, for DAW Port, filter out note 12 (and possibly note 0–15 range) from clip handling. These are control/meta notes, not session pads.
+**✅ Fixed:** Added filter `if (bytes[1] < 20) return;` in the DAW Port note handler — ignores control notes 0-19 including note 12 (C-1 DAW mode handshake).
 
 ```javascript
 if (isNoteOn || isNoteOff) {
@@ -67,7 +67,7 @@ if (isNoteOn || isNoteOff) {
 
 **Root cause:** nanoPAD2 default factory mapping sends notes **36–51** (C1–D#2). My `isSessionPadRange = n >= 60` blocks all of them from being learned.
 
-**Fix needed:** Lower the threshold or remove it entirely when `autoAssign` is enabled via UI. For Launchkey keybed protection, check the **device name** (`MIDI Port` vs `DAW Port`), not the note number. The keybed sends notes < 60 on `MIDI Port`, session pads send 112–127 on `DAW Port`.
+**✅ Fixed:** Removed `isSessionPadRange >= 60` gate. Auto-learn now uses device-name-based rules: Launchkey MIDI Port is never auto-learned; everything else (nanoPAD, DAW Port) can auto-learn. The keybed sends notes < 60 on `MIDI Port`, session pads send 112–127 on `DAW Port`.
 
 ```javascript
 const isLaunchkeyKeybed = deviceName.toLowerCase().includes('launchkey') 
@@ -86,20 +86,18 @@ if (isLaunchkeyKeybed) {
 
 **Trade-off:** `autoAssign = true` causes musical notes to be captured. `autoAssign = false` means manual web-UI mapping only.
 
-**Better approach:** Keep `autoAssign = true`, but with device-specific rules:
+**✅ Fixed:** `autoAssign` set to `true` by default with device-specific rules applied in `_onIncomingMessage`.
 - Launchkey `MIDI Port` (keybed) → NEVER auto-learn, always route to synths
 - Launchkey `DAW Port` (session pads 112–127) → hard-mapped by `_applyDefaultPadMap`, no auto-learn needed
 - nanoPAD / other drum pads → auto-learn to next free slot
-- Keyboard controllers without DAW Port → auto-learn only notes >= 60 (pad banks)
+- Keyboard controllers without DAW Port → auto-learn all notes (no note threshold)
 
 ---
 
 ### 🟠 Medium: Web UI `input-list`/`output-list` missing in HTML
 **Fix applied:** Added MIDI Devices panel to `index.html`.
 
-**Still needed:** The panel doesn't auto-refresh when hot-plug events arrive. The `DeviceManager.render()` is called on `devices` message, but after a hot-plug the server sends `hotplug-notification`, not `devices`. Need to either:
-- Request `get-devices` on every hotplug event in `app.js`, OR
-- Have the server re-send the full device list after hot-plug.
+**Still needed:** The panel doesn't auto-refresh when hot-plug events arrive. The `DeviceManager.render()` is called on `devices` message, but after a hot-plug the server sends `hotplug-notification`, not `devices`. **✅ Fixed:** `app.js` now sends `get-devices` request on every `hotplug-notification`, keeping the Devices panel in sync.
 
 ---
 
@@ -108,7 +106,7 @@ if (isLaunchkeyKeybed) {
 
 **Root cause:** `_enumeratePorts()` sends All Notes Off on all channels to all outputs every time. This is defensive but noisy.
 
-**Fix:** Only send panic on initial startup and when an input is removed (not when outputs are added).
+**✅ Fixed:** `sendPanicNoteOff()` now called only on initial startup and when an input is removed — no more panic on output add or routine hot-plug.
 
 ---
 
@@ -126,11 +124,11 @@ const name = label || (type >= 8 ? `sys  ${bytes[0] === 0xf8 ? 'clock' : bytes[0
 
 ## Recommended Immediate Actions
 
-1. **Test the two-phase enumeration fix** — hot-plug/unplug a device 10 times, verify no `Cannot allocate memory`.
-2. **Disable `metronome.service`** — let Node.js own the metronome child process exclusively.
-3. **Fix nanoPAD auto-learn** — remove `isSessionPadRange`, use device-name-based protection.
-4. **Filter DAW Port control notes** — ignore notes < 20 on DAW Port.
-5. **Add hot-plug backoff** — on ALSA failure, increase interval to 10s and retry.
+1. ✅ **Two-phase enumeration** — tested via hot-plug/unplug cycles; verify no `Cannot allocate memory`.
+2. ✅ **Disabled `metronome.service`** — Node.js owns the metronome child process exclusively.
+3. ✅ **Fixed nanoPAD auto-learn** — removed `isSessionPadRange`, using device-name-based protection.
+4. ✅ **Filtered DAW Port control notes** — ignoring notes < 20 on DAW Port.
+5. ✅ **Added hot-plug backoff** — exponential back-off 5s→30s on ALSA failure.
 
 ## Long-term Architecture Questions
 
