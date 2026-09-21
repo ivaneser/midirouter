@@ -1,8 +1,10 @@
 {
   "ignore": [
+    "Midi Through",
     "loopback",
     "timer",
-    "announce"
+    "announce",
+    "RtMidi"
   ],
   "devices": {
     "craft_synth": {

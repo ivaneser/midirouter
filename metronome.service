@@ -1,0 +1,21 @@
+[Unit]
+Description=Precise Raspberry Pi Metronome (headphone output)
+After=syslog.target network-online.target snd-seq.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=audio
+SupplementaryGroups=audio
+AmbientCapabilities=CAP_SYS_RAWIO
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+WorkingDirectory=/home/pi/myprojects/midirouter
+ExecStart=/usr/bin/python3 /home/pi/myprojects/midirouter/metronome.py -B 120 -b 4 -v 0.8
+Restart=always
+RestartSec=3
+PrivateDevices=no
+DeviceAllow=/dev/snd rw
+
+[Install]
+WantedBy=multi-user.target

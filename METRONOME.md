@@ -32,6 +32,9 @@ python3 metronome.py -B 90 -b 6 -a 1
 # Fast 200 BPM, 2-beat feel, lower volume
 python3 metronome.py -B 200 -b 2 -v 0.5
 
+# Force output to specific ALSA device (e.g. headphone jack)
+python3 metronome.py -d hw:Headphones
+
 # Help
 python3 metronome.py --help
 ```
@@ -146,6 +149,8 @@ node test-midi-clock.js -B 120 -d 5
 - Check the 3.5mm jack is properly inserted
 - Verify volume: `amixer` or use `-v` flag (0.0–1.0)
 - Check ALSA output: `aplay -L` should list your headphone device
+- The script auto-detects Raspberry Pi headphone jack by inspecting `/proc/asound/cards` and `aplay -L`. If it doesn't find one, it falls back to ALSA `default`.
+- Pass `-d <device>` explicitly if auto-detection picks the wrong output (e.g. HDMI).
 
 **MIDI clock not reaching devices?**
 - Make sure the device is connected and shows in `aplaymidi -l`

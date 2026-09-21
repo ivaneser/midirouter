@@ -5,6 +5,7 @@ import { DAWEngine, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
+import { MetronomeController } from './metronome-controller.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,14 +18,88 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // deviceName -> RtMidiIn instance
         this.outputs = new Map();  // deviceName -> RtMidiOut instance
 
-        // DAW engine — metronome/clip events go to UI AND physical MIDI outputs
+        // DAW engine — metronome/clip events go to UI ONLY (not to MIDI outputs).
+        // Actual metronome audio is produced by metronome.py → aplay -M → 3.5mm jack.
         this.daw = new DAWEngine();
-        this.daw._onEvent = (evt) => {
-            // Forward to all output ports so metronome/clip audio is audible
-            if (evt && evt.data && Array.isArray(evt.data)) {
-                this._sendToAllOutputs(evt.data, 'daw-midi');
+
+        // Python audio metronome controller — controls metronome.py via stdin IPC
+        this.metronomeCtrl = new MetronomeController({
+            bpm: this.daw.tempo,
+            beats: 4,
+            volume: 0.8
+        });
+        this._metronomeStarted = false;
+
+        // Override DAW engine methods to also control the Python audio metronome
+        const origSetTempo = this.daw.setTempo.bind(this.daw);
+        this.daw.setTempo = (bpm) => {
+            origSetTempo(bpm);
+            if (this.metronomeCtrl) {
+                this.metronomeCtrl.setBpm(bpm);
             }
-            // Also notify UI via WebSocket
+        };
+
+        const origStartMetronome = this.daw._startMetronome.bind(this.daw);
+        this.daw._startMetronome = () => {
+            origStartMetronome();
+            if (this.metronomeCtrl && this.daw.playing) {
+                this.metronomeCtrl.play();
+            }
+        };
+
+        const origStopMetronome = this.daw._stopMetronome.bind(this.daw);
+        this.daw._stopMetronome = () => {
+            origStopMetronome();
+            if (this.metronomeCtrl) {
+                this.metronomeCtrl.stop();
+            }
+        };
+
+        const origSetMetronome = this.daw.setMetronome.bind(this.daw);
+        this.daw.setMetronome = (enabled) => {
+            origSetMetronome(enabled);
+            // Python metronome follows transport state + metronome toggle
+            if (this.metronomeCtrl && !this.daw.playing) {
+                // If not playing, stop immediately on disable
+                if (!enabled) {
+                    this.metronomeCtrl.stop();
+                }
+            }
+        };
+
+        const origStartTransport = this.daw.startTransport.bind(this.daw);
+        this.daw.startTransport = () => {
+            origStartTransport();
+            if (this.metronomeCtrl && this.daw._metronomeEnabled) {
+                this.metronomeCtrl.play();
+            }
+        };
+
+        const origStopTransport = this.daw.stopTransport.bind(this.daw);
+        this.daw.stopTransport = () => {
+            origStopTransport();
+            if (this.metronomeCtrl) {
+                this.metronomeCtrl.stop();
+            }
+        };
+
+        const origSetMetronomeBeats = this.daw.setMetronomeBeatsPerMeasure.bind(this.daw);
+        this.daw.setMetronomeBeatsPerMeasure = (n) => {
+            origSetMetronomeBeats(n);
+            if (this.metronomeCtrl) {
+                this.metronomeCtrl.setBeats(n);
+            }
+        };
+
+        // Start Python metronome process on init (it stays ready to play)
+        this.metronomeCtrl.start().then(() => {
+            console.log('[WORKER] Python audio metronome started');
+        }).catch((e) => {
+            console.warn(`[WORKER] Failed to start Python metronome: ${e.message}`);
+        });
+
+        this.daw._onEvent = (evt) => {
+            // Only notify UI via WebSocket — do NOT route to physical MIDI outputs
             parentPort.postMessage({ type: 'daw_midi', data: evt.data });
         };
 
@@ -108,95 +183,71 @@ class MIDIRouterWorker {
     
     _checkHotplug() {
         try {
-            // Используем существующие порты для проверки, не создаём новые объекты
+            // Query ALSA directly for new port names (not just already-opened ports)
             const currentInputNames = new Set();
             const currentOutputNames = new Set();
             
-            // Проверяем существующие порты
-            for (const [name, input] of this.inputs) {
-                currentInputNames.add(name);
-            }
+            try {
+                const tmpIn = new midi.Input();
+                const ports = this._filterPorts(tmpIn, 'in');
+                for (const p of ports) currentInputNames.add(p.name);
+                tmpIn.closePort();
+            } catch(e) {}
             
-            for (const [name, output] of this.outputs) {
-                currentOutputNames.add(name);
-            }
+            try {
+                const tmpOut = new midi.Output();
+                const ports = this._filterPorts(tmpOut, 'out');
+                for (const p of ports) currentOutputNames.add(p.name);
+                tmpOut.closePort();
+            } catch(e) {}
             
-            // Check for new inputs
+            const addedInputs = [];
+            const removedInputs = [];
+            const addedOutputs = [];
+            const removedOutputs = [];
+            
             for (const name of currentInputNames) {
-                if (!this._lastInputNames.has(name)) {
-                    console.log(`[WORKER] HOT-PLUG: New input detected: ${name}`);
-                    this._lastInputNames.add(name);
-                    // Notify server about new device
-                    parentPort.postMessage({
-                        type: 'hotplug-detected',
-                        deviceName: name,
-                        action: 'added',
-                        direction: 'input'
-                    });
-                    if (this._autoRouteOnHotplug) {
-                        this._rebuildMappings();
-                    }
-                }
+                if (!this._lastInputNames.has(name)) addedInputs.push(name);
             }
-            
-            // Check for removed inputs
             for (const name of this._lastInputNames) {
-                if (!currentInputNames.has(name)) {
-                    console.log(`[WORKER] HOT-PLUG: Input removed: ${name}`);
-                    this._lastInputNames.delete(name);
-                    // Notify server about removed device
-                    parentPort.postMessage({
-                        type: 'hotplug-detected',
-                        deviceName: name,
-                        action: 'removed',
-                        direction: 'input'
-                    });
-                    if (this._autoRouteOnHotplug) {
-                        this._rebuildMappings();
-                    }
-                }
+                if (!currentInputNames.has(name)) removedInputs.push(name);
             }
-            
-            // Check for new outputs
             for (const name of currentOutputNames) {
-                if (!this._lastOutputNames.has(name)) {
-                    console.log(`[WORKER] HOT-PLUG: New output detected: ${name}`);
-                    this._lastOutputNames.add(name);
-                    // Notify server about new device
-                    parentPort.postMessage({
-                        type: 'hotplug-detected',
-                        deviceName: name,
-                        action: 'added',
-                        direction: 'output'
-                    });
-                    if (this._autoRouteOnHotplug) {
-                        this._rebuildMappings();
-                    }
-                }
+                if (!this._lastOutputNames.has(name)) addedOutputs.push(name);
             }
-            
-            // Check for removed outputs
             for (const name of this._lastOutputNames) {
-                if (!currentOutputNames.has(name)) {
+                if (!currentOutputNames.has(name)) removedOutputs.push(name);
+            }
+            
+            // If anything changed, re-enumerate ports
+            if (addedInputs.length || removedInputs.length || addedOutputs.length || removedOutputs.length) {
+                console.log(`[WORKER] HOT-PLUG: changes detected. +in:${addedInputs.length} -in:${removedInputs.length} +out:${addedOutputs.length} -out:${removedOutputs.length}`);
+                for (const name of addedInputs) {
+                    console.log(`[WORKER] HOT-PLUG: New input: ${name}`);
+                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'input' });
+                }
+                for (const name of removedInputs) {
+                    console.log(`[WORKER] HOT-PLUG: Input removed: ${name}`);
+                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'input' });
+                }
+                for (const name of addedOutputs) {
+                    console.log(`[WORKER] HOT-PLUG: New output: ${name}`);
+                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'output' });
+                }
+                for (const name of removedOutputs) {
                     console.log(`[WORKER] HOT-PLUG: Output removed: ${name}`);
-                    this._lastOutputNames.delete(name);
-                    // Notify server about removed device
-                    parentPort.postMessage({
-                        type: 'hotplug-detected',
-                        deviceName: name,
-                        action: 'removed',
-                        direction: 'output'
-                    });
-                    if (this._autoRouteOnHotplug) {
-                        this._rebuildMappings();
-                    }
+                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'output' });
+                }
+                
+                // FULL re-enumeration to open/close actual RtMidi ports
+                this._enumeratePorts();
+                if (this._autoRouteOnHotplug) {
+                    this._rebuildMappings();
                 }
             }
             
-            // Update last known states
             this._lastInputNames = currentInputNames;
             this._lastOutputNames = currentOutputNames;
-            
         } catch (e) {
             console.error('[WORKER] Hot-plug check failed:', e.message);
         }
@@ -339,8 +390,7 @@ class MIDIRouterWorker {
         const leadNote = this._padNoteForTrack(trackIdx, slot);
         if (leadNote != null) {
             // clear any prior glow on this note (e.g. red arm -> cyan play)
-            const cleared = this._sendToAllOutputs([0x80 | 0, leadNote & 0x7f, 0], 'clear-led');
-            if (cleared === 0) console.warn(`[WORKER] Failed to clear LED for note ${leadNote}`);
+            this._clearLed(leadNote);
             this._ledGlow.set(trackIdx, { note: leadNote, color: 'cyan' });
             this._setLed(leadNote, 'cyan', 0.5);   // steady glow
         }
@@ -353,9 +403,9 @@ class MIDIRouterWorker {
 
             for (const n of clip.notes) {
                 const delay = Math.max(0, (n.start * msPerBeat) - (performance.now() - t0));
-                setTimeout(() => self._sendToAllOutputs(noteOn(n.channel - 1, n.note, n.velocity)), delay);
+                setTimeout(() => self._sendToSynthOutputs(noteOn(n.channel - 1, n.note, n.velocity)), delay);
                 const offDelay = Math.max(0, ((n.start + n.dur) * msPerBeat) - (performance.now() - t0));
-                setTimeout(() => self._sendToAllOutputs(noteOff(n.channel - 1, n.note)), offDelay);
+                setTimeout(() => self._sendToSynthOutputs(noteOff(n.channel - 1, n.note)), offDelay);
             }
         };
 
@@ -384,6 +434,43 @@ class MIDIRouterWorker {
         return sent;
     }
 
+    // Send bytes to all outputs EXCEPT Launchkey (for synth playback)
+    _sendToSynthOutputs(bytes, label = '') {
+        let sent = 0;
+        for (const [name, midiOut] of this.outputs) {
+            if (name.toLowerCase().includes('launchkey')) continue;
+            try {
+                midiOut.sendMessage(Buffer.from(bytes));
+                sent++;
+            } catch (e) {
+                console.warn(`[WORKER] Failed to send ${label} to ${name}: ${e.message}`);
+            }
+        }
+        return sent;
+    }
+
+    // Send bytes ONLY to Launchkey output ports (for LED/session feedback)
+    _sendToLaunchkey(bytes, label = '') {
+        let sent = 0;
+        for (const [name, midiOut] of this.outputs) {
+            if (!name.toLowerCase().includes('launchkey')) continue;
+            try {
+                midiOut.sendMessage(Buffer.from(bytes));
+                sent++;
+            } catch (e) {
+                console.warn(`[WORKER] Failed to send ${label} to Launchkey ${name}: ${e.message}`);
+            }
+        }
+        return sent;
+    }
+
+    // Launchkey Mini MK3 RGB LED via SysEx: F0 00 20 29 02 0E 03 [pad 0-15] [r] [g] [b] F7
+    _setLaunchkeyRgb(padIndex, r, g, b) {
+        if (padIndex < 0 || padIndex > 15) return;
+        const msg = [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x03, padIndex, r & 0x7f, g & 0x7f, b & 0x7f, 0xf7];
+        this._sendToLaunchkey(msg, `RGB pad ${padIndex}`);
+    }
+
     // ---- LED feedback (LaunchKey RGB pads via note velocity) ----
     // Novation LaunchKey maps note-on velocity to a ~8-colour wheel.
     _LED_COLORS = {
@@ -409,25 +496,22 @@ class MIDIRouterWorker {
     _setLed(note, color, brightness) {
         const vel = this._ledVelocity(color, brightness);
         if (vel === 0) return;
-        const sent = this._sendToAllOutputs([0x90 | 0, note & 0x7f, vel], `LED ${color}`);
-        if (sent === 0) console.warn(`[WORKER] Failed to set LED ${color} for note ${note}`);
+        // Send only to Launchkey — do NOT send to synths
+        this._sendToLaunchkey([0x90 | 0, note & 0x7f, vel], `LED ${color}`);
     }
 
-    // flash: bright pulse that auto-offers after ms
+    // flash: bright pulse that auto-off after ms
     _flashLed(note, brightness, ms) {
         const vel = this._ledVelocity('red', brightness);   // downbeat = bright red pulse
         if (vel === 0) return;
-        const sent = this._sendToAllOutputs([0x90 | 0, note & 0x7f, vel], `LED flash`);
-        if (sent === 0) console.warn(`[WORKER] Failed to flash LED for note ${note}`);
+        this._sendToLaunchkey([0x90 | 0, note & 0x7f, vel], `LED flash`);
         setTimeout(() => {
-            const cleared = this._sendToAllOutputs([0x80 | 0, note & 0x7f, 0], 'clear-led');
-            if (cleared === 0) console.warn(`[WORKER] Failed to clear flash LED for note ${note}`);
+            this._sendToLaunchkey([0x80 | 0, note & 0x7f, 0], 'clear-led');
         }, ms);
     }
 
     _clearLed(note) {
-        const cleared = this._sendToAllOutputs([0x80 | 0, note & 0x7f, 0], 'clear-led');
-        if (cleared === 0) console.warn(`[WORKER] Failed to clear LED for note ${note}`);
+        this._sendToLaunchkey([0x80 | 0, note & 0x7f, 0], 'clear-led');
     }
 
     // arm-rec glow: red pulse for the track's pad(s)
@@ -505,6 +589,35 @@ class MIDIRouterWorker {
         }
     }
 
+    // ---- MIDI Clock sync (used by metronome and DAW tempo sync) ----
+    _handleMidiClock(now) {
+        // Sync metronome / transport to external MIDI clock.
+        // 24 clocks per quarter note.
+        if (!this._clockHistory) this._clockHistory = [];
+        this._clockHistory.push(now);
+        if (this._clockHistory.length > 48) this._clockHistory.shift();
+        
+        // Auto-sync BPM from clock interval (every 24 ticks = 1 quarter note)
+        if (this._clockHistory.length >= 25) {
+            const tick24Ms = this._clockHistory[this._clockHistory.length - 1] - this._clockHistory[this._clockHistory.length - 25];
+            if (tick24Ms > 0) {
+                const estimatedBpm = (60 * 1000) / tick24Ms;
+                // Smooth update: only if within reasonable range
+                if (estimatedBpm >= 20 && estimatedBpm <= 300) {
+                    const current = this.daw.tempo;
+                    const smoothed = Math.round(current * 0.9 + estimatedBpm * 0.1);
+                    if (Math.abs(smoothed - current) > 1) {
+                        this.daw.setTempo(smoothed);
+                        if (this.metronomeCtrl) this.metronomeCtrl.setBpm(smoothed);
+                    }
+                }
+            }
+        }
+        
+        // Emit DAW clock event so UI can sync
+        parentPort.postMessage({ type: 'daw_midi', data: [0xf8] });
+    }
+
     // ---- Обработка кнопок транспорта и записи (CC) ----
     // Launchkey Mini MK3 DAW mode:
     // Ch16, CC 115 = Play, CC 116 = Stop, CC 117 = Record, CC 118 = Loop
@@ -557,8 +670,8 @@ class MIDIRouterWorker {
             const outputCount = tempOutput.getPortCount();
             tempOutput.closePort();
 
-            const realInputs = this._filterPorts(tempInput);
-            const realOutputs = this._filterPorts(tempOutput);
+            const realInputs = this._filterPorts(tempInput, 'in');
+            const realOutputs = this._filterPorts(tempOutput, 'out');
 
             // INPUT PORTS
             const newInputNames = new Set(realInputs.map(r => r.name));
@@ -647,15 +760,17 @@ class MIDIRouterWorker {
         }
     }
 
-    _filterPorts(device) {
+    _filterPorts(device, direction = 'in') {
         const count = device.getPortCount();
         const real = [];
+        // Always ignore our own ALSA client names and generic RtMidi virtual clients
+        const selfPorts = ['midirouter', 'rtmidi output client', 'rtmidi input client', 'rtmidi client'];
         for (let i = 0; i < count; i++) {
             const name = device.getPortName(i);
             const lower = name.toLowerCase();
-            // Check against ignore list
             const isIgnored = this._ignoreDevices.some(ignore => lower.includes(ignore.toLowerCase()));
-            if (!isIgnored) {
+            const isSelf = selfPorts.some(s => lower.includes(s));
+            if (!isIgnored && !isSelf) {
                 real.push({ index: i, name });
             }
         }
@@ -682,14 +797,48 @@ class MIDIRouterWorker {
                            deviceName.toLowerCase().includes('timer') ||
                            deviceName.toLowerCase().includes('midi through');
         const isDAWPort = deviceName.toLowerCase().includes('daw port');
+        const isLaunchkey = deviceName.toLowerCase().includes('launchkey');
         const isSysEx = bytes[0] === 0xf0; // SysEx starts with 0xF0
+        const statusByte = bytes[0];
+        const isSysRealTime = statusByte >= 0xF8 && statusByte <= 0xFF;
         
         if (isLoopback) {
             console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
             return;
         }
         
-        // DAW Port: разрешаем CC, SysEx и все Note On (транспорт/пэды)
+        // === System Real-Time (MIDI Clock / Start / Stop) from ANY source ===
+        if (isSysRealTime) {
+            // Транслируем MTC на все USB-MIDI выходы (except loopback)
+            for (const [outName, outputPort] of this.outputs) {
+                if (outName.toLowerCase().includes('daw port') || outName.toLowerCase().includes('loopback')) continue;
+                try {
+                    outputPort.sendMessage(Buffer.from(bytes));
+                } catch (e) {}
+            }
+            
+            // Запускаем/останавливаем аудио метроном для наушников
+            if (this.metronomeCtrl) {
+                if (statusByte === 0xFA || statusByte === 0xFB) {
+                    this.metronomeCtrl.play();
+                    console.log(`[MIDI] Metronome START from ${deviceName}`);
+                } else if (statusByte === 0xFC) {
+                    this.metronomeCtrl.stop();
+                    this._metronomeStarted = false;
+                    console.log(`[MIDI] Metronome STOP from ${deviceName}`);
+                } else if (statusByte === 0xF8) {
+                    this._handleMidiClock(performance.now());
+                    if (!this._metronomeStarted) {
+                        this.metronomeCtrl.play();
+                        this._metronomeStarted = true;
+                        console.log(`[MIDI] Metronome auto-started from ${deviceName} clock`);
+                    }
+                }
+            }
+            return; // Не маршрутизируем дальше через mappings
+        }
+        
+        // DAW Port: разрешаем CC, SysEx, Note On для внутреннего управления DAW
         if (isDAWPort) {
             const isCC = type === 7;
             const isSysExMsg = bytes[0] === 0xf0;
@@ -806,11 +955,47 @@ class MIDIRouterWorker {
             }
         }
         
+        // === Controller note handling for ALL inputs (not just DAW Port) ===
+        // If a note comes from any controller and is mapped to a clip slot,
+        // handle it as a DAW pad trigger while ALSO routing to synths.
+        const isNoteOff = type === 8 && bytes.length >= 3;
+        const isNoteOn2 = type === 9 && bytes.length >= 3;
+        
+        if (isNoteOff || isNoteOn2) {
+            const n = bytes[1];
+            const vel = bytes[2] || 0;
+            let isMappedPad = this.padMap.has(n);
+            
+            // Also auto-learn if enabled (only on note-on)
+            if (this.autoAssign && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
+                const trackIdx = this._learnCursor % 8;
+                const slot = Math.floor(this._learnCursor / 8) % 2;
+                this.padMap.set(n, { trackIdx, slot });
+                this._learnCursor++;
+                this._broadcastPadMap();
+                isMappedPad = true; // just learned
+                console.log(`[WORKER] Auto-mapped note ${n} -> track ${trackIdx}, slot ${slot}`);
+            }
+            
+            // Handle mapped pad (clip trigger / record)
+            if (isMappedPad && this.controllerInputs.has(deviceName)) {
+                this._handleControllerNote(n, vel, channel, performance.now());
+                // Do NOT route pad notes to synths (they are control, not musical)
+                return;
+            }
+            
+            // Record non-pad notes during active recording
+            if (this.daw.recording && this.controllerInputs.has(deviceName)) {
+                const statusByte = isNoteOff ? (0x80 | ((channel - 1) & 0x0f)) : (0x90 | ((channel - 1) & 0x0f));
+                this.daw.recordEvent(statusByte, n, vel, performance.now());
+            }
+        }
+
         // If no mappings matched, use default all-to-all routing
-        // Но DAW Port сообщения не маршрутизируем — они только для внутреннего управления
         if (this._mappings.size === 0 && !isDAWPort) {
             let sent = 0;
-            for (const [, midiOut] of this.outputs) {
+            for (const [outName, midiOut] of this.outputs) {
+                if (outName.toLowerCase().includes('launchkey')) continue; // Don't send notes to Launchkey output
                 try {
                     let outMsg = Buffer.from(bytes);
                     // Трансляция CC команд — преобразуем CC номера через CCMapper
@@ -975,22 +1160,52 @@ class MIDIRouterWorker {
     }
 
     _enterDawMode() {
-        // Send DAW mode activation to Launchkey Mini MK3
-        // Message: Note On on channel 16, note=12 (C-1), velocity=127
-        // This tells the controller to enter Session mode (same protocol Ableton Live uses)
+        // Send DAW/InControl mode activation to Launchkey Mini MK3
+        // Two methods: SysEx (preferred) + Note On fallback
         if (this._dawModeSent) return;
-        const bytes = [0x9f, 12, 127]; // Note On ch16, note 12, vel 127
+        
         for (const [name, output] of this.outputs) {
-            if (name.toLowerCase().includes('launchkey')) {
-                try {
-                    output.sendMessage(bytes);
-                    console.log('[WORKER] DAW mode activation sent to', name);
-                } catch (e) {
-                    console.error('[WORKER] Failed to send DAW mode to', name, e.message);
-                }
+            if (!name.toLowerCase().includes('launchkey')) continue;
+            try {
+                // SysEx method: enable DAW mode (InControl) for Launchkey Mini MK3
+                // Product ID 0x0E = Launchkey Mini MK3
+                const sysex = [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x0c, 0x01, 0xf7];
+                output.sendMessage(sysex);
+                console.log('[WORKER] DAW mode SysEx sent to', name);
+                
+                // Fallback: Note On ch16 note 12 vel 127 (legacy Ableton protocol)
+                setTimeout(() => {
+                    try {
+                        output.sendMessage([0x9f, 12, 127]);
+                    } catch(e) {}
+                }, 100);
+                
+                // Set all pads black (off) initially
+                setTimeout(() => {
+                    this._clearAllLaunchkeyPads();
+                }, 200);
+            } catch (e) {
+                console.error('[WORKER] Failed to send DAW mode to', name, e.message);
             }
         }
         this._dawModeSent = true;
+    }
+
+    _clearAllLaunchkeyPads() {
+        for (const [name, output] of this.outputs) {
+            if (!name.toLowerCase().includes('launchkey')) continue;
+            try {
+                // Turn off all 16 session pads via SysEx RGB (set to black)
+                for (let p = 0; p < 16; p++) {
+                    const msg = [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x03, p, 0, 0, 0, 0xf7];
+                    output.sendMessage(msg);
+                }
+                // Also note-off velocity-based range 112-127 just in case
+                for (let n = 112; n <= 127; n++) {
+                    output.sendMessage([0x80 | 0, n & 0x7f, 0]);
+                }
+            } catch (e) {}
+        }
     }
 
     _applyDefaultPadMap() {
