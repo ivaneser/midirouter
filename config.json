@@ -20,5 +20,11 @@
       "port": 0
     }
   },
-  "mappings": {}
+  "mappings": {
+    "mapping_1": {
+      "inputs": [],
+      "outputs": [],
+      "filters": {}
+    }
+  }
 }

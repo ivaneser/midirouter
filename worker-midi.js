@@ -722,6 +722,11 @@ class MIDIRouterWorker {
                     console.log(`[WORKER] Output removed: ${deviceName}`);
                     output.closePort();
                     this.outputs.delete(deviceName);
+                    // Reset DAW mode trigger if Launchkey was removed
+                    if (deviceName.toLowerCase().includes('launchkey')) {
+                        this._dawModeSent = false;
+                        console.log('[WORKER] Launchkey removed — DAW mode flag reset');
+                    }
                 }
             }
             for (const newOutput of realOutputs) {
@@ -755,6 +760,11 @@ class MIDIRouterWorker {
 
             parentPort.postMessage({ type: 'ports-enumerated', inputs: inputList, outputs: outputList });
             parentPort.postMessage({ type: 'ready' });
+
+            // Sync hot-plug tracker so the first _checkHotplug() doesn't
+            // spuriously re-enumerate everything as "new".
+            this._lastInputNames = new Set(realInputs.map(r => r.name));
+            this._lastOutputNames = new Set(realOutputs.map(r => r.name));
         } catch (e) {
             console.error('[WORKER] Enumerate failed:', e.message);
         }
@@ -966,8 +976,14 @@ class MIDIRouterWorker {
             const vel = bytes[2] || 0;
             let isMappedPad = this.padMap.has(n);
             
-            // Also auto-learn if enabled (only on note-on)
-            if (this.autoAssign && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
+            // Auto-learn: only learn notes that are actual session pads.
+            // For Launchkey Mini MK3 — DAW Port notes ARE the session pads;
+            // MIDI Port keybed notes are performance, NOT pads.
+            const isLaunchkeyMidiPort = deviceName.toLowerCase().includes('launchkey')
+                && !deviceName.toLowerCase().includes('daw port');
+            const shouldAutoLearn = !isLaunchkeyMidiPort; // allow everything else (nanoPAD, other controllers, Launchkey DAW Port)
+            
+            if (this.autoAssign && shouldAutoLearn && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
                 const trackIdx = this._learnCursor % 8;
                 const slot = Math.floor(this._learnCursor / 8) % 2;
                 this.padMap.set(n, { trackIdx, slot });
@@ -1209,21 +1225,20 @@ class MIDIRouterWorker {
     }
 
     _applyDefaultPadMap() {
-        // Apply default pad mapping for Launchkey Mini MK3
-        if (this.padMap.size > 0) return; // Don't overwrite existing mapping
-        
-        // DAW Mode pads: Ch1, notes 112-127 (0x70-0x7F)
-        // 2 rows x 8 columns -> 8 tracks, 2 slots
-        // Bottom row (112-119): slot 0
-        // Top row (120-127): slot 1
+        // Apply default pad mapping for Launchkey Mini MK3 session pads.
+        // Always add Launchkey-specific ranges; never bail early —
+        // earlier auto-mapped notes from other controllers should not block
+        // the Launchkey session pad defaults.
+        let added = 0;
+        // DAW Mode session pads: notes 112-127 (bottom row = slot 0, top row = slot 1)
         for (let col = 0; col < 8; col++) {
-            // Bottom row -> slot 0
-            this.padMap.set(112 + col, { trackIdx: col, slot: 0 });
-            // Top row -> slot 1
-            this.padMap.set(120 + col, { trackIdx: col, slot: 1 });
+            if (!this.padMap.has(112 + col)) { this.padMap.set(112 + col, { trackIdx: col, slot: 0 }); added++; }
+            if (!this.padMap.has(120 + col)) { this.padMap.set(120 + col, { trackIdx: col, slot: 1 }); added++; }
         }
-        console.log('[WORKER] Default pad map applied:', this.padMap.size, 'pads');
-        this._broadcastPadMap();
+        if (added > 0) {
+            console.log('[WORKER] Default pad map applied:', added, 'new Launchkey pads (total', this.padMap.size, ')');
+            this._broadcastPadMap();
+        }
     }
     
     // ---- Обработка SysEx от Launchkey Mini MK3 DAW Port ----

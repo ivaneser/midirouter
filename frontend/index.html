@@ -87,6 +87,25 @@
             </div>
         </details>
 
+        <!-- Devices Panel (collapsible, auto-populated from ALSA) -->
+        <details class="collapsible-panel devices-details" open>
+            <summary class="collapsible-header">
+                <span class="arrow">▶</span>
+                🔊 MIDI Devices
+            </summary>
+            <div class="config-panel-content">
+                <p class="tab-hint">Discovered automatically via ALSA. Plug/unplug appear live.</p>
+                <div class="device-section">
+                    <h4>🎹 Inputs</h4>
+                    <div class="device-list" id="input-list"></div>
+                </div>
+                <div class="device-section">
+                    <h4>🎵 Outputs</h4>
+                    <div class="device-list" id="output-list"></div>
+                </div>
+            </div>
+        </details>
+
         <!-- Configuration Panel (collapsible) -->
         <details class="collapsible-panel config-details">
             <summary class="collapsible-header">

@@ -1,23 +1,21 @@
 [Unit]
 Description=MIDI Router / DAW Looper (midirouter)
-After=network-online.target snd-seq.service
-Wants=network-online.target
+After=network-online.target sound.target
+Wants=network-online.target sound.target
 
 [Service]
 Type=simple
 User=pi
 Group=audio
 SupplementaryGroups=audio
-# Allow access to /dev/snd as non-root (CAP_SYS_RAWIO), otherwise snd_seq_open -> EPERM
 AmbientCapabilities=CAP_SYS_RAWIO
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 WorkingDirectory=/home/pi/myprojects/midirouter
+ExecStartPre=/bin/sh -c 'sleep 3 && aconnect -l >/dev/null 2>&1 || true'
 ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3
-# /dev/snd must be accessible to the service
 PrivateDevices=no
-DeviceAllow=/dev/snd rw
 
 [Install]
 WantedBy=multi-user.target
