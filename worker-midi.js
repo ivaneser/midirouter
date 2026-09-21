@@ -791,7 +791,7 @@ class MIDIRouterWorker {
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
         const channel = type >= 8 ? (status & 0x0f) + 1 : 1;
-        
+
         const label = {
             '9': `noteOn   ch${channel} n${bytes[1]} v${bytes[2]}`,
             '8': `noteOff  ch${channel} n${bytes[1]}`,
@@ -802,222 +802,155 @@ class MIDIRouterWorker {
         }[String(type)];
         const name = label || (type >= 8 ? `sys  ${bytes[0] === 0xf8 ? 'timing clock' : bytes[0] === 0xfa ? 'start' : bytes[0] === 0xfb ? 'continue' : bytes[0] === 0xfc ? 'stop' : bytes[0] === 0xfe ? 'active sensing' : 'unknown sys'}` : `raw#${bytes.join(',')}`);
 
+        // Debug: log every single MIDI message received (critical for diagnosis)
+        console.log(`[MIDI RX] ${deviceName}: ${name}`);
+
         // Skip loopback/timer/Midi Through ports to prevent feedback loops
         const isLoopback = deviceName.toLowerCase().includes('loopback') ||
                            deviceName.toLowerCase().includes('timer') ||
                            deviceName.toLowerCase().includes('midi through');
         const isDAWPort = deviceName.toLowerCase().includes('daw port');
         const isLaunchkey = deviceName.toLowerCase().includes('launchkey');
-        const isSysEx = bytes[0] === 0xf0; // SysEx starts with 0xF0
+        const isSysEx = bytes[0] === 0xf0;
         const statusByte = bytes[0];
         const isSysRealTime = statusByte >= 0xF8 && statusByte <= 0xFF;
-        
+
         if (isLoopback) {
             console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
             return;
         }
-        
+
         // === System Real-Time (MIDI Clock / Start / Stop) from ANY source ===
         if (isSysRealTime) {
-            // Транслируем MTC на все USB-MIDI выходы (except loopback)
+            // Forward MTC to all synth outputs
+            let mtcSent = 0;
             for (const [outName, outputPort] of this.outputs) {
                 if (outName.toLowerCase().includes('daw port') || outName.toLowerCase().includes('loopback')) continue;
                 try {
                     outputPort.sendMessage(Buffer.from(bytes));
+                    mtcSent++;
                 } catch (e) {}
             }
-            
-            // Запускаем/останавливаем аудио метроном для наушников
+            if (mtcSent > 0) {
+                console.log(`[MIDI TX] MTC ${name} -> ${mtcSent} outputs`);
+            }
+
+            // Control audio metronome
             if (this.metronomeCtrl) {
                 if (statusByte === 0xFA || statusByte === 0xFB) {
+                    console.log(`[METRO] Controller sent START -> starting metronome`);
                     this.metronomeCtrl.play();
-                    console.log(`[MIDI] Metronome START from ${deviceName}`);
                 } else if (statusByte === 0xFC) {
+                    console.log(`[METRO] Controller sent STOP -> stopping metronome`);
                     this.metronomeCtrl.stop();
                     this._metronomeStarted = false;
-                    console.log(`[MIDI] Metronome STOP from ${deviceName}`);
                 } else if (statusByte === 0xF8) {
                     this._handleMidiClock(performance.now());
                     if (!this._metronomeStarted) {
+                        console.log(`[METRO] First clock tick -> auto-starting metronome`);
                         this.metronomeCtrl.play();
                         this._metronomeStarted = true;
-                        console.log(`[MIDI] Metronome auto-started from ${deviceName} clock`);
                     }
                 }
+            } else {
+                console.log(`[METRO] metronomeCtrl is NULL — cannot control metronome!`);
             }
-            return; // Не маршрутизируем дальше через mappings
+            return;
         }
-        
-        // DAW Port: разрешаем CC, SysEx, Note On для внутреннего управления DAW
+
+        // DAW Port internal handling (CC → synths, Note On → DAW clips)
         if (isDAWPort) {
             const isCC = type === 7;
             const isSysExMsg = bytes[0] === 0xf0;
-            const isNoteOn = type === 9 && bytes.length >= 3; // Все Note On
+            const isNoteOn = type === 9 && bytes.length >= 3;
             if (!isCC && !isSysExMsg && !isNoteOn) {
                 console.log(`[MIDI] [LOOPBACK] Ignoring DAW Port: ${name}`);
                 return;
             }
-            
-            // CC команды от knobs — транслируем и маршрутизируем
+
             if (isCC) {
-                const message = {
-                    bytes: Buffer.from(bytes),
-                    type: type,
-                    channel: channel - 1,
-                    velocity: bytes[2] || 0,
-                    note: bytes[1] || 0
-                };
-                
-                // Транслируем через CCMapper ко всем выходам кроме DAW Port
-                for (const [, outputPort] of this.outputs) {
-                    const outName = [...this.outputs.keys()][[...this.outputs.values()].indexOf(outputPort)];
-                    if (!outName.toLowerCase().includes('daw port')) {
-                        try {
-                            const transformed = this.ccMapper.transformCC(message, deviceName, outName, 'default');
-                            outputPort.sendMessage(transformed.bytes);
-                            console.log(`[MIDI] ${deviceName} -> ${outName}: CC${transformed.bytes[1]} (transl)`);
-                        } catch (e) {
-                            console.warn(`[MIDI] Failed to transform/send CC from ${deviceName} -> ${outName}: ${e.message}`);
-                        }
+                // CC from knobs — route to ALL synth outputs
+                const message = { bytes: Buffer.from(bytes), type, channel: channel - 1, velocity: bytes[2] || 0, note: bytes[1] || 0 };
+                for (const [outName, outputPort] of this.outputs) {
+                    if (outName.toLowerCase().includes('daw port') || outName.toLowerCase().includes('launchkey')) continue;
+                    try {
+                        const transformed = this.ccMapper.transformCC(message, deviceName, outName, 'default');
+                        outputPort.sendMessage(transformed.bytes);
+                        console.log(`[MIDI TX] ${deviceName} -> ${outName}: CC${transformed.bytes[1]} (transl)`);
+                    } catch (e) {
+                        console.warn(`[MIDI TX] Failed CC to ${outName}: ${e.message}`);
                     }
                 }
                 return;
             }
-            
-            // Note On — обрабатываем внутренне, не маршрутизируем
+
             if (isNoteOn) {
+                console.log(`[DAW] DAW Port note ${bytes[1]} -> clip handler`);
                 this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
-                return; // Не маршрутизируем дальше
+                return;
             }
         }
-        
-        // Обработка SysEx от любого порта (Launchkey DAW, Midi Through и т.д.)
+
+        // SysEx from any port
         if (isSysEx) {
             this._handleLaunchkeySysEx(deviceName, bytes);
             return;
         }
-        
-        // Обработка CC (контроллер транспорта/записи)
+
+        // Transport CC (Launchkey knobs/buttons)
         if (type === 7) {
             const cc = bytes[1];
             const value = bytes[2] || 0;
-            const now = performance.now();
-            this._handleControllerCC(cc, value, channel, now);
+            this._handleControllerCC(cc, value, channel, performance.now());
         }
 
-        // Create message object for filters
-        const message = {
-            bytes: Buffer.from(bytes),
-            type: type,
-            channel: channel - 1,
-            velocity: bytes[2] || 0,
-            note: bytes[1] || 0
-        };
-
-        // Process through mappings
-        let processed = message;
-        for (const [routeId, mapping] of this._mappings) {
-            // Check if this input is in the mapping
-            const isInMapping = mapping.inputs.some(input => input.name === deviceName);
-            if (!isInMapping) continue;
-            
-            // Apply filters
-            for (const filter of mapping.filters) {
-                const result = filter.process(processed);
-                if (result === false) {
-                    console.log(`[MIDI] [FILTER] Dropped: ${name} channel=${processed.channel+1}`);
-                    return;
-                }
-                processed = result;
-            }
-            
-            // Трансляция CC команд через CCMapper
-            if (type === 7) { // Control Change
-                for (const output of mapping.outputs) {
-                    const outputPort = this.outputs.get(output.name);
-                    if (outputPort) {
-                        const transformed = this.ccMapper.transformCC(
-                            processed, deviceName, output.name, routeId
-                        );
-                        if (transformed) {
-                            try {
-                                outputPort.sendMessage(transformed.bytes);
-                                console.log(`[MIDI] ${deviceName} -> ${output.name}: CC${processed.bytes[1]} (transl)`);
-                            } catch (e) {
-                                console.error(`[MIDI] Failed to send to ${output.name}:`, e.message);
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Note/other messages — обычная маршрутизация
-                for (const output of mapping.outputs) {
-                    const outputPort = this.outputs.get(output.name);
-                    if (outputPort) {
-                        try {
-                            outputPort.sendMessage(processed.bytes);
-                            console.log(`[MIDI] ${deviceName} -> ${output.name}: ${name}`);
-                        } catch (e) {
-                            console.error(`[MIDI] Failed to send to ${output.name}:`, e.message);
-                        }
-                    }
-                }
-            }
-        }
-        
-        // === Controller note handling for ALL inputs (not just DAW Port) ===
-        // If a note comes from any controller and is mapped to a clip slot,
-        // handle it as a DAW pad trigger while ALSO routing to synths.
+        // === Controller note handling (MIDI Port keybed, nanoPAD, etc.) ===
         const isNoteOff = type === 8 && bytes.length >= 3;
         const isNoteOn2 = type === 9 && bytes.length >= 3;
-        
+
         if (isNoteOff || isNoteOn2) {
             const n = bytes[1];
             const vel = bytes[2] || 0;
             let isMappedPad = this.padMap.has(n);
-            
-            // Auto-learn: only learn notes that are actual session pads.
-            // For Launchkey Mini MK3 — DAW Port notes ARE the session pads;
-            // MIDI Port keybed notes are performance, NOT pads.
+
             const isLaunchkeyMidiPort = deviceName.toLowerCase().includes('launchkey')
                 && !deviceName.toLowerCase().includes('daw port');
-            const shouldAutoLearn = !isLaunchkeyMidiPort; // allow everything else (nanoPAD, other controllers, Launchkey DAW Port)
-            
+            const shouldAutoLearn = !isLaunchkeyMidiPort;
+
             if (this.autoAssign && shouldAutoLearn && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
                 const trackIdx = this._learnCursor % 8;
                 const slot = Math.floor(this._learnCursor / 8) % 2;
                 this.padMap.set(n, { trackIdx, slot });
                 this._learnCursor++;
                 this._broadcastPadMap();
-                isMappedPad = true; // just learned
+                isMappedPad = true;
                 console.log(`[WORKER] Auto-mapped note ${n} -> track ${trackIdx}, slot ${slot}`);
             }
-            
-            // Handle mapped pad (clip trigger / record)
+
             if (isMappedPad && this.controllerInputs.has(deviceName)) {
+                console.log(`[DAW] Mapped pad note ${n} -> clip handler (NOT routing to synths)`);
                 this._handleControllerNote(n, vel, channel, performance.now());
-                // Do NOT route pad notes to synths (they are control, not musical)
                 return;
             }
-            
-            // Record non-pad notes during active recording
+
+            // Record during active recording
             if (this.daw.recording && this.controllerInputs.has(deviceName)) {
-                const statusByte = isNoteOff ? (0x80 | ((channel - 1) & 0x0f)) : (0x90 | ((channel - 1) & 0x0f));
-                this.daw.recordEvent(statusByte, n, vel, performance.now());
+                const sb = isNoteOff ? (0x80 | ((channel - 1) & 0x0f)) : (0x90 | ((channel - 1) & 0x0f));
+                this.daw.recordEvent(sb, n, vel, performance.now());
             }
         }
 
-        // If no mappings matched, use default all-to-all routing
+        // === ALL-TO-ALL ROUTING (the default path) ===
         if (this._mappings.size === 0 && !isDAWPort) {
             let sent = 0;
             for (const [outName, midiOut] of this.outputs) {
-                if (outName.toLowerCase().includes('launchkey')) continue; // Don't send notes to Launchkey output
+                if (outName.toLowerCase().includes('launchkey')) continue;
                 try {
                     let outMsg = Buffer.from(bytes);
-                    // Трансляция CC команд — преобразуем CC номера через CCMapper
                     if (type === 7) {
                         const transformed = this.ccMapper.transformCC(
-                            message, deviceName, 'default', 'default'
+                            { bytes: Buffer.from(bytes), type, channel: channel - 1, velocity: bytes[2] || 0, note: bytes[1] || 0 },
+                            deviceName, 'default', 'default'
                         );
                         if (transformed && transformed.bytes) {
                             outMsg = transformed.bytes;
@@ -1025,15 +958,16 @@ class MIDIRouterWorker {
                     }
                     midiOut.sendMessage(outMsg);
                     sent++;
+                    console.log(`[MIDI TX] ${deviceName} -> ${outName}: ${name}`);
                 } catch (e) {
-                    console.warn(`[MIDI] Failed to send ${name} to ${midiOut._name || 'unknown'}: ${e.message}`);
+                    console.warn(`[MIDI TX] FAIL ${deviceName} -> ${outName}: ${e.message}`);
                 }
             }
-            if (sent > 0) {
-                console.log(`[MIDI] ${deviceName} -> ${sent}/${this.outputs.size} outs: ${name}`);
+            if (sent === 0) {
+                console.warn(`[MIDI TX] NO OUTPUTS for ${deviceName}: ${name} — check synth connections!`);
             }
-        } else if (isDAWPort && this._mappings.size === 0) {
-            console.log(`[MIDI] DAW Port message processed internally only: ${name}`);
+        } else if (isDAWPort) {
+            console.log(`[MIDI] DAW Port msg processed internally only: ${name}`);
         }
     }
 

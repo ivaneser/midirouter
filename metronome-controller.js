@@ -139,22 +139,14 @@ export class MetronomeController {
                 return;
             }
 
-            // Send 'stop' command via stdin
+            // Send 'stop' command via stdin (process now stays alive, just goes silent)
             try {
                 this._process.stdin.write('stop\n');
-                setTimeout(() => {
-                    if (this._process && this._pid) {
-                        // If it doesn't stop gracefully, kill it
-                        this._process.kill('SIGTERM');
-                    }
-                    this._running = false;
-                    resolve(true);
-                }, 500);
+                this._running = false;
+                setTimeout(() => resolve(true), 50);
             } catch (e) {
                 console.warn(`[METRONOME] Failed to send stop command: ${e.message}`);
-                this._process.kill('SIGTERM');
-                this._running = false;
-                resolve(true);
+                resolve(false);
             }
         });
     }
