@@ -57,6 +57,12 @@ export class DAWUI {
             });
         }
 
+        // MIDI Clock (MTC)
+        const midiClockBtn = document.getElementById('midi-clock-toggle');
+        if (midiClockBtn) {
+            midiClockBtn.addEventListener('click', () => this._send({ type: 'daw-midi-clock-toggle' }));
+        }
+
         // Note: daw-get is now sent from app.js after WebSocket connects.
         // (Sending it here at module-load time fails because window.app.ws is null.)
     }
@@ -99,6 +105,14 @@ export class DAWUI {
             const enabled = this.dawState.metronomeEnabled;
             metroBtn.classList.toggle('active', !!enabled);
             metroBtn.textContent = enabled ? '♫ Metro ON' : '♪ Metro';
+        }
+
+        // MIDI Clock
+        const midiClockBtn = document.getElementById('midi-clock-toggle');
+        if (midiClockBtn) {
+            const enabled = this.dawState.midiClockEnabled;
+            midiClockBtn.classList.toggle('active', !!enabled);
+            midiClockBtn.textContent = enabled ? '⏱ MTC ON' : '⏱ MTC';
         }
     }
 

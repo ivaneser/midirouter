@@ -908,6 +908,19 @@ class MIDIRouterWorker {
                 if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
                 this._broadcastState();
                 break;
+            // ---- MIDI Clock (MTC) ----
+            case 'daw_midi_clock_toggle':
+                daw.setMidiClock(!daw.getMidiClockState());
+                this._broadcastState();
+                break;
+            case 'daw_midi_clock_on':
+                daw.setMidiClock(true);
+                this._broadcastState();
+                break;
+            case 'daw_midi_clock_off':
+                daw.setMidiClock(false);
+                this._broadcastState();
+                break;
             case 'daw_start_transport':
                 if (!this._transportPlaying) {
                     daw.startTransport();

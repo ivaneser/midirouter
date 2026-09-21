@@ -360,6 +360,19 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_metronome_beats_per_measure', bpm: message.bpm });
                         break;
 
+                    // ---- MIDI Clock (MTC) ----
+                    case 'daw-midi-clock-toggle':
+                        router.worker.postMessage({ type: 'daw_midi_clock_toggle' });
+                        break;
+
+                    case 'daw-midi-clock-on':
+                        router.worker.postMessage({ type: 'daw_midi_clock_on' });
+                        break;
+
+                    case 'daw-midi-clock-off':
+                        router.worker.postMessage({ type: 'daw_midi_clock_off' });
+                        break;
+
                     case 'daw-pad-learn':
                         router.worker.postMessage({ type: 'daw_pad_learn', on: !!message.on });
                         break;

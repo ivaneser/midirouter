@@ -10,6 +10,8 @@
  * форварда на выходы. Тайминг считается в битах от начала клипа.
  */
 
+import { MidiClock } from './midi-clock.js';
+
 const PPQ = 192;                 // pulses per quarter note (тайминг)
 const DEFAULT_SLOTS_PER_TRACK = 1;
 
@@ -61,6 +63,10 @@ class DAWEngine {
 
         this._onEvent = () => {};           // (evt) => void  — колбэк для форварда MIDI
         this._onProgress = () => {};        // (beat, progress) => void — для UI
+
+        // === MIDI Clock (MTC) — 24 PPQN, syncs external gear ===
+        this._midiClockEnabled = true;
+        this._midiClock = new MidiClock({ bpm: this.tempo, emit: (evt) => this._onEvent(evt) });
     }
 
     _makeClips() {
@@ -74,6 +80,8 @@ class DAWEngine {
     // ---- Transport / tempo ----
     setTempo(bpm) {
         this.tempo = Math.max(20, Math.min(300, bpm));
+        // Keep MIDI clock in sync with tempo changes
+        if (this._midiClock) this._midiClock.setTempo(this.tempo);
     }
 
     tapTempo(now) {
@@ -116,6 +124,22 @@ class DAWEngine {
 
     setMetronomeBeatsPerMeasure(n) {
         this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, n));
+    }
+
+    // ---- MIDI Clock (MTC) ----
+    setMidiClock(enabled) {
+        this._midiClockEnabled = !!enabled;
+        if (!this._midiClock) return;
+        if (this._midiClockEnabled && this.playing) {
+            // If transport is already running, restart clock to apply
+            this._midiClock.start();
+        } else if (!this._midiClockEnabled) {
+            this._midiClock.stop();
+        }
+    }
+
+    getMidiClockState() {
+        return !!this._midiClockEnabled;
     }
 
     _startMetronome() {
@@ -350,6 +374,10 @@ class DAWEngine {
         if (this._metronomeEnabled) {
             this._startMetronome();
         }
+        // === Start MIDI clock (MTC) — syncs external gear to same tempo ===
+        if (this._midiClock) {
+            this._midiClock.start();
+        }
     }
 
     stopTransport() {
@@ -359,6 +387,10 @@ class DAWEngine {
         this._currentBeat = 0;
         // Stop metronome when transport stops
         this._stopMetronome();
+        // === Stop MIDI clock — send MIDI Stop to all devices ===
+        if (this._midiClock) {
+            this._midiClock.stop();
+        }
     }
 
     // Выход MIDI-байт на выходы (форвард в worker)
@@ -400,6 +432,7 @@ class DAWEngine {
             slotsPerTrack: this.slotsPerTrack,
             loopLenBeats: this.loopLenBeats,
             metronomeEnabled: this._metronomeEnabled,
+            midiClockEnabled: this._midiClockEnabled,
             tracks,
         };
     }
