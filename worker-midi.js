@@ -1049,9 +1049,10 @@ class MIDIRouterWorker {
                 console.log(`[WORKER] Auto-mapped note ${n} -> track ${trackIdx}, slot ${slot}`);
             }
 
-            // Mapped pads act as clip triggers (Launchkey DAW Port 112-127,
-            // auto-mapped nanoPAD pads, etc.).
-            if (isMappedPad && this.controllerInputs.has(deviceName)) {
+            // Mapped pads act as clip triggers ONLY for DAW Port notes.
+            // Pad map must NOT intercept notes from regular MIDI ports
+            // (MIDI Port keybed, nanoPAD, etc.) — those always route to synths.
+            if (isDAWPort && isMappedPad && this.controllerInputs.has(deviceName)) {
                 console.log(`[DAW] Mapped session pad ${n} -> clip handler`);
                 this._handleControllerNote(n, vel, channel, performance.now());
                 return;
