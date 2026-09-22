@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=12">
+    <link rel="stylesheet" href="/css/style.css?v=13">
 </head>
 <body>
     <div id="app">
@@ -87,21 +87,23 @@
             </div>
         </details>
 
-        <!-- Devices Panel (collapsible, auto-populated from ALSA) -->
-        <details class="collapsible-panel devices-details" open>
+        <!-- Devices Panel (collapsible, collapsed by default) -->
+        <details class="collapsible-panel devices-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
                 🔊 MIDI Devices
             </summary>
             <div class="config-panel-content">
                 <p class="tab-hint">Discovered automatically via ALSA. Plug/unplug appear live.</p>
-                <div class="device-section">
-                    <h4>🎹 Inputs</h4>
-                    <div class="device-list" id="input-list"></div>
-                </div>
-                <div class="device-section">
-                    <h4>🎵 Outputs</h4>
-                    <div class="device-list" id="output-list"></div>
+                <div class="port-section">
+                    <div class="port-column">
+                        <h4>🎹 Inputs</h4>
+                        <div class="device-list" id="input-list"></div>
+                    </div>
+                    <div class="port-column">
+                        <h4>🎵 Outputs</h4>
+                        <div class="device-list" id="output-list"></div>
+                    </div>
                 </div>
             </div>
         </details>
@@ -183,6 +185,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=12"></script>
+    <script type="module" src="/js/app.js?v=13"></script>
 </body>
 </html>
