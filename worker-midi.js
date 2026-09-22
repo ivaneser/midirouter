@@ -1003,7 +1003,11 @@ class MIDIRouterWorker {
                 }
                 console.log(`[DAW] DAW Port note ${bytes[1]} vel ${bytes[2]} -> clip handler`);
                 this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
-                return;
+                // Note: do NOT return here — fall through to all-to-all routing so the
+                // clip-triggering note is also forwarded to synth outputs (not just
+                // consumed internally for DAW). This fixes the "receiving only, no routing"
+                // bug where notes from the Launchkey DAW Port were heard locally but not
+                // sent to external synths.
             }
         }
 
@@ -1061,7 +1065,7 @@ class MIDIRouterWorker {
         }
 
         // === ALL-TO-ALL ROUTING (the default path) ===
-        if (this._mappings.size === 0 && !isDAWPort) {
+        if (this._mappings.size === 0) {
             let sent = 0;
             for (const [outName, midiOut] of this.outputs) {
                 if (outName.toLowerCase().includes('launchkey')) continue;
