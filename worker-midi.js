@@ -6,6 +6,7 @@ import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
 import { MetronomeController } from './metronome-controller.js';
+import { SESSION_PAD_NOTES, isSessionPad, padNoteForIndex } from './launchkey.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,7 +19,7 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // deviceName -> RtMidiIn instance
         this.outputs = new Map();  // deviceName -> RtMidiOut instance
 
-        // DAW engine — metronome/clip events go to UI ONLY (not to MIDI outputs).
+        // DAW events reach the UI; transport clock also reaches synth outputs.
         // Actual metronome audio is produced by metronome.py → aplay -M → 3.5mm jack.
         this.daw = new DAWEngine();
 
@@ -99,11 +100,14 @@ class MIDIRouterWorker {
         });
 
         this.daw._onEvent = (evt) => {
-            // Only notify UI via WebSocket — do NOT route to physical MIDI outputs
+            // Clock/transport must reach external instruments; audio metronome notes stay in the UI.
+            if (evt.data?.length === 1 && [0xf8, 0xfa, 0xfb, 0xfc].includes(evt.data[0])) {
+                this._sendToSynthOutputs(evt.data, 'MIDI clock');
+            }
             parentPort.postMessage({ type: 'daw_midi', data: evt.data });
         };
 
-        // track playback timers (loop): trackIdx -> intervalId
+        // track playback timers (loop): trackIdx -> { interval, timeouts, active }
         this._trackPlayTimers = new Map();
         // LED glow per active track: trackIdx -> { note, color }
         this._ledGlow = new Map();
@@ -111,15 +115,11 @@ class MIDIRouterWorker {
         // controller input ports whose notes drive DAW trigger/recording
         this.controllerInputs = new Set();
 
-        // Automatic pad assignment: any newly pressed key is auto-assigned to the
-        // next free (track, slot). This makes the LaunchKey work as the main
-        // interface with ZERO web-UI setup. Set autoAssign=true to enable
-        // auto-mapping for non-keyboard controllers.
+        // Pad controllers can learn the next free (track, slot).
         // Device-specific rules:
         //   - Launchkey MIDI Port (keybed) -> NEVER auto-learn, always route to synths
         //   - Launchkey DAW Port (session pads 112-127) -> hard-mapped by _applyDefaultPadMap
-        //   - nanoPAD / other drum pads -> auto-learn to next free slot
-        //   - Keyboard controllers without DAW Port -> auto-learn all notes
+        //   - nanoPAD / other pad controllers -> auto-learn to next free slot
         this.autoAssign = true;
         this._learnCursor = 0;
 
@@ -136,27 +136,10 @@ class MIDIRouterWorker {
         // MIDI message (as if from Ableton Live): Ch16, note=12 (C-1), vel=127
         this._dawModeSent = false;
 
-        // Default pad map for Launchkey Mini MK3 (16 pads: 2 rows × 8 cols)
-        // Bottom row: C1(36) C#1(37) D1(38) D#1(39) E1(40) F1(41) F#1(42) G1(43)
-        // Top row:    G#1(44) A1(45) A#1(46) B1(47) C2(48) C#2(49) D2(50) D#2(51)
-        this._defaultPadMap = [
-            { note: 36, trackIdx: 0, slot: 0 }, // C1
-            { note: 37, trackIdx: 1, slot: 0 }, // C#1
-            { note: 38, trackIdx: 2, slot: 0 }, // D1
-            { note: 39, trackIdx: 3, slot: 0 }, // D#1
-            { note: 40, trackIdx: 0, slot: 1 }, // E1
-            { note: 41, trackIdx: 1, slot: 1 }, // F1
-            { note: 42, trackIdx: 2, slot: 1 }, // F#1
-            { note: 43, trackIdx: 3, slot: 1 }, // G1
-            { note: 44, trackIdx: 4, slot: 0 }, // G#1
-            { note: 45, trackIdx: 5, slot: 0 }, // A1
-            { note: 46, trackIdx: 6, slot: 0 }, // A#1
-            { note: 47, trackIdx: 7, slot: 0 }, // B1
-            { note: 48, trackIdx: 4, slot: 1 }, // C2
-            { note: 49, trackIdx: 5, slot: 1 }, // C#2
-            { note: 50, trackIdx: 6, slot: 1 }, // D2
-            { note: 51, trackIdx: 7, slot: 1 }, // D#2
-        ];
+        // Session layout: bottom row 112-119, top row 96-103.
+        this._defaultPadMap = SESSION_PAD_NOTES.map((note, index) => ({
+            note, trackIdx: index % 8, slot: Math.floor(index / 8),
+        }));
         
         // Configuration
         this._config = null;
@@ -423,9 +406,13 @@ class MIDIRouterWorker {
         const clip = this.daw.tracks[trackIdx].clips[slot];
         if (!clip || clip.notes.length === 0) return;
 
-        const msPerBeat = (60 / this.daw.tempo / 4) * 1000;
-        const loopMs = Math.max(250, this.daw.loopLenBeats * msPerBeat);
-        const self = this;
+        const msPerBeat = this.daw._secondsPerBeat() * 1000;
+        const loopMs = Math.max(250, (clip.length || this.daw.loopLenBeats) * msPerBeat);
+        const playback = { interval: null, timeouts: new Set(), active: new Map() };
+        const schedule = (fn, delay) => {
+            const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, delay);
+            playback.timeouts.add(timer);
+        };
 
         // LED feedback for this track: glow + downbeat flash each loop
         const leadNote = this._padNoteForTrack(trackIdx, slot);
@@ -433,33 +420,58 @@ class MIDIRouterWorker {
             // clear any prior glow on this note (e.g. red arm -> cyan play)
             this._clearLed(leadNote);
             this._ledGlow.set(trackIdx, { note: leadNote, color: 'cyan' });
-            this._setLed(leadNote, 'cyan', 0.5);   // steady glow
+            this._setLed(leadNote, 'cyan');
         }
 
         const runLoop = () => {
             const t0 = performance.now();
 
             // downbeat flash (full brightness pulse at beat 0 of the loop)
-            if (leadNote != null) this._flashLed(leadNote, 1.0, 90);
+            if (leadNote != null) this._flashLed(leadNote, 90);
 
             for (const n of clip.notes) {
                 const delay = Math.max(0, (n.start * msPerBeat) - (performance.now() - t0));
-                setTimeout(() => self._sendToSynthOutputs(noteOn(n.channel - 1, n.note, n.velocity)), delay);
-                const offDelay = Math.max(0, ((n.start + n.dur) * msPerBeat) - (performance.now() - t0));
-                setTimeout(() => self._sendToSynthOutputs(noteOff(n.channel - 1, n.note)), offDelay);
+                const channel = Math.max(1, n.channel || 1);
+                const key = `${channel}:${n.note}`;
+                schedule(() => {
+                    this._sendToSynthOutputs(noteOn(channel - 1, n.note, n.velocity > 0 ? n.velocity : 80));
+                    playback.active.set(key, (playback.active.get(key) || 0) + 1);
+                }, delay);
+                const offDelay = Math.max(0, ((n.start + (n.dur || 0.25)) * msPerBeat) - (performance.now() - t0));
+                schedule(() => {
+                    this._sendToSynthOutputs(noteOff(channel - 1, n.note));
+                    const count = playback.active.get(key) || 0;
+                    if (count <= 1) playback.active.delete(key);
+                    else playback.active.set(key, count - 1);
+                }, offDelay);
             }
         };
 
         runLoop();
-        this._trackPlayTimers.set(trackIdx, setInterval(runLoop, loopMs));
+        playback.interval = setInterval(runLoop, loopMs);
+        this._trackPlayTimers.set(trackIdx, playback);
     }
 
     _stopTrackPlayback(trackIdx) {
-        const t = this._trackPlayTimers.get(trackIdx);
-        if (t) { clearInterval(t); this._trackPlayTimers.delete(trackIdx); }
+        const playback = this._trackPlayTimers.get(trackIdx);
+        if (playback) {
+            clearInterval(playback.interval);
+            for (const timer of playback.timeouts) clearTimeout(timer);
+            for (const key of playback.active.keys()) {
+                const [channel, note] = key.split(':').map(Number);
+                this._sendToSynthOutputs(noteOff(channel - 1, note));
+            }
+            this._trackPlayTimers.delete(trackIdx);
+        }
         // clear LED glow for a stopped track
         const glow = this._ledGlow.get(trackIdx);
         if (glow) { this._clearLed(glow.note); this._ledGlow.delete(trackIdx); }
+    }
+
+    _restartActiveClips() {
+        for (const [trackIdx, slot] of this.daw.clipState.entries()) {
+            if (slot >= 0 && this._trackPlayTimers.has(trackIdx)) this._startTrackPlayback(trackIdx, slot);
+        }
     }
 
     _sendToAllOutputs(bytes, label = '') {
@@ -490,11 +502,11 @@ class MIDIRouterWorker {
         return sent;
     }
 
-    // Send bytes ONLY to Launchkey output ports (for LED/session feedback)
+    // Session control and LED feedback belong on the Launchkey DAW port.
     _sendToLaunchkey(bytes, label = '') {
         let sent = 0;
         for (const [name, midiOut] of this.outputs) {
-            if (!name.toLowerCase().includes('launchkey')) continue;
+            if (!name.toLowerCase().includes('launchkey') || !name.toLowerCase().includes('daw')) continue;
             try {
                 midiOut.sendMessage(Buffer.from(bytes));
                 sent++;
@@ -505,49 +517,35 @@ class MIDIRouterWorker {
         return sent;
     }
 
-    // Launchkey Mini MK3 RGB LED via SysEx: F0 00 20 29 02 0E 03 [pad 0-15] [r] [g] [b] F7
-    _setLaunchkeyRgb(padIndex, r, g, b) {
-        if (padIndex < 0 || padIndex > 15) return;
-        const msg = [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x03, padIndex, r & 0x7f, g & 0x7f, b & 0x7f, 0xf7];
-        this._sendToLaunchkey(msg, `RGB pad ${padIndex}`);
-    }
-
-    // ---- LED feedback (LaunchKey RGB pads via note velocity) ----
-    // Novation LaunchKey maps note-on velocity to a ~8-colour wheel.
+    // Session pad velocity is a palette index, not a brightness value.
     _LED_COLORS = {
-        off: 0, red: 127, orange: 112, yellow: 96, green: 81,
-        cyan: 65, blue: 50, purple: 34, pink: 19,
+        red: 5, cyan: 37,
     };
 
     // representative pad note for a (track, slot)
     _padNoteForTrack(trackIdx, slot) {
-        let found = null;
         for (const [note, m] of this.padMap.entries()) {
-            if (m.trackIdx === trackIdx && m.slot === slot) found = note; // last wins
+            if (m.trackIdx === trackIdx && m.slot === slot && isSessionPad(note, 1)) return note;
         }
-        return found;
+        return null;
     }
 
-    _ledVelocity(color, brightness = 1) {
-        const base = this._LED_COLORS[color] || 0;
-        return Math.max(0, Math.min(127, Math.round(base * Math.max(0, Math.min(1, brightness)))));
-    }
-
-    // set a steady glow (sends noteOn; noteOff kept until cleared/overwritten)
-    _setLed(note, color, brightness) {
-        const vel = this._ledVelocity(color, brightness);
+    _setLed(note, color) {
+        const vel = this._LED_COLORS[color] || 0;
         if (vel === 0) return;
         // Send only to Launchkey — do NOT send to synths
         this._sendToLaunchkey([0x90 | 0, note & 0x7f, vel], `LED ${color}`);
     }
 
-    // flash: bright pulse that auto-off after ms
-    _flashLed(note, brightness, ms) {
-        const vel = this._ledVelocity('red', brightness);   // downbeat = bright red pulse
+    // Restore the clip colour after the downbeat pulse.
+    _flashLed(note, ms) {
+        const vel = this._LED_COLORS.red;
         if (vel === 0) return;
         this._sendToLaunchkey([0x90 | 0, note & 0x7f, vel], `LED flash`);
         setTimeout(() => {
-            this._sendToLaunchkey([0x80 | 0, note & 0x7f, 0], 'clear-led');
+            const glow = [...this._ledGlow.values()].find(entry => entry.note === note);
+            if (glow) this._setLed(note, glow.color);
+            else this._clearLed(note);
         }, ms);
     }
 
@@ -556,78 +554,42 @@ class MIDIRouterWorker {
     }
 
     // arm-rec glow: red pulse for the track's pad(s)
-    _armLed(trackIdx) {
-        const leadNote = this._padNoteForTrack(trackIdx, 0);
+    _armLed(trackIdx, slot) {
+        const leadNote = this._padNoteForTrack(trackIdx, slot);
         if (leadNote == null) return;
         this._ledGlow.set(trackIdx, { note: leadNote, color: 'red' });
-        this._setLed(leadNote, 'red', 0.7);
+        this._setLed(leadNote, 'red');
     }
 
-    // Incoming MIDI note from a controller: trigger pad / arm-rec / finalize
-    _handleControllerNote(note, velocity, channel, now) {
-        const isPad = this.padMap.has(note);
-        const isDAWPad = channel === 1 && note >= 112 && note <= 127; // DAW mode pads
-
-        // While recording and the pressed key is NOT a mapped pad -> record it
-        if (this.daw.recording && !isPad && !isDAWPad) {
-            const statusByte = 0x90 | ((channel - 1) & 0x0f);
-            this.daw.recordEvent(statusByte, note, velocity, now);
+    _triggerPad(trackIdx, slot, now) {
+        const result = this.daw.triggerPad(trackIdx, slot, now);
+        if (result.action === 'play' || result.action === 'record-stop') {
+            this._startTrackPlayback(trackIdx, slot);
+        } else if (result.action === 'stop') {
+            this._stopTrackPlayback(trackIdx);
+        } else if (result.action === 'record' || result.action === 'overdub') {
+            this._stopTrackPlayback(trackIdx);
+            this.daw.clipState[trackIdx] = -1;
+            this._armLed(trackIdx, slot);
+        } else if (result.action === 'invalid') {
+            console.warn(`[DAW] Invalid pad target track ${trackIdx}, slot ${slot}`);
         }
+        this._broadcastState();
+        return result;
+    }
 
-        // Handle DAW mode pads (Ch1, notes 112-127)
-        if (isDAWPad) {
-            if (velocity > 0) {
-                // Find the pad mapping for this note
-                const padMapping = this.padMap.get(note);
-                if (padMapping) {
-                    const { trackIdx, slot } = padMapping;
-                    const res = this.daw.triggerPad(trackIdx, slot, now);
-                    if (res.action === 'play') {
-                        this._startTrackPlayback(trackIdx, slot);
-                    } else if (res.action === 'stop') {
-                        this._stopTrackPlayback(trackIdx);
-                    } else if (res.action === 'record' || res.action === 'overdub') {
-                        this._armLed(trackIdx);
-                    }
-                }
-            } else {
-                // DAW pad release: clear LED glow if not recording
-                const padMapping = this.padMap.get(note);
-                if (padMapping && !this.daw.recording) {
-                    const glow = this._ledGlow.get(padMapping.trackIdx);
-                    if (glow) { this._clearLed(glow.note); this._ledGlow.delete(padMapping.trackIdx); }
-                }
-            }
-            return; // DAW mode pads handled separately
-        }
-
+    _handleMappedPad(note, velocity, now) {
+        const mapping = this.padMap.get(note);
+        if (!mapping) return;
         if (velocity > 0) {
-            if (isPad) {
-                const { trackIdx, slot } = this.padMap.get(note);
-                const res = this.daw.triggerPad(trackIdx, slot, now);
-                if (res.action === 'play') {
-                    this._startTrackPlayback(trackIdx, slot);
-                } else if (res.action === 'stop') {
-                    this._stopTrackPlayback(trackIdx);
-                } else if (res.action === 'record' || res.action === 'overdub') {
-                    // armed for recording -> red glow on the pad
-                    this._armLed(trackIdx);
-                }
-                // record / overdub -> wait for pad release
-            }
-        } else {
-            // note-off: releasing a pad during recording finalizes and plays the clip
-            if (isPad && this.daw.recording) {
-                const { trackIdx, slot } = this.padMap.get(note);
-                this.daw._stopRecording();
-                this.daw.quantizeClip(trackIdx, slot);
-                this._startTrackPlayback(trackIdx, slot);
-            } else if (isPad) {
-                // Non-recording pad release: clear LED glow
-                const glow = this._ledGlow.get(this.padMap.get(note).trackIdx);
-                if (glow) { this._clearLed(glow.note); this._ledGlow.delete(this.padMap.get(note).trackIdx); }
-            }
+            this._triggerPad(mapping.trackIdx, mapping.slot, now);
+        } else if (this.daw.recording?.track === mapping.trackIdx && this.daw.recording?.slot === mapping.slot) {
+            this._triggerPad(mapping.trackIdx, mapping.slot, now);
         }
+    }
+
+    _handleControllerNote(note, velocity, channel, now) {
+        if (isSessionPad(note, channel)) this._handleMappedPad(note, velocity, now);
     }
 
     // ---- MIDI Clock sync (used by metronome and DAW tempo sync) ----
@@ -978,6 +940,7 @@ class MIDIRouterWorker {
             }
 
             if (isCC) {
+                this._handleControllerCC(bytes[1], bytes[2] || 0, channel, performance.now());
                 // CC from knobs — route to ALL synth outputs
                 const message = { bytes: Buffer.from(bytes), type, channel: channel - 1, velocity: bytes[2] || 0, note: bytes[1] || 0 };
                 for (const [outName, outputPort] of this.outputs) {
@@ -1002,13 +965,8 @@ class MIDIRouterWorker {
                     return;
                 }
                 console.log(`[DAW] DAW Port note ${bytes[1]} vel ${bytes[2]} -> clip handler`);
-                this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
+                this._handleControllerNote(bytes[1], isNoteOff ? 0 : (bytes[2] || 0), channel, performance.now());
                 return; // DAW Port notes handled here — do NOT fall through to controller note handling
-                // Note: do NOT return here — fall through to all-to-all routing so the
-                // clip-triggering note is also forwarded to synth outputs (not just
-                // consumed internally for DAW). This fixes the "receiving only, no routing"
-                // bug where notes from the Launchkey DAW Port were heard locally but not
-                // sent to external synths.
             }
         }
 
@@ -1032,30 +990,24 @@ class MIDIRouterWorker {
         if (isNoteOff || isNoteOn2) {
             const n = bytes[1];
             const vel = bytes[2] || 0;
-            let isMappedPad = this.padMap.has(n);
+            const isMappedPad = this.padMap.has(n);
 
-            // Auto-learn rules based on device name (not note number):
-            //   - Launchkey MIDI Port (keybed) -> NEVER auto-learn; always route to synths
-            //   - Everything else (nanoPAD, DAW Port, other controllers) -> auto-learn when enabled
+            // Learn pad controllers while leaving keyboard notes on the synth route.
             const isLaunchkeyMidiPort = deviceName.toLowerCase().includes('launchkey')
                 && !deviceName.toLowerCase().includes('daw port');
+            const isPadController = /pad/i.test(deviceName) && !isLaunchkeyMidiPort;
 
-            if (!isLaunchkeyMidiPort && this.autoAssign && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
+            if (isPadController && !isDAWPort && this.autoAssign && isNoteOn2 && vel > 0 && !isMappedPad && this.controllerInputs.has(deviceName)) {
                 const trackIdx = this._learnCursor % 8;
                 const slot = Math.floor(this._learnCursor / 8) % 2;
                 this.padMap.set(n, { trackIdx, slot });
                 this._learnCursor++;
                 this._broadcastPadMap();
-                isMappedPad = true;
                 console.log(`[WORKER] Auto-mapped note ${n} -> track ${trackIdx}, slot ${slot}`);
             }
 
-            // Mapped pads act as clip triggers ONLY for DAW Port notes.
-            // Pad map must NOT intercept notes from regular MIDI ports
-            // (MIDI Port keybed, nanoPAD, etc.) — those always route to synths.
-            if (isDAWPort && isMappedPad && this.controllerInputs.has(deviceName)) {
-                console.log(`[DAW] Mapped session pad ${n} -> clip handler`);
-                this._handleControllerNote(n, vel, channel, performance.now());
+            if (isPadController && this.padMap.has(n) && this.controllerInputs.has(deviceName)) {
+                this._handleMappedPad(n, isNoteOff ? 0 : vel, performance.now());
                 return;
             }
 
@@ -1107,6 +1059,7 @@ class MIDIRouterWorker {
                 break;
             case 'daw_set_tempo':
                 daw.setTempo(msg.bpm);
+                this._restartActiveClips();
                 this._broadcastState();
                 break;
             case 'daw_tap_tempo':
@@ -1117,6 +1070,7 @@ class MIDIRouterWorker {
                 if (this._tapTimes.length >= 2) {
                     const iv = (this._tapTimes[this._tapTimes.length - 1] - this._tapTimes[this._tapTimes.length - 2]) / 1000;
                     daw.setTempo(Math.max(20, Math.min(300, 60 / iv)));
+                    this._restartActiveClips();
                 }
                 this._broadcastState();
                 break;
@@ -1140,8 +1094,7 @@ class MIDIRouterWorker {
                 }
                 break;
             case 'daw_pad_trigger':
-                // simulate a pad press from the web UI
-                this.daw.triggerPad(msg.trackIdx, msg.slot, performance.now());
+                this._triggerPad(msg.trackIdx, msg.slot, performance.now());
                 break;
             case 'daw_apply_state':
                 if (msg.state.tempo != null) daw.setTempo(msg.state.tempo);
@@ -1194,6 +1147,8 @@ class MIDIRouterWorker {
                     daw.stopTransport();
                     this._transportPlaying = false;
                 }
+                for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
+                daw.clipState.fill(-1);
                 this._broadcastState();
                 break;
             case 'daw_toggle_loop':
@@ -1236,52 +1191,25 @@ class MIDIRouterWorker {
     }
 
     _enterDawMode() {
-        // Send DAW/InControl mode activation to Launchkey Mini MK3
-        // Two methods: SysEx (preferred) + Note On fallback
         if (this._dawModeSent) return;
-        
+        let sent = false;
         for (const [name, output] of this.outputs) {
-            if (!name.toLowerCase().includes('launchkey')) continue;
+            if (!name.toLowerCase().includes('launchkey') || !name.toLowerCase().includes('daw')) continue;
             try {
-                // SysEx method: enable DAW mode (InControl) for Launchkey Mini MK3
-                // Product ID 0x0E = Launchkey Mini MK3
-                const sysex = [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x0c, 0x01, 0xf7];
-                output.sendMessage(sysex);
-                console.log('[WORKER] DAW mode SysEx sent to', name);
-                
-                // Fallback: Note On ch16 note 12 vel 127 (legacy Ableton protocol)
-                setTimeout(() => {
-                    try {
-                        output.sendMessage([0x9f, 12, 127]);
-                    } catch(e) {}
-                }, 100);
-                
-                // Set all pads black (off) initially
-                setTimeout(() => {
-                    this._clearAllLaunchkeyPads();
-                }, 200);
+                output.sendMessage(Buffer.from([0x9f, 12, 127]));
+                output.sendMessage(Buffer.from([0xbf, 3, 2])); // Session pad layout
+                sent = true;
+                console.log('[WORKER] Launchkey DAW Session mode enabled on', name);
             } catch (e) {
                 console.error('[WORKER] Failed to send DAW mode to', name, e.message);
             }
         }
-        this._dawModeSent = true;
+        this._dawModeSent = sent;
+        if (sent) this._clearAllLaunchkeyPads();
     }
 
     _clearAllLaunchkeyPads() {
-        for (const [name, output] of this.outputs) {
-            if (!name.toLowerCase().includes('launchkey')) continue;
-            try {
-                // Turn off all 16 session pads via SysEx RGB (set to black)
-                for (let p = 0; p < 16; p++) {
-                    const msg = [0xf0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x03, p, 0, 0, 0, 0xf7];
-                    output.sendMessage(msg);
-                }
-                // Also note-off velocity-based range 112-127 just in case
-                for (let n = 112; n <= 127; n++) {
-                    output.sendMessage([0x80 | 0, n & 0x7f, 0]);
-                }
-            } catch (e) {}
-        }
+        for (const note of SESSION_PAD_NOTES) this._clearLed(note);
     }
 
     _applyDefaultPadMap() {
@@ -1290,10 +1218,11 @@ class MIDIRouterWorker {
         // earlier auto-mapped notes from other controllers should not block
         // the Launchkey session pad defaults.
         let added = 0;
-        // DAW Mode session pads: notes 112-127 (bottom row = slot 0, top row = slot 1)
-        for (let col = 0; col < 8; col++) {
-            if (!this.padMap.has(112 + col)) { this.padMap.set(112 + col, { trackIdx: col, slot: 0 }); added++; }
-            if (!this.padMap.has(120 + col)) { this.padMap.set(120 + col, { trackIdx: col, slot: 1 }); added++; }
+        for (const mapping of this._defaultPadMap) {
+            if (!this.padMap.has(mapping.note)) {
+                this.padMap.set(mapping.note, { trackIdx: mapping.trackIdx, slot: mapping.slot });
+                added++;
+            }
         }
         if (added > 0) {
             console.log('[WORKER] Default pad map applied:', added, 'new Launchkey pads (total', this.padMap.size, ')');
@@ -1359,9 +1288,9 @@ class MIDIRouterWorker {
         const padNum = data[0];  // 1-based номер пэда
         const velocity = data[1];
         
-        // Преобразуем номер пэда в MIDI note (DAW mode: notes 112-127)
-        // Pad 1 -> note 112, Pad 2 -> note 113, ...
-        const midiNote = 111 + padNum;
+        // Convert the one-based pad index using the Session layout.
+        const midiNote = padNoteForIndex(padNum - 1);
+        if (midiNote == null) return;
         
         console.log(`[MIDI] [LAUNCHKEY] Pad ${padNum} (note ${midiNote}) velocity ${velocity}`);
         
@@ -1436,8 +1365,7 @@ class MIDIRouterWorker {
             this._hotplugCheckInterval = null;
         }
 
-        for (const [, t] of this._trackPlayTimers) clearInterval(t);
-        this._trackPlayTimers.clear();
+        for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
         for (const [, input] of this.inputs) {
             if (input._handler) input.off('message', input._handler);
             try { input.closePort(); } catch(e) {}

@@ -13,7 +13,7 @@
 import { MidiClock } from './midi-clock.js';
 
 const PPQ = 192;                 // pulses per quarter note (тайминг)
-const DEFAULT_SLOTS_PER_TRACK = 1;
+const DEFAULT_SLOTS_PER_TRACK = 2;
 
 // ---- Вспомогательные: байт-формат MIDI (status, data1, data2) ----
 function noteOn(channel, note, velocity) {
@@ -28,6 +28,7 @@ class DAWEngine {
         this.tempo = opts.tempo || 120;          // BPM
         this.slotsPerTrack = opts.slotsPerTrack || DEFAULT_SLOTS_PER_TRACK;
         this.recordMode = opts.recordMode || 'none'; // 'none' | 'replace' | 'overdub'
+        this.loopLenBeats = 16;             // quarter-note beats in four bars
 
         // tracks[channel(1..16)] -> { channel, clips: [ {notes:[], length:beats} ] }
         this.tracks = [];
@@ -49,7 +50,6 @@ class DAWEngine {
 
         // playback scheduler state
         this.playing = false;               // глобальный "transport play"
-        this.loopLenBeats = 16;             // длина цикла в битах
         this._playLoopTimer = null;
         this._playAnchorTime = 0;           // performance.now() начала текущего цикла
         this._currentBeat = 0;              // биты текущего цикла [0, loopLen)
@@ -99,7 +99,7 @@ class DAWEngine {
             this._tapBuffer.push(interval);
             if (this._tapBuffer.length > 4) this._tapBuffer.shift();
             const avg = this._tapBuffer.reduce((a, b) => a + b, 0) / this._tapBuffer.length;
-            this.tempo = Math.max(20, Math.min(300, 60 / avg));
+            this.setTempo(60 / avg);
         }
         this._lastTap = now;
     }
@@ -154,7 +154,7 @@ class DAWEngine {
                 this._stopMetronome();
                 return;
             }
-            const beatMs = (60 / this.tempo / 4) * 1000;
+            const beatMs = this._secondsPerBeat() * 1000;
             const elapsed = performance.now() - this._playAnchorTime;
             const currentBeatFloat = (elapsed / 1000) / (beatMs / 1000);
             const currentBeatInt = Math.floor(currentBeatFloat % this.loopLenBeats);
@@ -188,7 +188,7 @@ class DAWEngine {
     }
 
     setSlotsPerTrack(n) {
-        this.slotsPerTrack = Math.max(1, Math.min(16, n));
+        this.slotsPerTrack = Math.max(1, Math.min(16, Math.trunc(n)));
         for (const track of this.tracks) {
             const base = track.clips.slice(0, this.slotsPerTrack);
             while (base.length < this.slotsPerTrack) {
@@ -207,8 +207,10 @@ class DAWEngine {
     // ---- Запись ----
     // armed: если на треке уже идёт запись в этом слоте (overdub), новая кнопка добавляет слой
     armRecording(trackIdx, slot, now) {
-        const channel = trackIdx + 1;
         const existing = this.tracks[trackIdx].clips[slot];
+
+        if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) return;
+        this._stopRecording();
 
         // Replace: стираем старый клип. Overdub: если уже записан — продолжаем (добавляем).
         if (this.recordMode === 'replace') {
@@ -220,17 +222,12 @@ class DAWEngine {
         }
 
         // Если уже запись на этом треке/слоте — сначала её закрываем (завершаем слой)
-        if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
-            return;
-        }
-        this._stopRecording();
-
         this.recording = {
             track: trackIdx,
             slot,
             mode: this.recordMode,
             startTime: now,         // performance.now() старта
-            startBeat: this._currentBeat, // биты, на которых начали (для продолжения цикла)
+            startBeat: 0,
             notes: existing.notes,  // пишем в тот же массив (overdub накапливает)
             noteStarts: new Map(),  // `note:${channel}:${note}` -> beat начала
         };
@@ -240,15 +237,15 @@ class DAWEngine {
         if (!this.recording) return;
         const r = this.recording;
         // Закрываем все открытые note-on (velocity 0 / noteOff)
-        for (const [key, startBeat] of r.noteStarts) {
+        for (const [key, start] of r.noteStarts) {
             const [, , note] = key.split(':');
-            r.notes.push({ channel: r.track + 1, note: +note, velocity: 0, start: startBeat, dur: 0.25 });
+            r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: start.beat, dur: 0.25 });
         }
         r.noteStarts.clear();
         // нормализуем длину до кратной биту цикла
         if (r.notes.length) {
             const maxEnd = r.notes.reduce((m, n) => Math.max(m, n.start + (n.dur || 0)), 0);
-            r.length = Math.ceil(Math.max(this.loopLenBeats, maxEnd));
+            this.tracks[r.track].clips[r.slot].length = Math.ceil(Math.max(this.loopLenBeats, maxEnd));
         }
         this.recording = null;
     }
@@ -256,23 +253,23 @@ class DAWEngine {
     // Входящее MIDI-событие во время записи
     recordEvent(statusByte, data1, data2, now) {
         if (!this.recording) return false;
-        const channel = statusByte & 0x0f;
+        const channel = (statusByte & 0x0f) + 1;
         const beat = this._beatAt(now);
 
         if ((statusByte & 0xf0) === 0x90 && data2 > 0) {
             // noteOn (не zero-velocity)
-            this.recording.noteStarts.set(`note:${channel}:${data1}`, beat);
+            this.recording.noteStarts.set(`note:${channel}:${data1}`, { beat, channel, velocity: data2 });
             return true;
         }
         if ((statusByte & 0xf0) === 0x80 || ((statusByte & 0xf0) === 0x90 && data2 === 0)) {
             // noteOff / zero noteOn
             const key = `note:${channel}:${data1}`;
-            const startBeat = this.recording.noteStarts.get(key);
-            if (startBeat != null) {
+            const start = this.recording.noteStarts.get(key);
+            if (start != null) {
                 this.recording.noteStarts.delete(key);
                 this.recording.notes.push({
-                    channel, note: data1, velocity: 80,
-                    start: startBeat, dur: Math.max(0.125, beat - startBeat),
+                    channel, note: data1, velocity: start.velocity,
+                    start: start.beat, dur: Math.max(0.125, beat - start.beat),
                 });
             }
             return true;
@@ -281,11 +278,11 @@ class DAWEngine {
     }
 
     _beatAt(now) {
-        return ((now - this.recording.startTime) / 1000) * this._secondsPerBeat() + this.recording.startBeat;
+        return ((now - this.recording.startTime) / 1000) / this._secondsPerBeat() + this.recording.startBeat;
     }
 
     _secondsPerBeat() {
-        return 60 / this.tempo / 4; // на бит (1/4 ноты)
+        return 60 / this.tempo; // one quarter-note beat
     }
 
     // Quantize: сдвигаем времена начала к решетке (делим на gridSize, округляем)
@@ -297,10 +294,8 @@ class DAWEngine {
         // пересортируем и пересчитываем length
         clip.notes.sort((a, b) => a.start - b.start);
         let maxEnd = 0;
-        for (let i = 0; i < clip.notes.length; i++) {
-            const n = clip.notes[i];
-            const nextStart = clip.notes[i + 1] ? clip.notes[i + 1].start : Infinity;
-            n.dur = Math.max(0.125, Math.min(n.dur || 0.25, nextStart - n.start));
+        for (const n of clip.notes) {
+            n.dur = Math.max(0.125, n.dur || 0.25);
             maxEnd = Math.max(maxEnd, n.start + n.dur);
         }
         clip.length = Math.ceil(Math.max(this.loopLenBeats, maxEnd));
@@ -309,13 +304,15 @@ class DAWEngine {
     // ---- Триггер пада: переключение play/stop или запись ----
     // returns { action:'play'|'stop'|'record'|'overdub', track, slot }
     triggerPad(trackIdx, slot, now) {
-        const clip = this.tracks[trackIdx].clips[slot];
+        const clip = this.tracks[trackIdx]?.clips[slot];
+        if (!clip) return { action: 'invalid', track: trackIdx, slot };
         const wasPlaying = this.clipState[trackIdx] === slot;
 
         // Если в этот же слот сейчас идёт запись — завершаем её
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
             this._stopRecording();
             this.quantizeClip(trackIdx, slot);
+            this.clipState[trackIdx] = clip.notes.length ? slot : -1;
             return { action: 'record-stop', track: trackIdx, slot };
         }
 
@@ -330,6 +327,7 @@ class DAWEngine {
             this.clipState[trackIdx] = -1;
             return { action: 'stop', track: trackIdx, slot };
         }
+        if (!clip.notes.length) return { action: 'empty', track: trackIdx, slot };
         this.clipState[trackIdx] = slot;
         return { action: 'play', track: trackIdx, slot };
     }
@@ -359,11 +357,10 @@ class DAWEngine {
         this.playing = true;
         this._currentBeat = 0;
         this._playAnchorTime = performance.now();
-        const beatMs = (60 / this.tempo / 4) * 1000;
         // Тик раз в половину бита для прогресса + перепланирования цикла
         this._playLoopTimer = setInterval(() => {
             const elapsed = (performance.now() - this._playAnchorTime) / 1000;
-            let beat = (elapsed * 1000 / beatMs) % this.loopLenBeats;
+            let beat = (elapsed / this._secondsPerBeat()) % this.loopLenBeats;
             if (beat < 0) beat += this.loopLenBeats;
             this._currentBeat = beat;
             this._onProgress(beat, beat / this.loopLenBeats);
@@ -375,7 +372,7 @@ class DAWEngine {
             this._startMetronome();
         }
         // === Start MIDI clock (MTC) — syncs external gear to same tempo ===
-        if (this._midiClock) {
+        if (this._midiClockEnabled && this._midiClock) {
             this._midiClock.start();
         }
     }
