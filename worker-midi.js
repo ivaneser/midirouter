@@ -1003,6 +1003,7 @@ class MIDIRouterWorker {
                 }
                 console.log(`[DAW] DAW Port note ${bytes[1]} vel ${bytes[2]} -> clip handler`);
                 this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
+                return; // DAW Port notes handled here — do NOT fall through to controller note handling
                 // Note: do NOT return here — fall through to all-to-all routing so the
                 // clip-triggering note is also forwarded to synth outputs (not just
                 // consumed internally for DAW). This fixes the "receiving only, no routing"

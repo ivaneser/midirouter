@@ -354,3 +354,94 @@ The DAW engine maintains state across the session:
 - `README.md` — Project overview and quick start
 - `SETUP.md` — Initial setup instructions
 - `SPEC.md` — Full project specification
+
+## 🔧 DAW Pad Recording/Playback Bug (Fixed 2025-09-23)
+
+### Problem
+DAW pads weren't lighting up, recording wasn't working, and playback wasn't triggering clips despite MIDI signals being received from Launchkey Mini MK3.
+
+### Root Cause Analysis
+
+#### 1. Double Processing of DAW Port Notes
+**File:** `worker-midi.js`, `_handleMidiMessage()` method
+
+When a pad is pressed on the Launchkey's DAW Port (Port 20:1), `_handleMidiMessage` processes it in TWO places:
+
+- **First call (line ~1005):** The DAW Port block calls `_handleControllerNote(bytes[1], ...)` at line 1005
+- **Fall-through (line ~1058):** Without a `return` statement, the code falls through to the "Controller note handling" section (lines 1037–1070)
+- **Second call (line ~1058):** The `isDAWPort && isMappedPad` check at line 1057 triggers ANOTHER `_handleControllerNote(n, vel, ...)` call
+
+This means `triggerPad()` in `daw.js` is called TWICE per single pad press:
+```
+First call: triggerPad() → starts recording (if recordMode != 'none') or plays clip
+Second call: triggerPad() → sees recording active → immediately STOPS it!
+```
+
+In `daw.js` `triggerPad()` method (lines 316–320):
+```javascript
+if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
+    this._stopRecording();
+    this.quantizeClip(trackIdx, slot);
+    return { action: 'record-stop', ... };
+}
+```
+
+**Result:** Recording starts and immediately stops in the same pad press → no clip recorded. Playback toggles on then off instantly → nothing plays.
+
+#### 2. n96 Note Confusion
+The Launchkey Mini MK3 sends BOTH `n96` AND `n112` for pad events on DAW Port. Only notes 112–127 are valid DAW pads (per `_applyDefaultPadMap()`). The `n96` note is NOT a standard DAW pad note — it's likely a keybed bleed-through or hardware quirk that gets auto-mapped into `padMap` via the `autoAssign` feature, polluting the mapping with wrong track/slot assignments.
+
+**Fix applied:** Added `return;` statement after `_handleControllerNote()` call at line ~1005 in `worker-midi.js`:
+```javascript
+this._handleControllerNote(bytes[1], bytes[2] || 0, channel, performance.now());
+return; // DAW Port notes handled here — do NOT fall through to controller note handling
+```
+
+This ensures DAW Port notes are processed exactly ONCE per pad press, preventing the double-trigger issue.
+
+### Note on Auto-Learn Pollution
+The `autoAssign` feature (line ~1042) incorrectly applies to DAW Port notes because `isLaunchkeyMidiPort` is `false` for DAW Port (it checks `!deviceName.toLowerCase().includes('daw port')`). This causes random notes like n96 to be auto-mapped to tracks/slots, corrupting the pad map. The default DAW pad map (notes 112–127) should take precedence.
+
+### Related Code Paths
+- `_handleControllerNote()` — line 567–625 in `worker-midi.js`
+- `triggerPad()` — line 311–340 in `daw.js`
+- `_applyDefaultPadMap()` — line 1287–1302 in `worker-midi.js` (maps notes 112–127)
+- `_handlePadState()` — line 1358–1375 in `worker-midi.js` (SysEx pad → note conversion)
+
+---
+
+## 📊 MIDI Port Statistics (Last 10 min, 2025-09-23)
+
+| Metric | Count |
+|--------|-------|
+| MIDI RX (Launchkey DAW Port) | 289 messages |
+| MIDI TX (Launchkey MIDI Port → synths) | 594 messages |
+| Keybed notes forwarded to synths | Working ✅ |
+| DAW pad recording/playback | Broken ❌ (fixed above) |
+
+---
+
+## 🔄 Merge Strategy (2025-09-23)
+
+Divergent branches were merged using:
+```bash
+git fetch origin
+git merge --no-commit --no-ff origin/main
+# Inspect merge, resolve conflicts, commit manually
+```
+
+This preserved all previous commits and allowed manual inspection of the merge result. Merge commit: `2bab743`.
+
+---
+
+## 🏷️ Commit History (Recent)
+
+| Commit | Message |
+|--------|---------|
+| `5a2afea` | config.json: empty mappings committed |
+| `bad516a` | frontend: side-by-side input/output device lists, collapsed by default |
+| `12901ce` | fix(worker): only apply padMap capture to DAW Port notes, never intercept MIDI Port keybed |
+| `0510283` | config.json routing changes committed |
+| `eedaab7` | KNOWLEDGE-BASE.md (356 lines) committed |
+
+---
