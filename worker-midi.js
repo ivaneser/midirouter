@@ -41,6 +41,7 @@ class MIDIRouterWorker {
         this._externalTempo = null;
         this._externalClockTimeout = null;
         this._lastExternalClockAt = 0;
+        this._lastLoggedClockAt = 0;      // throttle [MIDI RX] clock-tick logging (first tick only)
 
         // Override DAW engine methods to also control the Python audio metronome
         const origSetTempo = this.daw.setTempo.bind(this.daw);
@@ -935,8 +936,18 @@ class MIDIRouterWorker {
         }[String(type)];
         const name = label || (type >= 8 ? `sys  ${bytes[0] === 0xf8 ? 'timing clock' : bytes[0] === 0xfa ? 'start' : bytes[0] === 0xfb ? 'continue' : bytes[0] === 0xfc ? 'stop' : bytes[0] === 0xfe ? 'active sensing' : 'unknown sys'}` : `raw#${bytes.join(',')}`);
 
-        // Debug: log every single MIDI message received (critical for diagnosis)
-        if (MIDI_DEBUG) console.log(`[MIDI RX] ${deviceName}: ${name}`);
+        // Debug: log every single MIDI message received (critical for diagnosis).
+        // Clock ticks are extremely frequent (100s/sec), so only log the first
+        // tick of a new burst (after 1.5s silence) to keep logs readable.
+        if (MIDI_DEBUG) {
+            const isRepeatedClock = name === 'timing clock' &&
+                this._lastLoggedClockAt &&
+                (performance.now() - this._lastLoggedClockAt) < 1500;
+            if (!isRepeatedClock) {
+                console.log(`[MIDI RX] ${deviceName}: ${name}`);
+                if (name === 'timing clock') this._lastLoggedClockAt = performance.now();
+            }
+        }
 
         // Skip loopback/timer/Midi Through ports to prevent feedback loops
         const isLoopback = deviceName.toLowerCase().includes('loopback') ||
