@@ -29,7 +29,14 @@ class MIDIRouterWorker {
             beats: 4,
             volume: 0.8
         });
-        this._metronomeStarted = false;
+        this._transportPlaying = false;
+        this._externalClockActive = false;
+        this._externalClockTick = -1;
+        this._externalTransportState = null;
+        this._externalClockHistory = [];
+        this._externalTempo = null;
+        this._externalClockTimeout = null;
+        this._lastExternalClockAt = 0;
 
         // Override DAW engine methods to also control the Python audio metronome
         const origSetTempo = this.daw.setTempo.bind(this.daw);
@@ -100,9 +107,9 @@ class MIDIRouterWorker {
         });
 
         this.daw._onEvent = (evt) => {
-            // Clock/transport must reach external instruments; audio metronome notes stay in the UI.
+            // Generated clock/transport reaches instruments; incoming slave clock is forwarded separately.
             if (evt.data?.length === 1 && [0xf8, 0xfa, 0xfb, 0xfc].includes(evt.data[0])) {
-                this._sendToSynthOutputs(evt.data, 'MIDI clock');
+                if (!this._externalClockActive) this._sendMidiClockOutputs(evt.data);
             }
             parentPort.postMessage({ type: 'daw_midi', data: evt.data });
         };
@@ -405,10 +412,22 @@ class MIDIRouterWorker {
         this._ledGlow.set(trackIdx, { slot, state: 'playing' });
         this._sendFeedback(trackIdx, slot, 'playing');
 
+        if (this._externalClockActive) {
+            playback.externalClock = true;
+            playback.startTick = this._externalClockTick + 1;
+            playback.loopTicks = Math.max(24, Math.round((clip.length || this.daw.loopLenBeats) * 24));
+            playback.noteEvents = clip.notes.map(note => ({
+                ...note,
+                startTick: Math.max(0, Math.round(note.start * 24)),
+                durationTicks: Math.max(1, Math.round((note.dur || 0.25) * 24)),
+            }));
+            playback.pendingNoteOffs = new Map();
+            this._trackPlayTimers.set(trackIdx, playback);
+            return;
+        }
+
         const runLoop = () => {
             const t0 = performance.now();
-
-            this._flashLed(trackIdx, slot, 90);
 
             for (const n of clip.notes) {
                 const delay = Math.max(0, (n.start * msPerBeat) - (performance.now() - t0));
@@ -457,6 +476,107 @@ class MIDIRouterWorker {
         }
     }
 
+    _syncActiveClipsToExternalClock() {
+        for (const [trackIdx, slot] of this.daw.clipState.entries()) {
+            if (slot >= 0) this._startTrackPlayback(trackIdx, slot);
+        }
+    }
+
+    _tickExternalClipPlayback(tick) {
+        for (const playback of this._trackPlayTimers.values()) {
+            if (!playback.externalClock || tick < playback.startTick) continue;
+
+            const dueOffs = playback.pendingNoteOffs.get(tick) || [];
+            playback.pendingNoteOffs.delete(tick);
+            for (const { key, channel, note } of dueOffs) {
+                this._sendToSynthOutputs(noteOff(channel - 1, note));
+                const count = playback.active.get(key) || 0;
+                if (count <= 1) playback.active.delete(key);
+                else playback.active.set(key, count - 1);
+            }
+
+            const elapsedTicks = tick - playback.startTick;
+            const localTick = elapsedTicks % playback.loopTicks;
+            const loopStartTick = tick - localTick;
+            for (const event of playback.noteEvents) {
+                if (event.startTick !== localTick) continue;
+                const channel = Math.max(1, event.channel || 1);
+                const key = `${channel}:${event.note}`;
+                this._sendToSynthOutputs(noteOn(channel - 1, event.note, event.velocity > 0 ? event.velocity : 80));
+                playback.active.set(key, (playback.active.get(key) || 0) + 1);
+                const offTick = loopStartTick + event.startTick + event.durationTicks;
+                const scheduled = playback.pendingNoteOffs.get(offTick) || [];
+                scheduled.push({ key, channel, note: event.note });
+                playback.pendingNoteOffs.set(offTick, scheduled);
+            }
+        }
+    }
+
+    _activateExternalClock(now) {
+        const newlyActive = !this._externalClockActive;
+        this._externalClockActive = true;
+        this._lastExternalClockAt = now;
+        this.daw.setExternalClock(true);
+        if (newlyActive) this._syncActiveClipsToExternalClock();
+        this._scheduleExternalClockTimeout();
+    }
+
+    _scheduleExternalClockTimeout() {
+        if (this._externalClockTimeout) clearTimeout(this._externalClockTimeout);
+        this._externalClockTimeout = setTimeout(() => {
+            this._externalClockTimeout = null;
+            const silentFor = performance.now() - this._lastExternalClockAt;
+            if (silentFor < 750 || !this._externalClockActive) return;
+
+            console.warn('[MIDI CLOCK] External clock lost; returning to the internal clock');
+            this._externalClockActive = false;
+            this._externalTransportState = null;
+            this._externalClockTick = -1;
+            this._externalClockHistory = [];
+            this._externalTempo = null;
+            this.daw.setExternalClock(false);
+            if (this.daw.playing) this._syncActiveClipsToInternalClock();
+        }, 750);
+    }
+
+    _syncActiveClipsToInternalClock() {
+        for (const [trackIdx, slot] of this.daw.clipState.entries()) {
+            if (slot >= 0) this._startTrackPlayback(trackIdx, slot);
+        }
+    }
+
+    _handleExternalTransport(statusByte, now) {
+        if (statusByte === 0xfa) {
+            this._externalClockTick = -1;
+            this._externalClockHistory = [];
+            this._externalTempo = null;
+        }
+        const wasExternalClockActive = this._externalClockActive;
+        this._activateExternalClock(now);
+        if (statusByte === 0xfa) {
+            this._externalTransportState = true;
+            if (this.daw.playing) this.daw.stopTransport();
+            this.daw.startTransport();
+            this._transportPlaying = true;
+            this.daw._playAnchorTime = now;
+            this.daw._currentBeat = 0;
+            if (wasExternalClockActive) this._syncActiveClipsToExternalClock();
+            this._broadcastState();
+        } else if (statusByte === 0xfb) {
+            this._externalTransportState = true;
+            if (!this.daw.playing) {
+                this.daw.startTransport();
+                this._transportPlaying = true;
+            }
+            if (wasExternalClockActive) this._syncActiveClipsToExternalClock();
+            this._broadcastState();
+        } else if (statusByte === 0xfc) {
+            this._externalTransportState = false;
+            if (this._transportPlaying) this.handleDawControl({ type: 'daw_stop_transport' });
+            this._broadcastState();
+        }
+    }
+
     // Keep control-surface feedback outputs out of instrument routing.
     _sendToSynthOutputs(bytes, label = '') {
         let sent = 0;
@@ -472,6 +592,15 @@ class MIDIRouterWorker {
         return sent;
     }
 
+    _sendMidiClockOutputs(bytes) {
+        for (const [name, output] of this.outputs) {
+            if (this.controllerEngine.isExcludedOutput(name)
+                && !this.controllerEngine.isMidiClockOutput(name)) continue;
+            try { output.sendMessage(Buffer.from(bytes)); }
+            catch (error) { console.warn(`[WORKER] Failed to send MIDI clock to ${name}: ${error.message}`); }
+        }
+    }
+
     _sendFeedback(trackIdx, slot, state) {
         for (const [name, output] of this.outputs) {
             for (const bytes of this.controllerEngine.feedbackMessagesFor(name, trackIdx, slot, state)) {
@@ -479,15 +608,6 @@ class MIDIRouterWorker {
                 catch (error) { console.warn(`[CONTROLLER] Feedback to ${name} failed: ${error.message}`); }
             }
         }
-    }
-
-    _flashLed(trackIdx, slot, ms) {
-        this._sendFeedback(trackIdx, slot, 'flash');
-        setTimeout(() => {
-            const glow = this._ledGlow.get(trackIdx);
-            if (glow?.slot === slot) this._sendFeedback(trackIdx, slot, glow.state);
-            else this._sendFeedback(trackIdx, slot, 'off');
-        }, ms);
     }
 
     _armLed(trackIdx, slot) {
@@ -527,32 +647,50 @@ class MIDIRouterWorker {
         if (mapping && velocity > 0) this._triggerPad(mapping.trackIdx, mapping.slot, now);
     }
 
-    // ---- MIDI Clock sync (used by metronome and DAW tempo sync) ----
+    // ---- External MIDI Clock slave ----
     _handleMidiClock(now) {
-        // Sync metronome / transport to external MIDI clock.
-        // 24 clocks per quarter note.
-        if (!this._clockHistory) this._clockHistory = [];
-        this._clockHistory.push(now);
-        if (this._clockHistory.length > 48) this._clockHistory.shift();
-        
-        // Auto-sync BPM from clock interval (every 24 ticks = 1 quarter note)
-        if (this._clockHistory.length >= 25) {
-            const tick24Ms = this._clockHistory[this._clockHistory.length - 1] - this._clockHistory[this._clockHistory.length - 25];
-            if (tick24Ms > 0) {
-                const estimatedBpm = (60 * 1000) / tick24Ms;
-                // Smooth update: only if within reasonable range
-                if (estimatedBpm >= 20 && estimatedBpm <= 300) {
-                    const current = this.daw.tempo;
-                    const smoothed = Math.round(current * 0.9 + estimatedBpm * 0.1);
-                    if (Math.abs(smoothed - current) > 1) {
-                        this.daw.setTempo(smoothed);
-                        if (this.metronomeCtrl) this.metronomeCtrl.setBpm(smoothed);
-                    }
-                }
+        if (!this._externalClockActive) {
+            this._externalClockTick = -1;
+            this._activateExternalClock(now);
+        }
+        this._lastExternalClockAt = now;
+        this._scheduleExternalClockTimeout();
+
+        if (this._externalTransportState == null) {
+            // Clock-only masters may omit MIDI Start; establish a fresh downstream clock phase.
+            this._sendMidiClockOutputs([0xfa]);
+            this._externalTransportState = true;
+        }
+        if (this._externalTransportState !== false && !this._transportPlaying) {
+            this.handleDawControl({ type: 'daw_start_transport' });
+        }
+
+        this._externalClockTick++;
+        this._externalClockHistory.push(now);
+        if (this._externalClockHistory.length > 49) this._externalClockHistory.shift();
+
+        // 24 MIDI clock ticks span one quarter note.
+        if (this._externalClockHistory.length >= 25) {
+            const first = this._externalClockHistory[this._externalClockHistory.length - 25];
+            const quarterMs = now - first;
+            const estimatedBpm = quarterMs > 0 ? (60_000 / quarterMs) : 0;
+            if (estimatedBpm >= 20 && estimatedBpm <= 300) {
+                this._externalTempo = this._externalTempo == null
+                    ? estimatedBpm
+                    : this._externalTempo * 0.75 + estimatedBpm * 0.25;
+                this.daw.setTempo(this._externalTempo);
             }
         }
-        
-        // Emit DAW clock event so UI can sync
+
+        if (this.daw.playing) {
+            const loopTicks = Math.max(24, this.daw.loopLenBeats * 24);
+            const beat = (this._externalClockTick % loopTicks) / 24;
+            this.daw._playAnchorTime = now - beat * this.daw._secondsPerBeat() * 1000;
+            this.daw._currentBeat = beat;
+        }
+        this._tickExternalClipPlayback(this._externalClockTick);
+
+        // Emit the incoming clock to UI timing listeners.
         parentPort.postMessage({ type: 'daw_midi', data: [0xf8] });
     }
 
@@ -811,30 +949,15 @@ class MIDIRouterWorker {
 
         // === System Real-Time (MIDI Clock / Start / Stop) from ANY source ===
         if (isSysRealTime) {
-            const mtcSent = this._sendToSynthOutputs(bytes, 'external clock');
-            if (mtcSent > 0) {
-                console.log(`[MIDI TX] MTC ${name} -> ${mtcSent} outputs`);
-            }
-
-            // Control audio metronome
-            if (this.metronomeCtrl) {
-                if (statusByte === 0xFA || statusByte === 0xFB) {
-                    console.log(`[METRO] Controller sent START -> starting metronome`);
-                    this.metronomeCtrl.play();
-                } else if (statusByte === 0xFC) {
-                    console.log(`[METRO] Controller sent STOP -> stopping metronome`);
-                    this.metronomeCtrl.stop();
-                    this._metronomeStarted = false;
-                } else if (statusByte === 0xF8) {
-                    this._handleMidiClock(performance.now());
-                    if (!this._metronomeStarted) {
-                        console.log(`[METRO] First clock tick -> auto-starting metronome`);
-                        this.metronomeCtrl.play();
-                        this._metronomeStarted = true;
-                    }
-                }
+            const now = performance.now();
+            if (statusByte === 0xf8) {
+                this._handleMidiClock(now);
+                this._sendMidiClockOutputs(bytes);
+            } else if ([0xfa, 0xfb, 0xfc].includes(statusByte)) {
+                this._sendMidiClockOutputs(bytes);
+                this._handleExternalTransport(statusByte, now);
             } else {
-                console.log(`[METRO] metronomeCtrl is NULL — cannot control metronome!`);
+                this._sendToSynthOutputs(bytes, 'external real-time MIDI');
             }
             return;
         }
@@ -1002,9 +1125,11 @@ class MIDIRouterWorker {
                     daw.startTransport();
                     this._transportPlaying = true;
                 }
+                if (this._externalClockActive) this._externalTransportState = true;
                 this._broadcastState();
                 break;
             case 'daw_stop_transport':
+                if (this._externalClockActive) this._externalTransportState = false;
                 if (this._transportPlaying) {
                     daw.stopTransport();
                     this._transportPlaying = false;
@@ -1082,6 +1207,10 @@ class MIDIRouterWorker {
         if (this._hotplugCheckInterval) {
             clearInterval(this._hotplugCheckInterval);
             this._hotplugCheckInterval = null;
+        }
+        if (this._externalClockTimeout) {
+            clearTimeout(this._externalClockTimeout);
+            this._externalClockTimeout = null;
         }
 
         for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);

@@ -67,6 +67,7 @@ class DAWEngine {
         // === MIDI Clock (MTC) — 24 PPQN, syncs external gear ===
         this._midiClockEnabled = true;
         this._midiClock = new MidiClock({ bpm: this.tempo, emit: (evt) => this._onEvent(evt) });
+        this._externalClock = false;
     }
 
     _makeClips() {
@@ -130,7 +131,7 @@ class DAWEngine {
     setMidiClock(enabled) {
         this._midiClockEnabled = !!enabled;
         if (!this._midiClock) return;
-        if (this._midiClockEnabled && this.playing) {
+        if (this._midiClockEnabled && this.playing && !this._externalClock) {
             // If transport is already running, restart clock to apply
             this._midiClock.start();
         } else if (!this._midiClockEnabled) {
@@ -140,6 +141,15 @@ class DAWEngine {
 
     getMidiClockState() {
         return !!this._midiClockEnabled;
+    }
+
+    setExternalClock(enabled) {
+        this._externalClock = !!enabled;
+        if (this._externalClock) {
+            this._midiClock?.pause();
+        } else if (this.playing && this._midiClockEnabled && this._midiClock) {
+            this._midiClock.start();
+        }
     }
 
     _startMetronome() {
@@ -372,7 +382,7 @@ class DAWEngine {
             this._startMetronome();
         }
         // === Start MIDI clock (MTC) — syncs external gear to same tempo ===
-        if (this._midiClockEnabled && this._midiClock) {
+        if (this._midiClockEnabled && !this._externalClock && this._midiClock) {
             this._midiClock.start();
         }
     }

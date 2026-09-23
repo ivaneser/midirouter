@@ -73,6 +73,9 @@ function compileProfile(profile) {
     if (profile.excludeOutputs?.some(matcher => !validMatcher(matcher))) {
         throw new Error(`${profile.id}: invalid excluded output matcher`);
     }
+    if (profile.midiClockOutput && !validMatcher(profile.midiClockOutput)) {
+        throw new Error(`${profile.id}: invalid MIDI clock output matcher`);
+    }
     const pads = expandPadGroups(profile.pads, profile.id);
     const padAddresses = new Set();
     for (const pad of pads) {
@@ -93,7 +96,7 @@ function compileProfile(profile) {
         }
     }
     for (const [state, bytes] of Object.entries(profile.feedback?.states || {})) {
-        if (!['playing', 'recording', 'flash', 'off'].includes(state)) throw new Error(`${profile.id}: unknown LED state ${state}`);
+        if (!['playing', 'recording', 'off'].includes(state)) throw new Error(`${profile.id}: unknown LED state ${state}`);
         validateTemplate(bytes, `${profile.id} ${state}`);
     }
     if (profile.feedback?.states && !profile.feedback.states.off) {
@@ -189,6 +192,10 @@ export class ControllerEngine {
     isExcludedOutput(name) {
         return this.profiles.some(profile => matches(name, profile.feedback?.output)
             || (profile.excludeOutputs || []).some(matcher => matches(name, matcher)));
+    }
+
+    isMidiClockOutput(name) {
+        return this.profiles.some(profile => matches(name, profile.midiClockOutput));
     }
 
     initMessagesFor(name) {
