@@ -17,8 +17,8 @@ test('Launchkey profile routes both Session rows and targets its DAW output', ()
     assert.equal(profiles.inputEvent(input, [0xbf, 21, 64]).consume, false);
     assert.equal(profiles.inputEvent('Launchkey Mini MK3 MIDI Port', [0x90, 60, 100]), null);
     assert.equal(profiles.isExcludedOutput('Launchkey Mini MK3 MIDI Port'), true);
-    assert.deepEqual(profiles.initMessagesFor(input), [[159, 12, 127], [191, 3, 2]]);
-    assert.deepEqual(profiles.feedbackMessagesFor(input, 0, 1, 'playing'), [[144, 96, 37]]);
+    assert.deepEqual(profiles.initMessagesFor(input), [[159, 12, 127], [182, 29, 2]]);
+    assert.deepEqual(profiles.feedbackMessagesFor(input, 0, 1, 'playing'), [[145, 96, 37]]);
     assert.deepEqual(profiles.feedbackMessagesFor('Craft Synth', 0, 1, 'playing'), []);
     assert.equal(profiles.inputEvent('nanoPAD2 MIDI 1', [0x90, 36, 100]), null);
 });

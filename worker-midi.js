@@ -14,6 +14,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Per-message MIDI logging is very verbose (clock ticks alone can be 100s/sec).
+// Opt in explicitly: MIDI_DEBUG=1 systemctl restart midirouter
+const MIDI_DEBUG = process.env.MIDI_DEBUG === '1';
+
 class MIDIRouterWorker {
     constructor() {
         this.inputs = new Map();   // deviceName -> RtMidiIn instance
@@ -932,7 +936,7 @@ class MIDIRouterWorker {
         const name = label || (type >= 8 ? `sys  ${bytes[0] === 0xf8 ? 'timing clock' : bytes[0] === 0xfa ? 'start' : bytes[0] === 0xfb ? 'continue' : bytes[0] === 0xfc ? 'stop' : bytes[0] === 0xfe ? 'active sensing' : 'unknown sys'}` : `raw#${bytes.join(',')}`);
 
         // Debug: log every single MIDI message received (critical for diagnosis)
-        console.log(`[MIDI RX] ${deviceName}: ${name}`);
+        if (MIDI_DEBUG) console.log(`[MIDI RX] ${deviceName}: ${name}`);
 
         // Skip loopback/timer/Midi Through ports to prevent feedback loops
         const isLoopback = deviceName.toLowerCase().includes('loopback') ||
@@ -943,7 +947,7 @@ class MIDIRouterWorker {
         const isSysRealTime = statusByte >= 0xF8 && statusByte <= 0xFF;
 
         if (isLoopback) {
-            console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
+            if (MIDI_DEBUG) console.log(`[MIDI] [LOOPBACK] Ignoring: ${name}`);
             return;
         }
 
@@ -1021,7 +1025,7 @@ class MIDIRouterWorker {
                     }
                     midiOut.sendMessage(outMsg);
                     sent++;
-                    console.log(`[MIDI TX] ${deviceName} -> ${outName}: ${name}`);
+                    if (MIDI_DEBUG) console.log(`[MIDI TX] ${deviceName} -> ${outName}: ${name}`);
                 } catch (e) {
                     console.warn(`[MIDI TX] FAIL ${deviceName} -> ${outName}: ${e.message}`);
                 }
