@@ -1,0 +1,11 @@
+{
+  "id": "nanopad2",
+  "name": "Korg nanoPAD2",
+  "input": { "containsAll": ["nanoPAD2"] },
+  "passthrough": "none",
+  "excludeOutputs": [{ "containsAll": ["nanoPAD2"] }],
+  "pads": [
+    { "message": "note", "channel": 1, "numbers": [36, 37, 38, 39, 40, 41, 42, 43], "trackStart": 0, "slot": 0 },
+    { "message": "note", "channel": 1, "numbers": [44, 45, 46, 47, 48, 49, 50, 51], "trackStart": 0, "slot": 1 }
+  ]
+}

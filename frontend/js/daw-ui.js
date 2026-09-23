@@ -4,7 +4,7 @@ export class DAWUI {
     constructor(deviceManager) {
         this.deviceManager = deviceManager;
         this.dawState = null;
-        this.padNotes = {}; // `trackIdx-slot` -> note number
+        this.padNotes = {}; // `trackIdx-slot` -> controller labels
         this._initControls();
     }
 
@@ -75,11 +75,14 @@ export class DAWUI {
             this._renderGrid();
             this._renderTrackControls();
         } else if (msg.type === 'daw_pad_map_list') {
-            // Обновляем карту пэдов: note -> trackIdx-slot
+            // Show all configured controllers that can trigger each clip.
             this.padNotes = {};
             for (const entry of (msg.map || [])) {
                 const key = `${entry.trackIdx}-${entry.slot}`;
-                this.padNotes[key] = entry.note;
+                if (!this.padNotes[key]) this.padNotes[key] = [];
+                const source = entry.profileId || 'learned';
+                const message = entry.message === 'cc' ? 'CC' : entry.message === 'program' ? 'program' : entry.message === 'sysex' ? 'SysEx pad' : 'note';
+                this.padNotes[key].push(`${source} ${message} ${entry.note}`);
             }
             // Обновляем состояние learn mode
             if (document.getElementById('btn-learn')) {
@@ -169,7 +172,7 @@ export class DAWUI {
                 
                 slot.dataset.track = t;
                 slot.dataset.slot = s;
-                slot.title = note != null ? `Pad: note ${note}` : 'unmapped';
+                slot.title = note?.length ? `Pads: ${note.join(', ')}` : 'unmapped';
                 slot.textContent = clip && clip.notes > 0 ? `${clip.notes}n` : '';
 
                 // Click to trigger clip

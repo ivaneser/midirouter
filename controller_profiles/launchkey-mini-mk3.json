@@ -1,0 +1,27 @@
+{
+  "id": "launchkey-mini-mk3",
+  "name": "Novation Launchkey Mini MK3 Session",
+  "input": { "containsAll": ["Launchkey", "DAW"] },
+  "passthrough": "cc",
+  "excludeOutputs": [{ "containsAll": ["Launchkey"] }],
+  "pads": [
+    { "message": "note", "channel": 1, "numbers": [112, 113, 114, 115, 116, 117, 118, 119], "trackStart": 0, "slot": 0, "indexStart": 0 },
+    { "message": "note", "channel": 1, "numbers": [96, 97, 98, 99, 100, 101, 102, 103], "trackStart": 0, "slot": 1, "indexStart": 8 }
+  ],
+  "transport": [
+    { "message": "cc", "channel": 16, "number": 115, "action": "play" },
+    { "message": "cc", "channel": 16, "number": 116, "action": "stop" },
+    { "message": "cc", "channel": 16, "number": 117, "action": "record" },
+    { "message": "cc", "channel": 16, "number": 118, "action": "loop" }
+  ],
+  "feedback": {
+    "output": { "containsAll": ["Launchkey", "DAW"] },
+    "init": [[159, 12, 127], [191, 3, 2]],
+    "states": {
+      "playing": [144, "$number", 37],
+      "recording": [144, "$number", 5],
+      "flash": [144, "$number", 5],
+      "off": [128, "$number", 0]
+    }
+  }
+}
