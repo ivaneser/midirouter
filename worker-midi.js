@@ -7,6 +7,7 @@ import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
 import { MetronomeController } from './metronome-controller.js';
 import { ControllerEngine } from './controller-engine.js';
+import { ExternalMidiClock } from './external-midi-clock.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -35,13 +36,21 @@ class MIDIRouterWorker {
         });
         this._transportPlaying = false;
         this._externalClockActive = false;
-        this._externalClockTick = -1;
         this._externalTransportState = null;
-        this._externalClockHistory = [];
-        this._externalTempo = null;
         this._externalClockTimeout = null;
         this._lastExternalClockAt = 0;
         this._lastLoggedClockAt = 0;      // throttle [MIDI RX] clock-tick logging (first tick only)
+
+        // External MIDI Clock slave — pure timestamp handling + BPM estimation.
+        // The same `ExternalMidiClock` class is imported by unit tests, so the
+        // production worker and the test share one source of truth.  (The old
+        // `_externalClockTick / _externalClockHistory / _externalTempo` fields
+        // were moved into that class during extraction.)
+        this._externalMidiClock = new ExternalMidiClock({
+            now: () => performance.now(),
+            onActivate: () => this._activateExternalClock(performance.now()),
+            setTempo: (bpm) => this.daw.setTempo(bpm),
+        });
 
         // Override DAW engine methods to also control the Python audio metronome
         const origSetTempo = this.daw.setTempo.bind(this.daw);
@@ -419,7 +428,7 @@ class MIDIRouterWorker {
 
         if (this._externalClockActive) {
             playback.externalClock = true;
-            playback.startTick = this._externalClockTick + 1;
+            playback.startTick = this._externalMidiClock.tickCount;
             playback.loopTicks = Math.max(24, Math.round((clip.length || this.daw.loopLenBeats) * 24));
             playback.noteEvents = clip.notes.map(note => ({
                 ...note,
@@ -536,9 +545,9 @@ class MIDIRouterWorker {
             console.warn('[MIDI CLOCK] External clock lost; returning to the internal clock');
             this._externalClockActive = false;
             this._externalTransportState = null;
-            this._externalClockTick = -1;
-            this._externalClockHistory = [];
-            this._externalTempo = null;
+            // Mirror the reset that `_handleExternalTransport` does for a hard
+            // stop: hand the instance its own reset so state stays coherent.
+            this._externalMidiClock.reset();
             this.daw.setExternalClock(false);
             if (this.daw.playing) this._syncActiveClipsToInternalClock();
         }, 750);
@@ -552,9 +561,8 @@ class MIDIRouterWorker {
 
     _handleExternalTransport(statusByte, now) {
         if (statusByte === 0xfa) {
-            this._externalClockTick = -1;
-            this._externalClockHistory = [];
-            this._externalTempo = null;
+            // A fresh MIDI Start re-syncs the slave clock's phase.
+            this._externalMidiClock.reset();
         }
         const wasExternalClockActive = this._externalClockActive;
         this._activateExternalClock(now);
@@ -652,12 +660,8 @@ class MIDIRouterWorker {
         if (mapping && velocity > 0) this._triggerPad(mapping.trackIdx, mapping.slot, now);
     }
 
-    // ---- External MIDI Clock slave ----
+    // ---- External MIDI Clock slave (delegates to ExternalMidiClock) ----
     _handleMidiClock(now) {
-        if (!this._externalClockActive) {
-            this._externalClockTick = -1;
-            this._activateExternalClock(now);
-        }
         this._lastExternalClockAt = now;
         this._scheduleExternalClockTimeout();
 
@@ -670,30 +674,18 @@ class MIDIRouterWorker {
             this.handleDawControl({ type: 'daw_start_transport' });
         }
 
-        this._externalClockTick++;
-        this._externalClockHistory.push(now);
-        if (this._externalClockHistory.length > 49) this._externalClockHistory.shift();
+        // Hand the tick to the shared slave clock — it activates, tracks phase,
+        // estimates BPM and calls back into `daw.setTempo`.
+        this._externalMidiClock.tick(now);
 
-        // 24 MIDI clock ticks span one quarter note.
-        if (this._externalClockHistory.length >= 25) {
-            const first = this._externalClockHistory[this._externalClockHistory.length - 25];
-            const quarterMs = now - first;
-            const estimatedBpm = quarterMs > 0 ? (60_000 / quarterMs) : 0;
-            if (estimatedBpm >= 20 && estimatedBpm <= 300) {
-                this._externalTempo = this._externalTempo == null
-                    ? estimatedBpm
-                    : this._externalTempo * 0.75 + estimatedBpm * 0.25;
-                this.daw.setTempo(this._externalTempo);
-            }
-        }
-
-        if (this.daw.playing) {
+        if (this._externalMidiClock.externalClockActive) {
+            this._externalClockActive = true;
             const loopTicks = Math.max(24, this.daw.loopLenBeats * 24);
-            const beat = (this._externalClockTick % loopTicks) / 24;
+            const beat = (this._externalMidiClock.tickCount % loopTicks) / 24;
             this.daw._playAnchorTime = now - beat * this.daw._secondsPerBeat() * 1000;
             this.daw._currentBeat = beat;
+            this._tickExternalClipPlayback(this._externalMidiClock.tickCount);
         }
-        this._tickExternalClipPlayback(this._externalClockTick);
 
         // Emit the incoming clock to UI timing listeners.
         parentPort.postMessage({ type: 'daw_midi', data: [0xf8] });

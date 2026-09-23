@@ -28,7 +28,7 @@ test('MidiClock emits Continue at 0xFB when resumed from stopped state', () => {
     assert.equal(emitted.length, 2); // start + stop
 
     clock.continue();
-    assert.equal(emitted[emitted.length - 1], { type: 'midi', data: [0xFB] });
+    assert.deepEqual(emitted[emitted.length - 1], { type: 'midi', data: [0xFB] });
 
     clock.stop();
 });
@@ -38,18 +38,17 @@ test('MidiClock emits Stop at 0xFC on stop()', () => {
     const clock = new MidiClock({ bpm: 120, emit: (evt) => emitted.push(evt) });
     clock.start();
     clock.stop();
-    assert.equal(emitted[emitted.length - 1], { type: 'midi', data: [0xFC] });
+    assert.deepEqual(emitted[emitted.length - 1], { type: 'midi', data: [0xFC] });
 });
 
-test('MidiClock emits 24 PPQN timing clocks (0xF8) while playing', (t) => {
+test('MidiClock emits 24 PPQN timing clocks (0xF8) while playing', async () => {
     const emitted = [];
     const clock = new MidiClock({ bpm: 60, emit: (evt) => emitted.push(evt) });
     // 60 BPM -> 1 beat/sec -> 24 ticks/sec. Use 150ms to capture ~3-4 ticks.
     clock.start();
 
-    // Let it run briefly
-    const start = performance.now();
-    while (performance.now() - start < 150) { /* spin */ }
+    // Let it run briefly without blocking the event loop.
+    await new Promise(r => setTimeout(r, 150));
 
     clock.stop();
 
@@ -184,12 +183,11 @@ test('DAWEngine setExternalClock(true) pauses the internal MTC', () => {
 //    Simulate receiving incoming 0xF8 ticks from an external master.
 // ---------------------------------------------------------------------------
 test('Incoming external 0xF8 clock activates external clock mode & estimates tempo', async () => {
-    const emitted = [];
-    const worker = await import('../worker-midi.js');
-    // The worker module is self-bootstrapping (it creates a worker thread parent),
-    // so we instead test the logic via DAWEngine's setExternalClock + clock handling.
-    // Direct unit-test of _handleMidiClock requires the full MIDIRouterWorker which
-    // needs ALSA ports, so we verify the observable contract through DAWEngine:
+    // The worker-midi module is self-bootstrapping: it imports '@julusian/midi' (ALSA),
+    // reads a config.json file, and starts a Python metronome process on evaluation.
+    // Importing it inside a unit test would spawn real processes/ports — an unwanted
+    // side effect when no hardware or sudo is available. We verify the external-clock
+    // contract through DAWEngine instead (the same logic the worker exposes):
     const daw = new DAWEngine({ tempo: 120 });
 
     let capturedEvt = null;
