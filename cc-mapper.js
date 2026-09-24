@@ -158,11 +158,13 @@ export class CCMapper {
         
         // Находим какую функцию контролирует CC на контроллере
         let ctrlFunction = null;
-        for (const [cc, layoutEntry] of Object.entries(layout)) {
+        for (const [key, layoutEntry] of Object.entries(layout)) {
             if (!layoutEntry || !layoutEntry.label) continue;
-            if (parseInt(cc) === controllerCC) {
-                // Определяем функцию по названию лейбла
-                const label = layoutEntry.label.toLowerCase();
+            // Layout keys are symbolic names ('knob1', 'fader1'); match by the real CC number.
+            const entryCC = typeof layoutEntry.cc === 'number' ? layoutEntry.cc : parseInt(layoutEntry.cc, 10);
+            if (entryCC === controllerCC) {
+                // Определяем функцию по названию лейбла (убираем пробелы, чтобы "knob 1" совпадало с 'knob1').
+                const label = layoutEntry.label.toLowerCase().replace(/\s+/g, '');
                 if (label.includes('fader1') || label.includes('knob1')) ctrlFunction = 'volume';
                 else if (label.includes('fader2') || label.includes('knob2')) ctrlFunction = 'pan';
                 else if (label.includes('fader3') || label.includes('knob3')) ctrlFunction = 'cutoff';
@@ -310,11 +312,11 @@ export class CCMapper {
  * DeviceProfile — профиль устройства с его MIDI-командами
  */
 export class DeviceProfile {
-    constructor({ name, vendor, functions = {} }) {
+    constructor({ name, vendor, functions = {}, layout = {} }) {
         this.name = name;
         this.vendor = vendor || '';
         this.functions = functions;  // { functionName: { cc, min, max } }
-        this.layout = {};           // { ccLabel: { cc, label } }
+        this.layout = layout;       // { key: { cc, label } } — physical controls on the controller
     }
     
     /**

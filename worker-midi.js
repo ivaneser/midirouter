@@ -5,6 +5,7 @@ import { DAWEngine, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
+import { computeRoutingStep } from './route-midi.js';
 import { MetronomeController } from './metronome-controller.js';
 import { ControllerEngine } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
@@ -1012,21 +1013,18 @@ class MIDIRouterWorker {
 
         // === ALL-TO-ALL ROUTING (the default path) ===
         if (this._mappings.size === 0) {
+            const allToAllResult = computeRoutingStep(bytes, deviceName, {
+                outputs: this.outputs,
+                mappings: new Map(),
+                ccMapper: this.ccMapper,
+            });
             let sent = 0;
-            for (const [outName, midiOut] of this.outputs) {
+            for (const delivered of allToAllResult.delivered) {
+                const outName = delivered.output;
                 if (this.controllerEngine.isExcludedOutput(outName)) continue;
                 try {
-                    let outMsg = Buffer.from(bytes);
-                    if (type === 11) {
-                        const transformed = this.ccMapper.transformCC(
-                            { bytes: Buffer.from(bytes), type, channel: channel - 1, velocity: bytes[2] || 0, note: bytes[1] || 0 },
-                            deviceName, 'default', 'default'
-                        );
-                        if (transformed && transformed.bytes) {
-                            outMsg = transformed.bytes;
-                        }
-                    }
-                    midiOut.sendMessage(outMsg);
+                    // Deliver the bytes computed by the shared routing decision path.
+                    this.outputs.get(outName).sendMessage(Buffer.from(delivered.bytes));
                     sent++;
                     if (MIDI_DEBUG) console.log(`[MIDI TX] ${deviceName} -> ${outName}: ${name}`);
                 } catch (e) {
@@ -1035,6 +1033,29 @@ class MIDIRouterWorker {
             }
             if (sent === 0) {
                 console.warn(`[MIDI TX] NO OUTPUTS for ${deviceName}: ${name} — check synth connections!`);
+            }
+        } else {
+            // === ROUTED PATH — honour configured routes: filters + CC transform per route ===
+            const routedResult = computeRoutingStep(bytes, deviceName, {
+                outputs: this.outputs,
+                mappings: this._mappings,
+                ccMapper: this.ccMapper,
+            });
+            let sent = 0;
+            for (const delivered of routedResult.delivered) {
+                const outName = delivered.output;
+                if (!this.controllerEngine.isExcludedOutput(outName)) {
+                    try {
+                        this.outputs.get(outName).sendMessage(Buffer.from(delivered.bytes));
+                        sent++;
+                        if (MIDI_DEBUG) console.log(`[MIDI TX] ${deviceName} -> ${outName}: ${name}`);
+                    } catch (e) {
+                        console.warn(`[MIDI TX] FAIL ${deviceName} -> ${outName}: ${e.message}`);
+                    }
+                }
+            }
+            if (sent === 0) {
+                console.warn(`[MIDI TX] NO ROUTE for ${deviceName}: ${name} — check route config!`);
             }
         }
     }

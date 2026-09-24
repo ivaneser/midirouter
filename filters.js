@@ -41,12 +41,29 @@ export class ChannelFilter extends Filter {
             }
         }
         
-        // Маппинг каналов
+        // Маппинг каналов — применяем к status nibble, чтобы мутация не утекала
+        // обратно в общий filterCtx (каждый route использует свой Buffer/контекст).
+        let result = message;
         if (channel.toString() in this._map) {
-            message.channel = this._map[channel] - 1; // 0-based
+            const newChannel1Based = this._map[channel];
+            if (message.bytes && message.bytes instanceof Uint8Array) {
+                const bytes = typeof Buffer !== 'undefined' && Buffer.isBuffer(message.bytes)
+                    ? Buffer.from(message.bytes)
+                    : Uint8Array.from(message.bytes);
+                const status = bytes[0];
+                const type = (status & 0xf0) >> 4;
+                // Применяем ремapping канала только к channel voice статусам 0x80–0xEF.
+                // System Common/SysEx (0xF0 => type 15) каналом не является — его трогать нельзя.
+                if (status < 0xF0) {
+                    bytes[0] = (status & 0xf0) | ((newChannel1Based - 1) & 0x0f);
+                }
+                result = { ...message, bytes };
+            }
+            // Канал сохраняется 0-based для CCMapper / downstream логики.
+            result.channel = newChannel1Based - 1;
         }
         
-        return message;
+        return result;
     }
     
     get settings() {
