@@ -943,12 +943,12 @@ class MIDIRouterWorker {
         // Clock ticks are extremely frequent (100s/sec), so only log the first
         // tick of a new burst (after 1.5s silence) to keep logs readable.
         if (MIDI_DEBUG) {
-            const isRepeatedClock = name === 'timing clock' &&
+            const isRepeatedClock = name.includes('timing clock') &&
                 this._lastLoggedClockAt &&
                 (performance.now() - this._lastLoggedClockAt) < 1500;
             if (!isRepeatedClock) {
                 console.log(`[MIDI RX] ${deviceName}: ${name}`);
-                if (name === 'timing clock') this._lastLoggedClockAt = performance.now();
+                if (name.includes('timing clock')) this._lastLoggedClockAt = performance.now();
             }
         }
 
