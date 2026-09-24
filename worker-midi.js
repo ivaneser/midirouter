@@ -122,10 +122,9 @@ class MIDIRouterWorker {
         });
 
         this.daw._onEvent = (evt) => {
-            // Generated clock/transport reaches instruments; incoming slave clock is forwarded separately.
-            if (evt.data?.length === 1 && [0xf8, 0xfa, 0xfb, 0xfc].includes(evt.data[0])) {
-                if (!this._externalClockActive) this._sendMidiClockOutputs(evt.data);
-            }
+            // Generated clock/transport stays internal — DAW engine uses it for
+            // clip playback timing. Do NOT forward to external outputs: that would
+            // create feedback loops with devices that generate their own MIDI clock.
             parentPort.postMessage({ type: 'daw_midi', data: evt.data });
         };
 
@@ -606,8 +605,10 @@ class MIDIRouterWorker {
         return sent;
     }
 
-    _sendMidiClockOutputs(bytes) {
+    _sendMidiClockOutputs(bytes, excludePortName = null) {
         for (const [name, output] of this.outputs) {
+            // Не отправляем MIDI clock обратно на порт-источник (защита от петли обратной связи)
+            if (excludePortName && name === excludePortName) continue;
             if (this.controllerEngine.isExcludedOutput(name)
                 && !this.controllerEngine.isMidiClockOutput(name)) continue;
             try { output.sendMessage(Buffer.from(bytes)); }
@@ -662,13 +663,22 @@ class MIDIRouterWorker {
     }
 
     // ---- External MIDI Clock slave (delegates to ExternalMidiClock) ----
-    _handleMidiClock(now) {
+    _handleMidiClock(now, excludePortName = null) {
+        // Не пересылаем внешний MIDI clock обратно в сеть — используем его
+        // только для синхронизации внутреннего транспорты DAW. Пересылка
+        // создаёт петли обратной связи с устройствами, генерирующими свой clock.
+        //
+        // Троттлинг: внешние устройства (NTS-1 / Launchkey) могут слать 0xF8
+        // с огромной частотой — обрабатываем только каждый 4-й тик, чтобы
+        // снизить нагрузку на CPU. Фазу это не нарушает (24 PPQN * 4 = 96 шагов
+        // на такт — больше чем достаточно для синхронизации).
+        this._externalClockTickCount = (this._externalClockTickCount || 0) + 1;
+        if (this._externalClockTickCount % 4 !== 0) return;
+
         this._lastExternalClockAt = now;
         this._scheduleExternalClockTimeout();
 
         if (this._externalTransportState == null) {
-            // Clock-only masters may omit MIDI Start; establish a fresh downstream clock phase.
-            this._sendMidiClockOutputs([0xfa]);
             this._externalTransportState = true;
         }
         if (this._externalTransportState !== false && !this._transportPlaying) {
@@ -959,10 +969,8 @@ class MIDIRouterWorker {
         if (isSysRealTime) {
             const now = performance.now();
             if (statusByte === 0xf8) {
-                this._handleMidiClock(now);
-                this._sendMidiClockOutputs(bytes);
+                this._handleMidiClock(now, deviceName);
             } else if ([0xfa, 0xfb, 0xfc].includes(statusByte)) {
-                this._sendMidiClockOutputs(bytes);
                 this._handleExternalTransport(statusByte, now);
             } else {
                 this._sendToSynthOutputs(bytes, 'external real-time MIDI');
