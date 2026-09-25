@@ -198,6 +198,19 @@ export class ControllerEngine {
         return this.profiles.some(profile => matches(name, profile.midiClockOutput));
     }
 
+    /** Whether a port may receive MIDI clock fanout.
+     *
+     *  A port excluded from ordinary note routing (`excludeOutputs`) is still
+     *  allowed as a clock destination when the same profile explicitly marks it
+     *  with `midiClockOutput`.  This lets controller feedback ports (e.g.
+     *  Launchkey DAW Port) receive master clock for LED sync while staying out
+     *  of instrument routing. */
+    isAllowedClockDestination(name) {
+        if (!this.isExcludedOutput(name)) return true;
+        // Excluded from notes, but whitelisted as a clock output by profile — allowed.
+        return this.isMidiClockOutput(name);
+    }
+
     initMessagesFor(name) {
         return this.profiles.filter(profile => matches(name, profile.feedback?.output))
             .flatMap(profile => profile.feedback.init || []);

@@ -1053,3 +1053,29 @@ body {
         font-size: 0.7rem;
     }
 }
+
+/* Clock master selector */
+.clock-master-section {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.clock-master-section h4 {
+    margin: 0 0 8px 0;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+}
+
+.clock-master-section .transport-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.clock-master-section select {
+    min-width: 200px;
+}

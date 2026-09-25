@@ -95,6 +95,18 @@
             </summary>
             <div class="config-panel-content">
                 <p class="tab-hint">Discovered automatically via ALSA. Plug/unplug appear live.</p>
+                <!-- Clock Master selection -->
+                <div class="clock-master-section">
+                    <h4>⏱ Clock Master</h4>
+                    <label class="transport-label">
+                        Source:
+                        <select id="clock-source-select">
+                            <option value="internal">Internal DAW Clock</option>
+                        </select>
+                    </label>
+                    <p class="tab-hint" id="clock-master-status">Selected master: Internal DAW Clock</p>
+                </div>
+
                 <div class="port-section">
                     <div class="port-column">
                         <h4>🎹 Inputs</h4>

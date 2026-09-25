@@ -103,6 +103,8 @@ function handleMessage(msg) {
     switch (msg.type) {
         case 'devices':
             deviceManager.updatePorts(msg.inputs || [], msg.outputs || []);
+            // Refresh the clock source dropdown so hot-plugged inputs appear.
+            dawUI.refreshClockSourceSelect();
             log(`Devices: ${msg.inputs?.length || 0} input, ${msg.outputs?.length || 0} output`);
             break;
 

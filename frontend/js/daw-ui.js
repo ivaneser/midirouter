@@ -63,6 +63,20 @@ export class DAWUI {
             midiClockBtn.addEventListener('click', () => this._send({ type: 'daw-midi-clock-toggle' }));
         }
 
+        // ---- Clock master source selection ----
+        const clockSourceSelect = document.getElementById('clock-source-select');
+        if (clockSourceSelect) {
+            clockSourceSelect.addEventListener('change', () => {
+                const value = clockSourceSelect.value; // 'internal' | 'external:<portName>'
+                if (value === 'internal') {
+                    this._send({ type: 'clock-source-select', kind: 'internal' });
+                } else {
+                    const portName = value.replace('external:', '');
+                    this._send({ type: 'clock-source-select', kind: 'external', portName });
+                }
+            });
+        }
+
         // Note: daw-get is now sent from app.js after WebSocket connects.
         // (Sending it here at module-load time fails because window.app.ws is null.)
     }
@@ -72,6 +86,7 @@ export class DAWUI {
         if (msg.type === 'daw_state') {
             this.dawState = msg.payload;
             this._syncControls();
+            this._renderClockMasterUI();
             this._renderGrid();
             this._renderTrackControls();
         } else if (msg.type === 'daw_pad_map_list') {
@@ -117,6 +132,101 @@ export class DAWUI {
             midiClockBtn.classList.toggle('active', !!enabled);
             midiClockBtn.textContent = enabled ? '⏱ MTC ON' : '⏱ MTC';
         }
+    }
+
+    /** Sync the clock master selector UI with current state */
+    _renderClockMasterUI() {
+        const select = document.getElementById('clock-source-select');
+        const statusEl = document.getElementById('clock-master-status');
+        if (!select) return;
+
+        const source = this.dawState?.clockMasterSource || { kind: 'internal' };
+        const activeOutputs = this.dawState?.clockMasterActiveOutputs || [];
+
+        // Build the options list from current state (don't rebuild DOM on every tick).
+        // Preserve the current selection if it's still valid.
+        const isInternal = source.kind === 'internal';
+
+        // Compare the actual DeviceManager input set against the DOM options
+        // so hot-plug additions/removals are reflected in the dropdown.
+        const currentInputs = (this.deviceManager && this.deviceManager.inputs)
+            ? this.deviceManager.inputs.map(i => i.name)
+            : [];
+
+        const existingOptions = Array.from(select.options).map(o => o.value);
+        const externalValues = currentInputs.map(name => `external:${name}`);
+
+        // Rebuild only when the real port set differs from what's in the DOM.
+        let needsRebuild = false;
+        if (!existingOptions.includes('internal')) {
+            needsRebuild = true;
+        } else if (externalValues.length !== existingOptions.filter(v => v.startsWith('external:')).length) {
+            needsRebuild = true;
+        } else {
+            for (const name of currentInputs) {
+                if (!existingOptions.includes(`external:${name}`)) {
+                    needsRebuild = true;
+                    break;
+                }
+            }
+            if (!needsRebuild) {
+                for (const opt of existingOptions) {
+                    if (opt.startsWith('external:')) {
+                        const optName = opt.replace('external:', '');
+                        if (!currentInputs.includes(optName)) {
+                            needsRebuild = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (needsRebuild) {
+            select.innerHTML = '';
+            const internalOpt = document.createElement('option');
+            internalOpt.value = 'internal';
+            internalOpt.textContent = 'Internal DAW Clock';
+            select.appendChild(internalOpt);
+
+            // Add all discovered input ports as external master candidates
+            for (const inp of currentInputs) {
+                const opt = document.createElement('option');
+                opt.value = `external:${inp}`;
+                opt.textContent = `External: ${inp}`;
+                select.appendChild(opt);
+            }
+        }
+
+        // Set the selected value to match the current master source.
+        const updatedOptions = Array.from(select.options).map(o => o.value);
+        if (isInternal) {
+            select.value = 'internal';
+        } else {
+            const portName = source.masterPortName || '';
+            const externalVal = `external:${portName}`;
+            if (updatedOptions.includes(externalVal)) {
+                select.value = externalVal;
+            } else {
+                // Selected master is not in the current port list — show safe state.
+                select.value = 'internal';
+                console.warn(`[DAWUI] Clock master port "${portName}" not found in inputs, fell back to internal`);
+            }
+        }
+
+        // Update status text (used when no selection has been made yet).
+        if (statusEl) {
+            if (isInternal) {
+                statusEl.textContent = `Selected master: Internal DAW Clock (active outputs: ${activeOutputs.join(', ') || 'none'})`;
+            } else {
+                statusEl.textContent = `Selected master: External — ${source.masterPortName} (active outputs: ${activeOutputs.join(', ') || 'none'})`;
+            }
+        }
+    }
+
+    /** Public entry point for the clock source dropdown to refresh after hotplug. */
+    refreshClockSourceSelect() {
+        this._renderClockMasterUI();
     }
 
     _renderGrid() {

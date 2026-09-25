@@ -373,6 +373,22 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_midi_clock_off' });
                         break;
 
+                    // ---- Clock master selection (MIDI Clock source) ----
+                    case 'clock-source-select':
+                        router.worker.postMessage({
+                            type: 'clock_source_select',
+                            kind: message.kind,       // 'internal' | 'external'
+                            portName: message.portName,
+                        });
+                        break;
+
+                    case 'clock-source-explicit-exclusions':
+                        router.worker.postMessage({
+                            type: 'clock_source_explicit_exclusions',
+                            exclusions: message.exclusions || [],
+                        });
+                        break;
+
                     case 'daw-pad-learn':
                         router.worker.postMessage({ type: 'daw_pad_learn', on: !!message.on });
                         break;
