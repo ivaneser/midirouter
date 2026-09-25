@@ -1053,3 +1053,99 @@ body {
         font-size: 0.7rem;
     }
 }
+
+/* Clock master selector */
+.clock-master-section {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.clock-master-section h4 {
+    margin: 0 0 8px 0;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+}
+
+.clock-master-section .transport-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.clock-master-section select {
+    min-width: 200px;
+}
+
+/* DAW mode and transport boundary cues */
+#record-mode.mode-play {
+    color: #d7fff0;
+    background: #145b43;
+    border-color: #43d99a;
+}
+#record-mode.mode-replace {
+    color: #fff4df;
+    background: #75410f;
+    border-color: #ffb547;
+}
+#record-mode.mode-overdub {
+    color: #f0e5ff;
+    background: #503078;
+    border-color: #bb86fc;
+}
+
+.daw-beat-indicator {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid #465268;
+    border-radius: 5px;
+    background: #20283a;
+    color: #c6d4e8;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.daw-beat-indicator.bar-start {
+    border-color: #ffb547;
+    background: #75410f;
+    color: #fff4df;
+}
+.daw-beat-indicator.cycle-start {
+    border-color: #43d99a;
+    background: #145b43;
+    color: #e6fff4;
+}
+.daw-beat-indicator.beat-pulse,
+.session-slot.clip-start,
+.session-slot.record-start {
+    animation: daw-start-pulse 220ms ease-out;
+}
+.session-slot.clip-start {
+    background: #087e8b;
+    border-color: #59e5ef;
+    color: #fff;
+    box-shadow: 0 0 12px #59e5ef;
+}
+.session-slot.record-start {
+    background: #8b0000;
+    border-color: #ffb547;
+    color: #fff;
+    box-shadow: 0 0 12px #ff7452;
+}
+@keyframes daw-start-pulse {
+    0% { transform: scale(1); filter: brightness(1); }
+    35% { transform: scale(1.07); filter: brightness(1.45); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .daw-beat-indicator.beat-pulse,
+    .session-slot.clip-start,
+    .session-slot.record-start {
+        animation-duration: 1ms;
+    }
+}

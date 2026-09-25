@@ -116,6 +116,14 @@ class MIDIRouterWorker {
                 this._broadcast({ type: 'daw_state', payload: msg.state });
                 break;
 
+            case 'daw_progress':
+                this._broadcast({ type: 'daw_progress', payload: msg.payload });
+                break;
+
+            case 'daw_visual_event':
+                this._broadcast({ type: 'daw_visual_event', event: msg.event });
+                break;
+
             case 'daw_pad_map_list':
                 // Обновление карты пэдов — перенаправляем во фронтенд
                 this._broadcast({ type: 'daw_pad_map_list', map: msg.map, learnMode: msg.learnMode });
@@ -371,6 +379,22 @@ function startServer() {
 
                     case 'daw-midi-clock-off':
                         router.worker.postMessage({ type: 'daw_midi_clock_off' });
+                        break;
+
+                    // ---- Clock master selection (MIDI Clock source) ----
+                    case 'clock-source-select':
+                        router.worker.postMessage({
+                            type: 'clock_source_select',
+                            kind: message.kind,       // 'internal' | 'external'
+                            portName: message.portName,
+                        });
+                        break;
+
+                    case 'clock-source-explicit-exclusions':
+                        router.worker.postMessage({
+                            type: 'clock_source_explicit_exclusions',
+                            exclusions: message.exclusions || [],
+                        });
                         break;
 
                     case 'daw-pad-learn':

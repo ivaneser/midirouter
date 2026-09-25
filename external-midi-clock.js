@@ -26,6 +26,7 @@
 const MIN_HISTORY = 25;       // ticks needed before any BPM estimate is valid
 const MAX_HISTORY = 49;       // cap: keep ~2 quarter notes of margin (shift when exceeded)
 const SMOOTH_FACTOR = 0.75;   // prior weight in the exponential moving average
+const TEMPO_CHANGE_THRESHOLD = 0.005; // avoid DAW/UI updates for <0.5% jitter
 
 /**
  * Compute a raw BPM estimate from a history array of tick timestamps.
@@ -56,12 +57,13 @@ function estimateBpmFromHistory(history) {
 
 class ExternalMidiClock {
     /**
-     * @param {{ now: () => number, onActivate?: () => void, onDeactivate?: () => void, setTempo: (bpm: number) => void }} opts
+     * @param {{ now: () => number, onActivate?: () => void, onDeactivate?: () => void, onTempoChange?: (bpm: number) => void, setTempo: (bpm: number) => void }} opts
      */
     constructor(opts) {
         this._now = opts.now;
         this._onActivate = opts.onActivate || (() => {});
         this._onDeactivate = opts.onDeactivate || (() => {});
+        this._onTempoChange = opts.onTempoChange || (() => {});
         this._setTempo = opts.setTempo;
 
         this.reset();
@@ -87,6 +89,7 @@ class ExternalMidiClock {
         this._externalClockTick = -1;
         this._externalClockHistory = [];
         this._externalTempo = null;
+        this._lastBroadcastTempo = null;
     }
 
     /**
@@ -123,8 +126,13 @@ class ExternalMidiClock {
                 this._externalTempo = this._externalTempo == null
                     ? rawEstimate
                     : this._externalTempo * SMOOTH_FACTOR + rawEstimate * (1 - SMOOTH_FACTOR);
-
-                this._setTempo(this._externalTempo);
+                const changedEnough = this._lastBroadcastTempo == null
+                    || Math.abs(this._externalTempo - this._lastBroadcastTempo) / this._lastBroadcastTempo >= TEMPO_CHANGE_THRESHOLD;
+                if (changedEnough) {
+                    this._lastBroadcastTempo = this._externalTempo;
+                    this._setTempo(this._externalTempo);
+                    this._onTempoChange(this._externalTempo);
+                }
             }
         }
     }

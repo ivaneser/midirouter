@@ -53,6 +53,7 @@ class DAWEngine {
         this._playLoopTimer = null;
         this._playAnchorTime = 0;           // performance.now() начала текущего цикла
         this._currentBeat = 0;              // биты текущего цикла [0, loopLen)
+        this._lastProgressBeat = null;
 
         // Metronome / click track
         this._metronomeEnabled = false;
@@ -68,6 +69,9 @@ class DAWEngine {
         this._midiClockEnabled = true;
         this._midiClock = new MidiClock({ bpm: this.tempo, emit: (evt) => this._onEvent(evt) });
         this._externalClock = false;
+
+        // Global cycle: true after the first completed recording locks loopLenBeats.
+        this._globalCycleLocked = false;
     }
 
     _makeClips() {
@@ -143,6 +147,16 @@ class DAWEngine {
         return !!this._midiClockEnabled;
     }
 
+    getClockSource() {
+        if (this._externalClock) return 'external';
+        if (this.playing && this._midiClockEnabled) return 'internal';
+        return 'none';
+    }
+
+    isMidiClockOutputActive() {
+        return this.getClockSource() === 'internal';
+    }
+
     setExternalClock(enabled) {
         this._externalClock = !!enabled;
         if (this._externalClock) {
@@ -155,29 +169,48 @@ class DAWEngine {
     _startMetronome() {
         if (this._metronomeTimer) return;
         const self = this;
-        let beatInMeasure = 0;
+        let beatInMeasure = -1;
 
-        // Метроном тикает синхронно с транспортом — каждые 50ms проверяем
-        // и тикаем когда _currentBeat пересекает границу бита
+        // When an external master is the selected clock source, the metronome
+        // must be phase-aligned to that master's 24 PPQN tick grid — not an
+        // independent BPM scheduler. The worker's _handleMidiClock drives
+        // _playAnchorTime / _currentBeat on every F8 tick; we use those as the
+        // authoritative phase reference and check at each tick boundary.
         this._metronomeTimer = setInterval(() => {
             if (!this.playing) {
                 this._stopMetronome();
                 return;
             }
-            const beatMs = this._secondsPerBeat() * 1000;
-            const elapsed = performance.now() - this._playAnchorTime;
-            const currentBeatFloat = (elapsed / 1000) / (beatMs / 1000);
-            const currentBeatInt = Math.floor(currentBeatFloat % this.loopLenBeats);
-            
+
+            let tickInMeasure, isAccent, elapsed, currentBeatFloat, currentBeatInt;
+
+            if (this._externalClock) {
+                // _handleMidiClock updates _currentBeat from every selected
+                // master's F8 tick. Reuse that phase directly so tempo changes
+                // and non-120 BPM clocks cannot skew metronome/bar alignment.
+                tickInMeasure = Math.floor(this._currentBeat);
+
+                // Downbeat = first beat of each measure, not just the start
+                // of the (possibly multi-bar) global clip cycle.
+                isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
+            } else {
+                // Internal clock: BPM-driven beat scheduler (unchanged path).
+                const beatMs = this._secondsPerBeat() * 1000;
+                elapsed = performance.now() - this._playAnchorTime;
+                currentBeatFloat = (elapsed / 1000) / (beatMs / 1000);
+                currentBeatInt = Math.floor(currentBeatFloat % this.loopLenBeats);
+                tickInMeasure = currentBeatInt;
+                isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
+            }
+
             // Если перешли на новый бит — тикаем
-            if (currentBeatInt !== beatInMeasure && currentBeatInt >= 0) {
+            if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
                 // Акцент на первую долю такта (по новому биту)
-                const isAccent = (currentBeatInt % this._metronomeBeatsPerMeasure === 0);
                 const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
                 const vel = isAccent ? 100 : 70;
                 self._onEvent({ type: 'midi', data: noteOn(1, note, vel) });
                 self._onEvent({ type: 'midi', data: noteOff(1, note) });
-                beatInMeasure = currentBeatInt;
+                beatInMeasure = tickInMeasure;
             }
         }, 50);
     }
@@ -232,18 +265,21 @@ class DAWEngine {
         }
 
         // Если уже запись на этом треке/слоте — сначала её закрываем (завершаем слой)
+        const startBeat = this.playing
+            ? ((now - this._playAnchorTime) / 1000) / this._secondsPerBeat()
+            : 0;
         this.recording = {
             track: trackIdx,
             slot,
             mode: this.recordMode,
             startTime: now,         // performance.now() старта
-            startBeat: 0,
+            startBeat: Math.round(startBeat * 100) / 100,
             notes: existing.notes,  // пишем в тот же массив (overdub накапливает)
             noteStarts: new Map(),  // `note:${channel}:${note}` -> beat начала
         };
     }
 
-    _stopRecording() {
+    _stopRecording(endBeat) {
         if (!this.recording) return;
         const r = this.recording;
         // Закрываем все открытые note-on (velocity 0 / noteOff)
@@ -257,6 +293,20 @@ class DAWEngine {
             const maxEnd = r.notes.reduce((m, n) => Math.max(m, n.start + (n.dur || 0)), 0);
             this.tracks[r.track].clips[r.slot].length = Math.ceil(Math.max(this.loopLenBeats, maxEnd));
         }
+
+        // First completed recording: derive a shared global cycle from the elapsed
+        // recording span (not just note density), rounded UP to whole 4/4 bars with
+        // a minimum of one bar (4 beats).
+        if (!this._globalCycleLocked && r.notes.length) {
+            const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
+            const elapsedSpan = Math.max(0, end - r.startBeat);
+            const bars = Math.ceil(elapsedSpan / 4);
+            const globalCycleBeats = Math.max(4, bars * 4);
+            this.loopLenBeats = globalCycleBeats;
+            this.tracks[r.track].clips[r.slot].length = globalCycleBeats;
+            this._globalCycleLocked = true;
+        }
+
         this.recording = null;
     }
 
@@ -320,7 +370,7 @@ class DAWEngine {
 
         // Если в этот же слот сейчас идёт запись — завершаем её
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
-            this._stopRecording();
+            this._stopRecording(this._beatAt(now));
             this.quantizeClip(trackIdx, slot);
             this.clipState[trackIdx] = clip.notes.length ? slot : -1;
             return { action: 'record-stop', track: trackIdx, slot };
@@ -367,13 +417,31 @@ class DAWEngine {
         this.playing = true;
         this._currentBeat = 0;
         this._playAnchorTime = performance.now();
+        this._lastProgressBeat = 0;
+        this._onProgress(0, 0, {
+            playing: true,
+            barStart: true,
+            cycleStart: true,
+            meter: this._metronomeBeatsPerMeasure,
+        });
         // Тик раз в половину бита для прогресса + перепланирования цикла
         this._playLoopTimer = setInterval(() => {
             const elapsed = (performance.now() - this._playAnchorTime) / 1000;
             let beat = (elapsed / this._secondsPerBeat()) % this.loopLenBeats;
             if (beat < 0) beat += this.loopLenBeats;
             this._currentBeat = beat;
-            this._onProgress(beat, beat / this.loopLenBeats);
+            const previousBeat = this._lastProgressBeat;
+            const cycleStart = previousBeat != null && beat < previousBeat;
+            const meter = this._metronomeBeatsPerMeasure;
+            const barStart = cycleStart || (previousBeat != null
+                && Math.floor(beat / meter) !== Math.floor(previousBeat / meter));
+            this._onProgress(beat, beat / this.loopLenBeats, {
+                playing: true,
+                barStart,
+                cycleStart,
+                meter,
+            });
+            this._lastProgressBeat = beat;
 
             // Если темп поменялся — цикл уже идёт, коррекция на след. тике ок
         }, 50);
@@ -392,6 +460,13 @@ class DAWEngine {
         if (this._playLoopTimer) clearInterval(this._playLoopTimer);
         this._playLoopTimer = null;
         this._currentBeat = 0;
+        this._lastProgressBeat = null;
+        this._onProgress(0, 0, {
+            playing: false,
+            barStart: false,
+            cycleStart: false,
+            meter: this._metronomeBeatsPerMeasure,
+        });
         // Stop metronome when transport stops
         this._stopMetronome();
         // === Stop MIDI clock — send MIDI Stop to all devices ===
@@ -440,6 +515,8 @@ class DAWEngine {
             loopLenBeats: this.loopLenBeats,
             metronomeEnabled: this._metronomeEnabled,
             midiClockEnabled: this._midiClockEnabled,
+            clockSource: this.getClockSource(),
+            midiClockOutputActive: this.isMidiClockOutputActive(),
             tracks,
         };
     }

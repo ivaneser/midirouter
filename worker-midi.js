@@ -9,6 +9,7 @@ import { computeRoutingStep } from './route-midi.js';
 import { MetronomeController } from './metronome-controller.js';
 import { ControllerEngine } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
+import { ClockMaster, clockOutputsFor } from './clock-master.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -28,6 +29,12 @@ class MIDIRouterWorker {
         // DAW events reach the UI; transport clock also reaches synth outputs.
         // Actual metronome audio is produced by metronome.py → aplay -M → 3.5mm jack.
         this.daw = new DAWEngine();
+        this.daw._onProgress = (beat, progress, cues = {}) => {
+            if (parentPort) parentPort.postMessage({
+                type: 'daw_progress',
+                payload: { beat, progress, loopLenBeats: this.daw.loopLenBeats, ...cues },
+            });
+        };
 
         // Python audio metronome controller — controls metronome.py via stdin IPC
         this.metronomeCtrl = new MetronomeController({
@@ -40,6 +47,7 @@ class MIDIRouterWorker {
         this._externalTransportState = null;
         this._externalClockTimeout = null;
         this._lastExternalClockAt = 0;
+        this._lastExternalTempoAt = 0;      // throttle live tempo/phase broadcasts to UI
         this._lastLoggedClockAt = 0;      // throttle [MIDI RX] clock-tick logging (first tick only)
 
         // External MIDI Clock slave — pure timestamp handling + BPM estimation.
@@ -53,6 +61,9 @@ class MIDIRouterWorker {
             setTempo: (bpm) => this.daw.setTempo(bpm),
         });
 
+
+        // Explicit clock source selection — exactly one master at a time.
+        this._clockMaster = new ClockMaster();
         // Override DAW engine methods to also control the Python audio metronome
         const origSetTempo = this.daw.setTempo.bind(this.daw);
         this.daw.setTempo = (bpm) => {
@@ -122,10 +133,22 @@ class MIDIRouterWorker {
         });
 
         this.daw._onEvent = (evt) => {
-            // Generated clock/transport stays internal — DAW engine uses it for
-            // clip playback timing. Do NOT forward to external outputs: that would
-            // create feedback loops with devices that generate their own MIDI clock.
-            parentPort.postMessage({ type: 'daw_midi', data: evt.data });
+            const bytes = evt.data;
+            const status = bytes[0];
+
+            // Internal DAW MidiClock path: when the internal source is selected,
+            // its 24 PPQN clock + Start/Continue/Stop must reach all allowed
+            // outputs exactly once. When an external master is active we keep the
+            // clock *internal* to avoid duplicating ticks (external source owns
+            // fanout; do NOT re-emit internal ticks back out).
+            if (this._clockMaster.source.kind === 'internal') {
+                if (status === 0xf8 || status === 0xfa || status === 0xfb || status === 0xfc) {
+                    this._sendMidiClockOutputs(bytes);
+                }
+            }
+
+            // Generated clock/transport also reaches the UI for timing listeners.
+            parentPort.postMessage({ type: 'daw_midi', data: bytes });
         };
 
         // track playback timers (loop): trackIdx -> { interval, timeouts, active }
@@ -410,16 +433,17 @@ class MIDIRouterWorker {
     }
 
     // ---- DAW: play/stop a clip in loop ----
-    _startTrackPlayback(trackIdx, slot) {
+    _startTrackPlayback(trackIdx, slot, now = performance.now()) {
         this._stopTrackPlayback(trackIdx);
         const clip = this.daw.tracks[trackIdx].clips[slot];
         if (!clip || clip.notes.length === 0) return;
 
         const msPerBeat = this.daw._secondsPerBeat() * 1000;
-        const loopMs = Math.max(250, (clip.length || this.daw.loopLenBeats) * msPerBeat);
+        const loopBeats = Math.max(0.25, Number(this.daw.loopLenBeats) || 4);
+        const loopMs = loopBeats * msPerBeat;
         const playback = { interval: null, timeouts: new Set(), active: new Map() };
         const schedule = (fn, delay) => {
-            const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, delay);
+            const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, Math.max(0, delay));
             playback.timeouts.add(timer);
         };
 
@@ -428,11 +452,12 @@ class MIDIRouterWorker {
 
         if (this._externalClockActive) {
             playback.externalClock = true;
-            playback.startTick = this._externalMidiClock.tickCount;
-            playback.loopTicks = Math.max(24, Math.round((clip.length || this.daw.loopLenBeats) * 24));
+            playback.loopTicks = Math.max(24, Math.round(loopBeats * 24));
+            const currentTick = this._externalMidiClock.tickCount;
+            playback.startTick = currentTick - (currentTick % playback.loopTicks);
             playback.noteEvents = clip.notes.map(note => ({
                 ...note,
-                startTick: Math.max(0, Math.round(note.start * 24)),
+                startTick: ((Math.round(note.start * 24) % playback.loopTicks) + playback.loopTicks) % playback.loopTicks,
                 durationTicks: Math.max(1, Math.round((note.dur || 0.25) * 24)),
             }));
             playback.pendingNoteOffs = new Map();
@@ -440,29 +465,38 @@ class MIDIRouterWorker {
             return;
         }
 
-        const runLoop = () => {
-            const t0 = performance.now();
+        // Legato launch: map each clip event onto the existing transport cycle.
+        // This mirrors Ableton Live's Legato Mode: launching a clip inherits the
+        // current play position instead of restarting its local playhead at zero.
+        const transportBeat = this.daw.playing
+            ? ((now - this.daw._playAnchorTime) / 1000) / this.daw._secondsPerBeat()
+            : 0;
+        const phase = ((transportBeat % loopBeats) + loopBeats) % loopBeats;
 
-            for (const n of clip.notes) {
-                const delay = Math.max(0, (n.start * msPerBeat) - (performance.now() - t0));
-                const channel = Math.max(1, n.channel || 1);
-                const key = `${channel}:${n.note}`;
+        for (const note of clip.notes) {
+            const eventPhase = ((note.start % loopBeats) + loopBeats) % loopBeats;
+            const beatsUntilNext = ((eventPhase - phase) % loopBeats + loopBeats) % loopBeats;
+            let nextAt = now + beatsUntilNext * msPerBeat;
+            const channel = Math.max(1, note.channel || 1);
+            const key = `${channel}:${note.note}`;
+            const fire = () => {
+                this._sendToSynthOutputs(noteOn(channel - 1, note.note, note.velocity > 0 ? note.velocity : 80));
+                playback.active.set(key, (playback.active.get(key) || 0) + 1);
                 schedule(() => {
-                    this._sendToSynthOutputs(noteOn(channel - 1, n.note, n.velocity > 0 ? n.velocity : 80));
-                    playback.active.set(key, (playback.active.get(key) || 0) + 1);
-                }, delay);
-                const offDelay = Math.max(0, ((n.start + (n.dur || 0.25)) * msPerBeat) - (performance.now() - t0));
-                schedule(() => {
-                    this._sendToSynthOutputs(noteOff(channel - 1, n.note));
+                    this._sendToSynthOutputs(noteOff(channel - 1, note.note));
                     const count = playback.active.get(key) || 0;
                     if (count <= 1) playback.active.delete(key);
                     else playback.active.set(key, count - 1);
-                }, offDelay);
-            }
-        };
+                }, (note.dur || 0.25) * msPerBeat);
 
-        runLoop();
-        playback.interval = setInterval(runLoop, loopMs);
+                // Schedule against the ideal absolute cycle boundary, avoiding
+                // cumulative drift from repeatedly adding timer callback latency.
+                nextAt += loopMs;
+                schedule(fire, nextAt - performance.now());
+            };
+            schedule(fire, nextAt - performance.now());
+        }
+
         this._trackPlayTimers.set(trackIdx, playback);
     }
 
@@ -559,7 +593,17 @@ class MIDIRouterWorker {
         }
     }
 
-    _handleExternalTransport(statusByte, now) {
+    _handleExternalTransport(statusByte, now, sourcePortName = null) {
+        // Internal master — external transport events must be ignored entirely.
+        if (this._clockMaster.source.kind === 'internal') {
+            return;
+        }
+
+        // External master — only the selected master port affects sync.
+        if (this._clockMaster.masterPortName !== sourcePortName) {
+            return; // ignore non-master transport events
+        }
+
         if (statusByte === 0xfa) {
             // A fresh MIDI Start re-syncs the slave clock's phase.
             this._externalMidiClock.reset();
@@ -574,6 +618,8 @@ class MIDIRouterWorker {
             this.daw._playAnchorTime = now;
             this.daw._currentBeat = 0;
             if (wasExternalClockActive) this._syncActiveClipsToExternalClock();
+            // Fan out the Start message to all allowed outputs (excl. master).
+            this._sendMidiClockOutputs([0xfa]);
             this._broadcastState();
         } else if (statusByte === 0xfb) {
             this._externalTransportState = true;
@@ -582,10 +628,14 @@ class MIDIRouterWorker {
                 this._transportPlaying = true;
             }
             if (wasExternalClockActive) this._syncActiveClipsToExternalClock();
+            // Fan out the Continue message to all allowed outputs.
+            this._sendMidiClockOutputs([0xfb]);
             this._broadcastState();
         } else if (statusByte === 0xfc) {
             this._externalTransportState = false;
             if (this._transportPlaying) this.handleDawControl({ type: 'daw_stop_transport' });
+            // Fan out the Stop message to all allowed outputs.
+            this._sendMidiClockOutputs([0xfc]);
             this._broadcastState();
         }
     }
@@ -606,13 +656,20 @@ class MIDIRouterWorker {
     }
 
     _sendMidiClockOutputs(bytes, excludePortName = null) {
-        for (const [name, output] of this.outputs) {
-            // Не отправляем MIDI clock обратно на порт-источник (защита от петли обратной связи)
-            if (excludePortName && name === excludePortName) continue;
-            if (this.controllerEngine.isExcludedOutput(name)
-                && !this.controllerEngine.isMidiClockOutput(name)) continue;
-            try { output.sendMessage(Buffer.from(bytes)); }
-            catch (error) { console.warn(`[WORKER] Failed to send MIDI clock to ${name}: ${error.message}`); }
+        // Use the ClockMaster's computed output set — excludes master port and
+        // user-configured explicit exclusions; applies controller policy too.
+        const dests = clockOutputsFor(this._clockMaster, (port) => {
+            // Separate note-routing policy from clock policy: a port excluded
+            // from ordinary MIDI output is still allowed as a clock destination
+            // when the profile explicitly marks it via midiClockOutput.
+            return this.controllerEngine.isAllowedClockDestination(port.name);
+        });
+
+        for (const port of dests) {
+            // Safety: never send back to the physical master input.
+            if (excludePortName && port.name === excludePortName) continue;
+            try { port.send(bytes); }
+            catch (error) { console.warn(`[WORKER] Failed to send MIDI clock to ${port.name}: ${error.message}`); }
         }
     }
 
@@ -641,9 +698,18 @@ class MIDIRouterWorker {
 
     _triggerPad(trackIdx, slot, now) {
         const result = this.daw.triggerPad(trackIdx, slot, now);
+        let visualEvent = null;
+        if (['play', 'record-stop', 'record', 'overdub'].includes(result.action)) {
+            visualEvent = {
+                kind: result.action === 'record' || result.action === 'overdub' ? 'record-start' : 'clip-start',
+                trackIdx,
+                slot,
+                mode: this.daw.recordMode,
+            };
+        }
         this._clearStaleRecordingFeedback();
         if (result.action === 'play' || result.action === 'record-stop') {
-            this._startTrackPlayback(trackIdx, slot);
+            this._startTrackPlayback(trackIdx, slot, now);
         } else if (result.action === 'stop') {
             this._stopTrackPlayback(trackIdx);
         } else if (result.action === 'record' || result.action === 'overdub') {
@@ -654,7 +720,12 @@ class MIDIRouterWorker {
             console.warn(`[DAW] Invalid pad target track ${trackIdx}, slot ${slot}`);
         }
         this._broadcastState();
+        if (visualEvent) this._emitVisualEvent(visualEvent);
         return result;
+    }
+
+    _emitVisualEvent(event) {
+        if (parentPort) parentPort.postMessage({ type: 'daw_visual_event', event });
     }
 
     _handleMappedPad(mapping, velocity, now) {
@@ -664,42 +735,62 @@ class MIDIRouterWorker {
 
     // ---- External MIDI Clock slave (delegates to ExternalMidiClock) ----
     _handleMidiClock(now, excludePortName = null) {
-        // Не пересылаем внешний MIDI clock обратно в сеть — используем его
-        // только для синхронизации внутреннего транспорты DAW. Пересылка
-        // создаёт петли обратной связи с устройствами, генерирующими свой clock.
-        //
-        // Троттлинг: внешние устройства (NTS-1 / Launchkey) могут слать 0xF8
-        // с огромной частотой — обрабатываем только каждый 4-й тик, чтобы
-        // снизить нагрузку на CPU. Фазу это не нарушает (24 PPQN * 4 = 96 шагов
-        // на такт — больше чем достаточно для синхронизации).
-        this._externalClockTickCount = (this._externalClockTickCount || 0) + 1;
-        if (this._externalClockTickCount % 4 !== 0) return;
+        // The selected external input port is now the *only* master for clock.
+        // Every 0xF8 tick from that source drives the slave clock and is
+        // retransmitted to all allowed outputs (excluding the master itself).
+        const masterSource = this._clockMaster.source;
 
-        this._lastExternalClockAt = now;
-        this._scheduleExternalClockTimeout();
+        if (masterSource.kind === 'external') {
+            // Only the chosen master's ticks are processed — ticks from other
+            // input ports are ignored for sync/fanout (handled at the caller).
+            if (masterSource.masterPortName !== excludePortName) return;
 
-        if (this._externalTransportState == null) {
-            this._externalTransportState = true;
+            // No throttling: ExternalMidiClock needs every tick for correct BPM/phase.
+            this._lastExternalClockAt = now;
+            this._scheduleExternalClockTimeout();
+
+            if (this._externalTransportState == null) {
+                this._externalTransportState = true;
+            }
+            if (this._externalTransportState !== false && !this._transportPlaying) {
+                this.handleDawControl({ type: 'daw_start_transport' });
+            }
+
+            // Hand the tick to the shared slave clock — it activates, tracks phase,
+            // estimates BPM and calls back into `daw.setTempo`.
+            const tempoBefore = this.daw.tempo;
+            this._externalMidiClock.tick(now);
+
+            if (this._externalMidiClock.externalClockActive) {
+                this._externalClockActive = true;
+                const loopTicks = Math.max(24, this.daw.loopLenBeats * 24);
+                const beat = (this._externalMidiClock.tickCount % loopTicks) / 24;
+                this.daw._playAnchorTime = now - beat * this.daw._secondsPerBeat() * 1000;
+                this.daw._currentBeat = beat;
+                this._tickExternalClipPlayback(this._externalMidiClock.tickCount);
+
+                // Publish live tempo/phase to UI when the external master
+                // materially changed it — but NOT every tick (throttled to
+                // downbeat boundaries so ~4 broadcasts/sec at 120 BPM).
+                if (this.daw.tempo !== tempoBefore) {
+                    this._lastExternalTempoAt = this._lastExternalTempoAt || 0;
+                    const nowMs = performance.now();
+                    if (nowMs - this._lastExternalTempoAt > 125) {
+                        this._broadcastState();
+                        this._lastExternalTempoAt = nowMs;
+                    }
+                }
+            }
+
+            // Emit the incoming clock to UI timing listeners.
+            parentPort.postMessage({ type: 'daw_midi', data: [0xf8] });
+
+            // Retransmit the master tick to all allowed outputs (excluding master).
+            this._sendMidiClockOutputs([0xf8]);
+        } else {
+            // Internal source — nothing to do here; the DAW engine's MidiClock
+            // drives the allowed outputs directly via its own emit path.
         }
-        if (this._externalTransportState !== false && !this._transportPlaying) {
-            this.handleDawControl({ type: 'daw_start_transport' });
-        }
-
-        // Hand the tick to the shared slave clock — it activates, tracks phase,
-        // estimates BPM and calls back into `daw.setTempo`.
-        this._externalMidiClock.tick(now);
-
-        if (this._externalMidiClock.externalClockActive) {
-            this._externalClockActive = true;
-            const loopTicks = Math.max(24, this.daw.loopLenBeats * 24);
-            const beat = (this._externalMidiClock.tickCount % loopTicks) / 24;
-            this.daw._playAnchorTime = now - beat * this.daw._secondsPerBeat() * 1000;
-            this.daw._currentBeat = beat;
-            this._tickExternalClipPlayback(this._externalMidiClock.tickCount);
-        }
-
-        // Emit the incoming clock to UI timing listeners.
-        parentPort.postMessage({ type: 'daw_midi', data: [0xf8] });
     }
 
     // Controller transport actions are defined by each profile.
@@ -846,12 +937,14 @@ class MIDIRouterWorker {
                 }
             }
 
-            // PHASE 6: Close removed outputs
+            // PHASE 6: Close removed outputs (sync deregistration with ClockMaster)
             for (const deviceName of outputsToRemove) {
                 const output = this.outputs.get(deviceName);
                 if (output) {
                     console.log(`[WORKER] Output removed: ${deviceName}`);
                     try { output.closePort(); } catch (_) {}
+                    // Tell ClockMaster so activeOutputs/candidates stay coherent.
+                    this._clockMaster.deregisterOutput(deviceName);
                     this.outputs.delete(deviceName);
                 }
             }
@@ -863,6 +956,13 @@ class MIDIRouterWorker {
             for (const [name, output] of openedOutputs) {
                 this.outputs.set(name, output);
                 this._initializeControllerOutput(name, output);
+                // Register the real RtMidiOut instance with ClockMaster so its
+                // outputs/candidates/activeOutputs stay in sync and send() routes
+                // through .sendMessage(Buffer) on the physical port.
+                const outName = name;
+                this._clockMaster.registerOutput(outName, (bytes) => {
+                    output.sendMessage(Buffer.from(bytes));
+                });
             }
 
             for (const { name, oldPort, newIndex } of outputsToReopen) {
@@ -873,6 +973,10 @@ class MIDIRouterWorker {
                     output._index = newIndex;
                     this.outputs.set(name, output);
                     this._initializeControllerOutput(name, output);
+                    // Re-register the swapped-in physical port with ClockMaster.
+                    this._clockMaster.registerOutput(name, (bytes) => {
+                        output.sendMessage(Buffer.from(bytes));
+                    });
                     console.log(`[WORKER] Output reopened: ${name} (index: ${newIndex})`);
                 } catch (error) {
                     this.outputs.delete(name);
@@ -965,13 +1069,19 @@ class MIDIRouterWorker {
             return;
         }
 
-        // === System Real-Time (MIDI Clock / Start / Stop) from ANY source ===
+        // === System Real-Time (MIDI Clock / Start / Stop) ===
+        // Only the selected clock master's 0xF8/Start/Continue/Stop drive sync.
         if (isSysRealTime) {
             const now = performance.now();
             if (statusByte === 0xf8) {
+                // Gate external clock ticks to the single selected master port only.
+                if (this._clockMaster.source.kind === 'external' &&
+                    this._clockMaster.masterPortName !== deviceName) {
+                    return; // ignore non-master source ticks for sync/fanout
+                }
                 this._handleMidiClock(now, deviceName);
             } else if ([0xfa, 0xfb, 0xfc].includes(statusByte)) {
-                this._handleExternalTransport(statusByte, now);
+                this._handleExternalTransport(statusByte, now, deviceName);
             } else {
                 this._sendToSynthOutputs(bytes, 'external real-time MIDI');
             }
@@ -1198,11 +1308,17 @@ class MIDIRouterWorker {
                     this._broadcastState();
                 }
                 break;
+
+
         }
     }
 
     _broadcastState() {
-        parentPort.postMessage({ type: 'daw_state', state: this.daw.getState() });
+        const state = this.daw.getState();
+        // Include the current clock master selection so UI reflects reality.
+        state.clockMasterSource = this._clockMaster.source;
+        state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
+        parentPort.postMessage({ type: 'daw_state', state });
     }
 
     _broadcastPadMap() {
@@ -1296,9 +1412,11 @@ class MIDIRouterWorker {
     }
 }
 
-const worker = new MIDIRouterWorker();
+export { MIDIRouterWorker };
 
-parentPort.on('message', (msg) => {
+if (parentPort) {
+    const worker = new MIDIRouterWorker();
+    parentPort.on('message', (msg) => {
     if (msg.type === 'shutdown') {
         // Отправить panic note-off перед выключением чтобы сбросить зажатые ноты
         worker.sendPanicNoteOff();
@@ -1346,7 +1464,32 @@ parentPort.on('message', (msg) => {
     } else if (msg.type === 'rebuild_mappings') {
         // Пересборка маппингов при hot-plug событии
         worker.rebuildMappings();
+    } else if (msg.type.startsWith('clock_')) {
+        // Clock master selection commands from server.
+        if (msg.type === 'clock_source_select') {
+            const kind = msg.kind;           // 'internal' | 'external'
+            const portName = msg.portName;   // when external: name of input port
+            if (kind === 'internal') {
+                worker._clockMaster.selectInternal();
+                worker._externalMidiClock.reset();
+                worker._externalClockActive = false;
+                worker._externalTransportState = null;
+                worker.daw.setMidiClock(true);
+            } else if (kind === 'external') {
+                if (portName) {
+                    worker._clockMaster.selectExternal(portName);
+                } else {
+                    worker._clockMaster.resetExternalState();
+                }
+                worker.daw.setMidiClock(false);
+            }
+            worker._broadcastState();
+        } else if (msg.type === 'clock_source_explicit_exclusions') {
+            const excl = Array.isArray(msg.exclusions) ? msg.exclusions : [];
+            worker._clockMaster.setExplicitExclusions(excl);
+            worker._broadcastState();
+        }
     }
-});
-
-worker.init();
+    });
+    worker.init();
+}
