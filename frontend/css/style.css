@@ -442,24 +442,6 @@ body {
     overflow-x: auto;
     margin-bottom: 12px;
 }
-.scene-names {
-    display: flex;
-    gap: 4px;
-    padding-left: 80px;
-    margin-bottom: 4px;
-}
-.scene-name {
-    width: 72px;
-    height: 28px;
-    background: #1a1a2e;
-    border: 1px solid #0f3460;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    color: #888;
-}
 
 /* Session Grid (Ableton-style) */
 /* Track Controls — now rendered per-track inside session grid; strip kept for compat */
@@ -1042,15 +1024,7 @@ body {
         font-size: 0.7rem;
     }
 
-    .scene-names {
-        padding-left: 50px;
-    }
 
-    .scene-name {
-        width: 52px;
-        height: 24px;
-        font-size: 0.6rem;
-    }
 }
 
 @media (max-width: 480px) {
@@ -1172,15 +1146,7 @@ body {
         font-size: 0.7rem;
     }
 
-    .scene-names {
-        padding-left: 60px;
-    }
 
-    .scene-name {
-        width: 56px;
-        height: 26px;
-        font-size: 0.65rem;
-    }
 }
 
 /* === iPad Portrait (769px - 1024px) === */
@@ -1256,15 +1222,7 @@ body {
         font-size: 0.75rem;
     }
 
-    .scene-names {
-        padding-left: 70px;
-    }
 
-    .scene-name {
-        width: 62px;
-        height: 28px;
-        font-size: 0.7rem;
-    }
 }
 
 /* Clock master selector */
