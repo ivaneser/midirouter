@@ -323,19 +323,10 @@ body {
     border-radius: 8px;
 }
 .sessions-controls {
-    display: flex;
-    gap: 8px;
+    display: inline-flex;
+    gap: 6px;
     align-items: center;
-    margin-bottom: 8px;
-}
-.sessions-controls input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 8px;
-    background: #1a1a2e;
-    color: #eee;
-    border: 1px solid #0f3460;
-    border-radius: 4px;
+    margin-left: 8px;
 }
 .session-list {
     display: flex;
@@ -370,11 +361,13 @@ body {
 .session-delete:hover {
     color: #e94560;
 }
-#session-status {
-    width: 100%;
+.session-status {
+    flex-basis: 100%;
     margin: 2px 0 0 0;
+    font-size: 0.8rem;
+    min-height: 1em;
 }
-#session-status.error {
+.session-status.error {
     color: #e94560;
 }
 .session-container {

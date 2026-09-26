@@ -69,14 +69,12 @@
                     <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
                     <button id="btn-record-arm" class="btn btn-orange">● Rec Arm</button>
                     <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
-                </div>
-            </div>
-
-            <!-- Sessions: save/load recordings to/from disk -->
-            <div class="sessions-section">
-                <div class="sessions-controls">
-                    <input id="session-name" type="text" placeholder="Session name" value="session-1">
-                    <button id="btn-save-session" class="btn btn-green">💾 Save session</button>
+                    <!-- Sessions: save/load recordings to/from disk (name asked on click) -->
+                    <span class="sessions-controls">
+                        <button id="btn-save-session" class="btn btn-sm" title="Save current recording to disk">💾 Save</button>
+                        <button id="btn-load-session" class="btn btn-sm" title="Load recording from disk">⏬ Load</button>
+                    </span>
+                    <p id="session-status" class="session-status"></p>
                 </div>
                 <div id="session-list" class="session-list"></div>
             </div>

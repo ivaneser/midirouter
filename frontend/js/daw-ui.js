@@ -12,14 +12,23 @@ export class DAWUI {
     }
 
     // Sessions: save/load recordings (DAW clips) to/from disk.
+    // Имя спрашивается в prompt после нажатия кнопки (поля в UI нет).
     _initSessions() {
         if (!document.getElementById('btn-save-session') && !document.getElementById('session-list')) return;
         const saveBtn = document.getElementById('btn-save-session');
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
-                const input = document.getElementById('session-name');
-                const name = input ? input.value.trim() : '';
-                if (name) this._send({ type: 'daw-save-session', name });
+                const name = prompt('Save session as:');
+                if (name && name.trim()) this._send({ type: 'daw-save-session', name: name.trim() });
+            });
+        }
+        const loadBtn = document.getElementById('btn-load-session');
+        if (loadBtn) {
+            loadBtn.addEventListener('click', () => {
+                const list = this._sessions && this._sessions.length
+                    ? `Available sessions:\n${this._sessions.join('\n')}\n` : '';
+                const name = prompt(`${list}Load session:`, '');
+                if (name && name.trim()) this._send({ type: 'daw-load-session', name: name.trim() });
             });
         }
         this._send({ type: 'daw-list-sessions' });
