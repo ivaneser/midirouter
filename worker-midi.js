@@ -886,8 +886,8 @@ class MIDIRouterWorker {
         else if (action === 'stop') this.handleDawControl({ type: 'daw_stop_transport' });
         else if (action === 'loop') this.handleDawControl({ type: 'daw_toggle_loop' });
         else if (action === 'record') {
-            // Rec Arm: нажатие сбрасывает все клипы в ноль и включает режим
-            // записи (replace). Отпускание — без действия, чтобы не переключать
+            // Rec Arm: нажатие сбрасывает все клипы в ноль и возвращает Mode = Play.
+            // Отпускание — без действия, чтобы не переключать
             // режимы при каждом CC release.
             if (pressed) this.handleDawControl({ type: 'daw_reset_arm_record' });
         }
@@ -1299,13 +1299,13 @@ class MIDIRouterWorker {
             case 'daw_reset_arm_record': {
                 // Rec Arm: все клипы в ноль + готовность к новой записи.
                 // Сначала останавливаем проигрывание (note-offs), затем
-                // стираем клипы, затем включаем режим записи (replace).
+                // стираем клипы; Mode по умолчанию — Play ('none').
                 for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
                 daw.resetAllClips();
-                daw.setRecordMode('replace');
+                daw.setRecordMode('none');
                 this._clearStaleRecordingFeedback();
                 this._refreshPadLeds();
-                console.log('[DAW] Rec Arm: all clips reset to zero, replace mode armed');
+                console.log('[DAW] Rec Arm: all clips reset to zero, Play mode armed');
                 this._broadcastState();
                 break;
             }
