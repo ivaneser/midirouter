@@ -105,12 +105,12 @@ midirouter/
 ## Статус реализации (реализовано)
 - ✅ **All-to-all MIDI роутер** — авто-обнаружение портов, соединение всех со всеми.
 - ✅ **Hot-plug** — устройства подключаются/отключаются без перезапуска; порты переоткрываются автоматически.
-- ✅ **DAW / Clip режим** (`daw.js` + `worker-midi.js`): 16 треков = MIDI-каналы, клипы с записанными нотами, темп/tap-tempo, квантование в сетку, режимы записи (none/replace/overdub), play/stop в loop.
+- ✅ **DAW / Clip режим** (`daw.js` + `worker-midi.js`): 16 треков = MIDI-каналы, клипы с записанными нотами, темп/tap-tempo, квантование в сетку, Mode-поведение после записи (play/overdub/replace), play/stop в loop. Сессии записей: `toData()`/`loadData()` сериализуют все клипы на диск (`sessions/*.json`).
 - ✅ **Автоматическое маппинг падов с ЛЮБОГО порта контроллера** — любая нажатая клавиша на любом контроллере input автоматически назначается на следующий свободный (трек, слот). Pad-trigger работает с любого MIDI-порта, не только DAW Port.
 - ✅ **Transport управление с контроллера** — Play/Stop/Record/Low кнопки на Launchkey Mini MK3 управляют транспортом и переключают режим записи.
 - ✅ **WS API DAW** (`server.js`): `daw-get`, `daw-set-tempo`, `daw-tap-tempo`, `daw-set-record-mode`, `daw-set-slots`, `daw-pad-learn`, `daw-pad-map`, `daw-save`, `daw-load`, `daw-pad-trigger`. Пресеты в `device_maps/daw_*.json`.
 - ✅ **Веб-UI DAW** (`frontend/js/daw-ui.js` + `style.css`): режим записи, BPM/tap, слоты/трек, auto-assign, сохранение пресетов, живая сетка падов.
-- ✅ **LED-обратная связь Launchkey Mini MK3** — SysEx + velocity-based команды отправляются **только** на порт Launchkey. Цвета: cyan (play), red (armed), downbeat-flash. Пады очищаются при старте.
+- ✅ **LED-обратная связь Launchkey Mini MK3** — velocity-based Note On команды отправляются **только** на порт Launchkey. Состояния: playing (flashing cyan, ch2), recorded (pulsing cyan, ch3), recording (flashing red), off. Шлется только при смене состояния (анти-flicker дедупликация); идентичные байты не повторяются.
 - ✅ **MIDI Clock (MTC)** — при старте транспорта на все USB-MIDI выходы рассылается Start (`0xFA`) и Clock (`0xF8`, 24 PPQN), при остановке — Stop (`0xFC`). Внешние устройства синхронизируются.
 - ✅ **Аудио метроном** (`metronome.py` + `metronome-controller.js`) — sample-accurate клики в наушники Raspberry Pi. Синхронизируется с Play/Stop транспорта. Auto-detect headphone jack (`hw:Headphones`). Поддерживает `--device` / `-d`.
 - ✅ **CC-трансляция** (`cc-mapper.js`) — ручки контроллера автоматически маппятся на параметры синтезаторов по семантике (cutoff, resonance, volume и т.д.).

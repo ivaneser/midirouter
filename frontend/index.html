@@ -162,43 +162,52 @@
                 ❓ How to Play
             </summary>
             <div class="help-content">
-                <h4>🎹 Using LaunchKey Pads</h4>
+                <h4>🎹 Using the Pads</h4>
                 <ul>
-                    <li><strong>Click a pad once</strong> — it auto-connects to the next free track/slot.</li>
-                    <li><strong>Press & hold a pad</strong> in Replace/Overdub mode — records your notes, releases to play them back.</li>
-                    <li><strong>Tap a pad again</strong> while a clip plays — stops it.</li>
-                    <li><strong>Tap tempo</strong> with any pad or use the Tap button to set BPM.</li>
+                    <li><strong>Empty pad press = record.</strong> Press any empty clip to start recording; your notes go into that clip. No arming step needed.</li>
+                    <li><strong>Press the same pad again = stop the take</strong> — then the Mode decides what happens next (see below).</li>
+                    <li><strong>Playing pad</strong> — press stops it; press again starts it (Play mode).</li>
+                    <li><strong>Press a new empty clip</strong> on the same track — stops the current clip and records into the new one.</li>
+                    <li>Pads toggle on press; releasing a pad never stops a clip or a take.</li>
                 </ul>
 
-                <h4>🎛️ Transport Controls</h4>
+                <h4>🎛️ Transport & Buttons</h4>
                 <ul>
-                    <li><strong>▶ Play</strong> — starts playback of the current clip.</li>
+                    <li><strong>▶ Play</strong> — starts the transport (MIDI clock + metronome + active clips). Press again to stop it (toggle).</li>
                     <li><strong>⏹ Stop</strong> — stops all playback.</li>
-                    <li><strong>● Rec Arm</strong> — resets all clips to zero and arms recording (replace mode) for a fresh take.</li>
-                    <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown.</li>
+                    <li><strong>● Rec Arm</strong> — resets ALL clips to zero (wipe everything) and arms Replace mode for a fresh session.</li>
+                    <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown. <strong>⏱ MTC</strong> — toggle MIDI Clock output for external gear.</li>
+                    <li><strong>Tap</strong> — tap tempo for BPM.</li>
+                    <li><strong>Launchkey buttons:</strong> Play (CC115, toggle), Stop (CC116), Rec Arm (CC117, full reset), Loop (CC118).</li>
                 </ul>
 
-                <h4>📝 Mode (what happens after a take ends)</h4>
+                <h4>📝 Mode (what happens when you stop a take)</h4>
                 <ul>
-                    <li>An <strong>empty clip always starts recording</strong> on pad press (any Mode).</li>
-                    <li>Pressing a clip that is <strong>playing</strong> stops it; pressing a stopped clip in <strong>Play</strong> mode starts it again.</li>
-                    <li><strong>Play</strong> — when you stop recording, the clip starts looping the take.</li>
-                    <li><strong>Overdub</strong> — when you stop, recording keeps going: layer new notes on top of the take.</li>
-                    <li><strong>Replace</strong> — when you stop, the clip stays stopped; the next press on it records a fresh take that overwrites the old one.</li>
-                    <li>Pressing a new <strong>empty</strong> clip stops the current clip on that track and records into the new one.</li>
+                    <li><strong>Play</strong> — the take starts looping right away. Next presses toggle play/stop.</li>
+                    <li><strong>Overdub</strong> — the clip stops but keeps all layers; press it again to add another layer on top.</li>
+                    <li><strong>Replace</strong> — the clip stops; press it again to record a fresh take that overwrites the old one.</li>
+                    <li>Empty clips always record on first press, in any Mode.</li>
                 </ul>
 
-                <h4>💾 Saving & Loading</h4>
+                <h4>💾 Sessions (save/load recordings)</h4>
                 <ul>
-                    <li><strong>Save</strong> — store your current DAW state (BPM, modes, clips) to a preset file.</li>
-                    <li><strong>Load</strong> — restore a previously saved preset.</li>
+                    <li><strong>💾 Save</strong> (next to the Bar·Beat indicator) — ask for a name, saves the whole recording (all clips, notes, BPM, mode) to <code>sessions/&lt;name&gt;.json</code>.</li>
+                    <li><strong>⏬ Load</strong> — ask for a name (the dialog lists saved sessions), loads that recording into the DAW.</li>
+                    <li>The session list below the transport: <strong>click a name to load it, ✕ to delete it</strong>.</li>
+                    <li>Separate from router presets (⚙️ Configuration → Save/Load), which store routing/port configuration.</li>
                 </ul>
 
-                <h4>🔌 MIDI Routing</h4>
+                <h4>🎚️ Synthesizers & Routing</h4>
                 <ul>
-                    <li>All connected MIDI devices are auto-linked (all-to-all routing).</li>
-                    <li>Add custom routes in the Configuration section to route specific inputs to outputs.</li>
-                    <li>Devices appear automatically when plugged in (hot-plug supported).</li>
+                    <li>All connected MIDI devices are auto-linked (all-to-all routing); hot-plug works.</li>
+                    <li>Add custom routes in ⚙️ Configuration to route specific inputs to outputs.</li>
+                    <li>🔊 MIDI Devices → <strong>Synthesizers</strong>: supported outputs (Craft Synth, Korg NTS-1) appear as cards — expand a card to adjust its knobs/sliders live.</li>
+                </ul>
+
+                <h4>💡 Pad LEDs (Launchkey Mini MK3)</h4>
+                <ul>
+                    <li><strong>Flashing cyan</strong> — clip is playing. <strong>Pulsing cyan</strong> — clip has a recording but is stopped.</li>
+                    <li><strong>Flashing red</strong> — recording in progress. <strong>Off</strong> — empty or cleared clip.</li>
                 </ul>
             </div>
         </details>

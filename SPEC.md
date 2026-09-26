@@ -392,11 +392,17 @@ Phase 3: РАБОТА
 // Симуляция нажатия пады из веб-UI (тестирование без контроллера)
 { "type": "daw-pad-trigger", "trackIdx": 0, "slot": 0 }
 
-// Сохранить пресет DAW
+// Сохранить пресет конфигурации роутинга
 { "type": "daw-save", "name": "my_clip" }
 
-// Загрузить пресет DAW
+// Загрузить пресет конфигурации роутинга
 { "type": "daw-load", "name": "my_clip" }
+
+// Сессии записей (DAW-клипы) на диске: sessions/<имя>.json
+{ "type": "daw-save-session", "name": "groove-1" }
+{ "type": "daw-load-session", "name": "groove-1" }
+{ "type": "daw-delete-session", "name": "groove-1" }
+{ "type": "daw-list-sessions" }
 
 // Сохранить пресет
 { "type": "save_preset", "payload": { "name": "my_setup", "config": {...} } }
@@ -481,6 +487,10 @@ Phase 3: РАБОТА
 
 // DAW: пресеты доступны для загрузки
 { "type": "daw-presets", "payload": { "names": ["my_clip"] }}
+
+// DAW: список сессий записей на диске / ошибка операции с сессией
+{ "type": "daw_session_list", "sessions": ["groove-1"] }
+{ "type": "daw_session_error", "name": "groove-1", "error": "..." }
 
 // DAW: MIDI-событие клипа (визуализация проиграния/записи)
 { "type": "daw_event", "payload": { "trackIdx": 0, "slot": 0, "note": 60 } }
