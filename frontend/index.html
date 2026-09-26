@@ -72,6 +72,15 @@
                 </div>
             </div>
 
+            <!-- Sessions: save/load recordings to/from disk -->
+            <div class="sessions-section">
+                <div class="sessions-controls">
+                    <input id="session-name" type="text" placeholder="Session name" value="session-1">
+                    <button id="btn-save-session" class="btn btn-green">💾 Save session</button>
+                </div>
+                <div id="session-list" class="session-list"></div>
+            </div>
+
             <!-- Session Grid -->
             <div class="session-container">
                 <div id="scene-names" class="scene-names"></div>
@@ -83,7 +92,8 @@
 
             <p class="daw-hint">
                 🎹 Launchkey pads trigger clips. Press pad = arm/trigger, release = play.<br>
-                Click track buttons: 🔴 Arm (rec), 🔇 Mute, 🔊 Solo
+                Click track buttons: 🔴 Arm (rec), 🔇 Mute, 🔊 Solo<br>
+                💾 Sessions: save recordings to disk (sessions/*.json); click a name to load, ✕ to delete.
             </p>
             </div>
         </details>

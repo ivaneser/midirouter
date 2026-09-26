@@ -166,19 +166,24 @@ test('pad LED reflects recorded-but-stopped clips with the playing color', () =>
     worker._padLedSent = new Map();
     worker._broadcastState = () => {};
 
-    // Stopped clip with recorded MIDI -> 'recorded' state, same vel as playing.
+    // Stopped clip with recorded MIDI -> 'recorded' state: pulsing (ch3, 0x92)
+    // with the same color (vel 37) — it must NOT blink sharply, just pulse.
     worker._refreshPadLeds(0, 0);
-    assert.deepEqual(sent, [[0x91, 112, 37]],
-        'recorded-but-stopped pad lights with the playing color (vel 37)');
+    assert.deepEqual(sent, [[0x92, 112, 37]],
+        'recorded-but-stopped pad pulses (ch3) with the playing color');
     const snap = sent.length;
     worker._refreshPadLeds(0, 0);
     assert.equal(sent.length, snap, 'unchanged state must not spam duplicate LED messages');
 
-    // Playing -> still the same color, no extra message needed (same byte stream),
-    // but the tracked state changes so a later stop would refresh.
+    // Playing -> the pad switches to the flashing mode (ch2, 0x91), same color;
+    // and stopping again switches back to pulsing — both transitions must be
+    // re-sent (different byte streams).
     worker.daw.clipState[0] = 0;
     worker._refreshPadLeds(0, 0);
-    assert.equal(worker._padLedSent.get('0:0'), 'playing');
+    assert.deepEqual(sent[sent.length - 1], [0x91, 112, 37], 'playing pad uses flashing channel 2');
+    worker.daw.clipState[0] = -1;
+    worker._refreshPadLeds(0, 0);
+    assert.deepEqual(sent[sent.length - 1], [0x92, 112, 37], 'stopped pad returns to pulsing channel 3');
 
     // Empty slot -> 'off'. (slot 1 pad is note 96 in the Launchkey profile)
     worker.daw.clipState[0] = -1;

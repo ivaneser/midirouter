@@ -712,6 +712,12 @@ class MIDIRouterWorker {
     // Обновляет LED для одного пэда (trackIdx/slot) или для всех пэдов
     // профиля. Сообщения отправляются только при смене желаемого состояния,
     // чтобы не спамить контроллер идентичными сообщениями.
+    // MIDI-байты фидбека пэда во всех выходах (для сравнения состояний).
+    _padLedMessagesFor(t, s, state) {
+        return [...this.outputs.keys()].flatMap(name =>
+            this.controllerEngine.feedbackMessagesFor?.(name, t, s, state) || []);
+    }
+
     _refreshPadLeds(trackIdx, slot) {
         if (!this._padLedSent) this._padLedSent = new Map();
         const targets = (trackIdx != null && slot != null)
@@ -721,8 +727,14 @@ class MIDIRouterWorker {
             if (s == null || !this.daw.tracks[t]?.clips?.[s]) continue;
             const key = `${t}:${s}`;
             const state = this._padLedStateFor(t, s);
-            if (this._padLedSent.get(key) === state) continue;
+            const prev = this._padLedSent.get(key);
+            if (prev === state) continue;
             this._padLedSent.set(key, state);
+            // playing/recorded могут иметь ОДИНАКОВЫЕ байты (тот же цвет). повторная
+            // отправка того же noteOn заставляет LED Launchkey пересвечиваться
+            // (мигать) — поэтому пропускаем отправку при идентичных байтах.
+            if (prev && JSON.stringify(this._padLedMessagesFor(t, s, prev))
+                === JSON.stringify(this._padLedMessagesFor(t, s, state))) continue;
             this._sendFeedback(t, s, state);
         }
     }
@@ -1466,6 +1478,81 @@ class MIDIRouterWorker {
         console.log('[WORKER] Mappings rebuilt');
     }
     
+    // ---- Сессии: сохранение/загрузка записей на диск (sessions/*.json) ----
+    _sessionNameOf(rawName) {
+        const base = String(rawName || '').replace(/\.json$/, '').replace(/[/\\]+/g, '').trim();
+        const clean = base.replace(/[^a-zA-Z0-9._ -]/g, '_').replace(/^\.+/, '').slice(0, 64);
+        return clean ? clean : '';
+    }
+
+    _sessionsDir() {
+        const dir = path.join(__dirname, 'sessions');
+        try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+        return dir;
+    }
+
+    _listSessions() {
+        let names = [];
+        try {
+            names = fs.readdirSync(this._sessionsDir())
+                .filter((f) => f.endsWith('.json'))
+                .map((f) => f.slice(0, -5))
+                .sort();
+        } catch (_) {}
+        if (parentPort) parentPort.postMessage({ type: 'daw_session_list', sessions: names });
+    }
+
+    _saveSession(rawName) {
+        try {
+            const name = this._sessionNameOf(rawName);
+            if (!name) throw new Error('invalid session name');
+            const file = path.join(this._sessionsDir(), `${name}.json`);
+            const data = this.daw.toData();
+            const notes = data.tracks.reduce(
+                (sum, t) => sum + t.clips.reduce((s, c) => s + c.notes.length, 0), 0);
+            fs.writeFileSync(file, JSON.stringify(data, null, 2));
+            console.log(`[DAW] Session saved: ${name} (${notes} notes)`);
+            this._listSessions();
+        } catch (error) {
+            console.error(`[DAW] Session save failed: ${error.message}`);
+            if (parentPort) parentPort.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
+        }
+    }
+
+    _loadSession(rawName) {
+        try {
+            const name = this._sessionNameOf(rawName);
+            if (!name) throw new Error('invalid session name');
+            const file = path.join(this._sessionsDir(), `${name}.json`);
+            const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+
+            // Останавливаем всё перед загрузкой: проигрывание и запись.
+            for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
+            this.daw.resetAllClips();
+            this.daw.loadData(data);
+            this._clearStaleRecordingFeedback();
+            this._refreshPadLeds();
+            this._broadcastState();
+            console.log(`[DAW] Session loaded: ${name}`);
+        } catch (error) {
+            console.error(`[DAW] Session load failed: ${error.message}`);
+            if (parentPort) parentPort.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
+        }
+    }
+
+    _deleteSession(rawName) {
+        const name = this._sessionNameOf(rawName);
+        if (name) {
+            try {
+                fs.unlinkSync(path.join(this._sessionsDir(), `${name}.json`));
+                console.log(`[DAW] Session deleted: ${name}`);
+            } catch (error) {
+                console.error(`[DAW] Session delete failed: ${error.message}`);
+            }
+        }
+        this._listSessions();
+    }
+
     // ---- Panic: send All Notes Off to all outputs on all channels ----
     sendPanicNoteOff() {
         if (this.outputs.size === 0) return;

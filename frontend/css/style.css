@@ -315,6 +315,68 @@ body {
 .btn-orange { background: #cc6600; color: white; }
 
 /* Session Grid Container */
+.sessions-section {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+}
+.sessions-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.sessions-controls input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    background: #1a1a2e;
+    color: #eee;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+}
+.session-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.session-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px 4px 8px;
+    background: #1a1a2e;
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+}
+.session-name-label {
+    color: #eee;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.session-name-label:hover {
+    color: #4ec9d4;
+}
+.session-delete {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 2px;
+}
+.session-delete:hover {
+    color: #e94560;
+}
+#session-status {
+    width: 100%;
+    margin: 2px 0 0 0;
+}
+#session-status.error {
+    color: #e94560;
+}
 .session-container {
     overflow-x: auto;
     margin-bottom: 12px;

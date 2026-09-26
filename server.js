@@ -124,6 +124,16 @@ class MIDIRouterWorker {
                 this._broadcast({ type: 'daw_visual_event', event: msg.event });
                 break;
 
+            case 'daw_session_list':
+            case 'daw_session_error':
+                this._broadcast({
+                    type: msg.type,
+                    sessions: msg.sessions,
+                    name: msg.name,
+                    error: msg.error,
+                });
+                break;
+
             case 'daw_pad_map_list':
                 // Обновление карты пэдов — перенаправляем во фронтенд
                 this._broadcast({ type: 'daw_pad_map_list', map: msg.map, learnMode: msg.learnMode });
@@ -423,6 +433,23 @@ function startServer() {
 
                     case 'daw-load':
                         router._loadConfig(message.name);
+                        break;
+
+                    // Sessions: save/load recordings (DAW clips) to/from disk
+                    case 'daw-save-session':
+                        router.worker.postMessage({ type: 'daw_save_session', name: message.name });
+                        break;
+
+                    case 'daw-load-session':
+                        router.worker.postMessage({ type: 'daw_load_session', name: message.name });
+                        break;
+
+                    case 'daw-delete-session':
+                        router.worker.postMessage({ type: 'daw_delete_session', name: message.name });
+                        break;
+
+                    case 'daw-list-sessions':
+                        router.worker.postMessage({ type: 'daw_list_sessions' });
                         break;
 
                     // Transport controls

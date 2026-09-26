@@ -6,7 +6,56 @@ export class DAWUI {
         this.dawState = null;
         this.padNotes = {}; // `trackIdx-slot` -> controller labels
         this._cueTimers = new Map();
+        this._sessions = [];
         this._initControls();
+        this._initSessions();
+    }
+
+    // Sessions: save/load recordings (DAW clips) to/from disk.
+    _initSessions() {
+        if (!document.getElementById('btn-save-session') && !document.getElementById('session-list')) return;
+        const saveBtn = document.getElementById('btn-save-session');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const input = document.getElementById('session-name');
+                const name = input ? input.value.trim() : '';
+                if (name) this._send({ type: 'daw-save-session', name });
+            });
+        }
+        this._send({ type: 'daw-list-sessions' });
+    }
+
+    _renderSessions() {
+        const list = document.getElementById('session-list');
+        if (!list) return;
+        list.innerHTML = '';
+        for (const name of this._sessions) {
+            const row = document.createElement('div');
+            row.className = 'session-item';
+
+            const label = document.createElement('span');
+            label.className = 'session-name-label';
+            label.textContent = name;
+            label.title = `Load "${name}"`;
+            label.addEventListener('click', () => this._send({ type: 'daw-load-session', name }));
+
+            const del = document.createElement('button');
+            del.className = 'session-delete';
+            del.textContent = '✕';
+            del.title = `Delete "${name}"`;
+            del.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._send({ type: 'daw-delete-session', name });
+            });
+
+            row.appendChild(label);
+            row.appendChild(del);
+            list.appendChild(row);
+        }
+        const empty = document.createElement('p');
+        empty.className = 'daw-hint';
+        empty.textContent = this._sessions.length ? '' : 'No saved sessions yet.';
+        list.appendChild(empty);
     }
 
     _initControls() {
@@ -112,7 +161,28 @@ export class DAWUI {
             this._updateTransportCue(msg.payload);
         } else if (msg.type === 'daw_visual_event') {
             this._flashPad(msg.event);
+        } else if (msg.type === 'daw_session_list') {
+            this._sessions = Array.isArray(msg.sessions) ? msg.sessions : [];
+            this._renderSessions();
+        } else if (msg.type === 'daw_session_error') {
+            this._flashSessionStatus(msg.error || 'Session error', true);
         }
+    }
+
+    _flashSessionStatus(text, isError = false) {
+        const list = document.getElementById('session-list');
+        if (!list) return;
+        let el = document.getElementById('session-status');
+        if (!el) {
+            el = document.createElement('p');
+            el.id = 'session-status';
+            el.className = 'daw-hint';
+            list.appendChild(el);
+        }
+        el.textContent = text;
+        el.classList.toggle('error', isError);
+        clearTimeout(this._sessionStatusTimer);
+        this._sessionStatusTimer = setTimeout(() => { el.textContent = ''; }, 4000);
     }
 
     _syncControls() {

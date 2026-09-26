@@ -546,6 +546,89 @@ class DAWEngine {
             tracks,
         };
     }
+
+    // ---- Сессии: полное сериализация/восстановление (для диска) ----
+    // toData() — все клипы с нотами + настройки;transport/запись не восстанавливаются
+    // при загрузке (сессия — это "контент", а не live-состояние).
+    toData() {
+        return {
+            version: 1,
+            savedAt: new Date().toISOString(),
+            tempo: this.tempo,
+            recordMode: this.recordMode,
+            slotsPerTrack: this.slotsPerTrack,
+            loopLenBeats: this.loopLenBeats,
+            globalCycleLocked: this._globalCycleLocked,
+            midiClockEnabled: this._midiClockEnabled,
+            metronome: {
+                enabled: this._metronomeEnabled,
+                note: this._metronomeNote,
+                accentNote: this._metronomeAccentNote,
+                beatsPerMeasure: this._metronomeBeatsPerMeasure,
+            },
+            tracks: this.tracks.map((t) => ({
+                channel: t.channel,
+                armed: t.armed,
+                muted: t.muted,
+                soloed: t.soloed,
+                clips: t.clips.map((c) => ({
+                    length: c.length,
+                    notes: c.notes.map((n) => ({
+                        channel: n.channel, note: n.note, velocity: n.velocity,
+                        start: n.start, dur: n.dur,
+                    })),
+                })),
+            })),
+        };
+    }
+
+    loadData(data) {
+        if (!data || !Array.isArray(data.tracks)) {
+            throw new Error('invalid session data');
+        }
+        this.setTempo(Number.isFinite(data.tempo) ? data.tempo : this.tempo);
+        this.recordMode = ['none', 'replace', 'overdub'].includes(data.recordMode)
+            ? data.recordMode : 'none';
+        if (Number.isInteger(data.slotsPerTrack)) this.setSlotsPerTrack(data.slotsPerTrack);
+        if (Number.isFinite(data.loopLenBeats) && data.loopLenBeats >= 1) {
+            this.loopLenBeats = Math.ceil(data.loopLenBeats);
+        }
+        this._globalCycleLocked = !!data.globalCycleLocked;
+        this._midiClockEnabled = data.midiClockEnabled !== false;
+        const m = data.metronome || {};
+        this._metronomeEnabled = !!m.enabled;
+        if (Number.isInteger(m.note)) this._metronomeNote = Math.max(0, Math.min(127, m.note));
+        if (Number.isInteger(m.accentNote)) this._metronomeAccentNote = Math.max(0, Math.min(127, m.accentNote));
+        if (Number.isInteger(m.beatsPerMeasure)) this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, m.beatsPerMeasure));
+
+        data.tracks.forEach((td, i) => {
+            const track = this.tracks[i];
+            if (!track || !td || !Array.isArray(td.clips)) return;
+            track.armed = !!td.armed;
+            track.muted = !!td.muted;
+            track.soloed = !!td.soloed;
+            td.clips.forEach((cd, s) => {
+                const clip = track.clips[s];
+                if (!clip || !cd || !Array.isArray(cd.notes)) return;
+                clip.notes = cd.notes
+                    .filter((n) => n && Number.isFinite(n.note) && Number.isFinite(n.start))
+                    .map((n) => ({
+                        channel: Math.max(1, Math.min(16, Math.trunc(n.channel || 1))),
+                        note: Math.max(0, Math.min(127, Math.trunc(n.note))),
+                        velocity: Math.max(1, Math.min(127, Math.trunc(n.velocity || 80))),
+                        start: Math.max(0, n.start),
+                        dur: Math.max(0.125, Number.isFinite(n.dur) ? n.dur : 0.25),
+                    }));
+                // нормализуем длину до целого числа тактов
+                clip.length = this._snapToBars(Number.isFinite(cd.length) ? cd.length : 0);
+            });
+        });
+
+        // Загрузка не включается transport: все пэды — "recorded", но не "playing".
+        this.clipState.fill(-1);
+        this._lastProgressBeat = null;
+        return this;
+    }
 }
 
 export { DAWEngine, noteOn, noteOff, PPQ, DEFAULT_SLOTS_PER_TRACK };
