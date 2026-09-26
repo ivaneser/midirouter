@@ -227,6 +227,49 @@ body {
 .synth-card.supported .synth-card-status {
     color: #3ddc84;
 }
+/* Synth controller panels */
+.synth-card-toggle {
+    margin-top: 8px;
+    padding: 5px 9px;
+    border: 1px solid #345;
+    border-radius: 5px;
+    background: #202b45;
+    color: #ddd;
+    cursor: pointer;
+}
+.synth-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px 12px;
+    max-height: 360px;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #344;
+}
+.synth-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    color: #ddd;
+    font-size: 0.8rem;
+}
+.synth-control input[type="range"],
+.synth-control select {
+    width: 100%;
+}
+.synth-control input[type="checkbox"] {
+    align-self: flex-start;
+}
+.synth-controls-message {
+    grid-column: 1 / -1;
+    color: #aaa;
+    font-size: 0.8rem;
+}
+.synth-controls-message.error {
+    color: #ff8a80;
+}
 
 /* === Debug Panel === */
 .debug-panel {
