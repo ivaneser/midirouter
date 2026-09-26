@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { DAWEngine, noteOn, noteOff } from '../daw.js';
 import { ControllerEngine } from '../controller-engine.js';
+import { MIDIRouterWorker } from '../worker-midi.js';
 
 const profiles = ControllerEngine.fromDirectory(fileURLToPath(new URL('../controller_profiles', import.meta.url)));
 
@@ -144,4 +145,48 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     daw.setRecordMode('replace');
     assert.equal(daw.triggerPad(0, 0, 4000).action, 'record');
     daw.triggerPad(0, 0, 4100); // stop the fresh recording so state stays clean
+});
+
+// "Recorded but not playing" LED contract: a pad whose clip holds recorded MIDI
+// (but is not playing) must be lit with the SAME color as the playing state,
+// instead of going fully off. Empty/playing/recording pads keep their states.
+test('pad LED reflects recorded-but-stopped clips with the playing color', () => {
+    const sent = [];
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine({ tempo: 120 });
+    worker.daw.tracks[0].clips[0].notes.push({ channel: 1, note: 60, velocity: 90, start: 0, dur: 0.25 });
+    worker.daw.setRecordMode('none');
+    worker.outputs = new Map([['Launchkey Mini MK3 DAW Port', {
+        sendMessage: (bytes) => sent.push(Array.from(bytes)),
+    }]]);
+    worker.controllerEngine = ControllerEngine.fromDirectory(
+        fileURLToPath(new URL('../controller_profiles', import.meta.url)));
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map();
+    worker._padLedSent = new Map();
+    worker._broadcastState = () => {};
+
+    // Stopped clip with recorded MIDI -> 'recorded' state, same vel as playing.
+    worker._refreshPadLeds(0, 0);
+    assert.deepEqual(sent, [[0x91, 112, 37]],
+        'recorded-but-stopped pad lights with the playing color (vel 37)');
+    const snap = sent.length;
+    worker._refreshPadLeds(0, 0);
+    assert.equal(sent.length, snap, 'unchanged state must not spam duplicate LED messages');
+
+    // Playing -> still the same color, no extra message needed (same byte stream),
+    // but the tracked state changes so a later stop would refresh.
+    worker.daw.clipState[0] = 0;
+    worker._refreshPadLeds(0, 0);
+    assert.equal(worker._padLedSent.get('0:0'), 'playing');
+
+    // Empty slot -> 'off'. (slot 1 pad is note 96 in the Launchkey profile)
+    worker.daw.clipState[0] = -1;
+    worker._refreshPadLeds(0, 1);
+    assert.deepEqual(sent[sent.length - 1], [0x80, 96, 0], 'empty stopped pad sends note-off');
+
+    // Active recording -> 'recording' state.
+    worker.daw.recording = { track: 0, slot: 1, notes: [] };
+    worker._refreshPadLeds(0, 1);
+    assert.deepEqual(sent[sent.length - 1], [0x91, 96, 5], 'recording pad lights red (vel 5)');
 });

@@ -155,6 +155,7 @@ class MIDIRouterWorker {
         this._trackPlayTimers = new Map();
         // LED state per active track: trackIdx -> { slot, state }
         this._ledGlow = new Map();
+        this._padLedSent = new Map();   // "trackIdx:slot" -> last sent LED state
 
         // controller input ports whose notes drive DAW trigger/recording
         this.controllerInputs = new Set();
@@ -450,7 +451,7 @@ class MIDIRouterWorker {
         };
 
         this._ledGlow.set(trackIdx, { slot, state: 'playing' });
-        this._sendFeedback(trackIdx, slot, 'playing');
+        this._refreshPadLeds(trackIdx, slot);
 
         if (this._externalClockActive) {
             playback.externalClock = true;
@@ -515,7 +516,9 @@ class MIDIRouterWorker {
         }
         const glow = this._ledGlow.get(trackIdx);
         if (glow) {
-            this._sendFeedback(trackIdx, glow.slot, 'off');
+            // Пэд может остаться подсвеченным как "recorded", если в клипе
+            // есть запись — состояние вычисляется по DAW, а не hardcoded.
+            this._refreshPadLeds(trackIdx, glow.slot);
             this._ledGlow.delete(trackIdx);
         }
     }
@@ -685,23 +688,55 @@ class MIDIRouterWorker {
 
     _sendFeedback(trackIdx, slot, state) {
         for (const [name, output] of this.outputs) {
-            for (const bytes of this.controllerEngine.feedbackMessagesFor(name, trackIdx, slot, state)) {
+            for (const bytes of (this.controllerEngine.feedbackMessagesFor?.(name, trackIdx, slot, state)) || []) {
                 try { output.sendMessage(Buffer.from(bytes)); }
                 catch (error) { console.warn(`[CONTROLLER] Feedback to ${name} failed: ${error.message}`); }
             }
         }
     }
 
+    // Желанное LED-состояние пэда по фактическому состоянию DAW:
+    //   recording — прямо сейчас записан этот пэд;
+    //   playing   — этот слот сейчас проигрывается;
+    //   recorded  — в клипе есть записанный MIDI, но он не играет
+    //               (горит тем же цветом, что во время воспроизведения);
+    //   off       — пустой/остановленный клип без записи.
+    _padLedStateFor(trackIdx, slot) {
+        if (this.daw.recording && this.daw.recording.track === trackIdx && this.daw.recording.slot === slot) return 'recording';
+        if (this.daw.clipState[trackIdx] === slot) return 'playing';
+        const clip = this.daw.tracks[trackIdx]?.clips?.[slot];
+        if (clip && clip.notes.length > 0) return 'recorded';
+        return 'off';
+    }
+
+    // Обновляет LED для одного пэда (trackIdx/slot) или для всех пэдов
+    // профиля. Сообщения отправляются только при смене желаемого состояния,
+    // чтобы не спамить контроллер идентичными сообщениями.
+    _refreshPadLeds(trackIdx, slot) {
+        if (!this._padLedSent) this._padLedSent = new Map();
+        const targets = (trackIdx != null && slot != null)
+            ? [{ trackIdx, slot }]
+            : (this.controllerEngine.padMappings?.() || []);
+        for (const { trackIdx: t, slot: s } of targets) {
+            if (s == null || !this.daw.tracks[t]?.clips?.[s]) continue;
+            const key = `${t}:${s}`;
+            const state = this._padLedStateFor(t, s);
+            if (this._padLedSent.get(key) === state) continue;
+            this._padLedSent.set(key, state);
+            this._sendFeedback(t, s, state);
+        }
+    }
+
     _armLed(trackIdx, slot) {
         this._ledGlow.set(trackIdx, { slot, state: 'recording' });
-        this._sendFeedback(trackIdx, slot, 'recording');
+        this._refreshPadLeds(trackIdx, slot);
     }
 
     _clearStaleRecordingFeedback() {
         for (const [trackIdx, glow] of this._ledGlow) {
             if (glow.state !== 'recording') continue;
             if (this.daw.recording?.track === trackIdx && this.daw.recording?.slot === glow.slot) continue;
-            this._sendFeedback(trackIdx, glow.slot, 'off');
+            this._refreshPadLeds(trackIdx, glow.slot);
             this._ledGlow.delete(trackIdx);
         }
     }
@@ -1235,6 +1270,7 @@ class MIDIRouterWorker {
                 daw.resetAllClips();
                 daw.setRecordMode('replace');
                 this._clearStaleRecordingFeedback();
+                this._refreshPadLeds();
                 console.log('[DAW] Rec Arm: all clips reset to zero, replace mode armed');
                 this._broadcastState();
                 break;
@@ -1313,6 +1349,7 @@ class MIDIRouterWorker {
                 }
                 for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
                 daw.clipState.fill(-1);
+                this._refreshPadLeds();
                 this._broadcastState();
                 break;
             case 'daw_toggle_loop':
@@ -1378,8 +1415,11 @@ class MIDIRouterWorker {
                 catch (error) { console.warn(`[CONTROLLER] LED reset on ${name} failed: ${error.message}`); }
             }
         }
-        for (const [trackIdx, glow] of this._ledGlow) {
-            for (const bytes of this.controllerEngine.feedbackMessagesFor(name, trackIdx, glow.slot, glow.state)) {
+        // Восстановить фактическое состояние (playing/recorded/recording),
+        // вычисленное по DAW, — в том числе пэды с записью, но не играющие.
+        for (const { trackIdx, slot } of targets.values()) {
+            const state = this._padLedStateFor(trackIdx, slot);
+            for (const bytes of this.controllerEngine.feedbackMessagesFor(name, trackIdx, slot, state)) {
                 try { output.sendMessage(Buffer.from(bytes)); }
                 catch (error) { console.warn(`[CONTROLLER] LED restore on ${name} failed: ${error.message}`); }
             }

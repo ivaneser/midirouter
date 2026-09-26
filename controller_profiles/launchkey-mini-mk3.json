@@ -20,6 +20,7 @@
     "init": [[159, 12, 127], [182, 29, 2]],
     "states": {
       "playing": [145, "$number", 37],
+      "recorded": [145, "$number", 37],
       "recording": [145, "$number", 5],
       "off": [128, "$number", 0]
     }
