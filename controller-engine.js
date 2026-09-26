@@ -96,7 +96,7 @@ function compileProfile(profile) {
         }
     }
     for (const [state, bytes] of Object.entries(profile.feedback?.states || {})) {
-        if (!['playing', 'recorded', 'recording', 'off'].includes(state)) throw new Error(`${profile.id}: unknown LED state ${state}`);
+        if (!['playing', 'active', 'idle', 'recording', 'off'].includes(state)) throw new Error(`${profile.id}: unknown LED state ${state}`);
         validateTemplate(bytes, `${profile.id} ${state}`);
     }
     if (profile.feedback?.states && !profile.feedback.states.off) {

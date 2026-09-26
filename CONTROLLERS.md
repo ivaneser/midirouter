@@ -27,9 +27,10 @@ Example for a controller with two Note pads and a CC Play button:
     "output": { "containsAll": ["My Controller", "Control"] },
     "init": [[176, 1, 127]],
     "states": {
-      "playing": [144, "$number", 37],
-      "recorded": [146, "$number", 37],
-      "recording": [144, "$number", 5],
+      "playing": [145, "$number", 37],
+      "active": [144, "$number", 37],
+      "idle": [146, "$number", 37],
+      "recording": [145, "$number", 5],
       "off": [128, "$number", 0]
     }
   }
@@ -40,7 +41,7 @@ Example for a controller with two Note pads and a CC Play button:
 
 Clip pads toggle on each press; their release messages are ignored. An empty clip starts recording on press (any Mode); pressing the same pad again stops the take and the clip transitions per the selected Mode: Play starts looping the take, Overdub/Replace leave it stopped (next press adds a layer / records a fresh take).
 
-`feedback.states` supports four states: `playing` (clip is playing), `recorded` (clip holds a take but is stopped — optional, defaults to `off`), `recording` (take in progress), `off` (empty/stopped/cleared). Only state changes are sent, and identical byte sequences are not re-sent, which prevents LKM3 LEDs from flashing on every refresh.
+`feedback.states` supports five states: `playing` (the last-activated clip while it plays — blinks on LKM3), `active` (any other clip that is playing — steady), `idle` (clip holds a take but is stopped — pulses on LKM3), `recording` (take in progress), `off` (empty/cleared). `active` and `idle` are optional. Only state changes are sent, and identical byte sequences are not re-sent, which prevents LKM3 LEDs from flashing on every refresh.
 
 For a SysEx input pad group, use `"message": "sysex"`, `"prefix": [240, ...]`, `"numberByte": n`, and `"valueByte": n`. The number byte selects a pad from `numbers`; a positive value byte means pressed. Both byte offsets are zero based and must follow the prefix. Feedback state arrays may contain literal MIDI bytes and `$number`, `$index`, `$track`, or `$slot`. `$number` is the pad's input number unless `ledNumbers` supplies alternate LED numbers. `indexStart` can set the first `$index` for a group. This supports Note, CC, and SysEx feedback formats without code changes. For Launchkey MK3 pads, channel 1 sets a stationary color, channel 2 sets a clock-synced flashing color (1 beat period), and channel 3 sets a pulsing color (2 beat period); color is chosen by the Note On velocity.
 

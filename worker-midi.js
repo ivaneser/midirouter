@@ -157,6 +157,7 @@ class MIDIRouterWorker {
         // LED state per active track: trackIdx -> { slot, state }
         this._ledGlow = new Map();
         this._padLedSent = new Map();   // "trackIdx:slot" -> last sent LED state
+        this._lastActivated = null;      // { trackIdx, slot } — последний активированный клип (мигает)
 
         // controller input ports whose notes drive DAW trigger/recording
         this.controllerInputs = new Set();
@@ -560,7 +561,7 @@ class MIDIRouterWorker {
         }
         const glow = this._ledGlow.get(trackIdx);
         if (glow) {
-            // Пэд может остаться подсвеченным как "recorded", если в клипе
+            // Пэд может остаться подсвеченным как "idle" (пульс), если в клипе
             // есть запись — состояние вычисляется по DAW, а не hardcoded.
             this._refreshPadLeds(trackIdx, glow.slot);
             this._ledGlow.delete(trackIdx);
@@ -741,15 +742,21 @@ class MIDIRouterWorker {
 
     // Желанное LED-состояние пэда по фактическому состоянию DAW:
     //   recording — прямо сейчас записан этот пэд;
-    //   playing   — этот слот сейчас проигрывается;
-    //   recorded  — в клипе есть записанный MIDI, но он не играет
-    //               (горит тем же цветом, что во время воспроизведения);
-    //   off       — пустой/остановленный клип без записи.
+    //   playing   — ПОСЛЕДНИЙ активированный клип, который сейчас играет
+    //               (единственный, кто мигает);
+    //   active  — другой играющий клип (горит непрерывно);
+    //   idle    — неактивный, но заполненный (есть запись, клип остановлен)
+    //               — пульсирует;
+    //   off     — пустой клип без записи.
     _padLedStateFor(trackIdx, slot) {
         if (this.daw.recording && this.daw.recording.track === trackIdx && this.daw.recording.slot === slot) return 'recording';
-        if (this.daw.clipState[trackIdx] === slot) return 'playing';
+        const playing = this.daw.clipState[trackIdx] === slot;
         const clip = this.daw.tracks[trackIdx]?.clips?.[slot];
-        if (clip && clip.notes.length > 0) return 'recorded';
+        if (playing) {
+            const last = this._lastActivated;
+            return (last && last.trackIdx === trackIdx && last.slot === slot) ? 'playing' : 'active';
+        }
+        if (clip && clip.notes.length > 0) return 'idle';
         return 'off';
     }
 
@@ -815,6 +822,7 @@ class MIDIRouterWorker {
             if (result.action === 'record-stop' && !hasNotes) {
                 this._stopTrackPlayback(trackIdx);
             } else {
+                this._lastActivated = { trackIdx, slot };
                 this._startTrackPlayback(trackIdx, slot, now);
             }
         } else if (result.action === 'stop' || result.action === 'record-stop-stopped') {

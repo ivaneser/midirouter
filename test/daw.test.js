@@ -150,10 +150,10 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     daw.triggerPad(0, 0, 4100); // stop the fresh recording so state stays clean
 });
 
-// "Recorded but not playing" LED contract: a pad whose clip holds recorded MIDI
-// (but is not playing) must be lit with the SAME color as the playing state,
-// instead of going fully off. Empty/playing/recording pads keep their states.
-test('pad LED reflects recorded-but-stopped clips with the playing color', () => {
+// LED contract: only the LAST ACTIVATED playing clip blinks (playing/ch2);
+// other playing clips burn steady (active/ch1); stopped-but-recorded clips
+// pulse (idle/ch3); empty pads are off. Same cyan color (vel 37) everywhere.
+test('pad LED: last-activated blinks, other playing are steady, stopped recorded pulse', () => {
     const sent = [];
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = new DAWEngine({ tempo: 120 });
@@ -167,23 +167,27 @@ test('pad LED reflects recorded-but-stopped clips with the playing color', () =>
     worker._trackPlayTimers = new Map();
     worker._ledGlow = new Map();
     worker._padLedSent = new Map();
+    worker._lastActivated = null;
     worker._broadcastState = () => {};
 
-    // Stopped clip with recorded MIDI -> 'recorded' state: pulsing (ch3, 0x92)
-    // with the same color (vel 37) — it must NOT blink sharply, just pulse.
+    // Stopped clip with recorded MIDI -> 'idle': pulsing (ch3, 0x92), same color.
     worker._refreshPadLeds(0, 0);
-    assert.deepEqual(sent, [[0x92, 112, 37]],
-        'recorded-but-stopped pad pulses (ch3) with the playing color');
+    assert.deepEqual(sent, [[0x92, 112, 37]], 'recorded-but-stopped pad pulses (ch3)');
     const snap = sent.length;
     worker._refreshPadLeds(0, 0);
     assert.equal(sent.length, snap, 'unchanged state must not spam duplicate LED messages');
 
-    // Playing -> the pad switches to the flashing mode (ch2, 0x91), same color;
-    // and stopping again switches back to pulsing — both transitions must be
-    // re-sent (different byte streams).
+    // Playing WITHOUT being last-activated -> 'active': steady ch1 (0x90).
     worker.daw.clipState[0] = 0;
     worker._refreshPadLeds(0, 0);
-    assert.deepEqual(sent[sent.length - 1], [0x91, 112, 37], 'playing pad uses flashing channel 2');
+    assert.deepEqual(sent[sent.length - 1], [0x90, 112, 37], 'other playing pad burns steady (ch1)');
+
+    // Last-activated playing clip -> 'playing': flashing ch2 (0x91).
+    worker._lastActivated = { trackIdx: 0, slot: 0 };
+    worker._refreshPadLeds(0, 0);
+    assert.deepEqual(sent[sent.length - 1], [0x91, 112, 37], 'last-activated playing pad blinks (ch2)');
+
+    // Stopping it -> back to pulsing idle.
     worker.daw.clipState[0] = -1;
     worker._refreshPadLeds(0, 0);
     assert.deepEqual(sent[sent.length - 1], [0x92, 112, 37], 'stopped pad returns to pulsing channel 3');
