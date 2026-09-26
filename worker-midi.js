@@ -107,6 +107,8 @@ class MIDIRouterWorker {
         this._ledGlow = new Map();
         this._padLedSent = new Map();   // "trackIdx:slot" -> last sent LED state
         this._lastActivated = null;      // { trackIdx, slot } — последний активированный клип (мигает)
+        this._padClockTimer = null;      // MTC-тикеры только в DAW-порт контроллера
+        this._padClockPhase = 0;
 
         // controller input ports whose notes drive DAW trigger/recording
         this.controllerInputs = new Set();
@@ -693,6 +695,59 @@ class MIDIRouterWorker {
         }
     }
 
+    // --- Pad clock: MTC строго в DAW-порт контроллера (clock-synced LED) ---
+    // Пока активен хотя бы один клип или идёт запись, DAW-порт контроллера
+    // (раздел midiClockOutput профиля) получает MIDI clock независимо от
+    // глобального MTC-переключателя и состояния транспорта — на нём
+    // синхронизируется мигание LED пэдов (LKM3: ch2 = blink, 1 такт).
+    // Не запускается, если глобальные часы уже тикают в эти порты
+    // (транспорт + MTC включены, внутренний мастер), чтобы не дублировать.
+    _padClockNeeded() {
+        const active = this.daw.clipState?.some(s => s >= 0) || this.daw.recording != null;
+        if (!active) return false;
+        // Внешний мастер тикает сам; отсутствие _clockMaster (тестовые stubs) — не тикаем.
+        if (this._clockMaster?.source?.kind !== 'internal') return false;
+        if (this.daw.playing && this.daw._midiClockEnabled) return false; // глобальный MTC уже тикает
+        return true;
+    }
+
+    _sendPadClockOutputs(bytes) {
+        for (const [name, output] of this.outputs) {
+            if (!this.controllerEngine.isMidiClockOutput(name)) continue;
+            try { output.sendMessage(Buffer.from(bytes)); }
+            catch (error) { console.warn(`[DAW] Pad clock → ${name} failed: ${error.message}`); }
+        }
+    }
+
+    _startPadClock() {
+        if (this._padClockTimer) return;
+        this._padClockPhase = performance.now();
+        this._sendPadClockOutputs([0xfa]); // MIDI Start
+        this._padClockTimer = setInterval(() => {
+            const tick = (this.daw._secondsPerBeat() * 1000) / 24;
+            const now = performance.now();
+            const ticks = Math.floor((now - this._padClockPhase) / tick);
+            if (ticks <= 0) return;
+            this._padClockPhase += ticks * tick;
+            if (ticks > 24) { this._padClockPhase = now; return; } // без бурст-гонки
+            this._sendPadClockOutputs([0xf8]);
+        }, Math.max(4, Math.round((this.daw._secondsPerBeat() * 1000) / 24)));
+        console.log('[DAW] Pad clock started: MIDI clock → DAW controller port(s)');
+    }
+
+    _stopPadClock() {
+        if (!this._padClockTimer) return;
+        clearInterval(this._padClockTimer);
+        this._padClockTimer = null;
+        this._sendPadClockOutputs([0xfc]); // MIDI Stop
+        console.log('[DAW] Pad clock stopped');
+    }
+
+    _syncPadClock() {
+        if (this._padClockNeeded()) this._startPadClock();
+        else this._stopPadClock();
+    }
+
     _sendFeedback(trackIdx, slot, state) {
         for (const [name, output] of this.outputs) {
             for (const bytes of (this.controllerEngine.feedbackMessagesFor?.(name, trackIdx, slot, state)) || []) {
@@ -798,6 +853,7 @@ class MIDIRouterWorker {
         } else if (result.action === 'invalid') {
             console.warn(`[DAW] Invalid pad target track ${trackIdx}, slot ${slot}`);
         }
+        this._syncPadClock();
         this._broadcastState();
         if (visualEvent) this._emitVisualEvent(visualEvent);
         return result;
@@ -1306,6 +1362,7 @@ class MIDIRouterWorker {
                 this._clearStaleRecordingFeedback();
                 this._refreshPadLeds();
                 console.log('[DAW] Rec Arm: all clips reset to zero, Play mode armed');
+                this._syncPadClock();
                 this._broadcastState();
                 break;
             }
@@ -1373,6 +1430,7 @@ class MIDIRouterWorker {
                     this._transportPlaying = true;
                 }
                 if (this._externalClockActive) this._externalTransportState = true;
+                this._syncPadClock();
                 this._broadcastState();
                 break;
             case 'daw_stop_transport':
@@ -1384,6 +1442,7 @@ class MIDIRouterWorker {
                 for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
                 daw.clipState.fill(-1);
                 this._refreshPadLeds();
+                this._syncPadClock();
                 this._broadcastState();
                 break;
             case 'daw_save_session':
@@ -1483,6 +1542,7 @@ class MIDIRouterWorker {
         }
 
         for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
+        this._stopPadClock();
         for (const [, input] of this.inputs) {
             if (input._handler) input.off('message', input._handler);
             try { input.closePort(); } catch(e) {}
@@ -1566,6 +1626,7 @@ class MIDIRouterWorker {
             this.daw.loadData(data);
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
+            this._syncPadClock();
             this._broadcastState();
             console.log(`[DAW] Session loaded: ${name}`);
         } catch (error) {
