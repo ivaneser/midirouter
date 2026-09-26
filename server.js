@@ -283,10 +283,22 @@ function startServer() {
         // Strip query string (e.g. /css/style.css?v=3 → /css/style.css)
         const cleanUrl = req.url.split('?')[0];
 
+        // Captive portal: OS connectivity probes hit arbitrary paths (via the
+        // AP's DNS hijack + iptables port-80 redirect). Serve the UI for them
+        // so the browser opens the web interface right after WiFi connect.
+        const captivePortalPaths = new Set([
+            '/captive.apple.com', '/apple.com', '/hotspot-detect.html',
+            '/generate_204', '/generictest', '/ncsi.txt', '/__ping',
+            '/connectivitycheck', '/connectivitycheck.gstatic.com',
+            '/root/login-portal.html', '/safari',
+        ]);
+
         let filePath;
 
         if (cleanUrl.startsWith('/device_maps/')) {
             filePath = join(import.meta.dirname, cleanUrl);
+        } else if (captivePortalPaths.has(cleanUrl)) {
+            filePath = join(FRONTEND_DIR, 'index.html');
         } else {
             filePath = join(FRONTEND_DIR, cleanUrl === '/' ? 'index.html' : cleanUrl);
         }
@@ -307,6 +319,16 @@ function startServer() {
             res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
             res.end(data);
         } catch (e) {
+            // Unknown path without a file extension in the REQUESTED URL →
+            // serve the UI (SPA / captive portal fallback) so any redirected
+            // probe URL still opens the app. Probe paths like
+            // /captive.apple.com end in ".com" but are not real assets.
+            if (!cleanUrl.startsWith('/device_maps/') && extname(cleanUrl) === '') {
+                const data = readFileSync(join(FRONTEND_DIR, 'index.html'));
+                res.writeHead(200, { 'Content-Type': 'text/html' });
+                res.end(data);
+                return;
+            }
             res.writeHead(404);
             res.end('Not found');
         }

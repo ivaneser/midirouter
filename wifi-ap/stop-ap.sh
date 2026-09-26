@@ -53,9 +53,6 @@ echo "[AP] Removing iptables rules..."
 iptables -t nat -D POSTROUTING -s 10.0.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
 iptables -t nat -F MIDIRouter 2>/dev/null || true
 iptables -t nat -X MIDIRouter 2>/dev/null || true
-iptables -t filter -D PREROUTING -i wlan0 -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
-iptables -t filter -F MIDIRouter 2>/dev/null || true
-iptables -t filter -X MIDIRouter 2>/dev/null || true
 
 # Disable IP forwarding for this interface
 echo 0 > /proc/sys/net/ipv4/ip_forward 2>/dev/null || true

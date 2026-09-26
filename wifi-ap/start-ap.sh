@@ -92,8 +92,6 @@ echo 1 > /proc/sys/net/ipv4/ip_forward
 # Flush existing rules for our chains
 iptables -t nat -F MIDIRouter 2>/dev/null || true
 iptables -t nat -N MIDIRouter 2>/dev/null || true
-iptables -t filter -F MIDIRouter 2>/dev/null || true
-iptables -t filter -N MIDIRouter 2>/dev/null || true
 
 # NAT: Masquerade traffic from the AP subnet to the internet (via eth0)
 iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
@@ -106,15 +104,8 @@ iptables -t nat -A MIDIRouter -p tcp --dport 443 -j REDIRECT --to-port ${WEB_POR
 # Apply the captive portal redirect to traffic from AP clients
 iptables -t nat -A PREROUTING -i wlan0 -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
 
-# Allow DNS queries from AP clients (port 53) to dnsmasq on the Pi
-iptables -t filter -A MIDIRouter -p udp --dport 53 -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
-iptables -t filter -A MIDIRouter -p tcp --dport 53 -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
-
-# Allow traffic to the web server (port 3000) from AP clients
-iptables -t filter -A MIDIRouter -p tcp --dport ${WEB_PORT} -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
-
-# Apply the chain to incoming traffic on wlan0
-iptables -t filter -A PREROUTING -i wlan0 -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
+# DNS and web UI traffic from AP clients is accepted by the default INPUT
+# policy (traffic is destined for the Pi itself); no explicit allow rules needed.
 
 echo "[AP] iptables rules configured."
 
