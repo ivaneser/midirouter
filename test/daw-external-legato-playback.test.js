@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { MIDIRouterWorker } from '../worker-midi.js';
 import { DAWEngine } from '../daw.js';
 
-test('external-clock pad launch follows the shared cycle phase, not clip start', () => {
+test('external-clock pad launch follows the shared cycle phase and loops on the clip\'s own length', () => {
     const sent = [];
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = new DAWEngine({ tempo: 120 });
@@ -34,9 +34,15 @@ test('external-clock pad launch follows the shared cycle phase, not clip start',
     assert.deepEqual(sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]), [62],
         'note at beat 1.5 is due on the current transport tick; beat-0 note is not');
 
+    // The clip loops on its OWN length (16 beats = 384 ticks), not on the
+    // global 4-beat cycle: the beat-0 note must NOT fire at beat 4 (tick 96).
     worker._tickExternalClipPlayback(96);
+    assert.deepEqual(sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]), [62],
+        'beat-0 note is not due yet: it waits for the clip\'s own 16-beat loop boundary');
+
+    worker._tickExternalClipPlayback(384);
     assert.deepEqual(sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]), [62, 60],
-        'beat-0 note is due at the next shared-cycle boundary');
+        'beat-0 note is due at the clip\'s own 16-beat loop boundary');
     worker._stopTrackPlayback(0);
 });
 
@@ -87,9 +93,9 @@ test('skipped F8 ticks must not leave pending note-offs hanging forever', () => 
     worker._tickExternalClipPlayback(0);
     sent.length = 0;
 
-    // Advance through one full loop (to loopTicks=96) without firing any
-    // note-ons on the way back, then skip ahead by 10 ticks past the next
-    // note-off boundary. Under the buggy code `_tickExternalClipPlayback`
+    // Advance far past the scheduled note-off (loop grid is the clip's own
+    // 16-beat length = 384 ticks) without firing any note-ons in between.
+    // Under the buggy code `_tickExternalClipPlayback`
     // only looks up `playback.pendingNoteOffs.get(tick)` for the exact tick
     // value and deletes that single entry: a note-off scheduled for a tick
     // that was jumped over stays stuck in the Map forever -> hanging note.

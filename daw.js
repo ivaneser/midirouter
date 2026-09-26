@@ -247,6 +247,12 @@ class DAWEngine {
         }
     }
 
+    // Округляем вверх до целого числа тактов (минимум один такт).
+    _snapToBars(beats) {
+        const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+        return Math.max(bar, Math.ceil(beats / bar) * bar);
+    }
+
     // ---- Запись ----
     // armed: если на треке уже идёт запись в этом слоте (overdub), новая кнопка добавляет слой
     armRecording(trackIdx, slot, now) {
@@ -256,12 +262,13 @@ class DAWEngine {
         this._stopRecording();
 
         // Replace: стираем старый клип. Overdub: если уже записан — продолжаем (добавляем).
+        // Длина пересчитывается при завершении записи (по фактическому охвату).
         if (this.recordMode === 'replace') {
             existing.notes = [];
-            existing.length = this.loopLenBeats;
+            existing.length = this._snapToBars(0);
         } else if (existing.notes.length === 0) {
             // Overdub on empty clip: initialize but don't clear (preserve track identity)
-            existing.length = this.loopLenBeats;
+            existing.length = this._snapToBars(0);
         }
 
         // Если уже запись на этом треке/слоте — сначала её закрываем (завершаем слой)
@@ -288,22 +295,26 @@ class DAWEngine {
             r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: start.beat, dur: 0.25 });
         }
         r.noteStarts.clear();
-        // нормализуем длину до кратной биту цикла
+        // Длина клипа = длительность самой записи: охват до последней ноты,
+        // округлённый ВВЕРХ до целого числа тактов. Каждый клип имеет собственную
+        // длину (разные клипы могут иметь разное целое число тактов).
         if (r.notes.length) {
             const maxEnd = r.notes.reduce((m, n) => Math.max(m, n.start + (n.dur || 0)), 0);
-            this.tracks[r.track].clips[r.slot].length = Math.ceil(Math.max(this.loopLenBeats, maxEnd));
+            const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
+            const span = Math.max(0, end - r.startBeat);
+            this.tracks[r.track].clips[r.slot].length = this._snapToBars(Math.max(maxEnd, span));
         }
 
         // First completed recording: derive a shared global cycle from the elapsed
         // recording span (not just note density), rounded UP to whole 4/4 bars with
-        // a minimum of one bar (4 beats).
+        // a minimum of one bar (4 beats). This drives only the transport display
+        // progress; clip playback loops on each clip's own length.
         if (!this._globalCycleLocked && r.notes.length) {
             const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
             const elapsedSpan = Math.max(0, end - r.startBeat);
             const bars = Math.ceil(elapsedSpan / 4);
             const globalCycleBeats = Math.max(4, bars * 4);
             this.loopLenBeats = globalCycleBeats;
-            this.tracks[r.track].clips[r.slot].length = globalCycleBeats;
             this._globalCycleLocked = true;
         }
 
@@ -358,7 +369,8 @@ class DAWEngine {
             n.dur = Math.max(0.125, n.dur || 0.25);
             maxEnd = Math.max(maxEnd, n.start + n.dur);
         }
-        clip.length = Math.ceil(Math.max(this.loopLenBeats, maxEnd));
+        // растим длину только если ноты стали длиннее; держим целое число тактов
+        clip.length = Math.max(this._snapToBars(clip.length), this._snapToBars(maxEnd));
     }
 
     // ---- Триггер пада: переключение play/stop или запись ----

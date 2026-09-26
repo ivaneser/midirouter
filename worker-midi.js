@@ -439,7 +439,9 @@ class MIDIRouterWorker {
         if (!clip || clip.notes.length === 0) return;
 
         const msPerBeat = this.daw._secondsPerBeat() * 1000;
-        const loopBeats = Math.max(0.25, Number(this.daw.loopLenBeats) || 4);
+        // Каждый клип лупит по СВОЕЙ длине (целое число тактов), но остаётся
+        // фазово синхронизированным с общим транспорт-циклом (tempo + tick grid).
+        const loopBeats = Math.max(1, Number(clip.length) || this.daw.loopLenBeats);
         const loopMs = loopBeats * msPerBeat;
         const playback = { interval: null, timeouts: new Set(), active: new Map() };
         const schedule = (fn, delay) => {
