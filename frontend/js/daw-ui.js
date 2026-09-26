@@ -335,7 +335,7 @@ export class DAWUI {
         if (sceneNamesDiv) sceneNamesDiv.innerHTML = '';
 
         // Render track columns — each track gets a column: header + vertical clips + buttons below
-        for (let t = 0; t < 16; t++) {
+        for (let t = 0; t < this.dawState.tracks.length; t++) {
             const ch = this.dawState.tracks[t];
             if (!ch) continue;
             

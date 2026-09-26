@@ -134,7 +134,7 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     daw.resetAllClips();
 
     assert.equal(daw.recording, null, 'reset must stop any in-flight recording');
-    for (let t = 0; t < 16; t++) {
+    for (let t = 0; t < 8; t++) {
         for (let s = 0; s < 2; s++) {
             const clip = daw.tracks[t].clips[s];
             assert.deepEqual(clip.notes, [], `clip (${t},${s}) must have no notes`);

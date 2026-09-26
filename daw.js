@@ -1,6 +1,6 @@
 /* === DAW / Clip Engine ===
  * Dелает из роутера что-то вроде Ableton Live:
- *  - Track  = MIDI channel (1..16)
+ *  - Track  = MIDI channel (1..8)
  *  - Clip   = записанный паттерн на канале (набор note-on/off с таймстампами в битах)
  *  - Pad    = триггер клипа: нажатие включает/выключает проигрывание (loop <-> stop)
  *  - Record modes: 'none' (play), 'replace', 'overdub'
@@ -14,6 +14,7 @@ import { MidiClock } from './midi-clock.js';
 
 const PPQ = 192;                 // pulses per quarter note (тайминг)
 const DEFAULT_SLOTS_PER_TRACK = 2;
+const TRACK_COUNT = 8;           // 8 треков (MIDI-каналы 1..8)
 
 // ---- Вспомогательные: байт-формат MIDI (status, data1, data2) ----
 function noteOn(channel, note, velocity) {
@@ -30,9 +31,9 @@ class DAWEngine {
         this.recordMode = opts.recordMode || 'none'; // 'none' | 'replace' | 'overdub'
         this.loopLenBeats = 16;             // quarter-note beats in four bars
 
-        // tracks[channel(1..16)] -> { channel, clips: [ {notes:[], length:beats} ] }
+        // tracks[channel(1..8)] -> { channel, clips: [ {notes:[], length:beats} ] }
         this.tracks = [];
-        for (let c = 1; c <= 16; c++) {
+        for (let c = 1; c <= TRACK_COUNT; c++) {
             this.tracks.push({ 
                 channel: c, 
                 clips: this._makeClips(),
@@ -43,7 +44,7 @@ class DAWEngine {
         }
 
         // текущее проигрываемое состояние по клипам: trackIdx -> slotIdx | -1 stopped
-        this.clipState = new Array(16).fill(-1);
+        this.clipState = new Array(TRACK_COUNT).fill(-1);
 
         // recording session state
         this.recording = null; // { track, slot, mode, startTime, startBeat, notes, noteStarts:Map }

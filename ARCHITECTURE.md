@@ -105,7 +105,7 @@ midirouter/
 ## Статус реализации (реализовано)
 - ✅ **All-to-all MIDI роутер** — авто-обнаружение портов, соединение всех со всеми.
 - ✅ **Hot-plug** — устройства подключаются/отключаются без перезапуска; порты переоткрываются автоматически.
-- ✅ **DAW / Clip режим** (`daw.js` + `worker-midi.js`): 16 треков = MIDI-каналы, клипы с записанными нотами, темп/tap-tempo, квантование в сетку, Mode-поведение после записи (play/overdub/replace), play/stop в loop. Сессии записей: `toData()`/`loadData()` сериализуют все клипы на диск (`sessions/*.json`).
+- ✅ **DAW / Clip режим** (`daw.js` + `worker-midi.js`): 8 треков = MIDI-каналы 1..8, клипы с записанными нотами, темп/tap-tempo, квантование в сетку, Mode-поведение после записи (play/overdub/replace), play/stop в loop. Сессии записей: `toData()`/`loadData()` сериализуют все клипы на диск (`sessions/*.json`).
 - ✅ **Автоматическое маппинг падов с ЛЮБОГО порта контроллера** — любая нажатая клавиша на любом контроллере input автоматически назначается на следующий свободный (трек, слот). Pad-trigger работает с любого MIDI-порта, не только DAW Port.
 - ✅ **Transport управление с контроллера** — Play/Stop/Record/Low кнопки на Launchkey Mini MK3 управляют транспортом и переключают режим записи.
 - ✅ **WS API DAW** (`server.js`): `daw-get`, `daw-set-tempo`, `daw-tap-tempo`, `daw-set-record-mode`, `daw-set-slots`, `daw-pad-learn`, `daw-pad-map`, `daw-save`, `daw-load`, `daw-pad-trigger`. Пресеты в `device_maps/daw_*.json`.
