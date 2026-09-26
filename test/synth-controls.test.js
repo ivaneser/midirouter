@@ -317,7 +317,7 @@ function findAll(element, predicate, result = []) {
     return result;
 }
 
-test('DeviceManager renders a flat device list without sending MIDI', async () => {
+test('DeviceManager lists devices flat; clicking a name expands its controls and sends CC', async () => {
     const previous = {
         document: globalThis.document,
         window: globalThis.window,
@@ -343,10 +343,29 @@ test('DeviceManager renders a flat device list without sending MIDI', async () =
             ],
         );
         assert.equal(sent.length, 0, 'rendering the device list must never transmit MIDI');
-        // Flat list: one entry per unique device name (inputs + outputs deduped).
-        const names = deviceList.children.map(el => el.textContent);
-        assert.deepEqual(names, ['Launchkey Mini MK3', 'Craft Synth', 'NTS-1 digital kit']);
-        assert.equal(deviceList.children.length, 3, 'deduped flat list of 3 devices');
+        // Flat deduped list: 3 devices, each with a clickable name button.
+        assert.equal(deviceList.children.length, 3);
+        const craftItem = deviceList.children.find(el => el.children[0]?.textContent === 'Craft Synth');
+        const craftName = craftItem.children[0];
+        assert.equal(craftName.className, 'device-item-name');
+
+        // Expand the Craft Synth panel (loads controls from the map file).
+        await craftName.click();
+        const panel = craftItem.querySelector('.synth-controls');
+        assert.ok(panel, 'clicking the device name must open its control panel');
+        assert.equal(sent.length, 0, 'loading controls must not transmit MIDI');
+        const slider = findAll(panel, el => el.type === 'range')[0];
+        assert.ok(slider, 'the panel must contain at least one slider control');
+        slider.value = '42';
+        slider.listeners.input();
+        assert.equal(sent.length, 1);
+        assert.equal(sent[0].type, 'midi-send');
+        assert.equal(sent[0].target, 'craft-output-9');
+        assert.deepEqual(sent[0].data.bytes, [0xB0, 1, 42]);
+
+        // Collapsing removes the panel again.
+        await craftName.click();
+        assert.equal(craftItem.querySelector('.synth-controls'), null, 'second click must collapse the panel');
     } finally {
         globalThis.document = previous.document;
         globalThis.window = previous.window;

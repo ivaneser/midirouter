@@ -332,15 +332,7 @@ export class DAWUI {
         if (!Array.isArray(this.dawState.tracks)) { console.warn('[DAWUI] tracks is not array:', typeof this.dawState.tracks); return; }
         
         grid.innerHTML = '';
-        sceneNamesDiv.innerHTML = '';
-        
-        // Render scene names (top row) — one per clip slot row
-        for (let s = 0; s < this.dawState.slotsPerTrack; s++) {
-            const nameEl = document.createElement('div');
-            nameEl.className = 'scene-name';
-            nameEl.textContent = `Slot ${s + 1}`;
-            sceneNamesDiv.appendChild(nameEl);
-        }
+        if (sceneNamesDiv) sceneNamesDiv.innerHTML = '';
 
         // Render track columns — each track gets a column: header + vertical clips + buttons below
         for (let t = 0; t < 16; t++) {

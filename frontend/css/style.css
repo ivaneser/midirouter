@@ -193,6 +193,31 @@ body {
     opacity: 0.4;
 }
 
+.device-item-name {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.device-item-name::before {
+    content: "\25B8"; /* ▸ collapsed */
+    color: #4ec9d4;
+    font-size: 0.8rem;
+    transition: transform 0.15s ease;
+}
+
+.device-item-name[aria-expanded="true"]::before {
+    content: "\25BE"; /* ▾ expanded */
+}
+
 /* === Synth Cards (Slice 1: synth-control-panels) === */
 .synth-card-list {
     display: grid;
