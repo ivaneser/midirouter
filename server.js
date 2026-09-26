@@ -435,7 +435,9 @@ function startServer() {
                         break;
 
                     case 'daw-rec-arm-toggle':
-                        // Toggle global record arm (used by Launchkey)
+                        // Rec Arm: сбросить все клипы в ноль и включить режим
+                        // записи (replace) — новая запись с чистого листа.
+                        router.worker.postMessage({ type: 'daw_reset_arm_record' });
                         this._sendToAll({ type: 'daw_rec_arm_toggle' });
                         break;
 

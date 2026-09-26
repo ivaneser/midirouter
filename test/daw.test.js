@@ -98,3 +98,50 @@ test('finalizing a held note preserves a sounding velocity', () => {
     daw.triggerPad(0, 0, 1100);
     assert.equal(daw.tracks[0].clips[0].notes[0].velocity, 90);
 });
+
+// Rec Arm contract: a reset must wipe EVERY clip on EVERY track/slot back to
+// zero (no notes, whole-bar minimum length), drop any playing state, and stop
+// an in-flight recording — leaving the engine ready for a brand-new take.
+test('resetAllClips wipes every clip and recording state to zero', () => {
+    const daw = new DAWEngine();
+    daw.setSlotsPerTrack(2);
+
+    // Record real notes into two different tracks/slots so the reset has
+    // something to clear.
+    daw.setRecordMode('replace');
+    daw.triggerPad(0, 0, 1000); // track 0 / slot 0
+    daw.recordEvent(0x90, 60, 100, 1000);
+    daw.recordEvent(0x80, 60, 0, 1500);
+    daw.triggerPad(0, 0, 1500); // finalize -> playing state in slot 0
+    daw.triggerPad(3, 1, 2000); // arm record into track 3 / slot 1
+    daw.recordEvent(0x90, 64, 90, 2000);
+    daw.recordEvent(0x80, 64, 0, 2500);
+    daw.triggerPad(3, 1, 2500); // finalize -> playing state in slot 1
+
+    assert.ok(daw.tracks[0].clips[0].notes.length > 0, 'precondition: slot (0,0) has notes');
+    assert.ok(daw.tracks[3].clips[1].notes.length > 0, 'precondition: slot (3,1) has notes');
+    assert.equal(daw.clipState[0], 0, 'precondition: track 0 is playing');
+    assert.equal(daw.clipState[3], 1, 'precondition: track 3 is playing');
+
+    // Start a fresh in-flight recording to prove reset also stops it.
+    daw.triggerPad(1, 0, 3000);
+    assert.ok(daw.recording, 'precondition: an in-flight recording is active');
+
+    daw.resetAllClips();
+
+    assert.equal(daw.recording, null, 'reset must stop any in-flight recording');
+    for (let t = 0; t < 16; t++) {
+        for (let s = 0; s < 2; s++) {
+            const clip = daw.tracks[t].clips[s];
+            assert.deepEqual(clip.notes, [], `clip (${t},${s}) must have no notes`);
+            assert.equal(clip.length, 4, `clip (${t},${s}) must be back to one whole bar`);
+            assert.equal(daw.clipState[t], -1, `track ${t} must be stopped`);
+        }
+    }
+
+    // After a reset, triggering an empty pad must report 'record' again (armed
+    // replace mode), i.e. the engine is ready for a brand-new take.
+    daw.setRecordMode('replace');
+    assert.equal(daw.triggerPad(0, 0, 4000).action, 'record');
+    daw.triggerPad(0, 0, 4100); // stop the fresh recording so state stays clean
+});

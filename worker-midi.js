@@ -804,14 +804,15 @@ class MIDIRouterWorker {
     }
 
     // Controller transport actions are defined by each profile.
-    _handleProfileTransport(action) {
+    _handleProfileTransport(action, pressed = true) {
         if (action === 'play') this.handleDawControl({ type: 'daw_start_transport' });
         else if (action === 'stop') this.handleDawControl({ type: 'daw_stop_transport' });
         else if (action === 'loop') this.handleDawControl({ type: 'daw_toggle_loop' });
         else if (action === 'record') {
-            const modes = ['none', 'replace', 'overdub'];
-            const nextMode = modes[(modes.indexOf(this.daw.recordMode) + 1) % modes.length];
-            this.handleDawControl({ type: 'daw_set_record_mode', mode: nextMode });
+            // Rec Arm: нажатие сбрасывает все клипы в ноль и включает режим
+            // записи (replace). Отпускание — без действия, чтобы не переключать
+            // режимы при каждом CC release.
+            if (pressed) this.handleDawControl({ type: 'daw_reset_arm_record' });
         }
     }
 
@@ -1101,8 +1102,8 @@ class MIDIRouterWorker {
         const control = this.controllerEngine.inputEvent(deviceName, bytes);
         if (control?.kind === 'pad') {
             this._handleMappedPad(control.pad, control.pressed ? 127 : 0, performance.now());
-        } else if (control?.kind === 'transport' && control.pressed) {
-            this._handleProfileTransport(control.action);
+        } else if (control?.kind === 'transport') {
+            this._handleProfileTransport(control.action, control.pressed);
         }
         if (control?.consume || isSysEx) return;
 
@@ -1218,6 +1219,18 @@ class MIDIRouterWorker {
                 this._clearStaleRecordingFeedback();
                 this._broadcastState();
                 break;
+            case 'daw_reset_arm_record': {
+                // Rec Arm: все клипы в ноль + готовность к новой записи.
+                // Сначала останавливаем проигрывание (note-offs), затем
+                // стираем клипы, затем включаем режим записи (replace).
+                for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
+                daw.resetAllClips();
+                daw.setRecordMode('replace');
+                this._clearStaleRecordingFeedback();
+                console.log('[DAW] Rec Arm: all clips reset to zero, replace mode armed');
+                this._broadcastState();
+                break;
+            }
             case 'daw_set_slots':
                 daw.setSlotsPerTrack(msg.n);
                 this._broadcastState();

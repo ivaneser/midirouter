@@ -230,6 +230,20 @@ class DAWEngine {
         }
     }
 
+    // Полный сброс: все клипы всех треков/слотов в ноль (пустые ноты,
+    // длина 1 такт), закрыть активную запись и снять playing-состояние.
+    // Готовит сессию для новой записи "с чистого листа".
+    resetAllClips() {
+        this._stopRecording();
+        for (const track of this.tracks) {
+            for (const clip of track.clips) {
+                clip.notes = [];
+                clip.length = this._snapToBars(0);
+            }
+        }
+        this.clipState.fill(-1);
+    }
+
     setSlotsPerTrack(n) {
         this.slotsPerTrack = Math.max(1, Math.min(16, Math.trunc(n)));
         for (const track of this.tracks) {
