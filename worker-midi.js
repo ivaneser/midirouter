@@ -12,6 +12,7 @@ import { ExternalMidiClock } from './external-midi-clock.js';
 import { ClockMaster, clockOutputsFor } from './clock-master.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -208,6 +209,7 @@ class MIDIRouterWorker {
 
     _hotplugCheckLoop() {
         this._checkHotplug().then((success) => {
+            try { this._verifyOutputConnections(); } catch (_) {}
             if (success) {
                 // Healthy: back off to 5s quickly
                 this._consecutiveHotplugFailures = 0;
@@ -228,6 +230,48 @@ class MIDIRouterWorker {
         setTimeout(() => this._hotplugCheckLoop(), this._hotplugBackoffMs);
     }
     
+    // ALSA quirk: kernel rawmidi ports lose their sequencer subscription
+    // ("Connected From:" in `aconnect -l`) without the device itself
+    // disappearing. In that state sendMessage() writes into a dangling port
+    // and the device receives nothing ("routing is broken" while the log
+    // shows the TX). Every hotplug tick we re-check all open outputs and
+    // reopen any that lost the subscription.
+    _verifyOutputConnections() {
+        if (!this.outputs || this.outputs.size === 0) return;
+        let listing = null;
+        try {
+            listing = execSync('aconnect -l 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
+        } catch (_) {
+            return; // no aconnect / failure — skip this tick
+        }
+
+        let currentPorts = [];
+        try { if (this._enumOut) currentPorts = this._filterPorts(this._enumOut, 'out'); } catch (_) {}
+
+        for (const [name, output] of this.outputs) {
+            // "Device:Port NN:NN" -> "Port" (display name aconnect shows)
+            const portDisplay = name.split(':').slice(1).join(':').replace(/ \d+:\d+$/, '');
+            const portIdx = listing.indexOf(`'${portDisplay}'`);
+            if (portIdx === -1) continue; // gone at kernel level — hotplug handles it
+            const blockEnd = listing.indexOf('\nclient ', portIdx);
+            const block = listing.slice(portIdx, blockEnd === -1 ? undefined : blockEnd);
+            if (block.includes('Connected From:')) continue; // subscription healthy
+
+            const current = currentPorts.find((p) => p.name === name);
+            const index = current ? current.index : output._index;
+            if (index == null) continue;
+            console.warn(`[WORKER] Output lost ALSA subscription: ${name} — reopening`);
+            try {
+                output.closePort();
+                output.openPort(index, 'midirouter-out');
+                output._index = index;
+                console.log(`[WORKER] Output reopened: ${name} (index: ${index})`);
+            } catch (error) {
+                console.error(`[WORKER] Failed to reopen output ${name}:`, error.message);
+            }
+        }
+    }
+
     async _checkHotplug() {
         try {
             // Re-use persistent enumeration objects (do NOT create new ALSA clients every tick)
