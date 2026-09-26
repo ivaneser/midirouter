@@ -231,11 +231,9 @@ export class DAWUI {
     /** Sync the clock master selector UI with current state */
     _renderClockMasterUI() {
         const select = document.getElementById('clock-source-select');
-        const statusEl = document.getElementById('clock-master-status');
         if (!select) return;
 
         const source = this.dawState?.clockMasterSource || { kind: 'internal' };
-        const activeOutputs = this.dawState?.clockMasterActiveOutputs || [];
 
         // Build the options list from current state (don't rebuild DOM on every tick).
         // Preserve the current selection if it's still valid.
@@ -305,15 +303,6 @@ export class DAWUI {
                 // Selected master is not in the current port list — show safe state.
                 select.value = 'internal';
                 console.warn(`[DAWUI] Clock master port "${portName}" not found in inputs, fell back to internal`);
-            }
-        }
-
-        // Update status text (used when no selection has been made yet).
-        if (statusEl) {
-            if (isInternal) {
-                statusEl.textContent = `Selected master: Internal DAW Clock (active outputs: ${activeOutputs.join(', ') || 'none'})`;
-            } else {
-                statusEl.textContent = `Selected master: External — ${source.masterPortName} (active outputs: ${activeOutputs.join(', ') || 'none'})`;
             }
         }
     }
