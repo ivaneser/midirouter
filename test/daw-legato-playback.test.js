@@ -51,3 +51,41 @@ test('internal-clock pad launch inherits transport phase and wraps on the clip\'
     assert.deepEqual(noteOnsAfterWrap.map(({ bytes }) => bytes[1]), [62, 60],
         'phase-0 event plays when the clip\'s own 16-beat loop wraps');
 });
+
+// Launchkey Play button contract: Play is a transport toggle. Pressing it
+// while playback is running must STOP the transport (and all clip playback);
+// pressing it while stopped must start it.
+test('Launchkey Play toggles: stops running playback, starts when stopped', () => {
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine({ tempo: 120 });
+    worker.daw.tracks[0].clips[0] = {
+        length: 4,
+        notes: [{ channel: 1, note: 60, velocity: 90, start: 0, dur: 0.25 }],
+    };
+    worker.daw.setRecordMode('none');
+    worker.outputs = new Map();
+    worker.controllerEngine = { isExcludedOutput: () => false };
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map();
+    worker._sendFeedback = () => {};
+    worker._broadcastState = () => {};
+    worker._transportPlaying = false;
+
+    // Phase 1: transport stopped -> Play press starts it.
+    worker._handleProfileTransport('play', true);
+    assert.equal(worker.daw.playing, true, 'Play press while stopped must start transport');
+    assert.equal(worker._transportPlaying, true);
+
+    // Phase 2: launch a clip so running playback exists.
+    worker._triggerPad(0, 0, performance.now());
+    assert.equal(worker._trackPlayTimers.size, 1, 'clip must be playing');
+
+    // Phase 3: transport running -> Play press stops it and all clips.
+    worker._handleProfileTransport('play', true);
+    assert.equal(worker.daw.playing, false, 'Play press while running must stop transport');
+    assert.equal(worker._transportPlaying, false);
+    assert.equal(worker._trackPlayTimers.size, 0, 'all clip playback must stop');
+    assert.equal(worker.daw.clipState[0], -1, 'clip playing state must be cleared');
+
+    worker.daw.stopTransport();
+});

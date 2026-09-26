@@ -805,7 +805,15 @@ class MIDIRouterWorker {
 
     // Controller transport actions are defined by each profile.
     _handleProfileTransport(action, pressed = true) {
-        if (action === 'play') this.handleDawControl({ type: 'daw_start_transport' });
+        if (action === 'play') {
+            // Play на Launchkey — toggle: если воспроизведение идёт, нажатие
+            // Play его останавливает (транспорт + все клипы).
+            if (this._transportPlaying || this.daw.playing) {
+                this.handleDawControl({ type: 'daw_stop_transport' });
+            } else {
+                this.handleDawControl({ type: 'daw_start_transport' });
+            }
+        }
         else if (action === 'stop') this.handleDawControl({ type: 'daw_stop_transport' });
         else if (action === 'loop') this.handleDawControl({ type: 'daw_toggle_loop' });
         else if (action === 'record') {
