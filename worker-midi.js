@@ -1364,6 +1364,18 @@ class MIDIRouterWorker {
                 this._refreshPadLeds();
                 this._broadcastState();
                 break;
+            case 'daw_save_session':
+                this._saveSession(msg.name);
+                break;
+            case 'daw_load_session':
+                this._loadSession(msg.name);
+                break;
+            case 'daw_delete_session':
+                this._deleteSession(msg.name);
+                break;
+            case 'daw_list_sessions':
+                this._listSessions();
+                break;
             case 'daw_toggle_loop':
                 // Toggle loop mode: toggle loopLenBeats between 16 and 4
                 daw.loopLenBeats = daw.loopLenBeats === 16 ? 4 : 16;
