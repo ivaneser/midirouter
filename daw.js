@@ -59,9 +59,17 @@ class DAWEngine {
         // Metronome / click track
         this._metronomeEnabled = false;
         this._metronomeTimer = null;
-        this._metronomeNote = 60;           // default click note (C4)
-        this._metronomeAccentNote = 62;     // accent on beat 1 (D4)
+        this._metronomeNote = 69;           // default click note — A4 on off-beats
+        this._metronomeAccentNote = 60;    // downbeat click — C4 on first beat of measure
         this._metronomeBeatsPerMeasure = 4; // 4/4 default
+        this._currentMetronomeNote = null;     // sustained pre-record click note being held (legacy)
+        this._metronomeAnchorTime = 0;         // anchor for free-running pre-record timing
+        this._metronomeNoteOffTimer = null;    // scheduled Note Off timer from _emitMetronomeClick
+
+        // Callback fired as soon as a recording session begins (daw.recording
+        // transitions from null to an object). Used by the worker to silence
+        // any in-flight pre-record metronome click.
+        this._onRecordingStarted = () => {};
 
         this._onEvent = () => {};           // (evt) => void  — колбэк для форварда MIDI
         this._onProgress = () => {};        // (beat, progress) => void — для UI
@@ -113,8 +121,15 @@ class DAWEngine {
     // ---- Metronome ----
     setMetronome(enabled) {
         this._metronomeEnabled = !!enabled;
-        if (this._metronomeEnabled && this.playing) {
-            this._startMetronome();
+        if (this._metronomeEnabled) {
+            if (this.playing) {
+                this._startMetronome();
+            } else if (this._isPreRecordMetronomeMode()) {
+                // Enable pre-record metronome while transport is idle and every
+                // clip is empty — the performer hears tempo before recording.
+                this._metronomeAnchorTime = performance.now();
+                this._startMetronome();
+            }
         } else {
             this._stopMetronome();
         }
@@ -178,48 +193,120 @@ class DAWEngine {
         // _playAnchorTime / _currentBeat on every F8 tick; we use those as the
         // authoritative phase reference and check at each tick boundary.
         this._metronomeTimer = setInterval(() => {
-            if (!this.playing) {
-                this._stopMetronome();
-                return;
-            }
+            let tickInMeasure, isAccent;
 
-            let tickInMeasure, isAccent, elapsed, currentBeatFloat, currentBeatInt;
+            if (this.playing) {
+                // Normal transport-synced path: stop with the transport.
+                if (!this.playing) {
+                    this._stopMetronome();
+                    return;
+                }
 
-            if (this._externalClock) {
-                // _handleMidiClock updates _currentBeat from every selected
-                // master's F8 tick. Reuse that phase directly so tempo changes
-                // and non-120 BPM clocks cannot skew metronome/bar alignment.
-                tickInMeasure = Math.floor(this._currentBeat);
+                if (this._externalClock) {
+                    // _handleMidiClock updates _currentBeat from every selected
+                    // master's F8 tick. Reuse that phase directly so tempo changes
+                    // and non-120 BPM clocks cannot skew metronome/bar alignment.
+                    tickInMeasure = Math.floor(this._currentBeat);
 
-                // Downbeat = first beat of each measure, not just the start
-                // of the (possibly multi-bar) global clip cycle.
+                    // Downbeat = first beat of each measure, not just the start
+                    // of the (possibly multi-bar) global clip cycle.
+                    isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
+                } else {
+                    // Internal clock: BPM-driven beat scheduler (unchanged path).
+                    const elapsed = performance.now() - this._playAnchorTime;
+                    const currentBeatFloat = elapsed / this._secondsPerBeatMs();
+                    tickInMeasure = Math.floor(currentBeatFloat % this.loopLenBeats);
+                    isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
+                }
+
+                // Якщо перешли на новый бит — тикаем
+                if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
+                    // Акцент на первую долю такта (по новому биту)
+                    const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
+                    const vel = isAccent ? 100 : 70;
+                    this._emitMetronomeClick(note, vel);
+                    beatInMeasure = tickInMeasure;
+                }
+            } else if (this._isPreRecordMetronomeMode()) {
+                // Pre-record mode: metronome is enabled but transport is not
+                // running and every clip is empty.  Emit quarter-note pulses so
+                // the performer hears tempo while recording is still idle.
+                const elapsed = performance.now() - this._metronomeAnchorTime;
+                const currentBeatFloat = elapsed / this._secondsPerBeatMs();
+                tickInMeasure = Math.floor(currentBeatFloat);
                 isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
-            } else {
-                // Internal clock: BPM-driven beat scheduler (unchanged path).
-                const beatMs = this._secondsPerBeat() * 1000;
-                elapsed = performance.now() - this._playAnchorTime;
-                currentBeatFloat = (elapsed / 1000) / (beatMs / 1000);
-                currentBeatInt = Math.floor(currentBeatFloat % this.loopLenBeats);
-                tickInMeasure = currentBeatInt;
-                isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
-            }
 
-            // Если перешли на новый бит — тикаем
-            if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
-                // Акцент на первую долю такта (по новому биту)
-                const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
-                const vel = isAccent ? 100 : 70;
-                self._onEvent({ type: 'midi', data: noteOn(1, note, vel) });
-                self._onEvent({ type: 'midi', data: noteOff(1, note) });
-                beatInMeasure = tickInMeasure;
+                if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
+                    const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
+                    const vel = isAccent ? 100 : 70;
+                    this._emitMetronomeClick(note, vel);
+                    beatInMeasure = tickInMeasure;
+                }
             }
         }, 50);
     }
 
-    _stopMetronome() {
+    _secondsPerBeatMs() {
+        return (60 / this.tempo) * 1000;
+    }
+
+    // Emits a single metronome click with a real, bounded duration so the note
+    // is not zero-width. Channel 1 only (0-based index 0). The Note Off is
+    // scheduled via a timer that _stopMetronome(true) cancels on hard stop.
+    _emitMetronomeClick(note, vel) {
+        if (this._metronomeNoteOffTimer) {
+            clearTimeout(this._metronomeNoteOffTimer);
+            this._metronomeNoteOffTimer = null;
+        }
+        // noteOn uses a 0-based channel index: 0 → MIDI ch 1.
+        // Tag the event so the worker can route ONLY metronome clicks to the
+        // physical synth outputs without touching ordinary instrument routing.
+        this._onEvent({ type: 'midi', data: noteOn(0, note, vel), _tag: 'metronome' });
+        // Remember the sustained note so a hard stop (forceNow) can release it
+        // immediately via a proper Note Off in _stopMetronome.
+        this._currentMetronomeNote = { note, vel };
+        // Bounded fraction of one beat — long enough to be audible as a click,
+        // short enough not to blur into the next beat (min 80 ms).
+        const durationMs = Math.max(80, this._secondsPerBeatMs() * 0.15);
+        this._metronomeNoteOffTimer = setTimeout(() => {
+            this._onEvent({ type: 'midi', data: noteOff(0, note), _tag: 'metronome' });
+            this._metronomeNoteOffTimer = null;
+        }, durationMs);
+    }
+
+    _isPreRecordMetronomeMode() {
+        // Pre-record metronome runs only while transport is idle and every clip
+        // on every track is empty — i.e. no recording has begun yet.
+        if (this.recording) return false;
+        for (let t = 0; t < this.tracks.length; t++) {
+            const clips = this.tracks[t].clips;
+            for (let s = 0; s < clips.length; s++) {
+                if (clips[s].notes && clips[s].notes.length > 0) return false;
+            }
+        }
+        return true;
+    }
+
+    _stopMetronome(forceNow) {
         if (this._metronomeTimer) {
             clearInterval(this._metronomeTimer);
             this._metronomeTimer = null;
+        }
+        // Cancel any scheduled Note Off so a hard stop silences the click dead.
+        if (this._metronomeNoteOffTimer) {
+            clearTimeout(this._metronomeNoteOffTimer);
+            this._metronomeNoteOffTimer = null;
+        }
+        // Immediately release any note still being sustained by the current
+        // interval tick so the click stops dead on the user-facing trigger
+        // (first empty-clip recording start).  _emitMetronomeClick keeps no
+        // lingering state — each tick's Note Off is owned by its timer above.
+        if (forceNow && this._currentMetronomeNote != null) {
+            const { note } = this._currentMetronomeNote;
+            // Tag the forced Note Off identically to the scheduled one so the
+            // worker routes it through the every-output metronome fan-out path.
+            this._onEvent({ type: 'midi', data: noteOff(0, note), _tag: 'metronome' });
+            this._currentMetronomeNote = null;
         }
     }
 
@@ -303,6 +390,11 @@ class DAWEngine {
             notes: existing.notes,  // пишем в тот же массив (overdub накапливает)
             noteStarts: new Map(),  // `note:${channel}:${note}` -> beat начала
         };
+
+        // Notify listeners as soon as a recording session exists.  The worker
+        // uses this to silence the pre-record metronome on the first empty-clip
+        // trigger that begins recording (see worker-midi.js).
+        this._onRecordingStarted(this);
     }
 
     _stopRecording(endBeat) {

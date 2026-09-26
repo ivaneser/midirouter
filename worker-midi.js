@@ -6,7 +6,6 @@ import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
 import { computeRoutingStep } from './route-midi.js';
-import { MetronomeController } from './metronome-controller.js';
 import { ControllerEngine } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
 import { ClockMaster, clockOutputsFor } from './clock-master.js';
@@ -28,7 +27,6 @@ class MIDIRouterWorker {
         this.outputs = new Map();  // deviceName -> RtMidiOut instance
 
         // DAW events reach the UI; transport clock also reaches synth outputs.
-        // Actual metronome audio is produced by metronome.py → aplay -M → 3.5mm jack.
         this.daw = new DAWEngine();
         this.daw._onProgress = (beat, progress, cues = {}) => {
             if (parentPort) parentPort.postMessage({
@@ -36,13 +34,6 @@ class MIDIRouterWorker {
                 payload: { beat, progress, loopLenBeats: this.daw.loopLenBeats, ...cues },
             });
         };
-
-        // Python audio metronome controller — controls metronome.py via stdin IPC
-        this.metronomeCtrl = new MetronomeController({
-            bpm: this.daw.tempo,
-            beats: 4,
-            volume: 0.8
-        });
         this._transportPlaying = false;
         this._externalClockActive = false;
         this._externalTransportState = null;
@@ -65,77 +56,33 @@ class MIDIRouterWorker {
 
         // Explicit clock source selection — exactly one master at a time.
         this._clockMaster = new ClockMaster();
-        // Override DAW engine methods to also control the Python audio metronome
+
         const origSetTempo = this.daw.setTempo.bind(this.daw);
         this.daw.setTempo = (bpm) => {
             origSetTempo(bpm);
-            if (this.metronomeCtrl) {
-                this.metronomeCtrl.setBpm(bpm);
-            }
         };
 
-        const origStartMetronome = this.daw._startMetronome.bind(this.daw);
-        this.daw._startMetronome = () => {
-            origStartMetronome();
-            if (this.metronomeCtrl && this.daw.playing) {
-                this.metronomeCtrl.play();
-            }
+        // Silence the pre-record metronome as soon as a recording session begins.
+        // The user-facing trigger is the first empty-clip click (which creates
+        // `daw.recording`); Rec Arm is NOT the stop trigger.
+        this.daw._onRecordingStarted = () => {
+            this.daw._stopMetronome(true);
         };
-
-        const origStopMetronome = this.daw._stopMetronome.bind(this.daw);
-        this.daw._stopMetronome = () => {
-            origStopMetronome();
-            if (this.metronomeCtrl) {
-                this.metronomeCtrl.stop();
-            }
-        };
-
-        const origSetMetronome = this.daw.setMetronome.bind(this.daw);
-        this.daw.setMetronome = (enabled) => {
-            origSetMetronome(enabled);
-            // Python metronome follows transport state + metronome toggle
-            if (this.metronomeCtrl && !this.daw.playing) {
-                // If not playing, stop immediately on disable
-                if (!enabled) {
-                    this.metronomeCtrl.stop();
-                }
-            }
-        };
-
-        const origStartTransport = this.daw.startTransport.bind(this.daw);
-        this.daw.startTransport = () => {
-            origStartTransport();
-            if (this.metronomeCtrl && this.daw._metronomeEnabled) {
-                this.metronomeCtrl.play();
-            }
-        };
-
-        const origStopTransport = this.daw.stopTransport.bind(this.daw);
-        this.daw.stopTransport = () => {
-            origStopTransport();
-            if (this.metronomeCtrl) {
-                this.metronomeCtrl.stop();
-            }
-        };
-
-        const origSetMetronomeBeats = this.daw.setMetronomeBeatsPerMeasure.bind(this.daw);
-        this.daw.setMetronomeBeatsPerMeasure = (n) => {
-            origSetMetronomeBeats(n);
-            if (this.metronomeCtrl) {
-                this.metronomeCtrl.setBeats(n);
-            }
-        };
-
-        // Start Python metronome process on init (it stays ready to play)
-        this.metronomeCtrl.start().then(() => {
-            console.log('[WORKER] Python audio metronome started');
-        }).catch((e) => {
-            console.warn(`[WORKER] Failed to start Python metronome: ${e.message}`);
-        });
 
         this.daw._onEvent = (evt) => {
             const bytes = evt.data;
             const status = bytes[0];
+
+            // Tagged metronome clicks — route ONLY these to the physical synth
+            // outputs so every allowed output receives the click, without
+            // touching ordinary instrument routing. The tag is set by
+            // DAWEngine._emitMetronomeClick.  Metronome events bypass the
+            // controller exclusion policy: they must reach ALL connected MIDI
+            // outputs (the user's explicit request), not just the non-excluded
+            // ones that `_sendToSynthOutputs` would enforce for ordinary notes.
+            if (evt._tag === 'metronome') {
+                this._sendToAllMetronomeOutputs(bytes);
+            }
 
             // Internal DAW MidiClock path: when the internal source is selected,
             // its 24 PPQN clock + Start/Continue/Stop must reach all allowed
@@ -149,7 +96,9 @@ class MIDIRouterWorker {
             }
 
             // Generated clock/transport also reaches the UI for timing listeners.
-            parentPort.postMessage({ type: 'daw_midi', data: bytes });
+            if (parentPort) {
+                parentPort.postMessage({ type: 'daw_midi', data: bytes });
+            }
         };
 
         // track playback timers (loop): trackIdx -> { interval, timeouts, active }
@@ -711,6 +660,19 @@ class MIDIRouterWorker {
             }
         }
         return sent;
+    }
+
+    // Fan tagged metronome events to ALL open outputs, bypassing the ordinary
+    // controller exclusion policy.  Metronome clicks must reach every connected
+    // MIDI output (the user's explicit request), not just the non-excluded ones.
+    _sendToAllMetronomeOutputs(bytes) {
+        for (const [, midiOut] of this.outputs) {
+            try {
+                midiOut.sendMessage(Buffer.from(bytes));
+            } catch (e) {
+                console.warn(`[WORKER] Failed to send metronome event: ${e.message}`);
+            }
+        }
     }
 
     _sendMidiClockOutputs(bytes, excludePortName = null) {
