@@ -89,9 +89,9 @@
             <div id="track-controls" class="track-controls"></div>
 
             <p class="daw-hint">
-                🎹 Launchkey pads trigger clips. Press pad = arm/trigger, release = play.<br>
-                Click track buttons: 🔴 Arm (rec), 🔇 Mute, 🔊 Solo<br>
-                💾 Sessions: save recordings to disk (sessions/*.json); click a name to load, ✕ to delete.
+                🎹 Empty pad = record; press again to stop. Mode decides what happens after stop:
+                Play → loop the take · Overdub → keep layering · Replace → stop, next press re-records.<br>
+                Click track buttons: 🔇 Mute, 🔊 Solo · 💾 Save/Load ask for the session name; list below = load/delete.
             </p>
             </div>
         </details>
@@ -178,11 +178,14 @@
                     <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown.</li>
                 </ul>
 
-                <h4>📝 Recording Modes</h4>
+                <h4>📝 Mode (what happens after a take ends)</h4>
                 <ul>
-                    <li><strong>Play</strong> — clips loop; tap pad to stop.</li>
-                    <li><strong>Replace</strong> — each pad press overwrites the clip in that slot.</li>
-                    <li><strong>Overdub</strong> — layer new notes on top of existing playback.</li>
+                    <li>An <strong>empty clip always starts recording</strong> on pad press (any Mode).</li>
+                    <li>Pressing a clip that is <strong>playing</strong> stops it; pressing a stopped clip in <strong>Play</strong> mode starts it again.</li>
+                    <li><strong>Play</strong> — when you stop recording, the clip starts looping the take.</li>
+                    <li><strong>Overdub</strong> — when you stop, recording keeps going: layer new notes on top of the take.</li>
+                    <li><strong>Replace</strong> — when you stop, the clip stays stopped; the next press on it records a fresh take that overwrites the old one.</li>
+                    <li>Pressing a new <strong>empty</strong> clip stops the current clip on that track and records into the new one.</li>
                 </ul>
 
                 <h4>💾 Saving & Loading</h4>

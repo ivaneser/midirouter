@@ -18,7 +18,7 @@ test('Overdub preserves existing notes and records the new layer at live cycle p
     assert.equal(result.action, 'overdub');
     daw.recordEvent(0x90, 67, 90, armTime + 250); // new note at live beat 2.5
     daw.recordEvent(0x80, 67, 0, armTime + 500);
-    assert.equal(daw.triggerPad(0, 0, armTime + 750).action, 'record-stop');
+    assert.equal(daw.triggerPad(0, 0, armTime + 750).action, 'record-stop-stopped', 'Overdub stop leaves the clip stopped with all layers kept');
 
     const notes = daw.tracks[0].clips[0].notes;
     assert.equal(notes.length, 2, 'Overdub must retain the old note and add one new note');

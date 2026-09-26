@@ -222,11 +222,15 @@ class DAWEngine {
         }
     }
 
+    // Mode определяет, во что переходит клип ПОСЛЕ окончания записи:
+    //   none (Play)   → запускать воспроизведение записи
+    //   overdub       → продолжать запись поверх дубля (слои)
+    //   replace       → остаться остановленным (дубль сохранён, повторное
+    //                   нажатие начнёт новую запись поверх старой)
+    // Пустой клип всегда начинает запись независимо от Mode.
     setRecordMode(mode) {
         if (['none', 'replace', 'overdub'].includes(mode)) {
             this.recordMode = mode;
-            // Если выключили запись — снимем armed-состояние
-            if (mode === 'none' && this.recording) this._stopRecording();
         }
     }
 
@@ -387,35 +391,68 @@ class DAWEngine {
         clip.length = Math.max(this._snapToBars(clip.length), this._snapToBars(maxEnd));
     }
 
-    // ---- Триггер пада: переключение play/stop или запись ----
-    // returns { action:'play'|'stop'|'record'|'overdub', track, slot }
+    // ---- Триггер пада: запись / play-stop toggle по выбранному Mode ----
+    // returns { action:'play'|'stop'|'record'|'overdub'|'record-stop'|'record-stop-stopped', track, slot }
+    // Сценарии:
+    //   1) Нажат именно записывающийся слот → запись завершается, и клип
+    //      переходит в состояние выбранного Mode:
+    //        none(Play) → 'record-stop' (начинает воспроизведение),
+    //        overdub    → 'record-stop-stopped' (останавливается; слои
+    //                     сохраняются, следующее нажатие добавит слой),
+    //        replace    → 'record-stop-stopped' (останавливается; дубль
+    //                     сохранён, следующее нажатие запишет заново).
+    //   2) Пустой клип (нет нот) → ВСЕГДА запись ('record'), независимо от
+    //      Mode. При этом активный клип на этом же треке останавливается
+    //      (worker закрывает плейбэк трека при action 'record'/'overdub').
+    //   3) Играющий клип → 'stop' (в Play-режиме) или новая запись поверх
+    //      (в Replace/Overdub).
+    //   4) Остановленный непустой клип → 'play' в Play-режиме; в
+    //      Replace/Overdub — новая запись (replace стирает старый дубль,
+    //      overdub добавляет поверх).
     triggerPad(trackIdx, slot, now) {
         const clip = this.tracks[trackIdx]?.clips[slot];
         if (!clip) return { action: 'invalid', track: trackIdx, slot };
         const wasPlaying = this.clipState[trackIdx] === slot;
+        const mode = this.recordMode;
 
-        // Если в этот же слот сейчас идёт запись — завершаем её
+        // (1) В этот же слот сейчас идёт запись — завершаем и ходим по Mode.
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
             this._stopRecording(this._beatAt(now));
             this.quantizeClip(trackIdx, slot);
-            this.clipState[trackIdx] = clip.notes.length ? slot : -1;
-            return { action: 'record-stop', track: trackIdx, slot };
-        }
-
-        // Режим записи -> начинаем запись (replace стирает, overdub добавляет)
-        if (this.recordMode !== 'none') {
-            this.armRecording(trackIdx, slot, now);
-            return { action: this.recordMode === 'overdub' && clip.notes.length > 0 ? 'overdub' : 'record', track: trackIdx, slot };
-        }
-
-        // Иначе — play/stop переключение
-        if (wasPlaying) {
+            if (mode === 'none') {
+                // Play: начинаем воспроизведение только что записанного дубля
+                this.clipState[trackIdx] = clip.notes.length ? slot : -1;
+                return { action: 'record-stop', track: trackIdx, slot };
+            }
+            // Overdub/Replace: клип останавливается (слои/дубль сохранены).
+            // Следующее нажатие в Overdub добавит слой, в Replace — новый дубль.
             this.clipState[trackIdx] = -1;
-            return { action: 'stop', track: trackIdx, slot };
+            return { action: 'record-stop-stopped', track: trackIdx, slot };
         }
-        if (!clip.notes.length) return { action: 'empty', track: trackIdx, slot };
-        this.clipState[trackIdx] = slot;
-        return { action: 'play', track: trackIdx, slot };
+
+        // (2) Пустой клип — всегда запись (дефолт), любой Mode.
+        if (clip.notes.length === 0) {
+            this.armRecording(trackIdx, slot, now); // останавливает чужую запись
+            return { action: 'record', track: trackIdx, slot };
+        }
+
+        // (3) Играющий клип — stop в Play, заново/поверх запись в Replace/Overdub.
+        if (wasPlaying) {
+            if (mode === 'none') {
+                this.clipState[trackIdx] = -1;
+                return { action: 'stop', track: trackIdx, slot };
+            }
+            this.armRecording(trackIdx, slot, now);
+            return { action: mode === 'overdub' ? 'overdub' : 'record', track: trackIdx, slot };
+        }
+
+        // (4) Остановленный непустой клип.
+        if (mode === 'none') {
+            this.clipState[trackIdx] = slot;
+            return { action: 'play', track: trackIdx, slot };
+        }
+        this.armRecording(trackIdx, slot, now);
+        return { action: mode === 'overdub' ? 'overdub' : 'record', track: trackIdx, slot };
     }
 
     // ---- Transport play / loop playback ----

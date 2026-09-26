@@ -76,19 +76,21 @@ test('a held note records quarter-note timing, velocity and MIDI channel', () =>
     assert.equal(daw.triggerPad(0, 1, 1000).action, 'record');
     daw.recordEvent(0x90, 60, 103, 1000);
     daw.recordEvent(0x80, 60, 0, 1500);
-    assert.equal(daw.triggerPad(0, 1, 1500).action, 'record-stop');
+    // Replace-режим: после остановки клип остаётся остановленным (дубль сохранён)
+    assert.equal(daw.triggerPad(0, 1, 1500).action, 'record-stop-stopped');
     const note = daw.tracks[0].clips[1].notes[0];
     assert.deepEqual(note, { channel: 1, note: 60, velocity: 103, start: 0, dur: 1 });
     assert.deepEqual(noteOn(note.channel - 1, note.note, note.velocity), [0x90, 60, 103]);
     assert.deepEqual(noteOff(note.channel - 1, note.note), [0x80, 60, 0]);
-    assert.equal(daw.clipState[0], 1);
+    assert.equal(daw.clipState[0], -1);
 });
 
-test('empty and out-of-range clips cannot enter playing state', () => {
+test('empty pad always starts recording (any Mode); out-of-range is invalid', () => {
     const daw = new DAWEngine();
-    assert.equal(daw.triggerPad(0, 0, 0).action, 'empty');
+    // Пустой клип в Play-режиме — тоже запись (по умолчанию)
+    assert.equal(daw.triggerPad(0, 0, 0).action, 'record');
     assert.equal(daw.triggerPad(0, 2, 0).action, 'invalid');
-    assert.equal(daw.clipState[0], -1);
+    assert.equal(daw.clipState[0], -1, 'recording never puts the clip into playing state');
 });
 
 test('finalizing a held note preserves a sounding velocity', () => {
@@ -110,14 +112,15 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     // Record real notes into two different tracks/slots so the reset has
     // something to clear.
     daw.setRecordMode('replace');
-    daw.triggerPad(0, 0, 1000); // track 0 / slot 0
+    daw.triggerPad(0, 0, 1000); // track 0 / slot 0 — empty pad starts recording
     daw.recordEvent(0x90, 60, 100, 1000);
     daw.recordEvent(0x80, 60, 0, 1500);
-    daw.triggerPad(0, 0, 1500); // finalize -> playing state in slot 0
-    daw.triggerPad(3, 1, 2000); // arm record into track 3 / slot 1
+    daw.setRecordMode('none');
+    daw.triggerPad(0, 0, 1500); // finalize in Play mode -> playing state in slot 0
+    daw.triggerPad(3, 1, 2000); // empty pad -> record into track 3 / slot 1
     daw.recordEvent(0x90, 64, 90, 2000);
     daw.recordEvent(0x80, 64, 0, 2500);
-    daw.triggerPad(3, 1, 2500); // finalize -> playing state in slot 1
+    daw.triggerPad(3, 1, 2500); // finalize in Play mode -> playing state in slot 1
 
     assert.ok(daw.tracks[0].clips[0].notes.length > 0, 'precondition: slot (0,0) has notes');
     assert.ok(daw.tracks[3].clips[1].notes.length > 0, 'precondition: slot (3,1) has notes');

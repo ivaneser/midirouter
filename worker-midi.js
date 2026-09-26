@@ -766,9 +766,17 @@ class MIDIRouterWorker {
         }
         this._clearStaleRecordingFeedback();
         if (result.action === 'play' || result.action === 'record-stop') {
-            this._startTrackPlayback(trackIdx, slot, now);
-        } else if (result.action === 'stop') {
+            // record-stop: запуск воспроизведения только если в дубле есть ноты
+            const hasNotes = this.daw.tracks?.[trackIdx]?.clips?.[slot]?.notes?.length > 0;
+            if (result.action === 'record-stop' && !hasNotes) {
+                this._stopTrackPlayback(trackIdx);
+            } else {
+                this._startTrackPlayback(trackIdx, slot, now);
+            }
+        } else if (result.action === 'stop' || result.action === 'record-stop-stopped') {
+            // stop (Play-режим) или replace-остановка: клип остаётся остановленным
             this._stopTrackPlayback(trackIdx);
+            this.daw.clipState[trackIdx] = -1;
         } else if (result.action === 'record' || result.action === 'overdub') {
             this._stopTrackPlayback(trackIdx);
             this.daw.clipState[trackIdx] = -1;
