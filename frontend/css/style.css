@@ -193,6 +193,41 @@ body {
     opacity: 0.4;
 }
 
+/* === Synth Cards (Slice 1: synth-control-panels) === */
+.synth-card-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+.synth-card {
+    padding: 12px 14px;
+    background: #1a1a2e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    cursor: default;
+    transition: border-color 0.2s;
+}
+.synth-card.supported {
+    border-color: #0a7c2e;
+    background: #16213e;
+}
+.synth-card:hover {
+    border-color: #4ec9d4;
+}
+.synth-card-name {
+    font-size: 0.9rem;
+    color: #eee;
+    font-weight: 600;
+}
+.synth-card-status {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 4px;
+}
+.synth-card.supported .synth-card-status {
+    color: #3ddc84;
+}
+
 /* === Debug Panel === */
 .debug-panel {
     margin: 20px;
@@ -380,6 +415,61 @@ body {
 }
 
 .daw-hint { font-size: 0.75rem; color: #888; margin-top: 8px; }
+
+/* === Clock source indicator & BPM display === */
+.clock-source-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #ccc;
+    padding: 4px 10px;
+    background: #1a1a2e;
+    border-radius: 4px;
+    border: 1px solid #0f3460;
+}
+
+.clock-source-indicator .source-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #666;
+    transition: background 0.2s;
+}
+
+.clock-source-indicator.source-internal .source-dot {
+    background: #3ddc84;
+    box-shadow: 0 0 6px #3ddc84;
+}
+
+.clock-source-indicator.source-external .source-dot {
+    background: #ffaa00;
+    box-shadow: 0 0 6px #ffaa00;
+}
+
+.bpm-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+}
+
+.bpm-label {
+    color: #888;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+}
+
+.bpm-value {
+    font-family: monospace;
+    font-size: 0.95rem;
+    color: #e94560;
+    font-weight: bold;
+    min-width: 70px;
+    text-align: right;
+}
 
 /* Metronome controls */
 .metronome-controls {

@@ -1,5 +1,7 @@
 /* === Device Manager — управление MIDI устройствами === */
 
+import { getSynthRenderData } from './synth-catalog.js';
+
 export class DeviceManager {
     constructor() {
         this.inputs = [];   // [{id, name}]
@@ -28,8 +30,8 @@ export class DeviceManager {
     /** Рендеринг устройств */
     render() {
         const inputList = document.getElementById('input-list');
-        const outputList = document.getElementById('output-list');
-        
+        const synthCards = document.getElementById('synth-cards');
+
         if (inputList) {
             inputList.innerHTML = '';
             for (const inp of this.inputs) {
@@ -39,14 +41,29 @@ export class DeviceManager {
                 inputList.appendChild(el);
             }
         }
-        
-        if (outputList) {
-            outputList.innerHTML = '';
-            for (const out of this.outputs) {
+
+        // Slice 1: render supported synth cards from outputs.
+        // The existing `midi-send` path (DeviceManager.sendMidi -> WS -> router._sendMidiToTarget)
+        // is deliberately untouched here; it still uses this.outputs internally on the server.
+        if (synthCards) {
+            const cards = getSynthRenderData(this.outputs);
+            synthCards.innerHTML = '';
+            for (const card of cards) {
                 const el = document.createElement('div');
-                el.className = 'device-item connected';
-                el.textContent = out.name;
-                outputList.appendChild(el);
+                el.className = 'synth-card' + (card.supported ? ' supported' : '');
+                el.dataset.targetId = card.id;
+
+                const nameEl = document.createElement('div');
+                nameEl.className = 'synth-card-name';
+                nameEl.textContent = card.name;
+
+                const statusEl = document.createElement('div');
+                statusEl.className = 'synth-card-status';
+                statusEl.textContent = card.supported ? 'Supported' : 'Unsupported';
+
+                el.appendChild(nameEl);
+                el.appendChild(statusEl);
+                synthCards.appendChild(el);
             }
         }
     }

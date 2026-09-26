@@ -534,8 +534,16 @@ class MIDIRouterWorker {
         for (const playback of this._trackPlayTimers.values()) {
             if (!playback.externalClock || tick < playback.startTick) continue;
 
-            const dueOffs = playback.pendingNoteOffs.get(tick) || [];
-            playback.pendingNoteOffs.delete(tick);
+            // Release every pending note-off whose scheduled tick is at or
+            // before the current tick (handles skipped / late F8 ticks),
+            // releasing each exactly once, while preserving future offs.
+            const dueOffs = [];
+            for (const [offTick, list] of playback.pendingNoteOffs) {
+                if (offTick <= tick) {
+                    dueOffs.push(...list);
+                    playback.pendingNoteOffs.delete(offTick);
+                }
+            }
             for (const { key, channel, note } of dueOffs) {
                 this._sendToSynthOutputs(noteOff(channel - 1, note));
                 const count = playback.active.get(key) || 0;
