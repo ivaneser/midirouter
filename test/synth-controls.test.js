@@ -8,9 +8,8 @@
  *     each control definition (slider / dropdown / toggle).
  *  3. buildMidiCcBytes(model, cc, value) emits [0xB0, cc, value] only on user
  *     interaction — never auto-emitted at render time.
- *  4. Integration: expanding a supported card fetches the exact map URL, renders
- *     controls without sending MIDI, and user interaction sends to the correct
- *     output with the right payload.
+ *  4. Integration: DeviceManager.render() lists every connected MIDI port in a
+ *     single flat `#device-list` without sending any MIDI.
  *
  * These run BEFORE implementation -> expected to FAIL red at first.
  */
@@ -318,15 +317,14 @@ function findAll(element, predicate, result = []) {
     return result;
 }
 
-test('DeviceManager renders controls without MIDI, then sends user CC to the selected output only', async () => {
+test('DeviceManager renders a flat device list without sending MIDI', async () => {
     const previous = {
         document: globalThis.document,
         window: globalThis.window,
         WebSocket: globalThis.WebSocket,
     };
-    const inputList = new TestElement('div');
-    const synthCards = new TestElement('div');
-    const elements = { 'input-list': inputList, 'synth-cards': synthCards };
+    const deviceList = new TestElement('div');
+    const elements = { 'device-list': deviceList };
     const sent = [];
     globalThis.document = { getElementById: id => elements[id] || null, createElement: tag => new TestElement(tag) };
     globalThis.WebSocket = { OPEN: 1 };
@@ -336,39 +334,19 @@ test('DeviceManager renders controls without MIDI, then sends user CC to the sel
 
     try {
         const manager = new DeviceManager();
-        manager.updatePorts([], [
-            { id: 'craft-output-9', name: 'Craft Synth' },
-            { id: 'nts-output-4', name: 'NTS-1 digital kit' },
-            { id: 'other-output', name: 'Unrecognized MIDI device' },
-        ]);
-        assert.equal(sent.length, 0, 'rendering cards must never transmit MIDI');
-        assert.equal(synthCards.children.length, 3);
-        assert.equal(findAll(synthCards, el => el.className === 'synth-card-toggle').length, 2,
-            'only supported synths expose controls');
-
-        const cards = synthCards.children;
-        const craftToggle = cards[0].children.find(el => el.className === 'synth-card-toggle');
-        await craftToggle.click();
-        assert.equal(sent.length, 0, 'expanding/loading controls must not transmit MIDI');
-        const craftPanel = cards[0].querySelector('.synth-controls');
-        const craftSlider = findAll(craftPanel, el => el.type === 'range')[0];
-        assert.ok(craftSlider);
-        craftSlider.value = '42';
-        craftSlider.listeners.input();
-        assert.equal(sent.length, 1);
-        assert.deepEqual(sent[0].data.bytes, [0xB0, 1, 42]);
-        assert.equal(sent[0].target, 'craft-output-9');
-
-        const ntsToggle = cards[1].children.find(el => el.className === 'synth-card-toggle');
-        await ntsToggle.click();
-        const ntsPanel = cards[1].querySelector('.synth-controls');
-        const ntsSelect = findAll(ntsPanel, el => el.tagName === 'select')[0];
-        assert.ok(ntsSelect);
-        ntsSelect.selectedIndex = 2;
-        ntsSelect.listeners.change();
-        assert.equal(sent.length, 2);
-        assert.deepEqual(sent[1].data.bytes, [0xB0, 14, 2]);
-        assert.equal(sent[1].target, 'nts-output-4');
+        manager.updatePorts(
+            [{ id: 'launchkey-in', name: 'Launchkey Mini MK3' }],
+            [
+                { id: 'launchkey-out', name: 'Launchkey Mini MK3' },
+                { id: 'craft-output-9', name: 'Craft Synth' },
+                { id: 'nts-output-4', name: 'NTS-1 digital kit' },
+            ],
+        );
+        assert.equal(sent.length, 0, 'rendering the device list must never transmit MIDI');
+        // Flat list: one entry per unique device name (inputs + outputs deduped).
+        const names = deviceList.children.map(el => el.textContent);
+        assert.deepEqual(names, ['Launchkey Mini MK3', 'Craft Synth', 'NTS-1 digital kit']);
+        assert.equal(deviceList.children.length, 3, 'deduped flat list of 3 devices');
     } finally {
         globalThis.document = previous.document;
         globalThis.window = previous.window;

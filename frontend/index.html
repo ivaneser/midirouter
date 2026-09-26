@@ -21,7 +21,7 @@
         <details class="collapsible-panel daw-details" open>
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                🎵 Session View (Ableton-style)
+                🎵 Session View
             </summary>
             <div class="daw-panel-content">
 
@@ -117,15 +117,7 @@
                 </div>
 
                 <div class="port-section">
-                    <div class="port-column">
-                        <h4>🎹 Inputs</h4>
-                        <div class="device-list" id="input-list"></div>
-                    </div>
-                    <div class="port-column synths-column">
-                        <h4>🎹 Synthesizers</h4>
-                        <p class="tab-hint">Supported synth outputs appear as cards. Expand a card to adjust its controls.</p>
-                        <div id="synth-cards" class="synth-card-list"></div>
-                    </div>
+                    <div class="device-list" id="device-list"></div>
                 </div>
             </div>
         </details>
@@ -134,7 +126,7 @@
         <details class="collapsible-panel config-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                ⚙️ Configuration
+                ⚙️ MIDI Routing
             </summary>
             <div class="config-panel-content">
 
@@ -194,14 +186,13 @@
                     <li><strong>💾 Save</strong> (next to the Bar·Beat indicator) — ask for a name, saves the whole recording (all clips, notes, BPM, mode) to <code>sessions/&lt;name&gt;.json</code>.</li>
                     <li><strong>⏬ Load</strong> — ask for a name (the dialog lists saved sessions), loads that recording into the DAW.</li>
                     <li>The session list below the transport: <strong>click a name to load it, ✕ to delete it</strong>.</li>
-                    <li>Separate from router presets (⚙️ Configuration → Save/Load), which store routing/port configuration.</li>
+                    <li>Separate from router presets (⚙️ MIDI Routing → Save/Load), which store routing/port configuration.</li>
                 </ul>
 
-                <h4>🎚️ Synthesizers & Routing</h4>
+                <h4>🔌 MIDI Routing</h4>
                 <ul>
                     <li>All connected MIDI devices are auto-linked (all-to-all routing); hot-plug works.</li>
-                    <li>Add custom routes in ⚙️ Configuration to route specific inputs to outputs.</li>
-                    <li>🔊 MIDI Devices → <strong>Synthesizers</strong>: supported outputs (Craft Synth, Korg NTS-1) appear as cards — expand a card to adjust its knobs/sliders live.</li>
+                    <li>🔊 MIDI Devices shows every connected port. Add custom routes in ⚙️ MIDI Routing to route specific inputs to outputs.</li>
                 </ul>
 
                 <h4>💡 Pad LEDs (Launchkey Mini MK3)</h4>
