@@ -77,10 +77,12 @@ This stops the AP and restores the WiFi interface to managed mode so it can reco
 
 ### Captive Portal
 
-The captive portal works via iptables rules that redirect all HTTP (port 80) and HTTPS (port 443) traffic from connected clients to port 3000, where the midirouter web server handles the request. This means:
+The captive portal redirects plain HTTP traffic from Wi-Fi clients to the midirouter web interface. HTTPS traffic is not intercepted: redirecting TLS to the plain-HTTP web server causes the browser connection to fail. For manual access, open `http://10.0.0.1:3000`.
+
+When the operating system performs its HTTP captive-portal check, the web server redirects that request to the UI. This means:
 - Clients don't need to manually enter `http://10.0.0.1:3000`
-- Any attempt to visit a website is redirected to the midirouter UI
-- The redirect works for both HTTP and HTTPS connections
+- HTTP captive-portal checks open the midirouter UI
+- HTTPS sites are not transparently redirected
 
 ## Configuration Files
 

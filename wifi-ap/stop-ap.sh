@@ -50,6 +50,9 @@ fi
 
 # ---- Remove iptables rules ----
 echo "[AP] Removing iptables rules..."
+iptables -t filter -D INPUT -i "${AP_INTERFACE}" -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
+iptables -t filter -F MIDIRouter 2>/dev/null || true
+iptables -t filter -X MIDIRouter 2>/dev/null || true
 iptables -t nat -D POSTROUTING -s 10.0.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
 iptables -t nat -F MIDIRouter 2>/dev/null || true
 iptables -t nat -X MIDIRouter 2>/dev/null || true

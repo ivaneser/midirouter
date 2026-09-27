@@ -92,20 +92,31 @@ echo 1 > /proc/sys/net/ipv4/ip_forward
 # Flush existing rules for our chains
 iptables -t nat -F MIDIRouter 2>/dev/null || true
 iptables -t nat -N MIDIRouter 2>/dev/null || true
+iptables -t filter -F MIDIRouter 2>/dev/null || true
+iptables -t filter -N MIDIRouter 2>/dev/null || true
 
 # NAT: Masquerade traffic from the AP subnet to the internet (via eth0)
 iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
 
-# Redirect HTTP (port 80) and HTTPS (port 443) traffic to the web server on port 3000
-# This creates the captive portal effect — clients are redirected to the midirouter UI
+# Redirect plain HTTP traffic to the web server on port 3000 so HTTP captive-portal
+# checks can reach the UI. Never redirect HTTPS: TLS cannot be served by this HTTP port.
 iptables -t nat -A MIDIRouter -p tcp --dport 80 -j REDIRECT --to-port ${WEB_PORT} 2>/dev/null || true
-iptables -t nat -A MIDIRouter -p tcp --dport 443 -j REDIRECT --to-port ${WEB_PORT} 2>/dev/null || true
 
 # Apply the captive portal redirect to traffic from AP clients
 iptables -t nat -A PREROUTING -i wlan0 -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
 
-# DNS and web UI traffic from AP clients is accepted by the default INPUT
-# policy (traffic is destined for the Pi itself); no explicit allow rules needed.
+# Allow DHCP requests and DNS queries from AP clients to services on the Pi
+iptables -t filter -A MIDIRouter -i "${AP_INTERFACE}" -p udp --dport 67 -j ACCEPT 2>/dev/null || true
+iptables -t filter -A MIDIRouter -p udp --dport 53 -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
+iptables -t filter -A MIDIRouter -p tcp --dport 53 -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
+
+# Allow traffic to the web server (port 3000) from AP clients
+iptables -t filter -A MIDIRouter -p tcp --dport ${WEB_PORT} -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
+
+# The filter table has no PREROUTING chain. Attach our allow-list to INPUT,
+# before any default-deny rules; check first to avoid duplicate jumps on restart.
+iptables -t filter -C INPUT -i "${AP_INTERFACE}" -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || \
+    iptables -t filter -I INPUT 1 -i "${AP_INTERFACE}" -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
 
 echo "[AP] iptables rules configured."
 

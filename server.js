@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
 import { Worker } from 'worker_threads';
+import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 
 const PORT = 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
@@ -280,6 +281,18 @@ const router = new MIDIRouterWorker();
 function startServer() {
     // HTTP сервер для фронтенда — без кэширования JS/CSS
     const server = createServer((req, res) => {
+        const captivePortalRedirect = getCaptivePortalRedirect({
+            host: req.headers.host,
+            remoteAddress: req.socket.remoteAddress
+        });
+        if (captivePortalRedirect) {
+            res.writeHead(captivePortalRedirect.statusCode, {
+                Location: captivePortalRedirect.location
+            });
+            res.end();
+            return;
+        }
+
         // Strip query string (e.g. /css/style.css?v=3 → /css/style.css)
         const cleanUrl = req.url.split('?')[0];
 
