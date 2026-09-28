@@ -180,6 +180,95 @@ test('starting a new recording sends the previous playing clip back to pulse', (
         'previous clip must pulse when the new slot enters recording');
 });
 
+test('daw_stop_transport finalizes an in-flight recording before clearing transport state', () => {
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine({ tempo: 120 });
+    worker._trackPlayTimers = new Map();
+    worker._refreshPadLeds = () => {};
+    worker._syncPadClock = () => {};
+    worker._broadcastState = () => {};
+    const t0 = performance.now();
+    worker.daw.setRecordMode('replace');
+    worker.daw.triggerPad(0, 0, t0); // start recording on track 0 / slot 0
+    assert.ok(worker.daw.recording, 'precondition: an in-flight recording is active');
+    worker.daw.recordEvent(0x90, 60, 90, t0 + 100); // hold a note open
+
+    const result = worker.handleDawControl({ type: 'daw_stop_transport' });
+
+    assert.equal(result, undefined, 'handleDawControl returns no value for transport stops');
+    assert.equal(worker.daw.recording, null, 'recording must be finalized by daw_stop_transport');
+    const note = worker.daw.tracks[0].clips[0].notes[0];
+    assert.equal(note.channel, 1);
+    assert.equal(note.note, 60);
+    assert.equal(note.velocity, 90);
+    assert.equal(note.dur, 0.25);
+    // Note Off закрывает ноту: start/dur хранятся с точностью до сотых бита.
+    assert.deepEqual({ start: note.start, dur: note.dur }, { start: 0.2, dur: 0.25 });
+});
+
+// Stored note timing is rounded to the nearest hundredth of a beat whenever a
+// Note Off closes a note during recording — including non-exact timestamps.
+test('note off rounds stored start and duration to two decimal places', () => {
+    const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
+    daw.setRecordMode('replace');
+    daw.triggerPad(0, 0, 1000);
+    // Note On at +123 ms -> start = 0.246; Note Off at +877 ms -> raw dur = (1.754 - 0.246) = 1.508
+    daw.recordEvent(0x90, 60, 100, 1123);
+    daw.recordEvent(0x80, 60, 0, 1877);
+    const note = daw.tracks[0].clips[0].notes[0];
+    assert.deepEqual(note, { channel: 1, note: 60, velocity: 100, start: 0.25, dur: 1.51 });
+});
+
+// The minimum-duration policy is applied BEFORE rounding: a raw duration of
+// exactly the 0.125-beat floor rounds up to 0.13 (nearest hundredth).
+test('minimum note duration is enforced before hundredth rounding', () => {
+    const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
+    daw.setRecordMode('replace');
+    daw.triggerPad(0, 0, 1000);
+    daw.recordEvent(0x90, 64, 80, 1000);   // start = 0.00
+    daw.recordEvent(0x80, 64, 0, 1050);    // raw dur = 0.1 -> floored to 0.125
+    const note = daw.tracks[0].clips[0].notes[0];
+    assert.deepEqual(note, { channel: 1, note: 64, velocity: 80, start: 0, dur: 0.13 });
+});
+
+// quantizeClip keeps note start/dur on the hundredth grid (start snaps to the
+// gridSize grid; duration is re-floored and rounded).
+test('quantizeClip normalizes stored note start and duration', () => {
+    const daw = new DAWEngine({ tempo: 120 });
+    const clip = daw.tracks[0].clips[0];
+    clip.notes.push(
+        { channel: 1, note: 60, velocity: 90, start: 0.337, dur: 0.456 },
+        { channel: 1, note: 62, velocity: 90, start: 1.872, dur: 0.05 } // below floor -> 0.13
+    );
+    daw.quantizeClip(0, 0); // default gridSize = 0.125
+    assert.deepEqual(daw.tracks[0].clips[0].notes.map(n => ({ start: n.start, dur: n.dur })), [
+        { start: 0.38, dur: 0.46 },
+        { start: 1.88, dur: 0.13 },
+    ]);
+});
+
+// loadData normalizes loaded notes to the hundredth grid too (min duration first).
+test('loadData rounds stored note start and duration on load', () => {
+    const daw = new DAWEngine({ tempo: 120 });
+    daw.loadData({
+        version: 1,
+        tracks: [{
+            channel: 1, armed: false, muted: false, soloed: false,
+            clips: [
+                { length: 4, notes: [
+                    { channel: 1, note: 60, velocity: 90, start: 0.337, dur: 0.456 },
+                    { channel: 1, note: 62, velocity: 90, start: 1.872, dur: 0.05 },
+                ] },
+            ],
+        }],
+    });
+    const notes = daw.tracks[0].clips[0].notes;
+    assert.deepEqual(notes.map(n => ({ start: n.start, dur: n.dur })), [
+        { start: 0.34, dur: 0.46 },
+        { start: 1.87, dur: 0.13 },
+    ]);
+});
+
 // LED contract: only the LAST ACTIVATED playing clip blinks (playing/ch2);
 // other playing clips burn steady (active/ch1); stopped-but-recorded clips
 // pulse (idle/ch3); empty pads are off. Same cyan color (vel 37) everywhere.

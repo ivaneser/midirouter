@@ -16,6 +16,11 @@ const PPQ = 192;                 // pulses per quarter note (тайминг)
 const DEFAULT_SLOTS_PER_TRACK = 2;
 const TRACK_COUNT = 8;           // 8 треков (MIDI-каналы 1..8)
 
+// Округляем время начала/длительность нот до сотых бита (nearest hundredth).
+function roundBeats(x) {
+    return Math.round(x * 100) / 100;
+}
+
 // ---- Вспомогательные: байт-формат MIDI (status, data1, data2) ----
 function noteOn(channel, note, velocity) {
     return [0x90 | (channel & 0x0f), note & 0x7f, velocity & 0x7f];
@@ -190,9 +195,10 @@ class DAWEngine {
 
         // When an external master is the selected clock source, the metronome
         // must be phase-aligned to that master's 24 PPQN tick grid — not an
-        // independent BPM scheduler. The worker's _handleMidiClock drives
-        // _playAnchorTime / _currentBeat on every F8 tick; we use those as the
-        // authoritative phase reference and check at each tick boundary.
+        // independent BPM scheduler. The worker's _handleMidiClock refreshes
+        // _playAnchorTime on every F8 tick; we derive the current cycle beat
+        // from it directly instead of relying on the separately polled
+        // _currentBeat, which lags by a poll interval.
         this._metronomeTimer = setInterval(() => {
             let tickInMeasure, isAccent;
 
@@ -204,10 +210,14 @@ class DAWEngine {
                 }
 
                 if (this._externalClock) {
-                    // _handleMidiClock updates _currentBeat from every selected
-                    // master's F8 tick. Reuse that phase directly so tempo changes
-                    // and non-120 BPM clocks cannot skew metronome/bar alignment.
-                    tickInMeasure = Math.floor(this._currentBeat);
+                    // Derive the current cycle beat from the external-clock
+                    // anchor (_playAnchorTime, refreshed by _handleMidiClock on
+                    // every F8 tick) so tempo changes and non-120 BPM clocks
+                    // cannot skew metronome/bar alignment. Floor for the
+                    // beat-transition/accent logic below.
+                    const elapsed = performance.now() - this._playAnchorTime;
+                    const currentBeatFloat = (elapsed / this._secondsPerBeatMs()) % this.loopLenBeats;
+                    tickInMeasure = Math.floor(currentBeatFloat);
 
                     // Downbeat = first beat of each measure, not just the start
                     // of the (possibly multi-bar) global clip cycle.
@@ -263,7 +273,7 @@ class DAWEngine {
                     }
                 }
             }
-        }, 50);
+        }, 10);
     }
 
     _secondsPerBeatMs() {
@@ -462,7 +472,7 @@ class DAWEngine {
         // Закрываем все открытые note-on (velocity 0 / noteOff)
         for (const [key, start] of r.noteStarts) {
             const [, , note] = key.split(':');
-            r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: start.beat, dur: 0.25 });
+            r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat), dur: 0.25 });
         }
         r.noteStarts.clear();
         // Длина клипа = длительность самой записи: охват до последней ноты,
@@ -494,6 +504,7 @@ class DAWEngine {
     // Входящее MIDI-событие во время записи
     recordEvent(statusByte, data1, data2, now) {
         if (!this.recording) return false;
+        if (now < this.recording.startTime) return false;
         const channel = (statusByte & 0x0f) + 1;
         const beat = this._beatAt(now);
 
@@ -510,7 +521,9 @@ class DAWEngine {
                 this.recording.noteStarts.delete(key);
                 this.recording.notes.push({
                     channel, note: data1, velocity: start.velocity,
-                    start: start.beat, dur: Math.max(0.125, beat - start.beat),
+                    // Минимальная длительность применяется ПЕРЕД округлением:
+                    // 0.125 (минимум) -> 0.13; точное время -> nearest hundredth.
+                    start: roundBeats(start.beat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
                 });
             }
             return true;
@@ -530,13 +543,15 @@ class DAWEngine {
     quantizeClip(trackIdx, slot, gridSize = 0.125) {
         const clip = this.tracks[trackIdx].clips[slot];
         for (const n of clip.notes) {
-            n.start = Math.round(n.start / gridSize) * gridSize;
+            // snap to grid, then round stored start to nearest hundredth beat.
+            n.start = roundBeats(Math.round(n.start / gridSize) * gridSize);
+            // start/dur хранятся с точностью до сотых бита.
+            n.dur = roundBeats(Math.max(0.125, n.dur || 0.25));
         }
         // пересортируем и пересчитываем length
         clip.notes.sort((a, b) => a.start - b.start);
         let maxEnd = 0;
         for (const n of clip.notes) {
-            n.dur = Math.max(0.125, n.dur || 0.25);
             maxEnd = Math.max(maxEnd, n.start + n.dur);
         }
         // растим длину только если ноты стали длиннее; держим целое число тактов
@@ -805,8 +820,8 @@ class DAWEngine {
                         channel: Math.max(1, Math.min(16, Math.trunc(n.channel || 1))),
                         note: Math.max(0, Math.min(127, Math.trunc(n.note))),
                         velocity: Math.max(1, Math.min(127, Math.trunc(n.velocity || 80))),
-                        start: Math.max(0, n.start),
-                        dur: Math.max(0.125, Number.isFinite(n.dur) ? n.dur : 0.25),
+                        start: roundBeats(Math.max(0, n.start)),
+                        dur: roundBeats(Math.max(0.125, Number.isFinite(n.dur) ? n.dur : 0.25)),
                     }));
                 // нормализуем длину до целого числа тактов
                 clip.length = this._snapToBars(Number.isFinite(cd.length) ? cd.length : 0);

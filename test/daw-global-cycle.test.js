@@ -26,6 +26,10 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
     const base = performance.now();
     const msPerBeat = 500; // 120 BPM
 
+    t.after(() => {
+        daw.stopTransport();
+    });
+
     // ---- Phase 1: first sparse take (no transport) locks a 4-beat cycle ----
     // triggerPad with recordMode === 'replace' arms recording into (0, 0).
     daw.setRecordMode('replace');
@@ -67,9 +71,6 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
     daw._playAnchorTime = tArm - 2 * msPerBeat; // => live phase at tArm == beat 2
 
     // Confirm precondition: transport reports a nonzero live phase before recording.
-    // We control _playAnchorTime, so the live phase at tArm is exactly 2 by construction
-    // (no real-wait needed for this check). The public currentBeat() will converge to 2
-    // once the transport timer tick lands (~50 ms), which we verify after arming.
     const livePhaseAtArm = ((tArm - daw._playAnchorTime) / 1000) / (60 / daw.tempo);
     assert.equal(
         Math.round(livePhaseAtArm),
@@ -81,33 +82,47 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
     const replaceResult = daw.triggerPad(0, 1, tArm);
     assert.equal(replaceResult.action, 'record', 'triggerPad must start a replace recording in slot (0,1)');
 
-    // Record note-on at live phase beat 2.5 (= tArm + 250 ms).
-    const tHit = tArm + 0.5 * msPerBeat;
-    daw.recordEvent(0x90, 60, 100, tHit);
-    // Record note-off at live phase beat 3.0 (= tArm + 500 ms).
-    const tHitOff = tArm + 1.0 * msPerBeat;
-    daw.recordEvent(0x80, 60, 0, tHitOff);
+    // The assigned startTime is snapped to the next bar boundary: beat 4.
+    // Events before that moment must NOT enter the take.
+    const preStartNoteOn = tArm + 0.5 * msPerBeat;   // live beat 2.5 (< startTime beat 4)
+    const preStartNoteOff = tArm + 1.0 * msPerBeat;   // live beat 3.0 (< startTime beat 4)
+    daw.recordEvent(0x90, 60, 100, preStartNoteOn);
+    daw.recordEvent(0x80, 60, 0, preStartNoteOff);
+
+    // Events after the assigned start (beat 4) must be captured at local positions.
+    const postStartNoteOn = tArm + 2.5 * msPerBeat;   // live beat 4.5 -> clip-relative 0.5
+    const postStartNoteOff = tArm + 3.0 * msPerBeat;   // live beat 5.0 -> clip-relative 1.0
+    daw.recordEvent(0x90, 60, 100, postStartNoteOn);
+    daw.recordEvent(0x80, 60, 0, postStartNoteOff);
 
     // Finalize the take via triggerPad (stops transport as part of cleanup).
-    const finalizeResult = daw.triggerPad(0, 1, tArm + 1.5 * msPerBeat);
+    const finalizeResult = daw.triggerPad(0, 1, tArm + 3.5 * msPerBeat);
     assert.equal(finalizeResult.action, 'record-stop-stopped', 'Replace mode: take finalizes and the clip stays stopped');
 
     const newClip = daw.tracks[0].clips[1];
-    assert.ok(newClip.notes.length > 0, 'the second slot must contain the recorded note');
 
-    // The core contract: the new note's clip-relative start reflects the live
-    // global phase it occurred on (~beat 2.5), not rebased to near beat 0.
-    const noteStart = newClip.notes[0].start;
-    assert.ok(
-        noteStart >= 2.4 && noteStart <= 2.6,
-        `recorded note must sit at the live global phase (~beat 2.5), not rebased to 0 (got start=${noteStart.toFixed(3)})`,
+    // RED check: pre-start events must NOT have been recorded. Under current impl
+    // they are preserved (negative beat), so this assertion fails until fixed.
+    assert.equal(
+        newClip.notes.length,
+        1,
+        `only the post-start note should be in the take; pre-start events must be excluded (got ${newClip.notes.length} notes)`,
     );
 
-    // The recorded note's position modulo the cycle must equal the expected live phase (2.5).
+    // The core contract: the captured note's clip-relative start reflects its
+    // position relative to the snapped bar-aligned startTime (beat 4).
+    const noteStart = newClip.notes[0].start;
     assert.equal(
-        Math.round(noteStart % 4 * 1000) / 1000,
-        2.5,
-        `recorded note start modulo 4 must equal the live phase 2.5 (got ${(noteStart % 4).toFixed(3)})`,
+        noteStart,
+        0.5,
+        `recorded note must sit at clip-relative 0.5 (live beat 4.5 minus startTime beat 4), got ${noteStart.toFixed(3)}`,
+    );
+
+    // The note duration reflects the 0.5-beat gap between on/off events.
+    assert.equal(
+        newClip.notes[0].dur,
+        0.5,
+        `recorded note must have dur 0.5 (live beat 5 minus live beat 4.5), got ${newClip.notes[0].dur.toFixed(3)}`,
     );
 
     // The cycle must still be 4 — replacing into another slot must not expand it.

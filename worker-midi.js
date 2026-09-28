@@ -464,18 +464,22 @@ class MIDIRouterWorker {
             return;
         }
 
-        // Legato launch: map each clip event onto the existing transport cycle.
-        // This mirrors Ableton Live's Legato Mode: launching a clip inherits the
-        // current play position instead of restarting its local playhead at zero.
+        // Legato launch: a filled clip launched mid-bar waits for the nearest
+        // upcoming transport downbeat, then plays every event from its own beat 0.
         const transportBeat = this.daw.playing
             ? ((now - this.daw._playAnchorTime) / 1000) / this.daw._secondsPerBeat()
             : 0;
-        const phase = ((transportBeat % loopBeats) + loopBeats) % loopBeats;
+        // Wait for the next 4/4 downbeat from the transport phase (not clip length).
+        // A launch exactly on a downbeat (phase 0 modulo 4) fires immediately.
+        const barPhase = ((transportBeat % 4) + 4) % 4;
+        const beatsToDownbeat = barPhase < 1e-9 ? 0 : 4 - barPhase;
+        const barDelay = beatsToDownbeat * msPerBeat;
 
         for (const note of clip.notes) {
+            // Each event is normalized to the clip's own length, offset from its beat 0,
+            // and repeats every clip.length.
             const eventPhase = ((note.start % loopBeats) + loopBeats) % loopBeats;
-            const beatsUntilNext = ((eventPhase - phase) % loopBeats + loopBeats) % loopBeats;
-            let nextAt = now + beatsUntilNext * msPerBeat;
+            let nextAt = now + barDelay + eventPhase * msPerBeat;
             const channel = Math.max(1, note.channel || 1);
             const key = `${channel}:${note.note}`;
             const fire = () => {
@@ -1468,6 +1472,7 @@ class MIDIRouterWorker {
                     daw.stopTransport();
                     this._transportPlaying = false;
                 }
+                if (daw.recording) daw._stopRecording(daw._beatAt(performance.now()));
                 for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
                 daw.clipState.fill(-1);
                 this._refreshPadLeds();
