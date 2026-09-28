@@ -58,6 +58,7 @@ class DAWEngine {
 
         // Metronome / click track
         this._metronomeEnabled = false;
+        this._preRecordOneBarRemainingBeats = null; // one-bar mode after project reset
         this._metronomeTimer = null;
         this._metronomeNote = 69;           // default click note — A4 on off-beats
         this._metronomeAccentNote = 60;    // downbeat click — C4 on first beat of measure
@@ -236,11 +237,30 @@ class DAWEngine {
                 tickInMeasure = Math.floor(currentBeatFloat);
                 isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
 
+                // One-bar mode (after project reset): play exactly one full bar,
+                // then stop on its own. The first recording press stops it
+                // earlier via the _onRecordingStarted hook.
+                if (this._preRecordOneBarRemainingBeats != null) {
+                    if (tickInMeasure >= this._metronomeBeatsPerMeasure ||
+                        this._preRecordOneBarRemainingBeats <= 0) {
+                        this._stopMetronome();
+                        return;
+                    }
+                }
+
                 if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
                     const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
                     const vel = isAccent ? 100 : 70;
                     this._emitMetronomeClick(note, vel);
                     beatInMeasure = tickInMeasure;
+
+                    if (this._preRecordOneBarRemainingBeats != null) {
+                        this._preRecordOneBarRemainingBeats -= 1;
+                        // Let the last click's own Note Off timer finish before
+                        // tearing the scheduler down.
+                        const waitMs = Math.max(80, this._secondsPerBeatMs() * 0.15);
+                        setTimeout(() => { this._stopMetronome(); }, waitMs + 20);
+                    }
                 }
             }
         }, 50);
@@ -278,10 +298,17 @@ class DAWEngine {
         // Pre-record metronome runs only while transport is idle and every clip
         // on every track is empty — i.e. no recording has begun yet.
         if (this.recording) return false;
+        return this.isEmptyProject();
+    }
+
+    // True while every clip of every track/slot is empty ("пустой проект").
+    // The in-flight recording session does not count — its notes are appended
+    // to the clip only when the session stops.
+    isEmptyProject() {
         for (let t = 0; t < this.tracks.length; t++) {
             const clips = this.tracks[t].clips;
             for (let s = 0; s < clips.length; s++) {
-                if (clips[s].notes && clips[s].notes.length > 0) return false;
+                if (clips[s] && clips[s].notes && clips[s].notes.length > 0) return false;
             }
         }
         return true;
@@ -292,6 +319,7 @@ class DAWEngine {
             clearInterval(this._metronomeTimer);
             this._metronomeTimer = null;
         }
+        this._preRecordOneBarRemainingBeats = null;
         // Cancel any scheduled Note Off so a hard stop silences the click dead.
         if (this._metronomeNoteOffTimer) {
             clearTimeout(this._metronomeNoteOffTimer);
@@ -324,7 +352,10 @@ class DAWEngine {
 
     // Полный сброс: все клипы всех треков/слотов в ноль (пустые ноты,
     // длина 1 такт), закрыть активную запись и снять playing-состояние.
-    // Готовит сессию для новой записи "с чистого листа".
+    // Готовит сессию для новой записи "с чистого листа". После обнуления
+    // метроном автоматически запускается на ОДИН полный такт: до момента
+    // нажатия первой записи (hook _onRecordingStarted глушит его сразу)
+    // или до конца такта (ограничение внутри _startMetronome).
     resetAllClips() {
         this._stopRecording();
         for (const track of this.tracks) {
@@ -334,6 +365,15 @@ class DAWEngine {
             }
         }
         this.clipState.fill(-1);
+        if (!this.playing) {
+            // Перезапуск: если pre-record метроном уже тикал, сбрасываем
+            // его таймер и якорь — новый счётчик идёт ровно на один такт.
+            this._stopMetronome();
+            this._metronomeEnabled = true;
+            this._preRecordOneBarRemainingBeats = Math.max(1, this._metronomeBeatsPerMeasure);
+            this._metronomeAnchorTime = performance.now();
+            this._startMetronome();
+        }
     }
 
     setSlotsPerTrack(n) {
@@ -378,14 +418,33 @@ class DAWEngine {
         }
 
         // Если уже запись на этом треке/слоте — сначала её закрываем (завершаем слой)
-        const startBeat = this.playing
-            ? ((now - this._playAnchorTime) / 1000) / this._secondsPerBeat()
-            : 0;
+        // Требование: начало записи нового клипа выравнивается по СЛЕДУЮЩЕЙ
+        // границе такта (bar), но beat 0 записи = 0 (локально), а не глобальное
+        // время. Выравнивание достигается сдвигом startTime вперёд до границы:
+        //   - транспорт играет → delay = (ceil(curBeat/bar)*bar - curBeat) * spb;
+        //     если нажатие совпало с границей бара (<= 5 мс) — delay = 0;
+        //   - транспорт стоит  → delay = 0.
+        // _beatAt(now) использует startTime, поэтому beat 0 записи
+        // соответствует моменту начала следующего такта. Якорь транспорта
+        // (_playAnchorTime) НЕ трогаем — фаза MTC внешних устройств не сдвигается.
+        const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+        let startTime = now;
+        if (this.playing) {
+            const spb = this._secondsPerBeat();
+            const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
+            const nextBar = Math.ceil(curBeat / bar) * bar;
+            let delayMs = (nextBar - curBeat) * spb * 1000;
+            // Если нажатие совпало с границей бара (<= 5 мс до неё) — старт
+            // именно в этот момент, без ожидания следующего такта.
+            if (delayMs <= 5) delayMs = 0;
+            startTime = now + delayMs;
+        }
+        const startBeat = 0;
         this.recording = {
             track: trackIdx,
             slot,
             mode: this.recordMode,
-            startTime: now,         // performance.now() старта
+            startTime,              // момент начала записи (выровнен по бару)
             startBeat: Math.round(startBeat * 100) / 100,
             notes: existing.notes,  // пишем в тот же массив (overdub накапливает)
             noteStarts: new Map(),  // `note:${channel}:${note}` -> beat начала

@@ -808,20 +808,28 @@ class MIDIRouterWorker {
     }
 
     _armLed(trackIdx, slot) {
-        this._ledGlow.set(trackIdx, { slot, state: 'recording' });
+        const prevSlot = this._ledGlow.get(trackIdx)?.slot;
+        this._ledGlow.set(trackIdx, { trackIdx, slot, state: 'recording' });
+        // Соседний пэд того же трека (был playing/recorded) пересчитываем сразу
+        // в своё фактическое состояние — idle-пульс для непустого клипа.
+        if (prevSlot != null && prevSlot !== slot) this._refreshPadLeds(trackIdx, prevSlot);
         this._refreshPadLeds(trackIdx, slot);
     }
 
     _clearStaleRecordingFeedback() {
-        for (const [trackIdx, glow] of this._ledGlow) {
+        for (const [t, glow] of this._ledGlow) {
             if (glow.state !== 'recording') continue;
-            if (this.daw.recording?.track === trackIdx && this.daw.recording?.slot === glow.slot) continue;
-            this._refreshPadLeds(trackIdx, glow.slot);
-            this._ledGlow.delete(trackIdx);
+            if (this.daw.recording?.track === t && this.daw.recording?.slot === glow.slot) continue;
+            this._refreshPadLeds(t, glow.slot);
+            this._ledGlow.delete(t);
         }
     }
 
     _triggerPad(trackIdx, slot, now) {
+        // Требование 1: фиксируем состояние "пустой проект" ДО triggerPad —
+        // первый клип в пустом проекте запускает глобальный цикл с этого
+        // самого момента (transport стартует ниже).
+        const wasEmptyProject = this.daw.isEmptyProject();
         const result = this.daw.triggerPad(trackIdx, slot, now);
         let visualEvent = null;
         if (['play', 'record-stop', 'record', 'overdub'].includes(result.action)) {
@@ -832,7 +840,13 @@ class MIDIRouterWorker {
                 mode: this.daw.recordMode,
             };
         }
+        // Пэд, с которого снимаем свечение/запись, должен сразу пересчитаться
+        // в своё фактическое состояние (idle-пульс для непустого клипа и т.д.),
+        // а не ждать общего _refreshPadLeds() — иначе предыдущий пэд остаётся
+        // гореть без перехода в пульсацию.
+        const prevTrackIdx = this._ledGlow.get(trackIdx)?.trackIdx;
         this._clearStaleRecordingFeedback();
+        if (prevTrackIdx === trackIdx) this._refreshPadLeds(trackIdx, slot);
         if (result.action === 'play' || result.action === 'record-stop') {
             // record-stop: запуск воспроизведения только если в дубле есть ноты
             const hasNotes = this.daw.tracks?.[trackIdx]?.clips?.[slot]?.notes?.length > 0;
@@ -849,6 +863,13 @@ class MIDIRouterWorker {
         } else if (result.action === 'record' || result.action === 'overdub') {
             this._stopTrackPlayback(trackIdx);
             this.daw.clipState[trackIdx] = -1;
+            // Требование 1: первый клип в пустом проекте стартует глобальный
+            // цикл (транспорт + MIDI clock) ровно с момента нажатия —
+            // запись уже закреплена на beat 0 этого цикла.
+            if (!this.daw.playing && wasEmptyProject) {
+                this.daw.startTransport();
+                this._transportPlaying = true;
+            }
             this._armLed(trackIdx, slot);
         } else if (result.action === 'invalid') {
             console.warn(`[DAW] Invalid pad target track ${trackIdx}, slot ${slot}`);
@@ -1354,9 +1375,15 @@ class MIDIRouterWorker {
                 break;
             case 'daw_reset_arm_record': {
                 // Rec Arm: все клипы в ноль + готовность к новой записи.
-                // Сначала останавливаем проигрывание (note-offs), затем
-                // стираем клипы; Mode по умолчанию — Play ('none').
+                // Сначала останавливаем проигрывание (note-offs) и транспорт,
+                // затем стираем клипы; Mode по умолчанию — Play ('none').
                 for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
+                if (this._transportPlaying || daw.playing) {
+                    daw.stopTransport();
+                    this._transportPlaying = false;
+                }
+                // resetAllClips сам запускает метроном ровно на один такт
+                // (требование 4): до первой записи или до конца такта.
                 daw.resetAllClips();
                 daw.setRecordMode('none');
                 this._clearStaleRecordingFeedback();
