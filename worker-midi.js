@@ -861,8 +861,10 @@ class MIDIRouterWorker {
             this._stopTrackPlayback(trackIdx);
             this.daw.clipState[trackIdx] = -1;
         } else if (result.action === 'record' || result.action === 'overdub') {
-            this._stopTrackPlayback(trackIdx);
+            // Clear playback state before stopping so _stopTrackPlayback refreshes
+            // the old clip as idle (pulse), not as still playing.
             this.daw.clipState[trackIdx] = -1;
+            this._stopTrackPlayback(trackIdx);
             // Требование 1: первый клип в пустом проекте стартует глобальный
             // цикл (транспорт + MIDI clock) ровно с момента нажатия —
             // запись уже закреплена на beat 0 этого цикла.

@@ -150,6 +150,36 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     daw.triggerPad(0, 0, 4100); // stop the fresh recording so state stays clean
 });
 
+test('starting a new recording sends the previous playing clip back to pulse', () => {
+    const sent = [];
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine({ tempo: 120 });
+    worker.daw.tracks[0].clips[0].notes.push({ channel: 1, note: 60, velocity: 90, start: 0, dur: 0.25 });
+    worker.daw.clipState[0] = 0;
+    worker.daw.setRecordMode('none');
+    worker.outputs = new Map([['Launchkey Mini MK3 DAW Port', {
+        sendMessage: (bytes) => sent.push(Array.from(bytes)),
+    }]]);
+    worker.controllerEngine = ControllerEngine.fromDirectory(
+        fileURLToPath(new URL('../controller_profiles', import.meta.url)));
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map([[0, { trackIdx: 0, slot: 0, state: 'playing' }]]);
+    worker._padLedSent = new Map();
+    worker._lastActivated = { trackIdx: 0, slot: 0 };
+    worker._broadcastState = () => {};
+    worker._syncPadClock = () => {};
+
+    worker._refreshPadLeds(0, 0);
+    sent.length = 0;
+    const result = worker._triggerPad(0, 1, 1000);
+
+    assert.equal(result.action, 'record');
+    assert.equal(worker.daw.recording.slot, 1);
+    assert.equal(worker.daw.clipState[0], -1);
+    assert.deepEqual(sent, [[0x91, 96, 5], [0x92, 112, 37]],
+        'previous clip must pulse when the new slot enters recording');
+});
+
 // LED contract: only the LAST ACTIVATED playing clip blinks (playing/ch2);
 // other playing clips burn steady (active/ch1); stopped-but-recorded clips
 // pulse (idle/ch3); empty pads are off. Same cyan color (vel 37) everywhere.
