@@ -53,6 +53,7 @@ class DAWEngine {
         this.clipState = new Array(TRACK_COUNT).fill(-1);
 
         // recording session state
+        // noteStarts: Map<key, NoteStart[]> — FIFO queue of starts per key.
         this.recording = null; // { track, slot, mode, startTime, startBeat, notes, noteStarts:Map }
 
         // playback scheduler state
@@ -476,12 +477,17 @@ class DAWEngine {
         if (!this.recording) return;
         const r = this.recording;
         // Закрываем все открытые note-on (velocity 0 / noteOff)
-        for (const [key, start] of r.noteStarts) {
+        for (const [key, q] of r.noteStarts) {
             const [, , note] = key.split(':');
-            const duration = closeHeldNotesAtEnd && Number.isFinite(endBeat)
-                ? Math.max(0.125, endBeat - start.beat)
-                : 0.25;
-            r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat), dur: roundBeats(duration) });
+            for (const start of q) {
+                let duration;
+                if (closeHeldNotesAtEnd && Number.isFinite(endBeat)) {
+                    duration = Math.max(0.125, endBeat - start.beat);
+                } else {
+                    duration = 0.25;
+                }
+                r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat), dur: roundBeats(duration) });
+            }
         }
         r.noteStarts.clear();
         // Длина клипа = длительность самой записи: охват до последней ноты,
@@ -525,15 +531,19 @@ class DAWEngine {
 
         if ((statusByte & 0xf0) === 0x90 && data2 > 0) {
             // noteOn (не zero-velocity)
-            this.recording.noteStarts.set(`note:${channel}:${data1}`, { beat, channel, velocity: data2 });
+            const key = `note:${channel}:${data1}`;
+            let q = this.recording.noteStarts.get(key);
+            if (!q) { q = []; this.recording.noteStarts.set(key, q); }
+            q.push({ beat, channel, velocity: data2 });
             return true;
         }
         if ((statusByte & 0xf0) === 0x80 || ((statusByte & 0xf0) === 0x90 && data2 === 0)) {
             // noteOff / zero noteOn
             const key = `note:${channel}:${data1}`;
-            const start = this.recording.noteStarts.get(key);
-            if (start != null) {
-                this.recording.noteStarts.delete(key);
+            const q = this.recording.noteStarts.get(key);
+            if (q && q.length > 0) {
+                const start = q.shift();
+                if (q.length === 0) this.recording.noteStarts.delete(key);
                 this.recording.notes.push({
                     channel, note: data1, velocity: start.velocity,
                     // Минимальная длительность применяется ПЕРЕД округлением:
