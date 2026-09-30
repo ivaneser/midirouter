@@ -5,7 +5,7 @@ const ACTIONS = new Set(['play', 'stop', 'record', 'loop']);
 const VARIABLES = new Set(['$number', '$index', '$track', '$slot']);
 const INPUT_MESSAGES = new Set(['note', 'cc', 'program', 'sysex']);
 
-function matches(name, matcher) {
+export function matches(name, matcher) {
     if (!matcher) return false;
     if (matcher.exact) return name.toLowerCase() === matcher.exact.toLowerCase();
     return Array.isArray(matcher.containsAll) && matcher.containsAll.length > 0

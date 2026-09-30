@@ -6,7 +6,7 @@ import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
 import { computeRoutingStep } from './route-midi.js';
-import { ControllerEngine } from './controller-engine.js';
+import { ControllerEngine, matches } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
 import { ClockMaster, clockOutputsFor } from './clock-master.js';
 import { MetronomeController } from './metronome-controller.js';
@@ -149,7 +149,7 @@ class MIDIRouterWorker {
         this.ccMapper = new CCMapper();
 
         this.controllerEngine = ControllerEngine.fromDirectory(path.join(__dirname, 'controller_profiles'));
-        
+
         // Configuration
         this._config = null;
         this._mappings = new Map(); // name -> { inputs: [], outputs: [], filters: [] }
@@ -168,6 +168,7 @@ class MIDIRouterWorker {
             console.log('[WORKER] MIDI initializing...');
             this._loadConfig();
             this._enumeratePorts();
+            this._selectDefaultClockSource();
             this._startHotplugDetection();
         } catch (e) {
             console.error('[WORKER] MIDI init failed:', e.message);
@@ -175,6 +176,25 @@ class MIDIRouterWorker {
         }
     }
     
+    /**
+     * По умолчанию источник MIDI clock — первый контроллер из профилей
+     * (Launchkey Mini MK3). Вызывается после _enumeratePorts, когда известны
+     * реальные имена портов.
+     */
+    _selectDefaultClockSource() {
+        const profile = this.controllerEngine.profiles[0];
+        if (!profile) return;
+        // Найти реальный input-порт, который совпадает с matcher профиля.
+        let portName = null;
+        for (const name of this.inputs.keys()) {
+            if (matches(name, profile.input)) { portName = name; break; }
+        }
+        if (!portName) return;
+        this._clockMaster.selectExternal(portName);
+        this.daw.setMidiClock(false); // внешний master не тикает сам
+        console.log(`[WORKER] Default clock source: external (${portName})`);
+    }
+
     _startHotplugDetection() {
         // Use recursive setTimeout with back-off instead of fixed interval.
         // Back-off range: 5s (healthy) -> 30s (after repeated ALSA failures).
@@ -916,13 +936,33 @@ class MIDIRouterWorker {
         this._clearStaleRecordingFeedback();
         if (prevTrackIdx === trackIdx) this._refreshPadLeds(trackIdx, slot);
         if (result.action === 'play' || result.action === 'record-stop') {
-            // record-stop: запуск воспроизведения только если в дубле есть ноты
+            // record-stop: запуск воспроизведения только если в дубле есть ноты.
+            // Если осталось время до начала нового такта — ждём его, чтобы не
+            // проигрывать хвост предыдущего цикла (ноты из середины такта).
             const hasNotes = this.daw.tracks?.[trackIdx]?.clips?.[slot]?.notes?.length > 0;
             if (result.action === 'record-stop' && !hasNotes) {
                 this._stopTrackPlayback(trackIdx);
             } else {
+                let startAt = now;
+                let delayMs = 0;
+                if (this.daw.playing) {
+                    const spb = this.daw._secondsPerBeat();
+                    const curBeat = ((now - this.daw._playAnchorTime) / 1000) / spb;
+                    const bar = Math.max(1, this.daw._metronomeBeatsPerMeasure);
+                    const nextBar = Math.ceil(curBeat / bar) * bar;
+                    delayMs = (nextBar - curBeat) * spb * 1000;
+                    // Если нажатие совпало с границей такта (<= 5 мс) — старт сразу.
+                    if (delayMs <= 5) delayMs = 0;
+                    startAt = now + delayMs;
+                }
                 this._lastActivated = { trackIdx, slot };
-                this._startTrackPlayback(trackIdx, slot, now);
+                // Запускаем плейбэк с задержкой до начала такта: ноты из
+                // середины цикла не проигрываются — ждём границы.
+                if (delayMs > 0) {
+                    setTimeout(() => this._startTrackPlayback(trackIdx, slot), delayMs);
+                } else {
+                    this._startTrackPlayback(trackIdx, slot, startAt);
+                }
             }
         } else if (result.action === 'stop' || result.action === 'record-stop-stopped') {
             // stop (Play-режим) или replace-остановка: клип остаётся остановленным

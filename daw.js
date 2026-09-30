@@ -66,8 +66,8 @@ class DAWEngine {
         this._metronomeEnabled = false;
         this._preRecordOneBarRemainingBeats = null; // one-bar mode after project reset
         this._metronomeTimer = null;
-        this._metronomeNote = 69;           // default click note — A4 on off-beats
-        this._metronomeAccentNote = 60;    // downbeat click — C4 on first beat of measure
+        this._metronomeNote = 57;          // default click note — A3 on off-beats (MIDI 57)
+        this._metronomeAccentNote = 60;   // downbeat click — C4 on first beat of measure (MIDI 60)
         this._metronomeBeatsPerMeasure = 4; // 4/4 default
         this._currentMetronomeNote = null;     // sustained pre-record click note being held (legacy)
         this._metronomeAnchorTime = 0;         // anchor for free-running pre-record timing
@@ -136,13 +136,16 @@ class DAWEngine {
     setMetronome(enabled) {
         this._metronomeEnabled = !!enabled;
         if (this._metronomeEnabled) {
-            if (this.playing) {
-                this._startMetronome();
-            } else if (this._isPreRecordMetronomeMode()) {
-                // Enable pre-record metronome while transport is idle and every
-                // clip is empty — the performer hears tempo before recording.
-                this._metronomeAnchorTime = performance.now();
-                this._startMetronome();
+            // Не перезапускаем, если метроном уже активен.
+            if (!this._metronomeTimer) {
+                if (this.playing) {
+                    this._startMetronome();
+                } else if (this._isPreRecordMetronomeMode()) {
+                    // Enable pre-record metronome while transport is idle and every
+                    // clip is empty — the performer hears tempo before recording.
+                    this._metronomeAnchorTime = performance.now();
+                    this._startMetronome();
+                }
             }
         } else {
             this._stopMetronome();
@@ -447,23 +450,39 @@ class DAWEngine {
         // _beatAt(now) использует startTime, поэтому beat 0 записи
         // соответствует моменту начала следующего такта. Якорь транспорта
         // (_playAnchorTime) НЕ трогаем — фаза MTC внешних устройств не сдвигается.
+        //
+        // Исключение: если транспорт УЖЕ играет (не мы его запустили с этого
+        // нажатия) и мы пишем в другой слот, запись должна захватывать
+        // текущую живую фазу — startTime = now, startBeat = live phase.
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
         let startTime = now;
+        let startBeat = 0;
         if (this.playing) {
             const spb = this._secondsPerBeat();
             const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
-            const nextBar = Math.ceil(curBeat / bar) * bar;
-            let delayMs = (nextBar - curBeat) * spb * 1000;
-            // Если нажатие совпало с границей бара (<= 5 мс до неё) — старт
-            // именно в этот момент, без ожидания следующего такта.
-            if (delayMs <= 5) delayMs = 0;
-            startTime = now + delayMs;
+            // Only align to bar boundary when this pad press is the one that
+            // STARTS the transport (first clip in an empty project). In that
+            // case the new recording _is_ the cycle and must snap forward to
+            // its start. When transport is already running and we record into
+            // another slot, capture the live phase immediately.
+            const isTransportStarter = this._globalCycleLocked === false;
+            if (isTransportStarter) {
+                const nextBar = Math.ceil(curBeat / bar) * bar;
+                let delayMs = (nextBar - curBeat) * spb * 1000;
+                // Если нажатие совпало с границей бара (<= 5 мс до неё) — старт
+                // именно в этот момент, без ожидания следующего такта.
+                if (delayMs <= 5) delayMs = 0;
+                startTime = now + delayMs;
+            } else {
+                // Transport is already running: capture the live global phase
+                // so recorded notes reflect their real position in the cycle.
+                startBeat = curBeat;
+            }
         } else if (options.countIn || this.tracks[trackIdx].armed) {
             // Controller recording can request a one-bar count-in while the
             // transport is stopped. The worker starts transport at pad press.
             startTime = now + bar * this._secondsPerBeat() * 1000;
         }
-        const startBeat = 0;
         this.recording = {
             track: trackIdx,
             slot,
@@ -667,6 +686,9 @@ class DAWEngine {
 
     startTransport() {
         if (this.playing) return;
+        // Если pre-record метроном уже тикает — сбрасываем его, чтобы
+        // транспортный метроном стартовал с чистого якоря.
+        this._stopMetronome();
         this.playing = true;
         this._currentBeat = 0;
         this._playAnchorTime = performance.now();
