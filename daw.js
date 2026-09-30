@@ -464,7 +464,8 @@ class DAWEngine {
             // STARTS the transport (first clip in an empty project). In that
             // case the new recording _is_ the cycle and must snap forward to
             // its start. When transport is already running and we record into
-            // another slot, capture the live phase immediately.
+            // another slot, capture the live phase within the current global
+            // cycle — not from absolute transport start.
             const isTransportStarter = this._globalCycleLocked === false;
             if (isTransportStarter) {
                 const nextBar = Math.ceil(curBeat / bar) * bar;
@@ -474,9 +475,12 @@ class DAWEngine {
                 if (delayMs <= 5) delayMs = 0;
                 startTime = now + delayMs;
             } else {
-                // Transport is already running: capture the live global phase
-                // so recorded notes reflect their real position in the cycle.
-                startBeat = curBeat;
+                // Transport is already running and global cycle is locked:
+                // snap forward to the next bar boundary so each recording
+                // starts from beat 0 of its bar — all clips stay phase-aligned.
+                const curCycleBeat = curBeat % this.loopLenBeats;
+                const nextBar = Math.ceil(curCycleBeat / bar) * bar;
+                startBeat = nextBar;
             }
         } else if (options.countIn || this.tracks[trackIdx].armed) {
             // Controller recording can request a one-bar count-in while the
