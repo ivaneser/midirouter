@@ -223,14 +223,17 @@ class DAWEngine {
                 }
 
                 if (this._externalClock) {
-                    // Derive the current cycle beat from the external-clock
-                    // anchor (_playAnchorTime, refreshed by _handleMidiClock on
-                    // every F8 tick) so tempo changes and non-120 BPM clocks
-                    // cannot skew metronome/bar alignment. Floor for the
-                    // beat-transition/accent logic below.
-                    const elapsed = performance.now() - this._playAnchorTime;
-                    const currentBeatFloat = (elapsed / this._secondsPerBeatMs()) % this.loopLenBeats;
-                    tickInMeasure = Math.floor(currentBeatFloat);
+                    // Derive the current cycle beat from _currentBeat which
+                    // is updated by _handleMidiClock on every F8 tick. This
+                    // avoids relying on _playAnchorTime (which resets when
+                    // the loop wraps and would stall the metronome).
+                    const cb = this._currentBeat;
+                    if (cb != null && cb >= 0) {
+                        tickInMeasure = Math.floor(cb);
+                    } else {
+                        const elapsed = performance.now() - this._playAnchorTime;
+                        tickInMeasure = Math.floor((elapsed / this._secondsPerBeatMs()) % this.loopLenBeats);
+                    }
 
                     // Downbeat = first beat of each measure, not just the start
                     // of the (possibly multi-bar) global clip cycle.
