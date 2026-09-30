@@ -24,7 +24,6 @@ midirouter/
 ├── filters.js             # Фильтры каналов/velocity
 ├── port-index.js          # Индекс MIDI-портов
 ├── midirouter.service     # systemd unit для автозапуска сервера
-├── metronome.service      # systemd unit для автозапуска метронома
 ├── bootstrap.sh           # One-shot скрипт первоначальной настройки Pi
 ├── frontend/
 │   ├── index.html         # Единственная страница
@@ -50,9 +49,9 @@ midirouter/
 | Процесс | Задачи |
 |---------|--------|
 | **server.js** (main) | HTTP сервер, WebSocket клиенты, UI обновления, управление жизненным циклом воркера |
-| **worker-midi.js** (worker) | MIDI роутинг, hot-plug detection, DAW/clip playback, LED feedback, CC mapping, MIDI clock routing, Python metronome control |
+| **worker-midi.js** (worker) | MIDI роутинг, hot-plug detection, DAW/clip playback, LED feedback, CC mapping, MIDI clock routing, Raspberry Pi audio metronome control |
 | **metronome.py** (Python child) | Генерация audio-кликов в наушники Raspberry Pi через ALSA |
-| **metronome-controller.js** (JS bridge) | Запуск/остановка `metronome.py`, отправка `start`/`stop`/`bpm` через stdin IPC |
+| **metronome-controller.js** (JS bridge) | Запуск/остановка `metronome.py`, передача темпа и размера такта через stdin IPC |
 
 ### Почему worker?
 - MIDI обработка не блокирует веб-запросы

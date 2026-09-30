@@ -178,6 +178,64 @@ test('starting a new recording sends the previous playing clip back to pulse', (
     assert.equal(worker.daw.clipState[0], -1);
     assert.deepEqual(sent, [[0x91, 96, 5], [0x92, 112, 37]],
         'previous clip must pulse when the new slot enters recording');
+    worker.daw.stopTransport();
+});
+
+test('a track locks to its first recorded MIDI channel for later clips', () => {
+    const daw = new DAWEngine({ tempo: 120 });
+    daw.triggerPad(0, 0, 1000);
+    daw.recordEvent(0x94, 60, 90, 1000); // channel 5
+    daw.recordEvent(0x84, 60, 0, 1500);
+    daw.triggerPad(0, 0, 1600);
+    assert.equal(daw.tracks[0].channel, 5);
+    assert.equal(daw.tracks[0].channelAssigned, true);
+
+    daw.triggerPad(0, 1, 2000);
+    daw.recordEvent(0x99, 64, 80, 2000); // channel 10 is mapped to locked channel 5
+    daw.recordEvent(0x89, 64, 0, 2500);
+    assert.equal(daw.tracks[0].clips[1].notes[0].channel, 5);
+});
+
+test('Session Record toggles without erasing clips and arms the metronome', () => {
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine();
+    worker.daw.tracks[0].clips[0].notes.push({
+        channel: 1, note: 60, velocity: 90, start: 0, dur: 1,
+    });
+    worker._transportPlaying = false;
+    worker._externalClockActive = false;
+    worker._trackPlayTimers = new Map();
+    worker._syncPadClock = () => {};
+    worker._broadcastState = () => {};
+    const existingNotes = [...worker.daw.tracks[0].clips[0].notes];
+
+    worker.handleDawControl({ type: 'daw_toggle_session_record' });
+    assert.equal(worker.daw.sessionRecording, true);
+    assert.equal(worker.daw._metronomeEnabled, true);
+    assert.deepEqual(worker.daw.tracks[0].clips[0].notes, existingNotes);
+
+    worker.handleDawControl({ type: 'daw_toggle_session_record' });
+    assert.equal(worker.daw.sessionRecording, false);
+    assert.deepEqual(worker.daw.tracks[0].clips[0].notes, existingNotes);
+    worker.daw.stopTransport();
+});
+
+test('DAW metronome lifecycle reports start, stop, tempo, and meter to its audio backend', () => {
+    const daw = new DAWEngine();
+    const events = [];
+    daw._onMetronomeStart = (bpm, beats) => events.push(['start', bpm, beats]);
+    daw._onMetronomeStop = () => events.push(['stop']);
+    daw._onMetronomeTempo = (bpm) => events.push(['tempo', bpm]);
+    daw._onMetronomeMeter = (beats) => events.push(['meter', beats]);
+
+    daw.setTempo(96);
+    daw.setMetronomeBeatsPerMeasure(3);
+    daw.setMetronome(true);
+    daw.setMetronome(false);
+
+    assert.deepEqual(events, [
+        ['tempo', 96], ['meter', 3], ['start', 96, 3], ['stop'],
+    ]);
 });
 
 test('daw_stop_transport finalizes an in-flight recording before clearing transport state', () => {

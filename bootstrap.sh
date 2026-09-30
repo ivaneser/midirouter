@@ -100,16 +100,16 @@ $SUDO -u "$USER_NAME" npm install --omit=dev
 # 6. Автозапуск через systemd (сервер стартует при включении Pi)
 # -----------------------------------------------------------------------------
 $SUDO cp "${REPO_DIR}/midirouter.service" /etc/systemd/system/midirouter.service
-$SUDO cp "${REPO_DIR}/metronome.service" /etc/systemd/system/metronome.service
+# The router worker owns the audio metronome process. Retire the old standalone
+# unit so it cannot compete for the Raspberry Pi ALSA device.
+$SUDO systemctl disable --now metronome.service 2>/dev/null || true
+$SUDO rm -f /etc/systemd/system/metronome.service
 # Patch user / working directory from variables
 $SUDO sed -i "s|^User=.*|User=${USER_NAME}|" /etc/systemd/system/midirouter.service
 $SUDO sed -i "s|^WorkingDirectory=.*|WorkingDirectory=${REPO_DIR}|" /etc/systemd/system/midirouter.service
-$SUDO sed -i "s|^User=.*|User=${USER_NAME}|" /etc/systemd/system/metronome.service
-$SUDO sed -i "s|^WorkingDirectory=.*|WorkingDirectory=${REPO_DIR}|" /etc/systemd/system/metronome.service
 
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable --now midirouter.service
-$SUDO systemctl enable --now metronome.service
 log "midirouter.service enabled and started"
 
 # -----------------------------------------------------------------------------

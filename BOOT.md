@@ -25,6 +25,7 @@ cd /tmp && curl -fsSL https://raw.githubusercontent.com/ivaneser/midirouter/main
 - применяет фикс UMP для ALSA (`enable_ump=0`) — иначе порты не видны;
 - клонирует/обновляет репозиторий и делает `npm install`;
 - включает автозапуск `midirouter.service`;
+- отключает прежний standalone `metronome.service`; аудио-метрономом управляет worker;
 - **перезагружает Pi** (чтобы применился фикс UMP).
 
 После перезагрузки сервер стартует автоматически. Открой в браузере:
@@ -42,17 +43,14 @@ MIDIR_USER=pi MIDIR_REPO=/home/pi/myprojects/midirouter sudo bash bootstrap.sh
 ## Если что-то не запустилось
 ```bash
 sudo journalctl -u midirouter.service -n 50     # логи сервера
-sudo journalctl -u metronome.service -n 30     # логи метронома
+sudo journalctl -u midirouter.service -n 100    # логи сервера и аудио-метронома
 aconnect -i                                      # видны ли MIDI-порты?
 aplay -L | grep -i headphone                     # найден ли выход на наушники?
 lsmod | grep snd                                 # snd_seq с enable_ump=0
 systemctl status midirouter.service              # статус сервиса
-systemctl status metronome.service               # статус метронома
 ```
 
 ## Откат / удаление автозапуска
 ```bash
 sudo systemctl disable --now midirouter.service
-sudo systemctl disable --now metronome.service
 sudo rm /etc/systemd/system/midirouter.service
-sudo rm /etc/systemd/system/metronome.service

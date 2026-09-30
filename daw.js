@@ -41,6 +41,7 @@ class DAWEngine {
         for (let c = 1; c <= TRACK_COUNT; c++) {
             this.tracks.push({ 
                 channel: c, 
+                channelAssigned: false,
                 clips: this._makeClips(),
                 armed: false,
                 muted: false,
@@ -72,10 +73,16 @@ class DAWEngine {
         this._metronomeAnchorTime = 0;         // anchor for free-running pre-record timing
         this._metronomeNoteOffTimer = null;    // scheduled Note Off timer from _emitMetronomeClick
 
-        // Callback fired as soon as a recording session begins (daw.recording
-        // transitions from null to an object). Used by the worker to silence
-        // any in-flight pre-record metronome click.
+        // Callback fired as soon as a recording session begins. Kept as an
+        // extension point; the worker leaves the metronome running for count-in.
         this._onRecordingStarted = () => {};
+        this._onMetronomeStart = () => {};
+        this._onMetronomeStop = () => {};
+        this._onMetronomeTempo = () => {};
+        this._onMetronomeMeter = () => {};
+        // Session Record is a live controller state; it is intentionally not
+        // restored when loading a saved session.
+        this.sessionRecording = false;
 
         this._onEvent = () => {};           // (evt) => void  — колбэк для форварда MIDI
         this._onProgress = () => {};        // (beat, progress) => void — для UI
@@ -102,6 +109,7 @@ class DAWEngine {
         this.tempo = Math.max(20, Math.min(300, bpm));
         // Keep MIDI clock in sync with tempo changes
         if (this._midiClock) this._midiClock.setTempo(this.tempo);
+        this._onMetronomeTempo(this.tempo);
     }
 
     tapTempo(now) {
@@ -151,6 +159,7 @@ class DAWEngine {
 
     setMetronomeBeatsPerMeasure(n) {
         this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, n));
+        this._onMetronomeMeter(this._metronomeBeatsPerMeasure);
     }
 
     // ---- MIDI Clock (MTC) ----
@@ -190,6 +199,7 @@ class DAWEngine {
 
     _startMetronome() {
         if (this._metronomeTimer) return;
+        this._onMetronomeStart(this.tempo, this._metronomeBeatsPerMeasure);
         const self = this;
         let beatInMeasure = -1;
 
@@ -248,8 +258,7 @@ class DAWEngine {
                 isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
 
                 // One-bar mode (after project reset): play exactly one full bar,
-                // then stop on its own. The first recording press stops it
-                // earlier via the _onRecordingStarted hook.
+                // then stop on its own.
                 if (this._preRecordOneBarRemainingBeats != null) {
                     if (tickInMeasure >= this._metronomeBeatsPerMeasure ||
                         this._preRecordOneBarRemainingBeats <= 0) {
@@ -289,8 +298,8 @@ class DAWEngine {
             this._metronomeNoteOffTimer = null;
         }
         // noteOn uses a 0-based channel index: 0 → MIDI ch 1.
-        // Tag the event so the worker can route ONLY metronome clicks to the
-        // physical synth outputs without touching ordinary instrument routing.
+        // Keep an internal event for DAW visualization/debugging. The worker
+        // never routes tagged metronome events to MIDI outputs.
         this._onEvent({ type: 'midi', data: noteOn(0, note, vel), _tag: 'metronome' });
         // Remember the sustained note so a hard stop (forceNow) can release it
         // immediately via a proper Note Off in _stopMetronome.
@@ -325,6 +334,7 @@ class DAWEngine {
     }
 
     _stopMetronome(forceNow) {
+        this._onMetronomeStop();
         if (this._metronomeTimer) {
             clearInterval(this._metronomeTimer);
             this._metronomeTimer = null;
@@ -341,8 +351,7 @@ class DAWEngine {
         // lingering state — each tick's Note Off is owned by its timer above.
         if (forceNow && this._currentMetronomeNote != null) {
             const { note } = this._currentMetronomeNote;
-            // Tag the forced Note Off identically to the scheduled one so the
-            // worker routes it through the every-output metronome fan-out path.
+            // Tag the forced Note Off for internal event consumers only.
             this._onEvent({ type: 'midi', data: noteOff(0, note), _tag: 'metronome' });
             this._currentMetronomeNote = null;
         }
@@ -363,11 +372,11 @@ class DAWEngine {
     // Полный сброс: все клипы всех треков/слотов в ноль (пустые ноты,
     // длина 1 такт), закрыть активную запись и снять playing-состояние.
     // Готовит сессию для новой записи "с чистого листа". После обнуления
-    // метроном автоматически запускается на ОДИН полный такт: до момента
-    // нажатия первой записи (hook _onRecordingStarted глушит его сразу)
-    // или до конца такта (ограничение внутри _startMetronome).
+    // метроном автоматически запускается на ОДИН полный такт или до
+    // завершения этого такта (ограничение внутри _startMetronome).
     resetAllClips() {
         this._stopRecording();
+        this.sessionRecording = false;
         for (const track of this.tracks) {
             for (const clip of track.clips) {
                 clip.notes = [];
@@ -411,7 +420,7 @@ class DAWEngine {
 
     // ---- Запись ----
     // armed: если на треке уже идёт запись в этом слоте (overdub), новая кнопка добавляет слой
-    armRecording(trackIdx, slot, now) {
+    armRecording(trackIdx, slot, now, options = {}) {
         const existing = this.tracks[trackIdx].clips[slot];
 
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) return;
@@ -433,7 +442,8 @@ class DAWEngine {
         // время. Выравнивание достигается сдвигом startTime вперёд до границы:
         //   - транспорт играет → delay = (ceil(curBeat/bar)*bar - curBeat) * spb;
         //     если нажатие совпало с границей бара (<= 5 мс) — delay = 0;
-        //   - транспорт стоит  → delay = 0.
+        //   - транспорт стоит и трек armed → count-in на один полный такт;
+        //     иначе запись начинается немедленно.
         // _beatAt(now) использует startTime, поэтому beat 0 записи
         // соответствует моменту начала следующего такта. Якорь транспорта
         // (_playAnchorTime) НЕ трогаем — фаза MTC внешних устройств не сдвигается.
@@ -448,6 +458,10 @@ class DAWEngine {
             // именно в этот момент, без ожидания следующего такта.
             if (delayMs <= 5) delayMs = 0;
             startTime = now + delayMs;
+        } else if (options.countIn || this.tracks[trackIdx].armed) {
+            // Controller recording can request a one-bar count-in while the
+            // transport is stopped. The worker starts transport at pad press.
+            startTime = now + bar * this._secondsPerBeat() * 1000;
         }
         const startBeat = 0;
         this.recording = {
@@ -466,13 +480,16 @@ class DAWEngine {
         this._onRecordingStarted(this);
     }
 
-    _stopRecording(endBeat) {
+    _stopRecording(endBeat, closeHeldNotesAtEnd = false) {
         if (!this.recording) return;
         const r = this.recording;
         // Закрываем все открытые note-on (velocity 0 / noteOff)
         for (const [key, start] of r.noteStarts) {
             const [, , note] = key.split(':');
-            r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat), dur: 0.25 });
+            const duration = closeHeldNotesAtEnd && Number.isFinite(endBeat)
+                ? Math.max(0.125, endBeat - start.beat)
+                : 0.25;
+            r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat), dur: roundBeats(duration) });
         }
         r.noteStarts.clear();
         // Длина клипа = длительность самой записи: охват до последней ноты,
@@ -505,7 +522,13 @@ class DAWEngine {
     recordEvent(statusByte, data1, data2, now) {
         if (!this.recording) return false;
         if (now < this.recording.startTime) return false;
-        const channel = (statusByte & 0x0f) + 1;
+        const inputChannel = (statusByte & 0x0f) + 1;
+        const track = this.tracks[this.recording.track];
+        if (!track.channelAssigned && (statusByte & 0xf0) === 0x90 && data2 > 0) {
+            track.channel = inputChannel;
+            track.channelAssigned = true;
+        }
+        const channel = track.channelAssigned ? track.channel : inputChannel;
         const beat = this._beatAt(now);
 
         if ((statusByte & 0xf0) === 0x90 && data2 > 0) {
@@ -576,7 +599,7 @@ class DAWEngine {
     //   4) Остановленный непустой клип → 'play' в Play-режиме; в
     //      Replace/Overdub — новая запись (replace стирает старый дубль,
     //      overdub добавляет поверх).
-    triggerPad(trackIdx, slot, now) {
+    triggerPad(trackIdx, slot, now, options = {}) {
         const clip = this.tracks[trackIdx]?.clips[slot];
         if (!clip) return { action: 'invalid', track: trackIdx, slot };
         const wasPlaying = this.clipState[trackIdx] === slot;
@@ -599,7 +622,7 @@ class DAWEngine {
 
         // (2) Пустой клип — всегда запись (дефолт), любой Mode.
         if (clip.notes.length === 0) {
-            this.armRecording(trackIdx, slot, now); // останавливает чужую запись
+            this.armRecording(trackIdx, slot, now, options); // stops any other take
             return { action: 'record', track: trackIdx, slot };
         }
 
@@ -609,7 +632,7 @@ class DAWEngine {
                 this.clipState[trackIdx] = -1;
                 return { action: 'stop', track: trackIdx, slot };
             }
-            this.armRecording(trackIdx, slot, now);
+            this.armRecording(trackIdx, slot, now, options);
             return { action: mode === 'overdub' ? 'overdub' : 'record', track: trackIdx, slot };
         }
 
@@ -618,7 +641,7 @@ class DAWEngine {
             this.clipState[trackIdx] = slot;
             return { action: 'play', track: trackIdx, slot };
         }
-        this.armRecording(trackIdx, slot, now);
+        this.armRecording(trackIdx, slot, now, options);
         return { action: mode === 'overdub' ? 'overdub' : 'record', track: trackIdx, slot };
     }
 
@@ -730,6 +753,7 @@ class DAWEngine {
     getState() {
         const tracks = this.tracks.map((t, i) => ({
             channel: t.channel,
+            channelAssigned: t.channelAssigned,
             slotCount: this.slotsPerTrack,
             clips: t.clips.map(c => ({ notes: c.notes.length, length: c.length })),
             playing: this.clipState[i] >= 0,
@@ -744,6 +768,7 @@ class DAWEngine {
             slotsPerTrack: this.slotsPerTrack,
             loopLenBeats: this.loopLenBeats,
             metronomeEnabled: this._metronomeEnabled,
+            sessionRecording: this.sessionRecording,
             midiClockEnabled: this._midiClockEnabled,
             clockSource: this.getClockSource(),
             midiClockOutputActive: this.isMidiClockOutputActive(),
@@ -772,6 +797,7 @@ class DAWEngine {
             },
             tracks: this.tracks.map((t) => ({
                 channel: t.channel,
+                channelAssigned: t.channelAssigned,
                 armed: t.armed,
                 muted: t.muted,
                 soloed: t.soloed,
@@ -790,6 +816,12 @@ class DAWEngine {
         if (!data || !Array.isArray(data.tracks)) {
             throw new Error('invalid session data');
         }
+        // A session restores content, never live transport or recording state.
+        // Stop schedulers before applying settings so a pre-record timer cannot
+        // keep clicking after the loaded session disables the metronome.
+        if (this.playing) this.stopTransport();
+        this._stopRecording();
+        this._stopMetronome(true);
         this.setTempo(Number.isFinite(data.tempo) ? data.tempo : this.tempo);
         this.recordMode = ['none', 'replace', 'overdub'].includes(data.recordMode)
             ? data.recordMode : 'none';
@@ -804,6 +836,7 @@ class DAWEngine {
         if (Number.isInteger(m.note)) this._metronomeNote = Math.max(0, Math.min(127, m.note));
         if (Number.isInteger(m.accentNote)) this._metronomeAccentNote = Math.max(0, Math.min(127, m.accentNote));
         if (Number.isInteger(m.beatsPerMeasure)) this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, m.beatsPerMeasure));
+        this._onMetronomeMeter(this._metronomeBeatsPerMeasure);
 
         data.tracks.forEach((td, i) => {
             const track = this.tracks[i];
@@ -811,6 +844,8 @@ class DAWEngine {
             track.armed = !!td.armed;
             track.muted = !!td.muted;
             track.soloed = !!td.soloed;
+            const savedChannel = Number.isInteger(td.channel) && td.channel >= 1 && td.channel <= 16
+                ? td.channel : track.channel;
             td.clips.forEach((cd, s) => {
                 const clip = track.clips[s];
                 if (!clip || !cd || !Array.isArray(cd.notes)) return;
@@ -826,10 +861,21 @@ class DAWEngine {
                 // нормализуем длину до целого числа тактов
                 clip.length = this._snapToBars(Number.isFinite(cd.length) ? cd.length : 0);
             });
+            const firstNote = track.clips.flatMap((clip) => clip.notes)[0];
+            track.channel = savedChannel;
+            track.channelAssigned = typeof td.channelAssigned === 'boolean'
+                ? td.channelAssigned
+                : !!firstNote;
+            // Older session files did not persist a separate assignment flag;
+            // their first note's channel is the best track-channel evidence.
+            if (typeof td.channelAssigned !== 'boolean' && firstNote) {
+                track.channel = firstNote.channel;
+            }
         });
 
         // Загрузка не включается transport: все пэды — "recorded", но не "playing".
         this.clipState.fill(-1);
+        this.sessionRecording = false;
         this._lastProgressBeat = null;
         return this;
     }

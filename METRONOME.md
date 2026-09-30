@@ -5,7 +5,7 @@ The midirouter now provides **two synchronized timing sources**:
 1. **Audio metronome** (`metronome.py`) — precise click track through the 3.5mm headphone jack
 2. **MIDI clock** (`midi-clock.js` + DAW engine) — 24 PPQN MTC sent to all connected USB-MIDI devices via the Node.js server
 
-Both are driven by the same BPM/transport source so your headphones and external gear stay in sync.
+The audio click is controlled by the DAW tempo, meter, and transport through the Raspberry Pi audio output. Metronome clicks are never sent as MIDI notes; connected synths receive only MIDI Clock and instrument notes.
 
 ---
 

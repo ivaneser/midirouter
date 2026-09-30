@@ -36,7 +36,7 @@ SAMPLE_RATE = 44100
 CLICK_FREQ  = 1000
 CLICK_DUR   = 0.05
 VOLUME      = 0.8
-BUFFER_SECS = 4.0           # smaller → faster BPM reaction
+BUFFER_SECS = 4.0           # chunks are interrupted and rebuilt on control changes
 
 
 def _default_alsa_device():
@@ -70,6 +70,11 @@ class Metronome:
         self._running  = True      # process alive flag
         self._playing  = False     # currently clicking?
         self._lock     = threading.Lock()
+        self._play_event = threading.Event()
+        self._audio_process = None
+        self._audio_generation = 0
+        self._samples_until_click = 0.0
+        self._beat_index = 0
 
         self._beat_vol = [self.volume if (i + 1) == self.accent else
                           self.volume * 0.7 for i in range(self.beats)]
@@ -98,22 +103,21 @@ class Metronome:
             clicks_by_amp[amp] = self._click_waveform(amp)
 
         beat_interval_samples = SAMPLE_RATE * (60.0 / self.bpm)
-        sample_pos = 0
+        sample_pos = self._samples_until_click
         while sample_pos < buffer_samples:
-            for amp in self._beat_vol:
-                if sample_pos >= buffer_samples:
-                    break
-                click = clicks_by_amp[amp]
-                start = int(sample_pos * 2)
-                end   = min(start + len(click), len(out))
-                for i in range(end - start):
-                    # Mix click into buffer (simple add; clicks never overlap at normal BPM)
-                    cur = int.from_bytes(out[start + i:start + i + 2], 'little', signed=True)
-                    new = int.from_bytes(click[i:i + 2], 'little', signed=True)
-                    mixed = max(-32768, min(32767, cur + new))
-                    out[start + i]     = mixed & 0xFF
-                    out[start + i + 1] = (mixed >> 8) & 0xFF
-                sample_pos += beat_interval_samples
+            amp = self._beat_vol[self._beat_index % self.beats]
+            click = clicks_by_amp[amp]
+            start = int(sample_pos * 2)
+            end = min(start + len(click), len(out))
+            for i in range(end - start):
+                cur = int.from_bytes(out[start + i:start + i + 2], 'little', signed=True)
+                new = int.from_bytes(click[i:i + 2], 'little', signed=True)
+                mixed = max(-32768, min(32767, cur + new))
+                out[start + i] = mixed & 0xFF
+                out[start + i + 1] = (mixed >> 8) & 0xFF
+            sample_pos += beat_interval_samples
+            self._beat_index += 1
+        self._samples_until_click = sample_pos - buffer_samples
 
         return bytes(out)
 
@@ -133,8 +137,20 @@ class Metronome:
         print("[metronome] Playback thread started", flush=True)
         while self._running:
             with self._lock:
+                is_running = self._running
                 do_play = self._playing
-            data = self._build_buffer(do_play)
+                generation = self._audio_generation
+                if not is_running:
+                    break
+            if not do_play:
+                self._play_event.wait(0.1)
+                self._play_event.clear()
+                continue
+            with self._lock:
+                if not self._running or not self._playing:
+                    continue
+                generation = self._audio_generation
+                data = self._build_buffer(do_play)
             path = self._write_wav(data)
             try:
                 cmd = ["aplay", "-M",
@@ -144,14 +160,22 @@ class Metronome:
                        "-c", "1",
                        "-t", "wav",
                        path]
-                subprocess.run(cmd,
-                               stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL)
+                process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
+                                           stderr=subprocess.DEVNULL)
+                with self._lock:
+                    self._audio_process = process
+                    interrupted = generation != self._audio_generation or not self._running
+                if interrupted:
+                    process.terminate()
+                process.wait()
             except FileNotFoundError:
                 print("[metronome] Error: 'aplay' not found. Install alsa-utils.",
                       file=sys.stderr, flush=True)
                 break
             finally:
+                with self._lock:
+                    if self._audio_process is not None and self._audio_process.poll() is not None:
+                        self._audio_process = None
                 try:
                     os.remove(path)
                 except OSError:
@@ -163,6 +187,10 @@ class Metronome:
         with self._lock:
             if not self._playing:
                 self._playing = True
+                self._samples_until_click = 0.0
+                self._beat_index = 0
+                self._interrupt_audio_locked()
+                self._play_event.set()
                 print(f"[metronome] START  BPM={self.bpm:.1f}  beats={self.beats}  accent={self.accent}  vol={self.volume:.2f}", flush=True)
             else:
                 print("[metronome] Already playing", flush=True)
@@ -171,6 +199,10 @@ class Metronome:
         with self._lock:
             if self._playing:
                 self._playing = False
+                self._samples_until_click = 0.0
+                self._beat_index = 0
+                self._interrupt_audio_locked()
+                self._play_event.clear()
                 print("[metronome] STOP", flush=True)
             else:
                 print("[metronome] Already stopped", flush=True)
@@ -180,19 +212,35 @@ class Metronome:
         with self._lock:
             self._running = False
             self._playing = False
+            self._interrupt_audio_locked()
+            self._play_event.set()
+
+    def _interrupt_audio_locked(self):
+        self._audio_generation += 1
+        process = self._audio_process
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+            except OSError:
+                pass
 
     def set_bpm(self, bpm: float):
         with self._lock:
             self.bpm = max(20.0, min(300.0, float(bpm)))
-            beat_interval_samples = SAMPLE_RATE * (60.0 / self.bpm)
+            self._samples_until_click = 0.0
+            self._beat_index = 0
+            self._interrupt_audio_locked()
         print(f"[metronome] BPM → {self.bpm:.1f}", flush=True)
 
     def set_beats(self, beats: int):
         with self._lock:
             self.beats = max(1, int(beats))
             self.accent = min(self.accent, self.beats)
+            self._samples_until_click = 0.0
+            self._beat_index = 0
             self._beat_vol = [self.volume if (i + 1) == self.accent else
                               self.volume * 0.7 for i in range(self.beats)]
+            self._interrupt_audio_locked()
         print(f"[metronome] Beats → {self.beats}", flush=True)
 
     def status(self) -> dict:

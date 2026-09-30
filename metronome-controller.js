@@ -19,6 +19,7 @@ export class MetronomeController {
         this.bpm = options.bpm || 120;
         this.beats = options.beats || 4;
         this.volume = options.volume || 0.8;
+        this.device = options.device || process.env.MIDIR_METRONOME_DEVICE || null;
         this.pythonPath = options.pythonPath || 'python3';
         this.metronomeScript = path.resolve(
             __dirname,
@@ -48,6 +49,10 @@ export class MetronomeController {
         }
     }
 
+    isAvailable() {
+        return this._audioAvailable && this._checkAplay();
+    }
+
     /**
      * Start the Python metronome process.
      * @returns {Promise<boolean>} - success status
@@ -67,11 +72,13 @@ export class MetronomeController {
                 return;
             }
 
-            this._process = spawn(this.pythonPath, [this.metronomeScript,
+            const args = [this.metronomeScript,
                 '-B', String(this.bpm),
                 '-b', String(this.beats),
                 '-v', String(this.volume)
-            ], {
+            ];
+            if (this.device) args.push('-d', this.device);
+            this._process = spawn(this.pythonPath, args, {
                 stdio: ['pipe', 'pipe', 'pipe'],
                 env: { ...process.env, PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' }
             });
@@ -103,6 +110,10 @@ export class MetronomeController {
                 this._process = null;
                 this._running = false;
                 this._pid = null;
+                if (this._startTimer) clearTimeout(this._startTimer);
+                this._startTimer = null;
+                this._startResolve = null;
+                this._startReject = null;
                 reject(err);
             });
 
@@ -111,19 +122,36 @@ export class MetronomeController {
                 this._process = null;
                 this._running = false;
                 this._pid = null;
+                if (this._startTimer) clearTimeout(this._startTimer);
+                this._startTimer = null;
+                this._startResolve = null;
+                if (this._startReject) {
+                    this._startReject(new Error(`Metronome exited before ready (${code}/${signal})`));
+                    this._startReject = null;
+                }
                 // Emit error event for reconnection
                 this._emit('error', new Error(`Process exited: ${code}/${signal}`));
             });
 
-            // Give it a moment to initialize
-            setTimeout(() => {
+            // Resolve when Python has opened its ALSA playback stream, with a
+            // bounded fallback for older script versions that do not log Ready.
+            this._startResolve = (ready) => {
+                this._running = ready;
+                resolve(ready);
+                this._startResolve = null;
+                this._startReject = null;
+            };
+            this._startReject = reject;
+            this._startTimer = setTimeout(() => {
+                this._startTimer = null;
                 if (this._process && this._pid) {
-                    this._running = true;
-                    resolve(true);
+                    this._startResolve?.(true);
                 } else {
+                    this._startResolve = null;
+                    this._startReject = null;
                     reject(new Error('Failed to start metronome'));
                 }
-            }, 1000);
+            }, 2000);
         });
     }
 
@@ -158,12 +186,22 @@ export class MetronomeController {
     play() {
         return new Promise((resolve) => {
             if (!this._process || !this._pid) {
-                this.start().then(() => resolve(true)).catch(() => resolve(false));
+                this.start().then(() => {
+                    try {
+                        this._process.stdin.write('start\n');
+                        this._running = true;
+                        resolve(true);
+                    } catch (e) {
+                        console.warn(`[METRONOME] Failed to send start command: ${e.message}`);
+                        resolve(false);
+                    }
+                }).catch(() => resolve(false));
                 return;
             }
 
             try {
                 this._process.stdin.write('start\n');
+                this._running = true;
                 setTimeout(() => resolve(true), 100);
             } catch (e) {
                 console.warn(`[METRONOME] Failed to send start command: ${e.message}`);
@@ -254,6 +292,11 @@ export class MetronomeController {
             if (match) {
                 prefix = 'info';
                 content = match[1];
+                if (content.startsWith('Ready.') && this._startResolve) {
+                    if (this._startTimer) clearTimeout(this._startTimer);
+                    this._startTimer = null;
+                    this._startResolve(true);
+                }
             }
         } else if (line.startsWith('{') && line.endsWith('}')) {
             // JSON status response

@@ -1,23 +1,20 @@
 // ---------------------------------------------------------------------------
-// Pre-record MIDI metronome behaviour.
+// Pre-record audio metronome state and click visualization behaviour.
 //
 //  Requirements (implemented per the user's correction):
 //   1. While transport is NOT playing and EVERY clip on every track/slot is
 //      empty, enabling the metronome starts a free-running pre-record beat
 //      scheduler (quarter notes at the current tempo).
-//   2. The FIRST empty-clip pad click that begins recording (creates
-//      `daw.recording`) STOPS the pre-record scheduler and immediately sends
-//      Note Off for any active metronome note — the metronome goes silent.
+//   2. Starting a pad take keeps the metronome available for count-in; the
+//      worker starts transport so its audio click remains synchronized.
 //   3. The "● Rec Arm" button (resetAllClips) is NOT the stop trigger: it may
 //      empty all clips, but the pre-record scheduler continues (and resumes on
 //      the next beat since all clips remain empty).
 //   4. Toggling metronome OFF → ON while all clips are empty restarts the
 //      pre-record scheduler (re-enable path).
-//   5. Metronome notes leave via the instrument note fan-out path on channel 1
-//      only: first beat of each measure = accent MIDI 60 (C4), other beats =
-//      MIDI 69 (A4); every Note On is paired with a proper Note Off.
-//   6. The worker no longer starts the Python audio metronome process on init;
-//      the pre-record path is MIDI-only (no audio click via Pi headphone jack).
+//   5. Internal MIDI-shaped events are used only for visualization/debugging;
+//      no metronome click reaches a MIDI synth output.
+//   6. The worker owns the Python ALSA audio process and follows DAW state.
 // ---------------------------------------------------------------------------
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -147,36 +144,39 @@ test('pre-record scheduler emits accent note 60 (C4) on first beat of measure, n
 });
 
 // ---------------------------------------------------------------------------
-// Stop trigger: first empty-clip click that begins recording
+// Count-in: a pad starts transport while the take waits for the next bar
 // ---------------------------------------------------------------------------
 
-test('triggering the first empty clip (which creates daw.recording) stops the pre-record scheduler and sends Note Off', async () => {
+test('triggering an empty clip starts transport and keeps the count-in metronome active', async () => {
     const { daw, events } = makeDawWithCapturedEvents();
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = daw;
+    worker._transportPlaying = false;
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map();
+    worker._padLedSent = new Map();
+    worker._clearStaleRecordingFeedback = () => {};
+    worker._refreshPadLeds = () => {};
+    worker._stopTrackPlayback = () => {};
+    worker._armLed = () => {};
+    worker._syncPadClock = () => {};
+    worker._broadcastState = () => {};
+    worker._emitVisualEvent = () => {};
     try {
-        // Simulate the worker's stop hook so the DAWEngine honours the recording
-        // start as a metronome-stop trigger (the worker sets this up).
-        daw._onRecordingStarted = () => { daw._stopMetronome(true); };
-
         daw.setMetronome(true);
         await tick(80);
-
         assert.ok(daw._metronomeTimer != null, 'pre-record scheduler must be running');
-
-        // Capture how many Note Offs exist before triggering recording.
-        const noteOffsBefore = events.filter((e) => e.data[0] === 0x80).length;
-
-        // Trigger the first empty clip in track 0 / slot 0 — this begins recording.
-        const result = daw.triggerPad(0, 0, performance.now());
+        const now = performance.now();
+        const result = worker._triggerPad(0, 0, now, { countIn: true });
         assert.equal(result.action, 'record', 'empty clip trigger must begin recording');
         assert.ok(daw.recording != null, 'triggering an empty clip must create daw.recording');
-
-        // _stopMetronome(true) must have fired a Note Off for the sustained note.
-        const noteOffsAfter = events.filter((e) => e.data[0] === 0x80).length;
-        assert.ok(noteOffsAfter > noteOffsBefore, 'must send Note Off when recording starts');
-
-        // The pre-record scheduler timer must be cleared.
-        assert.equal(daw._metronomeTimer, null, 'pre-record scheduler must stop on first empty-clip trigger');
+        assert.ok(daw.playing, 'pad should start the transport for count-in');
+        assert.ok(daw.recording.startTime >= now + 1900,
+            'the take should begin one full bar after the pad press');
+        assert.ok(daw._metronomeTimer != null, 'audio metronome should stay active through count-in');
+        assert.ok(events.length > 0, 'internal metronome visualization events should continue');
     } finally {
+        daw.stopTransport();
         cleanupDaw(daw);
     }
 });
@@ -316,9 +316,7 @@ test('transport-start still uses the normal (non-pre-record) metronome path', as
 });
 
 // ---------------------------------------------------------------------------
-// Physical-output fan-out: tagged metronome events reach every synth output
-// via _sendToSynthOutputs (worker-midi.js).  We verify the tagging contract
-// here with mocked outputs — no real ALSA hardware is touched.
+// MIDI-output isolation: tagged metronome events must never reach synth ports.
 // ---------------------------------------------------------------------------
 
 /**
@@ -359,7 +357,7 @@ function makeMockOutput() {
     return { proto, getCalls: () => calls };
 }
 
-test('tagged metronome Note On and Note Off reach every mocked connected output through the actual worker/output path', async () => {
+test('metronome click events never reach connected MIDI synth outputs', async () => {
     // Instantiate the real worker outside a WorkerThread — the file-level
     // `if (parentPort)` guard keeps it safe, so we can exercise its private
     // routing with mock outputs.  No ALSA hardware is touched.
@@ -373,12 +371,8 @@ test('tagged metronome Note On and Note Off reach every mocked connected output 
         { name: 'Mock Synth C', ...makeMockOutput() },
     ];
 
-    // Replace the worker's real outputs map with our mocked outputs.  We must
-    // keep the controller-engine exclusion policy intact, so we only add outputs
-    // that are NOT excluded (these three arbitrary names pass the default filter).
-    // IMPORTANT: do this BEFORE enabling the metronome — the constructor already
-    // wired `_onEvent`, which fans out tagged clicks via `_sendToSynthOutputs` on
-    // every tick, including the very first one.
+    // Metronome audio is emitted through ALSA; no click should reach these MIDI
+    // output mocks.
     worker.outputs = new Map();
     for (const m of mocks) {
         worker.outputs.set(m.name, m.proto);
@@ -386,9 +380,7 @@ test('tagged metronome Note On and Note Off reach every mocked connected output 
 
     let daw = null;
     try {
-        // Enable the metronome on the DAW engine.  The worker's `_onEvent`
-        // wrapper (set up in the constructor) will receive tagged events and
-        // fan them out via `_sendToSynthOutputs`.
+        // Enable the DAW metronome and allow internal click scheduling to run.
         daw = worker.daw;
         daw.setMetronome(true);
 
@@ -396,39 +388,19 @@ test('tagged metronome Note On and Note Off reach every mocked connected output 
         // scheduled Note Off (min 80 ms delay).
         await tick(250);
 
-        // Verify every mocked connected output received at least one Note On
-        // with the accent (60/C4) metronome note on channel 1.
         for (const m of mocks) {
-            const ons = m.getCalls().filter(
-                (c) => c[0] === 0x90 && c[1] === 60 // ch1 accent Note On
-            );
-            assert.ok(ons.length > 0,
-                `${m.name} must receive the metronome accent Note On via _sendToSynthOutputs`);
-        }
-
-        // Verify every mocked connected output also received a matching Note Off
-        // for channel 1 note 60: [0x80 | 0, 60, 0].
-        for (const m of mocks) {
-            const offs = m.getCalls().filter(
-                (c) => c[0] === 0x80 && c[1] === 60 // ch1 note Off
-            );
-            assert.ok(offs.length > 0,
-                `${m.name} must receive the metronome Note Off via _sendToSynthOutputs`);
+            assert.deepEqual(m.getCalls(), [], `${m.name} must not receive metronome notes`);
         }
 
         // Prove that ordinary instrument events (un-tagged) do NOT go through the
-        // tagged fan-out path: send a plain note via the DAW's public `_emit` and
-        // confirm it does NOT reach all three mocked outputs (only channel-based
-        // routing would, which is not active here).  This confirms the fan-out is
-        // specific to the metronome tag.
+        // Send a plain event and confirm no event was sent through this internal
+        // DAW callback path (normal controller input routing is separate).
         daw._emit([0x91 | 0, 60, 80], 0); // ch2 note — different channel, untagged
         await tick(10);
         const anyReceivedUntagged = mocks.some((m) =>
             m.getCalls().some((c) => c[0] === 0x91 && c[1] === 60)
         );
-        // Untagged events on channel 2 are NOT fan-out to all outputs — they go
-        // through ordinary routing which has no active map. This is expected and
-        // confirms the metronome tag is what triggers the every-output fan-out.
+        // Untagged channel-2 events are not sent through this DAW callback path.
         assert.ok(!anyReceivedUntagged,
             'untagged channel-2 events must not reach all outputs via the tagged path');
     } finally {
@@ -439,14 +411,14 @@ test('tagged metronome Note On and Note Off reach every mocked connected output 
     }
 });
 
-test('metronome Note On and Note Off both carry the "metronome" tag for physical-output routing', async () => {
+test('internal metronome visualization events remain distinct from synth MIDI routing', async () => {
     const { daw, events } = makeDawWithCapturedEvents();
     try {
         daw.setMetronome(true);
         await tick(80);
 
-        // Every event emitted by the metronome must be tagged so the worker can
-        // distinguish it from ordinary instrument routing.
+        // DAW click events are retained for visualization; the worker never
+        // routes them to synth outputs.
         const noteOns = events.filter((e) => e.data[0] === 0x90);
         const noteOffs = events.filter((e) => e.data[0] === 0x80);
         assert.ok(noteOns.length > 0, 'must emit at least one Note On');
@@ -475,7 +447,7 @@ test('metronome Note On and Note Off both carry the "metronome" tag for physical
 // the forced Note Off, including ones normally excluded from routing.
 // ---------------------------------------------------------------------------
 
-test('pre-record beat + first empty-clip trigger: ALL mocked outputs (incl. excluded) receive Note On AND immediate forced Note Off on channel 1', async () => {
+test('first empty-clip trigger keeps count-in audio local and sends no MIDI clicks', async () => {
     const worker = new MIDIRouterWorker();
 
     // Two mock outputs: one excluded from ordinary routing, one not.
@@ -494,81 +466,46 @@ test('pre-record beat + first empty-clip trigger: ALL mocked outputs (incl. excl
         isExcludedOutput: (name) => name === 'Excluded Synth',
     };
 
-    // Wire the worker's real stop hook so the first empty-clip trigger stops
-    // the pre-record metronome via _stopMetronome(true).
-    const originalOnRecordingStarted = worker.daw._onRecordingStarted;
-    worker.daw._onRecordingStarted = () => {
-        worker.daw._stopMetronome(true);
-    };
-
     try {
         const daw = worker.daw;
         daw.setMetronome(true);
 
-        // Let one pre-record click fire (Note On + scheduled Note Off).
+        // Start the pre-record click scheduler.
         await tick(120);
 
-        // Trigger the first empty clip — begins recording, must stop metro.
+        // Trigger an empty clip. The worker must never send the audio click as
+        // Note On/Off messages to either connected synth.
         const result = daw.triggerPad(0, 0, performance.now());
         assert.equal(result.action, 'record');
         assert.ok(daw.recording != null);
 
-        // The forced Note Off from _stopMetronome(true) must reach EVERY output,
-        // including the one that is excluded from ordinary routing.
-        await advance(20);
-
-        const excludedoffs = excludedMock.getCalls().filter(
-            (c) => c[0] === 0x80 && c[1] === 60
-        );
-
-        // The forced Note Off must have velocity 0 on channel 1.
-        const forcedOffs = excludedoffs.filter(
-            (c) => c.length >= 3 && c[2] === 0
-        );
-        assert.ok(forcedOffs.length > 0,
-            'excluded output must receive the immediate forced Note Off (velocity 0, channel 1)'
-        );
-
-        // The scheduler timer must be cleared.
-        assert.equal(daw._metronomeTimer, null,
-            'pre-record scheduler must stop after first empty-clip trigger');
+        await advance(120);
+        assert.deepEqual(excludedMock.getCalls(), []);
+        assert.deepEqual(normalMock.getCalls(), []);
+        assert.notEqual(daw._metronomeTimer, null,
+            'the metronome must remain active through the count-in');
     } finally {
         cleanupDaw(worker.daw);
         worker.outputs.clear();
         worker.controllerEngine.isExcludedOutput = originalIsExcluded;
-        worker.daw._onRecordingStarted = originalOnRecordingStarted;
     }
 });
 
-test('worker-midi.js does not import or drive a Python audio metronome controller (no MetronomeController, no play/stop/setBpm)', async () => {
-    // Read the worker source and verify it no longer integrates any audio
-    // metronome controller.  Strip comments so only real code is checked.
+test('worker drives the Pi audio metronome and never fans clicks out over MIDI', async () => {
     const fs = await import('fs');
     const src = fs.readFileSync(new URL('../worker-midi.js', import.meta.url), 'utf8');
 
-    // The MetronomeController import must be gone entirely.
     assert.ok(
-        !/import\s+.*MetronomeController\s+from\s+['"]\.\/metronome-controller\.js['"]/.test(src),
-        'worker-midi.js must not import MetronomeController'
+        /import\s+\{\s*MetronomeController\s*\}\s+from\s+['"]\.\/metronome-controller\.js['"]/.test(src),
+        'worker-midi.js must integrate MetronomeController'
     );
 
-    // No references to a metronomeCtrl instance or its control methods remain.
     const stripped = src
         .replace(/\/\/.*$/gm, '')      // remove line comments
         .replace(/\/\*[\s\S]*?\*\//g, ''); // remove block comments
 
-    assert.ok(!/metronomeCtrl\b/.test(stripped), 'worker-midi.js must not reference metronomeCtrl');
-    assert.ok(!/\b\.play\(\)|\b\.stop\(\)|\b\.setBpm\(|\b\.setBeats\(/.test(stripped) || !/metronome/.test(stripped),
-        'worker-midi.js must not call metronome play()/stop()/setBpm()/setBeats()');
-
-    // The new routing path tags metronome clicks and fans them out to all open
-    // outputs via a dedicated method that bypasses the exclusion policy.
-    assert.ok(
-        /evt\._tag\s*===?\s*['"]metronome['"]/.test(src),
-        'worker-midi.js must detect the metronome tag'
-    );
-    assert.ok(
-        /_sendToAllMetronomeOutputs\(bytes\)/.test(stripped),
-        'worker-midi.js must fan tagged metronome events to all open outputs via _sendToAllMetronomeOutputs'
-    );
+    assert.ok(/metronomeCtrl\.play\(\)/.test(stripped));
+    assert.ok(/metronomeCtrl\.stop\(\)/.test(stripped));
+    assert.ok(!/_sendToAllMetronomeOutputs/.test(stripped),
+        'there must be no MIDI click fan-out path');
 });

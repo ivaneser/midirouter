@@ -35,6 +35,16 @@ test('DAW toData/loadData round-trips full clip content', () => {
     assert.throws(() => daw2.loadData({ tracks: 'nope' }));
 });
 
+test('session round trip preserves an assigned track MIDI channel', () => {
+    const daw = new DAWEngine();
+    daw.tracks[2].channel = 11;
+    daw.tracks[2].channelAssigned = true;
+    const restored = new DAWEngine();
+    restored.loadData(daw.toData());
+    assert.equal(restored.tracks[2].channel, 11);
+    assert.equal(restored.tracks[2].channelAssigned, true);
+});
+
 function makeWorker(dir) {
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = new DAWEngine({ tempo: 120 });
@@ -77,6 +87,8 @@ test('worker save/list/load/delete sessions on disk', (t) => {
     assert.equal(worker2.daw.tracks[0].clips[0].notes.length, 1);
     assert.equal(worker2.daw.tracks[0].clips[0].notes[0].note, 60);
     assert.equal(worker2.daw.tracks[0].clips[0].length, 4);
+    assert.equal(worker2.daw.playing, false, 'loading a session must leave transport stopped');
+    assert.equal(worker2.daw._metronomeTimer, null, 'loading a session must not leave the pre-record scheduler running');
 
     // missing session must not throw
     assert.doesNotThrow(() => worker2._loadSession('nope'));

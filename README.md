@@ -26,7 +26,7 @@
 **Профили контроллеров:** входные порты, пады, транспортные кнопки и LED-ответы задаются JSON-файлами в `controller_profiles/`. Профиль Launchkey Mini MK3 включён; пример для nanoPAD2 находится в `controller_profiles/examples/` и требует сверки с настройками устройства. Обычные клавиши остаются на MIDI-маршруте к синтезаторам. Для нового контроллера см. [CONTROLLERS.md](CONTROLLERS.md).
 
 ### 3. Аудио метроном → наушники Raspberry Pi
-Python-метроном `metronome.py` генерирует точные клики через ALSA `aplay —M` прямо в 3.5-мм разъём Raspberry Pi. Синхронизируется с транспортом DAW и MIDI Clock: Play/Stop/Clock от Launchkey автоматически запускают и останавливают метроном.
+Python-метроном `metronome.py` генерирует клики через ALSA `aplay` прямо в аудиовыход Raspberry Pi. Node.js worker управляет им вместе с DAW транспортом, темпом и размером такта. Клики идут только в аудиовыход; синтезаторам по MIDI отправляются ноты и MIDI Clock, но никогда не метрономные ноты.
 
 ### 4. MIDI Clock (MTC) — синхронизация внешних устройств
 При Play запускается MIDI Clock (24 PPQN), при Stop отправляется `0xFC`. Clock идёт на MIDI-выходы синтезаторов и на контроллеры, выбранные в `midiClockOutput` профиля. В профиле Launchkey Mini MK3 DAW-порт получает clock для синхронизации мигающих LED.
@@ -65,11 +65,11 @@ sudo journalctl -u midirouter.service -n 30 # логи
 aconnect -i                                 # список MIDI-портов
 ```
 
-Требования: Raspberry Pi 4 (или 3B+), USB-MIDI контроллер/синтезатор, ALSA (`/dev/snd`), alsa-utils, Python 3.
+Требования: Raspberry Pi 4 (или 3B+), USB-MIDI контроллер/синтезатор, ALSA (`/dev/snd`), alsa-utils, Python 3. У пользователя службы `midirouter` должен быть доступ к группе `audio`.
 
 **ALSA device для наушников:**
 - Метроном автоматически ищет `hw:Headphones` или `headphones` через `aplay -L`.
-- Для принудительного выбора: `python3 metronome.py -d hw:0,0`.
+- Для принудительного выбора задайте `MIDIR_METRONOME_DEVICE`, например `hw:0,0`, в окружении службы.
 
 ## Управление
 - **Mode (поведение после окончания записи):** Play / Replace / Overdub (в веб-UI).
@@ -86,7 +86,7 @@ aconnect -i                                 # список MIDI-портов
    - **Overdub** — клип останавливается со всеми слоями; следующее нажатие добавляет новый слой.
    - **Replace** — клип останавливается; следующее нажатие стирает дубль и записывает новый.
 3. Нажатие на **новый пустой клип той же группы** останавливает текущий клип и начинает запись в новый.
-4. **Транспортные кнопки Launchkey:** Play (CC115) — toggle транспорта (MIDI Clock + метроном + активные клипы), Stop (CC116) — стоп всего, Rec Arm (CC117) — полный сброс всех клипов в ноль + возврат Mode в Play, Loop (CC118).
+4. **Транспортные кнопки Launchkey:** Play (CC115) — toggle транспорта (MIDI Clock + метроном + активные клипы), Stop (CC116) — стоп всего, Record (CC117) — включает/выключает Session Record без удаления клипов. При включении запускаются транспорт и метроном; нажмите пустой пэд, чтобы выбрать клип для записи. Если транспорт стоял, запись начнётся после слышимого count-in в один такт. Повторное нажатие Record завершает дубль на ближайшей границе такта. Loop (CC118) переключает длину глобального цикла.
 
 ### Свет падов (LaunchKey Mini MK3 RGB)
 Пады светятся через Note On на **Launchkey DAW Port** (нижний ряд Session mode — ноты 112–119, верхний — 96–103):
@@ -109,7 +109,7 @@ midirouter/
 ├── metronome.py           # Аудио метроном → Raspberry Pi наушники (ALSA aplay)
 ├── metronome-controller.js # Node.js контроллер метронома (stdin IPC)
 ├── midi-clock.js          # MIDI Time Code (MTC): 24 PPQN + Start/Stop
-├── metronome.service      # systemd unit для метронома
+├── metronome.service      # устаревший unit; bootstrap удаляет его
 ├── midirouter.service     # systemd unit для самого сервера
 ├── bootstrap.sh           # One-time setup: Wi-Fi + Node.js + ALSA + autostart
 ├── frontend/
@@ -129,10 +129,10 @@ midirouter/
 Сервис уже настроен через `bootstrap.sh`. Если нужно вручную:
 ```bash
 sudo cp midirouter.service /etc/systemd/system/
-sudo cp metronome.service /etc/systemd/system/
+sudo systemctl disable --now metronome.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/metronome.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now midirouter.service
-sudo systemctl enable --now metronome.service
 ```
 
 ## Документация

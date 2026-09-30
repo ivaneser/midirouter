@@ -9,6 +9,7 @@ import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
 import { ClockMaster, clockOutputsFor } from './clock-master.js';
+import { MetronomeController } from './metronome-controller.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'node:child_process';
@@ -57,32 +58,53 @@ class MIDIRouterWorker {
         // Explicit clock source selection — exactly one master at a time.
         this._clockMaster = new ClockMaster();
 
+        // Metronome clicks use the Raspberry Pi's local ALSA audio output,
+        // completely separate from MIDI note and MIDI clock routing.
+        this.metronomeCtrl = new MetronomeController();
+        this._audioMetronomeAvailable = process.platform === 'linux'
+            && this.metronomeCtrl.isAvailable();
+        if (this._audioMetronomeAvailable) {
+            this.metronomeCtrl.start().catch((error) => {
+                console.warn(`[METRONOME] Audio process unavailable: ${error.message}`);
+                this._audioMetronomeAvailable = false;
+            });
+        }
+        if (this._audioMetronomeAvailable) {
+            this.metronomeCtrl.start().catch((error) => {
+                console.warn(`[METRONOME] Audio process unavailable: ${error.message}`);
+                this._audioMetronomeAvailable = false;
+            });
+        }
+        this.daw._onMetronomeStart = (bpm, beats) => {
+            if (!this._audioMetronomeAvailable) return;
+            this.metronomeCtrl.setBpm(bpm);
+            this.metronomeCtrl.setBeats(beats);
+            this.metronomeCtrl.play().catch((error) => {
+                console.warn(`[METRONOME] Audio output unavailable: ${error.message}`);
+            });
+        };
+        this.daw._onMetronomeStop = () => {
+            if (this._audioMetronomeAvailable) this.metronomeCtrl.stop();
+        };
+        this.daw._onMetronomeTempo = (bpm) => {
+            if (this._audioMetronomeAvailable) this.metronomeCtrl.setBpm(bpm);
+        };
+        this.daw._onMetronomeMeter = (beats) => {
+            if (this._audioMetronomeAvailable) this.metronomeCtrl.setBeats(beats);
+        };
+
         const origSetTempo = this.daw.setTempo.bind(this.daw);
         this.daw.setTempo = (bpm) => {
             origSetTempo(bpm);
         };
 
-        // Silence the pre-record metronome as soon as a recording session begins.
-        // The user-facing trigger is the first empty-clip click (which creates
-        // `daw.recording`); Rec Arm is NOT the stop trigger.
-        this.daw._onRecordingStarted = () => {
-            this.daw._stopMetronome(true);
-        };
+        // Keep the click audible through the full one-bar count-in. Individual
+        // click note-offs are managed by DAWEngine.
+        this.daw._onRecordingStarted = () => {};
 
         this.daw._onEvent = (evt) => {
             const bytes = evt.data;
             const status = bytes[0];
-
-            // Tagged metronome clicks — route ONLY these to the physical synth
-            // outputs so every allowed output receives the click, without
-            // touching ordinary instrument routing. The tag is set by
-            // DAWEngine._emitMetronomeClick.  Metronome events bypass the
-            // controller exclusion policy: they must reach ALL connected MIDI
-            // outputs (the user's explicit request), not just the non-excluded
-            // ones that `_sendToSynthOutputs` would enforce for ordinary notes.
-            if (evt._tag === 'metronome') {
-                this._sendToAllMetronomeOutputs(bytes);
-            }
 
             // Internal DAW MidiClock path: when the internal source is selected,
             // its 24 PPQN clock + Start/Continue/Stop must reach all allowed
@@ -103,6 +125,7 @@ class MIDIRouterWorker {
 
         // track playback timers (loop): trackIdx -> { interval, timeouts, active }
         this._trackPlayTimers = new Map();
+        this._recordingStopTimer = null;
         // LED state per active track: trackIdx -> { slot, state }
         this._ledGlow = new Map();
         this._padLedSent = new Map();   // "trackIdx:slot" -> last sent LED state
@@ -668,19 +691,6 @@ class MIDIRouterWorker {
         return sent;
     }
 
-    // Fan tagged metronome events to ALL open outputs, bypassing the ordinary
-    // controller exclusion policy.  Metronome clicks must reach every connected
-    // MIDI output (the user's explicit request), not just the non-excluded ones.
-    _sendToAllMetronomeOutputs(bytes) {
-        for (const [, midiOut] of this.outputs) {
-            try {
-                midiOut.sendMessage(Buffer.from(bytes));
-            } catch (e) {
-                console.warn(`[WORKER] Failed to send metronome event: ${e.message}`);
-            }
-        }
-    }
-
     _sendMidiClockOutputs(bytes, excludePortName = null) {
         // Use the ClockMaster's computed output set — excludes master port and
         // user-configured explicit exclusions; applies controller policy too.
@@ -829,12 +839,66 @@ class MIDIRouterWorker {
         }
     }
 
-    _triggerPad(trackIdx, slot, now) {
+    _scheduleRecordingStop({ stopTransport = false, now = performance.now() } = {}) {
+        const recording = this.daw.recording;
+        if (!recording) return false;
+        if (this._recordingStopTimer) clearTimeout(this._recordingStopTimer);
+
+        const bar = Math.max(1, this.daw._metronomeBeatsPerMeasure || 4);
+        const spb = this.daw._secondsPerBeat();
+        let boundaryTime = now + bar * spb * 1000;
+        if (this.daw.playing) {
+            const currentBeat = Math.max(0, ((now - this.daw._playAnchorTime) / 1000) / spb);
+            const nextBar = Math.ceil(currentBeat / bar) * bar;
+            let delayMs = (nextBar - currentBeat) * spb * 1000;
+            if (delayMs <= 5) delayMs = 0;
+            boundaryTime = now + delayMs;
+        }
+
+        this._recordingStopTimer = setTimeout(() => {
+            this._recordingStopTimer = null;
+            if (this.daw.recording !== recording) return;
+
+            const { track, slot, mode } = recording;
+            const clip = this.daw.tracks[track]?.clips[slot];
+            this.daw._stopRecording(this.daw._beatAt(boundaryTime), true);
+            this.daw.quantizeClip(track, slot);
+
+            if (stopTransport) {
+                this.daw.stopTransport();
+                this._transportPlaying = false;
+                for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
+                this.daw.clipState.fill(-1);
+            } else if (mode === 'none' && clip?.notes.length) {
+                this.daw.clipState[track] = slot;
+                this._lastActivated = { trackIdx: track, slot };
+                this._startTrackPlayback(track, slot, boundaryTime);
+            } else {
+                this.daw.clipState[track] = -1;
+                this._stopTrackPlayback(track);
+            }
+
+            this._syncPadClock();
+            this._clearStaleRecordingFeedback();
+            this._refreshPadLeds();
+            this._broadcastState();
+        }, Math.max(0, boundaryTime - performance.now()));
+        return true;
+    }
+
+    _triggerPad(trackIdx, slot, now, { countIn = false } = {}) {
+        // A repeated press requests a stop at the next bar, keeping any held
+        // notes recordable until the musical boundary is reached.
+        if (this.daw.recording?.track === trackIdx && this.daw.recording?.slot === slot
+            && this.daw.playing) {
+            this._scheduleRecordingStop({ now });
+            return { action: 'record-stop-pending', track: trackIdx, slot };
+        }
         // Требование 1: фиксируем состояние "пустой проект" ДО triggerPad —
         // первый клип в пустом проекте запускает глобальный цикл с этого
         // самого момента (transport стартует ниже).
         const wasEmptyProject = this.daw.isEmptyProject();
-        const result = this.daw.triggerPad(trackIdx, slot, now);
+        const result = this.daw.triggerPad(trackIdx, slot, now, { countIn: countIn && !this.daw.playing });
         let visualEvent = null;
         if (['play', 'record-stop', 'record', 'overdub'].includes(result.action)) {
             visualEvent = {
@@ -872,7 +936,8 @@ class MIDIRouterWorker {
             // Требование 1: первый клип в пустом проекте стартует глобальный
             // цикл (транспорт + MIDI clock) ровно с момента нажатия —
             // запись уже закреплена на beat 0 этого цикла.
-            if (!this.daw.playing && wasEmptyProject) {
+            if (!this.daw.playing && (countIn || wasEmptyProject)) {
+                this.daw.setMetronome(true);
                 this.daw.startTransport();
                 this._transportPlaying = true;
             }
@@ -892,7 +957,7 @@ class MIDIRouterWorker {
 
     _handleMappedPad(mapping, velocity, now) {
         // Clips toggle on a press. Releasing a pad must not end recording.
-        if (mapping && velocity > 0) this._triggerPad(mapping.trackIdx, mapping.slot, now);
+        if (mapping && velocity > 0) this._triggerPad(mapping.trackIdx, mapping.slot, now, { countIn: true });
     }
 
     // ---- External MIDI Clock slave (delegates to ExternalMidiClock) ----
@@ -969,10 +1034,8 @@ class MIDIRouterWorker {
         else if (action === 'stop') this.handleDawControl({ type: 'daw_stop_transport' });
         else if (action === 'loop') this.handleDawControl({ type: 'daw_toggle_loop' });
         else if (action === 'record') {
-            // Rec Arm: нажатие сбрасывает все клипы в ноль и возвращает Mode = Play.
-            // Отпускание — без действия, чтобы не переключать
-            // режимы при каждом CC release.
-            if (pressed) this.handleDawControl({ type: 'daw_reset_arm_record' });
+            // Session Record toggles recording without clearing existing clips.
+            if (pressed) this.handleDawControl({ type: 'daw_toggle_session_record' });
         }
     }
 
@@ -1399,6 +1462,30 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            case 'daw_toggle_session_record': {
+                if (daw.sessionRecording || daw.recording) {
+                    daw.sessionRecording = false;
+                    if (daw.recording && daw.playing) {
+                        this._scheduleRecordingStop({ stopTransport: false });
+                    } else if (daw.recording) {
+                        const recording = daw.recording;
+                        daw._stopRecording(daw._beatAt(performance.now()), true);
+                        daw.quantizeClip(recording.track, recording.slot);
+                        this._clearStaleRecordingFeedback();
+                        this._refreshPadLeds();
+                    }
+                } else {
+                    daw.sessionRecording = true;
+                    daw.setMetronome(true);
+                    if (!daw.playing) {
+                        daw.startTransport();
+                        this._transportPlaying = true;
+                    }
+                }
+                this._syncPadClock();
+                this._broadcastState();
+                break;
+            }
             case 'daw_set_slots':
                 daw.setSlotsPerTrack(msg.n);
                 this._broadcastState();
@@ -1415,7 +1502,7 @@ class MIDIRouterWorker {
                 }
                 break;
             case 'daw_pad_trigger':
-                this._triggerPad(msg.trackIdx, msg.slot, performance.now());
+                this._triggerPad(msg.trackIdx, msg.slot, performance.now(), { countIn: true });
                 break;
             case 'daw_apply_state':
                 if (msg.state.tempo != null) daw.setTempo(msg.state.tempo);
@@ -1467,6 +1554,11 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             case 'daw_stop_transport':
+                if (daw.recording && daw.playing) {
+                    if (this._externalClockActive) this._externalTransportState = false;
+                    this._scheduleRecordingStop({ stopTransport: true });
+                    break;
+                }
                 if (this._externalClockActive) this._externalTransportState = false;
                 if (this._transportPlaying) {
                     daw.stopTransport();
@@ -1574,14 +1666,20 @@ class MIDIRouterWorker {
             clearTimeout(this._externalClockTimeout);
             this._externalClockTimeout = null;
         }
+        if (this._recordingStopTimer) {
+            clearTimeout(this._recordingStopTimer);
+            this._recordingStopTimer = null;
+        }
+        this.daw?._stopMetronome();
+        this.metronomeCtrl?.kill();
 
         for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
         this._stopPadClock();
-        for (const [, input] of this.inputs) {
+        for (const [, input] of this.inputs || []) {
             if (input._handler) input.off('message', input._handler);
             try { input.closePort(); } catch(e) {}
         }
-        for (const [, output] of this.outputs) {
+        for (const [, output] of this.outputs || []) {
             try { output.closePort(); } catch(e) {}
         }
         // Close persistent enumeration objects
@@ -1654,10 +1752,14 @@ class MIDIRouterWorker {
             const file = path.join(this._sessionsDir(), `${name}.json`);
             const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 
-            // Останавливаем всё перед загрузкой: проигрывание и запись.
+            // Останавливаем clip playback before restoring session content.
             for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
-            this.daw.resetAllClips();
+            if (this._recordingStopTimer) {
+                clearTimeout(this._recordingStopTimer);
+                this._recordingStopTimer = null;
+            }
             this.daw.loadData(data);
+            this._transportPlaying = false;
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
             this._syncPadClock();
