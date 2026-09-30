@@ -1036,6 +1036,11 @@ class MIDIRouterWorker {
                 const beat = (this._externalMidiClock.tickCount % loopTicks) / 24;
                 this.daw._playAnchorTime = now - beat * this.daw._secondsPerBeat() * 1000;
                 this.daw._currentBeat = beat;
+                // Drive the metronome directly from each F8 tick so it stays
+                // perfectly locked to the external clock source.
+                if (this.daw._metronomeEnabled) {
+                    this.daw._metronomeTick();
+                }
                 this._tickExternalClipPlayback(this._externalMidiClock.tickCount);
 
                 // Publish live tempo/phase to UI when the external master

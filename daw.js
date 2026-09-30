@@ -72,6 +72,7 @@ class DAWEngine {
         this._currentMetronomeNote = null;     // sustained pre-record click note being held (legacy)
         this._metronomeAnchorTime = 0;         // anchor for free-running pre-record timing
         this._metronomeNoteOffTimer = null;    // scheduled Note Off timer from _emitMetronomeClick
+        this._metronomeBeatInMeasure = -1;     // external-clock beat tracker (F8-driven)
 
         // Callback fired as soon as a recording session begins. Kept as an
         // extension point; the worker leaves the metronome running for count-in.
@@ -203,92 +204,56 @@ class DAWEngine {
     _startMetronome() {
         if (this._metronomeTimer) return;
         this._onMetronomeStart(this.tempo, this._metronomeBeatsPerMeasure);
-        const self = this;
-        let beatInMeasure = -1;
 
-        // When an external master is the selected clock source, the metronome
-        // must be phase-aligned to that master's 24 PPQN tick grid — not an
-        // independent BPM scheduler. The worker's _handleMidiClock refreshes
-        // _playAnchorTime on every F8 tick; we derive the current cycle beat
-        // from it directly instead of relying on the separately polled
-        // _currentBeat, which lags by a poll interval.
-        this._metronomeTimer = setInterval(() => {
-            let tickInMeasure, isAccent;
+        // When external clock is active the metronome tick is driven from the
+        // worker's _handleMidiClock on every F8 tick (24 PPQN).  For internal
+        // clock we fall back to a setInterval that follows _playAnchorTime.
+        if (this._externalClock) {
+            // External-clock path: metronome is driven synchronously from each
+            // incoming MIDI clock tick.  The worker calls `this._metronomeTick`
+            // on every F8.  We just store the callback and a beat tracker.
+            this._metronomeBeatInMeasure = -1;
+        } else {
+            const self = this;
+            let beatInMeasure = -1;
 
-            if (this.playing) {
-                // Normal transport-synced path: stop with the transport.
-                if (!this.playing) {
-                    this._stopMetronome();
-                    return;
-                }
+            this._metronomeTimer = setInterval(() => {
+                if (!this.playing) { this._stopMetronome(); return; }
 
-                if (this._externalClock) {
-                    // Derive the current cycle beat from _currentBeat which
-                    // is updated by _handleMidiClock on every F8 tick. This
-                    // avoids relying on _playAnchorTime (which resets when
-                    // the loop wraps and would stall the metronome).
-                    const cb = this._currentBeat;
-                    if (cb != null && cb >= 0) {
-                        tickInMeasure = Math.floor(cb);
-                    } else {
-                        const elapsed = performance.now() - this._playAnchorTime;
-                        tickInMeasure = Math.floor((elapsed / this._secondsPerBeatMs()) % this.loopLenBeats);
-                    }
-
-                    // Downbeat = first beat of each measure, not just the start
-                    // of the (possibly multi-bar) global clip cycle.
-                    isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
-                } else {
-                    // Internal clock: BPM-driven beat scheduler (unchanged path).
-                    const elapsed = performance.now() - this._playAnchorTime;
-                    const currentBeatFloat = elapsed / this._secondsPerBeatMs();
-                    tickInMeasure = Math.floor(currentBeatFloat % this.loopLenBeats);
-                    isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
-                }
-
-                // Якщо перешли на новый бит — тикаем
-                if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
-                    // Акцент на первую долю такта (по новому биту)
-                    const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
-                    const vel = isAccent ? 100 : 70;
-                    this._emitMetronomeClick(note, vel);
-                    beatInMeasure = tickInMeasure;
-                }
-            } else if (this._isPreRecordMetronomeMode()) {
-                // Pre-record mode: metronome is enabled but transport is not
-                // running and every clip is empty.  Emit quarter-note pulses so
-                // the performer hears tempo while recording is still idle.
-                const elapsed = performance.now() - this._metronomeAnchorTime;
+                const elapsed = performance.now() - this._playAnchorTime;
                 const currentBeatFloat = elapsed / this._secondsPerBeatMs();
-                tickInMeasure = Math.floor(currentBeatFloat);
-                isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
-
-                // One-bar mode (after project reset): play exactly one full bar,
-                // then stop on its own.
-                if (this._preRecordOneBarRemainingBeats != null) {
-                    if (tickInMeasure >= this._metronomeBeatsPerMeasure ||
-                        this._preRecordOneBarRemainingBeats <= 0) {
-                        this._stopMetronome();
-                        return;
-                    }
-                }
+                const tickInMeasure = Math.floor(currentBeatFloat % this.loopLenBeats);
+                const isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
 
                 if (tickInMeasure !== beatInMeasure && tickInMeasure >= 0) {
                     const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
                     const vel = isAccent ? 100 : 70;
                     this._emitMetronomeClick(note, vel);
                     beatInMeasure = tickInMeasure;
-
-                    if (this._preRecordOneBarRemainingBeats != null) {
-                        this._preRecordOneBarRemainingBeats -= 1;
-                        // Let the last click's own Note Off timer finish before
-                        // tearing the scheduler down.
-                        const waitMs = Math.max(80, this._secondsPerBeatMs() * 0.15);
-                        setTimeout(() => { this._stopMetronome(); }, waitMs + 20);
-                    }
                 }
-            }
-        }, 10);
+            }, 10);
+        }
+    }
+
+    /**
+     * Called from worker._handleMidiClock on every F8 tick when external clock
+     * is active.  Determines the current quarter-note beat and emits a click
+     * whenever we cross into a new beat (accent on first beat of each measure).
+     */
+    _metronomeTick() {
+        if (!this.playing) return;
+        const cb = this._currentBeat;
+        if (cb == null || cb < 0) return;
+
+        const tickInMeasure = Math.floor(cb);
+        const isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
+
+        if (tickInMeasure !== this._metronomeBeatInMeasure && tickInMeasure >= 0) {
+            const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
+            const vel = isAccent ? 100 : 70;
+            this._emitMetronomeClick(note, vel);
+            this._metronomeBeatInMeasure = tickInMeasure;
+        }
     }
 
     _secondsPerBeatMs() {
@@ -345,6 +310,7 @@ class DAWEngine {
             clearInterval(this._metronomeTimer);
             this._metronomeTimer = null;
         }
+        this._metronomeBeatInMeasure = -1;
         this._preRecordOneBarRemainingBeats = null;
         // Cancel any scheduled Note Off so a hard stop silences the click dead.
         if (this._metronomeNoteOffTimer) {
