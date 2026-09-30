@@ -264,6 +264,68 @@ test('daw_stop_transport finalizes an in-flight recording before clearing transp
     assert.deepEqual({ start: note.start, dur: note.dur }, { start: 0.2, dur: 0.25 });
 });
 
+// When two Note Ons on the same channel and pitch arrive while recording,
+// they must be paired FIFO — each Note Off consumes the oldest unmatched On.
+// Because MIDI Note Offs carry no per-note identity, repeated identical pitch/
+// channel starts should produce separate recorded notes (not overwrite).
+test('overlapping same-channel same-pitch Note Ons are paired FIFO', () => {
+    const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
+    daw.setRecordMode('replace');
+    daw.armTrack(0);
+
+    // Stub _beatAt so musical offsets are deterministic and independent of
+    // wall-clock time. The mutable holder lets us set the exact beat value
+    // that recordEvent observes for each injected event.
+    const beatHolder = { beat: 0 };
+    daw._beatAt = () => beatHolder.beat;
+
+    // Trigger pad at a fake anchor so recording.startTime is in the past;
+    // then advance beats to known positions.
+    const tAnchor = performance.now() - 3000;
+    daw.triggerPad(0, 0, tAnchor);
+    assert.ok(daw.recording, 'precondition: an in-flight recording is active');
+
+    // Inject two Note Ons at beat 0.5 and 1.0 (same channel 1, pitch 60).
+    beatHolder.beat = 0.5;
+    daw.recordEvent(0x90, 60, 100, tAnchor + 3000); // first On at beat 0.5
+
+    beatHolder.beat = 1.0;
+    daw.recordEvent(0x90, 60, 127, tAnchor + 3500); // second On at beat 1.0
+
+    // Inject two Note Offs at beat 1.5 and 2.0.
+    beatHolder.beat = 1.5;
+    daw.recordEvent(0x80, 60, 0, tAnchor + 3750);   // first Off -> closes On@0.5
+
+    beatHolder.beat = 2.0;
+    daw.recordEvent(0x80, 60, 0, tAnchor + 4000);   // second Off -> closes On@1.0
+
+    // Finalize any remaining open notes (none in this scenario, but verify the
+    // finalization path doesn't crash and that noteStarts is emptied).
+    daw.triggerPad(0, 0, tAnchor + 4500);
+
+    const clip = daw.tracks[0].clips[0];
+    assert.equal(daw.recording, null, 'recording must be finalized');
+    assert.equal(clip.notes.length, 2, 'must record two notes from FIFO-paired starts');
+
+    // First note: start=0.5 dur=1.0 (beat 1.5 - beat 0.5)
+    const n0 = clip.notes[0];
+    assert.deepEqual({ channel: n0.channel, note: n0.note, velocity: n0.velocity, start: n0.start },
+        { channel: 1, note: 60, velocity: 100, start: 0.5 });
+
+    // Second note: start=1.0 dur=1.0 (beat 2.0 - beat 1.0)
+    const n1 = clip.notes[1];
+    assert.deepEqual({ channel: n1.channel, note: n1.note, velocity: n1.velocity, start: n1.start },
+        { channel: 1, note: 60, velocity: 127, start: 1.0 });
+
+    // Verify durations (both should be 1.0 beat).
+    assert.equal(n0.dur, 1.0, 'first note duration = beat 1.5 - beat 0.5');
+    assert.equal(n1.dur, 1.0, 'second note duration = beat 2.0 - beat 1.0');
+
+    // Verify no open starts remain after finalization.
+    assert.ok(clip.notes.length === 2 && daw.tracks[0].clips[0] !== undefined);
+});
+
+
 // Stored note timing is rounded to the nearest hundredth of a beat whenever a
 // Note Off closes a note during recording — including non-exact timestamps.
 test('note off rounds stored start and duration to two decimal places', () => {
@@ -378,4 +440,33 @@ test('pad LED: last-activated blinks, other playing are steady, stopped recorded
     worker.daw.recording = { track: 0, slot: 1, notes: [] };
     worker._refreshPadLeds(0, 1);
     assert.deepEqual(sent[sent.length - 1], [0x91, 96, 5], 'recording pad lights red (vel 5)');
+});
+
+
+// When transport/record stops while a note is held, the finalization in
+// DAWEngine._stopRecording(endBeat) must derive each open note's duration from
+// the actual stop beat, not from a hardcoded constant. A note started at beat 1
+// and stopped at beat 3 must end with dur: 2 (the span), preserving pitch,
+// channel and velocity.
+test('_stopRecording derives sustained-note duration from the actual stop beat', () => {
+    const daw = new DAWEngine();
+
+    // Deterministic fixture: set up the recording state directly so that a
+    // single sustained note started at beat 1 is captured exactly.
+    daw.recording = {
+        track: 0,
+        slot: 0,
+        startBeat: 0,
+        notes: daw.tracks[0].clips[0].notes,
+        noteStarts: new Map([['note:1:60', [{ channel: 1, velocity: 100, beat: 1 }]]]),
+    };
+
+    // Stop the transport/recording at beat 3 (two beats after the note started).
+    daw._stopRecording(3, true);
+
+    const clip = daw.tracks[0].clips[0];
+    assert.equal(daw.recording, null, 'recording must be finalized/cleared');
+    assert.deepEqual(clip.notes.map(n => ({ channel: n.channel, note: n.note, velocity: n.velocity, start: n.start, dur: n.dur })),
+        [{ channel: 1, note: 60, velocity: 100, start: 1, dur: 2 }],
+        'sustained note stopped at beat 3 must have dur from the actual stop beat (3 - 1 = 2), not a hardcoded value');
 });

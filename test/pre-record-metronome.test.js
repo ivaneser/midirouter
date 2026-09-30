@@ -406,6 +406,9 @@ test('metronome click events never reach connected MIDI synth outputs', async ()
     } finally {
         // Clean up timers on the DAW engine so the test exits promptly.
         cleanupDaw(daw);
+        // Kill the Python metronome subprocess — otherwise Node's event loop
+        // stays alive and the whole test suite hangs on exit.
+        worker.metronomeCtrl?.kill();
         // Release any held mock output references (defensive).
         worker.outputs.clear();
     }
@@ -486,6 +489,8 @@ test('first empty-clip trigger keeps count-in audio local and sends no MIDI clic
             'the metronome must remain active through the count-in');
     } finally {
         cleanupDaw(worker.daw);
+        // Kill the Python metronome subprocess so Node exits cleanly.
+        worker.metronomeCtrl?.kill();
         worker.outputs.clear();
         worker.controllerEngine.isExcludedOutput = originalIsExcluded;
     }
