@@ -508,21 +508,21 @@ class MIDIRouterWorker {
         }
 
         // Legato launch: a filled clip launched mid-bar waits for the nearest
-        // upcoming transport downbeat, then plays every event from its own beat 0.
+        // upcoming transport cycle start, then plays every event from its own beat 0.
         const transportBeat = this.daw.playing
             ? ((now - this.daw._playAnchorTime) / 1000) / this.daw._secondsPerBeat()
             : 0;
-        // Wait for the next 4/4 downbeat from the transport phase (not clip length).
-        // A launch exactly on a downbeat (phase 0 modulo 4) fires immediately.
-        const barPhase = ((transportBeat % 4) + 4) % 4;
-        const beatsToDownbeat = barPhase < 1e-9 ? 0 : 4 - barPhase;
-        const barDelay = beatsToDownbeat * msPerBeat;
+        // Wait for the next global cycle start (loopLenBeats). A launch exactly on a
+        // cycle boundary fires immediately.
+        const loopLen = this.daw.loopLenBeats || 4;
+        const cyclePhase = ((transportBeat % loopLen) + loopLen) % loopLen;
+        const beatsToCycleStart = cyclePhase < 1e-9 ? 0 : loopLen - cyclePhase;
+        const barDelay = beatsToCycleStart * msPerBeat;
 
         for (const note of clip.notes) {
-            // Each event is normalized to the clip's own length, offset from its beat 0,
-            // and repeats every clip.length.
-            const eventPhase = ((note.start % loopBeats) + loopBeats) % loopBeats;
-            let nextAt = now + barDelay + eventPhase * msPerBeat;
+            // Each event is stored relative to the clip's own beat 0, repeats every clip.length.
+            const eventOffset = ((note.start % loopBeats) + loopBeats) % loopBeats;
+            let nextAt = now + barDelay + eventOffset * msPerBeat;
             const channel = Math.max(1, note.channel || 1);
             const key = `${channel}:${note.note}`;
             const fire = () => {
@@ -948,10 +948,12 @@ class MIDIRouterWorker {
                 if (this.daw.playing) {
                     const spb = this.daw._secondsPerBeat();
                     const curBeat = ((now - this.daw._playAnchorTime) / 1000) / spb;
-                    const bar = Math.max(1, this.daw._metronomeBeatsPerMeasure);
-                    const nextBar = Math.ceil(curBeat / bar) * bar;
-                    delayMs = (nextBar - curBeat) * spb * 1000;
-                    // Если нажатие совпало с границей такта (<= 5 мс) — старт сразу.
+                    // Wait for the next global cycle start so all clips are phase-aligned.
+                    const loopLen = this.daw.loopLenBeats || 4;
+                    const cyclePhase = (curBeat % loopLen + loopLen) % loopLen;
+                    const beatsToCycleStart = cyclePhase < 1e-9 ? 0 : loopLen - cyclePhase;
+                    delayMs = beatsToCycleStart * spb * 1000;
+                    // Если нажатие совпало с границей цикла (<= 5 мс) — старт сразу.
                     if (delayMs <= 5) delayMs = 0;
                     startAt = now + delayMs;
                 }

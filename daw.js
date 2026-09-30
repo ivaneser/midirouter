@@ -569,7 +569,10 @@ class DAWEngine {
                     channel, note: data1, velocity: start.velocity,
                     // Минимальная длительность применяется ПЕРЕД округлением:
                     // 0.125 (минимум) -> 0.13; точное время -> nearest hundredth.
-                    start: roundBeats(start.beat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
+                    // Хранить относительно начала клипа (startBeat = 0), чтобы
+                    // playback всегда начинался с beat 0 независимо от того,
+                    // на каком бите глобального цикла началась запись.
+                    start: roundBeats(start.beat - this.recording.startBeat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
                 });
             }
             return true;
