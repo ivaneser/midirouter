@@ -114,15 +114,7 @@ class MIDIRouterWorker {
         // during the count-in, daw.stopTransport() cancels the timer and clears
         // _countInRunning, so this callback is never invoked for that take.
         const self = this;
-        this.daw._onCountInComplete = () => {
-            if (self.daw.recording == null) return;  // stale: recording was stopped during count-in
-            console.log('[DAW] Count-in complete — starting actual recording');
-            // Advance the effective start time so recordEvent() accepts notes now.
-            const now = performance.now();
-            self.daw.recording.startTime = now;
-            // The DAWEngine._beatAt uses startTime, so beats are now relative to
-            // when actual capture begins (after count-in).
-        };
+        this.daw._onCountInComplete = () => { self._handleCountInComplete(); };
 
         this.daw._onEvent = (evt) => {
             const bytes = evt.data;
@@ -822,7 +814,11 @@ class MIDIRouterWorker {
     //               — пульсирует;
     //   off     — пустой клип без записи.
     _padLedStateFor(trackIdx, slot) {
-        if (this.daw.recording && this.daw.recording.track === trackIdx && this.daw.recording.slot === slot) return 'recording';
+        // Count-in takes priority over recording LED while pending.
+        if (this.daw.recording && this.daw.recording.track === trackIdx && this.daw.recording.slot === slot) {
+            if (this.daw._countInRunning) return 'count-in';
+            return 'recording';
+        }
         const playing = this.daw.clipState[trackIdx] === slot;
         const clip = this.daw.tracks[trackIdx]?.clips?.[slot];
         if (playing) {
@@ -831,6 +827,19 @@ class MIDIRouterWorker {
         }
         if (clip && clip.notes.length > 0) return 'idle';
         return 'off';
+    }
+
+    // Production count-in completion handler — called via daw._onCountInComplete.
+    // Extracted from the constructor closure so test fixtures can invoke it
+    // directly (makeWorker wires the callback to this same method).
+    _handleCountInComplete() {
+        if (this.daw.recording == null) return;  // stale: recording was stopped during count-in
+        console.log('[DAW] Count-in complete — starting actual recording');
+        const now = performance.now();
+        this.daw.recording.startTime = now;
+        // Resend the physical LED feedback for this track/slot so the pad
+        // transitions from orange (count-in) to red (recording).
+        this._refreshPadLeds(this.daw.recording.track, this.daw.recording.slot);
     }
 
     // Обновляет LED для одного пэда (trackIdx/slot) или для всех пэдов
@@ -945,7 +954,7 @@ class MIDIRouterWorker {
         // первый клип в пустом проекте запускает глобальный цикл с этого
         // самого момента (transport стартует ниже).
         const wasEmptyProject = this.daw.isEmptyProject();
-        const result = this.daw.triggerPad(trackIdx, slot, now, { countIn: countIn && !this.daw.playing });
+        const result = this.daw.triggerPad(trackIdx, slot, now, { countIn });
         let visualEvent = null;
         if (['play', 'record-stop', 'record', 'overdub'].includes(result.action)) {
             visualEvent = {

@@ -459,28 +459,52 @@ class DAWEngine {
         let startBeat = 0;
         if (this.playing) {
             const spb = this._secondsPerBeat();
-            const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
-            // Only align to bar boundary when this pad press is the one that
-            // STARTS the transport (first clip in an empty project). In that
-            // case the new recording _is_ the cycle and must snap forward to
-            // its start. When transport is already running and we record into
-            // another slot, capture the live phase within the current global
-            // cycle — not from absolute transport start.
-            const isTransportStarter = this._globalCycleLocked === false;
-            if (isTransportStarter) {
-                const nextBar = Math.ceil(curBeat / bar) * bar;
-                let delayMs = (nextBar - curBeat) * spb * 1000;
-                // Если нажатие совпало с границей бара (<= 5 мс до неё) — старт
-                // именно в этот момент, без ожидания следующего такта.
-                if (delayMs <= 5) delayMs = 0;
-                startTime = now + delayMs;
+            // When count-in is requested during active transport:
+            //   - first pad on empty project → two complete bars (handled by the
+            //     caller setting _countInRunning before startTransport).
+            //   - subsequent pad on a non-empty project → snap to the NEXT bar
+            //     boundary so recording begins immediately after a short orange
+            //     pending state.
+            if (options.countIn) {
+                this._countInRunning = true;
+                this._countInGeneration++;
+                // First pad on empty project → two full bars of count-in.
+                // Subsequent pad on non-empty project → snap to next bar boundary.
+                if (!this.isEmptyProject()) {
+                    const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
+                    const nextBar = Math.ceil(curBeat / bar) * bar;
+                    let delayMs = (nextBar - curBeat) * spb * 1000;
+                    // If pressed within 5 ms of the boundary, start immediately.
+                    if (delayMs <= 5) delayMs = 0;
+                    startTime = now + delayMs;
+                } else {
+                    // First pad on empty project → two full bars count-in.
+                    startTime = now + 2 * bar * spb * 1000;
+                }
             } else {
-                // Transport is already running and global cycle is locked:
-                // snap forward to the next bar boundary so each recording
-                // starts from beat 0 of its bar — all clips stay phase-aligned.
-                const curCycleBeat = curBeat % this.loopLenBeats;
-                const nextBar = Math.ceil(curCycleBeat / bar) * bar;
-                startBeat = nextBar;
+                const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
+                // Only align to bar boundary when this pad press is the one that
+                // STARTS the transport (first clip in an empty project). In that
+                // case the new recording _is_ the cycle and must snap forward to
+                // its start. When transport is already running and we record into
+                // another slot, capture the live phase within the current global
+                // cycle — not from absolute transport start.
+                const isTransportStarter = this._globalCycleLocked === false;
+                if (isTransportStarter) {
+                    const nextBar = Math.ceil(curBeat / bar) * bar;
+                    let delayMs = (nextBar - curBeat) * spb * 1000;
+                    // Если нажатие совпало с границей бара (<= 5 мс до неё) — старт
+                    // именно в этот момент, без ожидания следующего такта.
+                    if (delayMs <= 5) delayMs = 0;
+                    startTime = now + delayMs;
+                } else {
+                    // Transport is already running and global cycle is locked:
+                    // snap forward to the next bar boundary so each recording
+                    // starts from beat 0 of its bar — all clips stay phase-aligned.
+                    const curCycleBeat = curBeat % this.loopLenBeats;
+                    const nextBar = Math.ceil(curCycleBeat / bar) * bar;
+                    startBeat = nextBar;
+                }
             }
         } else if (options.countIn || this.tracks[trackIdx].armed) {
             // Controller recording can request a two-bar count-in while the
@@ -501,6 +525,23 @@ class DAWEngine {
         // uses this to silence the pre-record metronome on the first empty-clip
         // trigger that begins recording (see worker-midi.js).
         this._onRecordingStarted(this);
+
+        // If transport is already running and we started a count-in from pad
+        // press, fire the timer now — startTransport() isn't called in this path
+        // so the timer won't be set there. The delay equals startTime - now (the
+        // computed bar-boundary offset), which is two full bars for the first-pad
+        // empty-project case and a short snap-to-next-bar delay for subsequent pads.
+        if (this.playing && this._countInRunning) {
+            const self = this;
+            let generation = ++self._countInGeneration;
+            const countInDelayMs = startTime - now;
+            self._countInTimer = setTimeout(() => {
+                if (generation !== self._countInGeneration || !self._countInRunning) return;
+                self._countInTimer = null;
+                self._countInRunning = false;
+                self._onCountInComplete();
+            }, countInDelayMs);
+        }
     }
 
     _stopRecording(endBeat, closeHeldNotesAtEnd = false) {

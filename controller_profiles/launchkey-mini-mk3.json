@@ -23,6 +23,7 @@
       "active": [144, "$number", 37],
       "idle": [146, "$number", 37],
       "recording": [145, "$number", 5],
+      "count-in": [145, "$number", 9],
       "off": [128, "$number", 0]
     }
   }
