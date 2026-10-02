@@ -4,15 +4,18 @@
   Precise Raspberry Pi Metronome  (headphone output)
 =====================================================
 
-Generates sample-accurate metronome clicks and streams them to the
-standard audio output (3.5 mm headphone jack) via ALSA `aplay -M`.
+Generates sample-accurate metronome clicks triggered by authoritative DAW beat
+events.  Each incoming ``click`` command plays exactly one click through ALSA
+``aplay -M`` to the 3.5 mm headphone jack.  Continuous free-running playback is
+no longer used — beats are driven externally (internal or external clock).
 
 IPC Controls (via stdin)
 ------------------------
-    start         # Start playing clicks
+    start         # Start playing clicks (audio-ready; actual clicks come via ``click``)
     stop          # Stop playing clicks (silence)
-    bpm <n>       # Change BPM
+    bpm <n>       # Change BPM (stored for volume / accent calculations)
     beats <n>     # Change beats per measure
+    click         # Play one metronome click immediately
     status        # Print current status as JSON
     quit          # Stop and exit
 """
@@ -68,16 +71,16 @@ class Metronome:
         self.alsa_device = alsa_device or _default_alsa_device()
 
         self._running  = True      # process alive flag
-        self._playing  = False     # currently clicking?
+        self._playing  = False     # audio-ready (clicks accepted)?
         self._lock     = threading.Lock()
-        self._play_event = threading.Event()
         self._audio_process = None
         self._audio_generation = 0
-        self._samples_until_click = 0.0
-        self._beat_index = 0
+        self._last_click_time = 0.0
 
-        self._beat_vol = [self.volume if (i + 1) == self.accent else
-                          self.volume * 0.7 for i in range(self.beats)]
+        # Cached waveform for fast per-click emission.
+        self._normal_click = self._click_waveform(self.volume)
+        self._accent_click = self._click_waveform(
+            self.volume * (1.0 if self.accent == 1 else 0.7))
 
     # -- sample generation -------------------------------------------------
     def _click_waveform(self, amplitude: float) -> bytes:
@@ -91,39 +94,9 @@ class Metronome:
             data[i * 2 + 1] = (val >> 8) & 0xFF
         return bytes(data)
 
-    def _build_buffer(self, play: bool) -> bytes:
-        """Build BUFFER_SECS of audio. If play=False → silence."""
-        buffer_samples = int(BUFFER_SECS * SAMPLE_RATE)
-        out = bytearray(buffer_samples * 2)
-        if not play:
-            return bytes(out)
-
-        clicks_by_amp = {}
-        for amp in set(self._beat_vol):
-            clicks_by_amp[amp] = self._click_waveform(amp)
-
-        beat_interval_samples = SAMPLE_RATE * (60.0 / self.bpm)
-        sample_pos = self._samples_until_click
-        while sample_pos < buffer_samples:
-            amp = self._beat_vol[self._beat_index % self.beats]
-            click = clicks_by_amp[amp]
-            start = int(sample_pos * 2)
-            end = min(start + len(click), len(out))
-            for i in range(end - start):
-                cur = int.from_bytes(out[start + i:start + i + 2], 'little', signed=True)
-                new = int.from_bytes(click[i:i + 2], 'little', signed=True)
-                mixed = max(-32768, min(32767, cur + new))
-                out[start + i] = mixed & 0xFF
-                out[start + i + 1] = (mixed >> 8) & 0xFF
-            sample_pos += beat_interval_samples
-            self._beat_index += 1
-        self._samples_until_click = sample_pos - buffer_samples
-
-        return bytes(out)
-
     def _write_wav(self, data: bytes) -> str:
         tmpdir = tempfile.gettempdir()
-        path = os.path.join(tmpdir, f"metronome_{os.getpid()}.wav")
+        path = os.path.join(tmpdir, f"metronome_{os.getpid()}_{id(data)}.wav")
         with wave.open(path, "w") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)
@@ -133,7 +106,7 @@ class Metronome:
 
     # -- playback loop (runs in its own thread) ---------------------------
     def _play_loop(self):
-        """Continuously stream buffers. Plays silence when not _playing."""
+        """Waits for click commands and streams them."""
         print("[metronome] Playback thread started", flush=True)
         while self._running:
             with self._lock:
@@ -143,15 +116,17 @@ class Metronome:
                 if not is_running:
                     break
             if not do_play:
-                self._play_event.wait(0.1)
-                self._play_event.clear()
+                time.sleep(0.05)
                 continue
+
+            # Check if there's a click to play (set by _emit_click_locked).
             with self._lock:
-                if not self._running or not self._playing:
+                click_data = getattr(self, '_pending_click', None)
+                if click_data is None:
                     continue
                 generation = self._audio_generation
-                data = self._build_buffer(do_play)
-            path = self._write_wav(data)
+
+            path = self._write_wav(click_data)
             try:
                 cmd = ["aplay", "-M",
                        "-D", self.alsa_device,
@@ -164,7 +139,7 @@ class Metronome:
                                            stderr=subprocess.DEVNULL)
                 with self._lock:
                     self._audio_process = process
-                    interrupted = generation != self._audio_generation or not self._running
+                    interrupted = generation != self._audio_generation
                 if interrupted:
                     process.terminate()
                 process.wait()
@@ -176,21 +151,45 @@ class Metronome:
                 with self._lock:
                     if self._audio_process is not None and self._audio_process.poll() is not None:
                         self._audio_process = None
+                    # Clear pending click after playback.
+                    self._pending_click = None
                 try:
                     os.remove(path)
                 except OSError:
                     pass
         print("[metronome] Playback thread exited", flush=True)
 
+    def _emit_click(self, is_accent: bool):
+        """Public API — emit one click. Chooses accent or normal waveform."""
+        with self._lock:
+            if not self._playing or not self._running:
+                return
+            # Skip duplicate clicks within 10 ms to avoid double-fires.
+            now = time.monotonic()
+            if now - self._last_click_time < 0.01:
+                return
+            self._last_click_time = now
+            click_data = self._accent_click if is_accent else self._normal_click
+            # If a previous click is still playing, interrupt it and queue the new one.
+            if getattr(self, '_pending_click', None) is not None:
+                self._interrupt_audio_locked()
+            self._pending_click = click_data
+            self._audio_generation += 1
+
+    def _interrupt_audio_locked(self):
+        process = self._audio_process
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+            except OSError:
+                pass
+
     # -- control API -------------------------------------------------------
     def start(self):
         with self._lock:
             if not self._playing:
                 self._playing = True
-                self._samples_until_click = 0.0
-                self._beat_index = 0
-                self._interrupt_audio_locked()
-                self._play_event.set()
+                self._last_click_time = 0.0
                 print(f"[metronome] START  BPM={self.bpm:.1f}  beats={self.beats}  accent={self.accent}  vol={self.volume:.2f}", flush=True)
             else:
                 print("[metronome] Already playing", flush=True)
@@ -199,10 +198,8 @@ class Metronome:
         with self._lock:
             if self._playing:
                 self._playing = False
-                self._samples_until_click = 0.0
-                self._beat_index = 0
+                self._pending_click = None
                 self._interrupt_audio_locked()
-                self._play_event.clear()
                 print("[metronome] STOP", flush=True)
             else:
                 print("[metronome] Already stopped", flush=True)
@@ -213,34 +210,23 @@ class Metronome:
             self._running = False
             self._playing = False
             self._interrupt_audio_locked()
-            self._play_event.set()
-
-    def _interrupt_audio_locked(self):
-        self._audio_generation += 1
-        process = self._audio_process
-        if process is not None and process.poll() is None:
-            try:
-                process.terminate()
-            except OSError:
-                pass
 
     def set_bpm(self, bpm: float):
         with self._lock:
             self.bpm = max(20.0, min(300.0, float(bpm)))
-            self._samples_until_click = 0.0
-            self._beat_index = 0
-            self._interrupt_audio_locked()
+            # Recache waveforms at the new volume scaling (BPM doesn't change
+            # waveform shape but we update for consistency).
+            self._normal_click = self._click_waveform(self.volume)
+            accent_vol = self.volume if self.accent == 1 else self.volume * 0.7
+            self._accent_click = self._click_waveform(accent_vol)
         print(f"[metronome] BPM → {self.bpm:.1f}", flush=True)
 
     def set_beats(self, beats: int):
         with self._lock:
             self.beats = max(1, int(beats))
             self.accent = min(self.accent, self.beats)
-            self._samples_until_click = 0.0
-            self._beat_index = 0
-            self._beat_vol = [self.volume if (i + 1) == self.accent else
-                              self.volume * 0.7 for i in range(self.beats)]
-            self._interrupt_audio_locked()
+            accent_vol = self.volume if self.accent == 1 else self.volume * 0.7
+            self._accent_click = self._click_waveform(accent_vol)
         print(f"[metronome] Beats → {self.beats}", flush=True)
 
     def status(self) -> dict:
@@ -270,6 +256,11 @@ def read_commands(metronome: Metronome):
                 metronome.start()
             elif cmd == "stop":
                 metronome.stop()
+            elif cmd == "click":
+                # Determine accent from beat index — default to normal (beat 1).
+                # The controller sends the is_accent flag as an optional arg.
+                is_accent = len(parts) >= 2 and parts[1].lower() in ('1', 'true', 'yes')
+                metronome._emit_click(is_accent)
             elif cmd == "bpm" and len(parts) >= 2:
                 try:
                     metronome.set_bpm(float(parts[1]))

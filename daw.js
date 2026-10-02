@@ -65,7 +65,7 @@ class DAWEngine {
 
         // Metronome / click track
         this._metronomeEnabled = false;
-        this._preRecordOneBarRemainingBeats = null; // one-bar mode after project reset
+        this._preRecordTwoBarRemainingBeats = null; // two-bar mode after project reset
         this._metronomeTimer = null;
         this._metronomeNote = 57;          // default click note — A3 on off-beats (MIDI 57)
         this._metronomeAccentNote = 60;   // downbeat click — C4 on first beat of measure (MIDI 60)
@@ -96,6 +96,12 @@ class DAWEngine {
 
         // Global cycle: true after the first completed recording locks loopLenBeats.
         this._globalCycleLocked = false;
+
+        // Two-bar count-in flag for first empty-clip recording start.
+        this._countInRunning = false;
+        this._countInTimer = null;          // pending setTimeout — canceled on stop
+        this._countInGeneration = 0;
+        this._onCountInComplete = () => {};
     }
 
     _makeClips() {
@@ -219,9 +225,14 @@ class DAWEngine {
             let beatInMeasure = -1;
 
             this._metronomeTimer = setInterval(() => {
-                if (!this.playing) { this._stopMetronome(); return; }
+                // Pre-record mode ticks even when transport is stopped so the performer
+                // hears tempo before recording.  Once playing, only tick while active.
+                if (!this.playing && !this._isPreRecordMetronomeMode()) { this._stopMetronome(); return; }
 
-                const elapsed = performance.now() - this._playAnchorTime;
+                // In transport mode _playAnchorTime is non-zero and authoritative;
+                // fall back to the free-running pre-record anchor when stopped.
+                const anchor = this._playAnchorTime || this._metronomeAnchorTime;
+                const elapsed = performance.now() - anchor;
                 const currentBeatFloat = elapsed / this._secondsPerBeatMs();
                 const tickInMeasure = Math.floor(currentBeatFloat % this.loopLenBeats);
                 const isAccent = (tickInMeasure % this._metronomeBeatsPerMeasure === 0);
@@ -230,6 +241,10 @@ class DAWEngine {
                     const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
                     const vel = isAccent ? 100 : 70;
                     this._emitMetronomeClick(note, vel);
+                    // Drive the actual audio click for this authoritative beat.
+                    if (this._onAudioBeat) {
+                        this._onAudioBeat(isAccent);
+                    }
                     beatInMeasure = tickInMeasure;
                 }
             }, 10);
@@ -253,6 +268,10 @@ class DAWEngine {
             const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
             const vel = isAccent ? 100 : 70;
             this._emitMetronomeClick(note, vel);
+            // Drive the actual audio click for this authoritative beat.
+            if (this._onAudioBeat) {
+                this._onAudioBeat(isAccent);
+            }
             this._metronomeBeatInMeasure = tickInMeasure;
         }
     }
@@ -286,10 +305,18 @@ class DAWEngine {
     }
 
     _isPreRecordMetronomeMode() {
-        // Pre-record metronome runs only while transport is idle and every clip
-        // on every track is empty — i.e. no recording has begun yet.
-        if (this.recording) return false;
+        if (this._countInRunning) return true;  // explicit flag wins
+        // Recording was created with a future startTime — still in count-in delay.
+        if (this.recording && this.recording.startTime > performance.now()) return true;
+        // While transport is stopped, pre-record mode stays active as long as
+        // every clip is empty (the in-flight recording's notes are not committed
+        // to the clip until _stopRecording finishes).  This keeps the metronome
+        // ticking through the entire count-in window.
         return this.isEmptyProject();
+    }
+
+    _secondsPerBeat() {
+        return 60 / this.tempo;
     }
 
     // True while every clip of every track/slot is empty ("пустой проект").
@@ -312,7 +339,8 @@ class DAWEngine {
             this._metronomeTimer = null;
         }
         this._metronomeBeatInMeasure = -1;
-        this._preRecordOneBarRemainingBeats = null;
+        this._preRecordTwoBarRemainingBeats = null;
+        this._countInRunning = false;
         // Cancel any scheduled Note Off so a hard stop silences the click dead.
         if (this._metronomeNoteOffTimer) {
             clearTimeout(this._metronomeNoteOffTimer);
@@ -340,12 +368,14 @@ class DAWEngine {
         if (['none', 'replace', 'overdub'].includes(mode)) {
             this.recordMode = mode;
         }
+        // Clear count-in on any mode change to avoid stale state.
+        this._countInRunning = false;
     }
 
     // Полный сброс: все клипы всех треков/слотов в ноль (пустые ноты,
     // длина 1 такт), закрыть активную запись и снять playing-состояние.
     // Готовит сессию для новой записи "с чистого листа". После обнуления
-    // метроном автоматически запускается на ОДИН полный такт или до
+    // метроном автоматически запускается на ДВА полных такта или до
     // завершения этого такта (ограничение внутри _startMetronome).
     resetAllClips() {
         this._stopRecording();
@@ -359,10 +389,10 @@ class DAWEngine {
         this.clipState.fill(-1);
         if (!this.playing) {
             // Перезапуск: если pre-record метроном уже тикал, сбрасываем
-            // его таймер и якорь — новый счётчик идёт ровно на один такт.
+            // его таймер и якорь — новый счётчик идёт ровно на два такта.
             this._stopMetronome();
             this._metronomeEnabled = true;
-            this._preRecordOneBarRemainingBeats = Math.max(1, this._metronomeBeatsPerMeasure);
+            this._preRecordTwoBarRemainingBeats = Math.max(2, 2 * this._metronomeBeatsPerMeasure);
             this._metronomeAnchorTime = performance.now();
             this._startMetronome();
         }
@@ -415,7 +445,7 @@ class DAWEngine {
         // время. Выравнивание достигается сдвигом startTime вперёд до границы:
         //   - транспорт играет → delay = (ceil(curBeat/bar)*bar - curBeat) * spb;
         //     если нажатие совпало с границей бара (<= 5 мс) — delay = 0;
-        //   - транспорт стоит и трек armed → count-in на один полный такт;
+        //   - транспорт стоит и трек armed → count-in на ДВА полных такта;
         //     иначе запись начинается немедленно.
         // _beatAt(now) использует startTime, поэтому beat 0 записи
         // соответствует моменту начала следующего такта. Якорь транспорта
@@ -453,9 +483,9 @@ class DAWEngine {
                 startBeat = nextBar;
             }
         } else if (options.countIn || this.tracks[trackIdx].armed) {
-            // Controller recording can request a one-bar count-in while the
+            // Controller recording can request a two-bar count-in while the
             // transport is stopped. The worker starts transport at pad press.
-            startTime = now + bar * this._secondsPerBeat() * 1000;
+            startTime = now + 2 * bar * this._secondsPerBeat() * 1000;
         }
         this.recording = {
             track: trackIdx,
@@ -626,7 +656,7 @@ class DAWEngine {
         }
 
         // (2) Пустой клип — всегда запись (дефолт), любой Mode.
-        if (clip.notes.length === 0) {
+        if (clip.notes.length === 0 && !this._countInRunning) {
             this.armRecording(trackIdx, slot, now, options); // stops any other take
             return { action: 'record', track: trackIdx, slot };
         }
@@ -672,13 +702,37 @@ class DAWEngine {
 
     startTransport() {
         if (this.playing) return;
+        // Preserve count-in flag through the metronome stop/start cycle so the
+        // two-bar timeout fires after transport starts.
+        const wasCountIn = this._countInRunning;
         // Если pre-record метроном уже тикает — сбрасываем его, чтобы
         // транспортный метроном стартовал с чистого якоря.
         this._stopMetronome();
+        if (wasCountIn) { this._countInRunning = true; }
         this.playing = true;
         this._currentBeat = 0;
         this._playAnchorTime = performance.now();
         this._lastProgressBeat = 0;
+
+        // Два такта count-in: задержка фактической записи перед захватом.
+        if (this._countInRunning) {
+            const self = this;
+            let generation = ++self._countInGeneration;
+            const barMs = 2 * self._metronomeBeatsPerMeasure * self._secondsPerBeat() * 1000;
+            self._countInTimer = setTimeout(() => {
+                // Guard against a canceled/stale timer: the token must still be
+                // the current generation AND _countInRunning must not have been
+                // cleared by stopTransport(). A late completion after stop is
+                // therefore impossible.
+                if (generation !== self._countInGeneration || !self._countInRunning) return;
+                self._countInTimer = null;
+                self._countInRunning = false;
+                // Notify worker that count-in is over — it will advance the
+                // recording's startTime to begin actual capture.
+                self._onCountInComplete();
+            }, barMs);
+        }
+
         this._onProgress(0, 0, {
             playing: true,
             barStart: true,
@@ -715,13 +769,30 @@ class DAWEngine {
             this._midiClock.start();
         }
     }
-
     stopTransport() {
         this.playing = false;
         if (this._playLoopTimer) clearInterval(this._playLoopTimer);
         this._playLoopTimer = null;
         this._currentBeat = 0;
         this._lastProgressBeat = null;
+        // Cancel the pending two-bar count-in timer so a late completion callback
+        // cannot fire after stop and mutate state (or restart a fresh pad).
+        if (this._countInTimer) {
+            clearTimeout(this._countInTimer);
+            this._countInTimer = null;
+            // If a count-in was pending, the recording session was created for
+            // a future start — cancel it so daw.recording is null. This only
+            // affects in-flight count-in takes, not ordinary active recordings.
+            if (this.recording != null) {
+                this._stopRecording();
+            }
+        }
+
+        // For normal non-count-in stops: do NOT touch recording state — the user
+        // may still be actively recording into a clip and will stop that session
+        // separately via triggerPad or _stopRecording.
+
+        this._countInRunning = false;
         this._onProgress(0, 0, {
             playing: false,
             barStart: false,

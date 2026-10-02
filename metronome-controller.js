@@ -35,6 +35,7 @@ export class MetronomeController {
             error: [],
             output: []
         };
+        this._beatIndex = 0; // tracks beat position for accent calculation
 
         // Check if aplay is available
         this._audioAvailable = this._checkAudio();
@@ -208,6 +209,37 @@ export class MetronomeController {
                 resolve(false);
             }
         });
+    }
+
+    /**
+     * Trigger a single audio click for the current authoritative beat.
+     * The Python metronome plays it immediately — no independent timer.
+     * @param {boolean} isAccent - true if this is the downbeat of a measure.
+     */
+    triggerBeat(isAccent = false) {
+        if (!this._process || !this._pid || !this._running) return;
+        try {
+            // Beat 0 (first beat of measure) is always accent, otherwise check flag.
+            const beatNum = this._beatIndex % this.beats;
+            const shouldAccent = isAccent || beatNum === 0;
+            this._process.stdin.write(`click ${shouldAccent ? '1' : '0'}\n`);
+        } catch (e) {
+            console.warn(`[METRONOME] Failed to trigger beat: ${e.message}`);
+        }
+    }
+
+    /**
+     * Advance the internal beat counter (called after each authoritative beat).
+     */
+    advanceBeat() {
+        this._beatIndex++;
+    }
+
+    /**
+     * Reset the beat index (on stop / transport reset).
+     */
+    resetBeatIndex() {
+        this._beatIndex = 0;
     }
 
     /**

@@ -69,12 +69,6 @@ class MIDIRouterWorker {
                 this._audioMetronomeAvailable = false;
             });
         }
-        if (this._audioMetronomeAvailable) {
-            this.metronomeCtrl.start().catch((error) => {
-                console.warn(`[METRONOME] Audio process unavailable: ${error.message}`);
-                this._audioMetronomeAvailable = false;
-            });
-        }
         this.daw._onMetronomeStart = (bpm, beats) => {
             if (!this._audioMetronomeAvailable) return;
             this.metronomeCtrl.setBpm(bpm);
@@ -84,7 +78,10 @@ class MIDIRouterWorker {
             });
         };
         this.daw._onMetronomeStop = () => {
-            if (this._audioMetronomeAvailable) this.metronomeCtrl.stop();
+            if (this._audioMetronomeAvailable) {
+                this.metronomeCtrl.stop();
+                this.metronomeCtrl.resetBeatIndex();
+            }
         };
         this.daw._onMetronomeTempo = (bpm) => {
             if (this._audioMetronomeAvailable) this.metronomeCtrl.setBpm(bpm);
@@ -92,15 +89,40 @@ class MIDIRouterWorker {
         this.daw._onMetronomeMeter = (beats) => {
             if (this._audioMetronomeAvailable) this.metronomeCtrl.setBeats(beats);
         };
+        // Per-beat audio click: every authoritative DAW beat triggers a real
+        // audio click through the Python metronome.  No independent timer —
+        // clicks only happen when the DAW says so (internal or external clock).
+        this.daw._onAudioBeat = (isAccent) => {
+            if (!this._audioMetronomeAvailable) return;
+            this.metronomeCtrl.triggerBeat(isAccent);
+            this.metronomeCtrl.advanceBeat();
+        };
 
         const origSetTempo = this.daw.setTempo.bind(this.daw);
         this.daw.setTempo = (bpm) => {
             origSetTempo(bpm);
         };
 
-        // Keep the click audible through the full one-bar count-in. Individual
+        // Keep the click audible through the full two-bar count-in. Individual
         // click note-offs are managed by DAWEngine.
         this.daw._onRecordingStarted = () => {};
+
+        // Two-bar count-in: after transport starts on first empty-clip trigger,
+        // start actual recording once the count-in completes. The recording state
+        // already exists from armRecording — we just advance startTime to "now" so
+        // recordEvent() will accept incoming notes immediately.  If the user stops
+        // during the count-in, daw.stopTransport() cancels the timer and clears
+        // _countInRunning, so this callback is never invoked for that take.
+        const self = this;
+        this.daw._onCountInComplete = () => {
+            if (self.daw.recording == null) return;  // stale: recording was stopped during count-in
+            console.log('[DAW] Count-in complete — starting actual recording');
+            // Advance the effective start time so recordEvent() accepts notes now.
+            const now = performance.now();
+            self.daw.recording.startTime = now;
+            // The DAWEngine._beatAt uses startTime, so beats are now relative to
+            // when actual capture begins (after count-in).
+        };
 
         this.daw._onEvent = (evt) => {
             const bytes = evt.data;
@@ -907,6 +929,11 @@ class MIDIRouterWorker {
     }
 
     _triggerPad(trackIdx, slot, now, { countIn = false } = {}) {
+        // During an active count-in, ignore pad presses (except stop via transport).
+        if (this.daw._countInRunning) {
+            return { action: 'count-in', track: trackIdx, slot };
+        }
+
         // A repeated press requests a stop at the next bar, keeping any held
         // notes recordable until the musical boundary is reached.
         if (this.daw.recording?.track === trackIdx && this.daw.recording?.slot === slot
@@ -980,6 +1007,16 @@ class MIDIRouterWorker {
             // запись уже закреплена на beat 0 этого цикла.
             if (!this.daw.playing && (countIn || wasEmptyProject)) {
                 this.daw.setMetronome(true);
+                // Flag count-in BEFORE startTransport so the bar-delayed timer
+                // fires inside startTransport (which stops/restarts metronome).
+                if (wasEmptyProject) {
+                    this.daw._countInRunning = true;
+                    console.log('[DAW] Count-in started: 2 bars before recording');
+                }
+                this.daw.startTransport();
+                this._transportPlaying = true;
+
+            } else {
                 this.daw.startTransport();
                 this._transportPlaying = true;
             }
@@ -1498,7 +1535,7 @@ class MIDIRouterWorker {
                     daw.stopTransport();
                     this._transportPlaying = false;
                 }
-                // resetAllClips сам запускает метроном ровно на один такт
+                // resetAllClips сам запускает метроном ровно на два такта
                 // (требование 4): до первой записи или до конца такта.
                 daw.resetAllClips();
                 daw.setRecordMode('none');
@@ -1602,6 +1639,15 @@ class MIDIRouterWorker {
                 break;
             case 'daw_stop_transport':
                 if (daw.recording && daw.playing) {
+                    // During a count-in, skip the bar-boundary deferred stop so
+                    // that pressing Play immediately halts transport (and the
+                    // audio metronome / count-in timer).  Active-recording stops
+                    // still defer to the nearest bar boundary.
+                    if (daw._countInRunning) {
+                        daw.stopTransport();
+                        this._transportPlaying = false;
+                        break;
+                    }
                     if (this._externalClockActive) this._externalTransportState = false;
                     this._scheduleRecordingStop({ stopTransport: true });
                     break;

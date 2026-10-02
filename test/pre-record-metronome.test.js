@@ -171,13 +171,125 @@ test('triggering an empty clip starts transport and keeps the count-in metronome
         assert.equal(result.action, 'record', 'empty clip trigger must begin recording');
         assert.ok(daw.recording != null, 'triggering an empty clip must create daw.recording');
         assert.ok(daw.playing, 'pad should start the transport for count-in');
-        assert.ok(daw.recording.startTime >= now + 1900,
-            'the take should begin one full bar after the pad press');
+        assert.ok(daw.recording.startTime >= now + 3900,
+            'the take should begin two full measures after the pad press');
         assert.ok(daw._metronomeTimer != null, 'audio metronome should stay active through count-in');
         assert.ok(events.length > 0, 'internal metronome visualization events should continue');
     } finally {
         daw.stopTransport();
         cleanupDaw(daw);
+    }
+});
+
+test('stopping during the two-bar count-in cancels the pending take and leaves no stale state', async () => {
+    const { daw, events } = makeDawWithCapturedEvents();
+    let completionFired = false;
+    // Simulate the worker's _onCountInComplete: it advances recording.startTime.
+    daw._onCountInComplete = () => {
+        completionFired = true;
+        if (daw.recording) daw.recording.startTime = performance.now();
+    };
+
+    try {
+        assert.equal(daw.playing, false);
+        assert.ok(daw.isEmptyProject(), 'project must start empty');
+
+        // Start a first empty-clip count-in through the existing production path:
+        // pad press (countIn) -> armRecording -> setMetronome(true) -> startTransport().
+        const now = performance.now();
+        daw.triggerPad(0, 0, now, { countIn: true });
+        assert.ok(daw.recording != null, 'first pad must create a recording session');
+        daw.setMetronome(true);
+        daw._countInRunning = true; // production path sets this before startTransport
+        daw.startTransport();
+        assert.ok(daw.playing, 'transport must be running during count-in');
+        assert.ok(daw._countInTimer != null, 'a pending count-in timer must exist');
+
+        // Stop well before the two-bar count-in deadline (~4000 ms at 120 BPM / 4/4).
+        await tick(500);
+        daw.stopTransport();
+
+        // Safe state after stopping during the count-in:
+        assert.equal(daw.playing, false, 'transport must be stopped');
+        assert.ok(daw._countInTimer == null, 'pending count-in timer must be canceled');
+        assert.equal(daw._countInRunning, false, 'count-in flag must be cleared');
+
+        // stopTransport with a pending _countInTimer calls _stopRecording -> recording is nulled.
+        assert.equal(daw.recording, null, 'canceled take must leave daw.recording === null');
+
+        // Wait well beyond the new ~4000 ms timeout: no stale completion callback.
+        await tick(4300);
+        assert.equal(completionFired, false,
+            'a late count-in completion must not fire after stop');
+
+        // No recording/count-in state left behind.
+        assert.equal(daw.playing, false);
+        assert.equal(daw._countInRunning, false);
+        assert.ok(daw.recording == null || daw.isEmptyProject(),
+            'no in-flight take must remain after a canceled count-in');
+
+        // Fresh pad attempt is accepted (not blocked by stale count-in state):
+        // empty clip + idle transport -> new recording with a future start.
+        const freshNow = performance.now();
+        const result = daw.triggerPad(0, 0, freshNow, { countIn: true });
+        assert.equal(result.action, 'record', 'a fresh pad attempt must be accepted');
+        assert.ok(daw.recording != null, 'fresh pad must create a new recording session');
+    } finally {
+        // Teardown registered before assertions; clear every timer/worker handle.
+        if (typeof daw.stopTransport === 'function') daw.stopTransport();
+        cleanupDaw(daw);
+        if (daw._countInTimer != null) {
+            clearTimeout(daw._countInTimer);
+            daw._countInTimer = null;
+        }
+    }
+});
+
+test('count-in completes normally when transport runs to bar end', async () => {
+    const { daw, events } = makeDawWithCapturedEvents();
+    let completionFired = false;
+    // Simulate the worker's _onCountInComplete: it advances recording.startTime.
+    daw._onCountInComplete = () => {
+        completionFired = true;
+        if (daw.recording) daw.recording.startTime = performance.now();
+    };
+
+    try {
+        assert.equal(daw.playing, false);
+        assert.ok(daw.isEmptyProject(), 'project must start empty');
+
+        // Start a count-in through the production path.
+        const now = performance.now();
+        daw.triggerPad(0, 0, now, { countIn: true });
+        assert.ok(daw.recording != null, 'first pad must create a recording session');
+        daw.setMetronome(true);
+        daw._countInRunning = true; // production path sets this before startTransport
+        daw.startTransport();
+        assert.ok(daw.playing, 'transport must be running during count-in');
+        assert.ok(daw._countInTimer != null, 'a pending count-in timer must exist');
+
+        // Let the full two-bar timeout elapse (~4000 ms at 120 BPM / 4/4).
+        await tick(4300);
+
+        // The completion callback must have fired.
+        assert.equal(completionFired, true, 'count-in completion must fire on time');
+        assert.ok(daw.recording != null, 'recording session must still exist after completion');
+        assert.ok(daw.recording.startTime <= performance.now() + 10,
+            'the recording start time was advanced by the completion callback');
+
+        // No stale timer remains.
+        assert.equal(daw._countInTimer, null, 'timer must be cleared on completion');
+        assert.equal(daw._countInRunning, false, 'count-in flag cleared after completion');
+
+        // Normal recording continues — stop it cleanly.
+        daw.stopTransport();
+    } finally {
+        if (typeof daw.stopTransport === 'function') daw.stopTransport();
+        cleanupDaw(daw);
+        if (daw._countInTimer != null) {
+            clearTimeout(daw._countInTimer);
+            daw._countInTimer = null;
+        }
     }
 });
 
@@ -408,6 +520,8 @@ test('metronome click events never reach connected MIDI synth outputs', async ()
         cleanupDaw(daw);
         // Release any held mock output references (defensive).
         worker.outputs.clear();
+        // Kill the spawned Python metronome process to prevent node from hanging.
+        if (worker.metronomeCtrl) worker.metronomeCtrl.kill();
     }
 });
 
@@ -487,6 +601,8 @@ test('first empty-clip trigger keeps count-in audio local and sends no MIDI clic
     } finally {
         cleanupDaw(worker.daw);
         worker.outputs.clear();
+        // Kill the spawned Python metronome process to prevent node from hanging.
+        if (worker.metronomeCtrl) worker.metronomeCtrl.kill();
         worker.controllerEngine.isExcludedOutput = originalIsExcluded;
     }
 });

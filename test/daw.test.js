@@ -279,11 +279,15 @@ test('overlapping same-channel same-pitch Note Ons are paired FIFO', () => {
     const beatHolder = { beat: 0 };
     daw._beatAt = () => beatHolder.beat;
 
-    // Trigger pad at a fake anchor so recording.startTime is in the past;
-    // then advance beats to known positions.
+    // Trigger pad at a fake anchor. The two-bar count-in pushes startTime into
+    // the future; overwrite it so injected events (sent after tAnchor) are
+    // accepted by the `now < recording.startTime` guard in recordEvent.
     const tAnchor = performance.now() - 3000;
     daw.triggerPad(0, 0, tAnchor);
     assert.ok(daw.recording, 'precondition: an in-flight recording is active');
+    // Align startTime to the synthetic timeline so _beatAt stub and FIFO logic
+    // work correctly without depending on wall-clock time.
+    daw.recording.startTime = tAnchor - 100;
 
     // Inject two Note Ons at beat 0.5 and 1.0 (same channel 1, pitch 60).
     beatHolder.beat = 0.5;

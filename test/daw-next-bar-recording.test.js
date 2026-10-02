@@ -32,7 +32,7 @@ function makeWorker(tempo = 120) {
 // ---------------------------------------------------------------------------
 // stopped-transport count-in regression (восстановлен из первоначальной
 // версии файла). Проверяет:
-//   - future startTime = base + 4 * spb (один полный такт от триггера);
+//   - future startTime = base + 8 * spb (ДВА полных такта от триггера);
 //   - MIDI до начала игнорируется;
 //   - Note On ровно в startTime и Note Off через 250 мс принимаются;
 //   - note.start = 0 (clip-local, beat 0.0), dur = 0.5 (250 ms при tempo 120).
@@ -56,9 +56,9 @@ test('count-in regression: future start boundary, pre-start MIDI ignored, Note O
     assert.equal(r1.action, 'record', 'armed empty pad starts recording');
     assert.ok(daw.recording, 'precondition: recording is active');
 
-    // Count-in start — future next-bar boundary (stopped transport → one full
-    // measure delay from trigger moment).
-    const expectedStartTime = base + 4 * msPerBeat; // one measure later
+    // Count-in start — future next-bar boundary (stopped transport → two full
+    // measures delay from trigger moment).
+    const expectedStartTime = base + 8 * msPerBeat; // two measures later
     assert.equal(
         daw.recording.startTime,
         expectedStartTime,
@@ -241,4 +241,72 @@ test('PATH 2: daw_stop_transport defers take finalization to nearest bar end (RE
     const expectedDur = Math.round((boundaryRecordingBeat - noteOnBeat) * 100) / 100;
     assert.equal(note.dur, expectedDur, 'note dur spans to nearest bar end');
     assert.ok(note.start >= 0 && note.start < 1, 'note start within [0, 1)');
+});
+
+
+// ---------------------------------------------------------------------------
+// Count-in regression — pressing Play during a count-in must stop transport
+// immediately (not defer to the bar boundary), cancel the pending count-in
+// timer, null daw.recording, and invoke _onMetronomeStop.
+// ---------------------------------------------------------------------------
+test('count-in: controller Play stops transport immediately, cancels pending count-in', async (t) => {
+    const metronomeStopped = [];
+
+    // Use the lightweight makeWorker helper — no real ALSA ports / Python process.
+    const worker = makeWorker(300);  // tempo=300 → 200 ms/beat; meter=1 → bar=1 beat ≈ 200 ms
+    const daw = worker.daw;
+    daw.setMetronomeBeatsPerMeasure(1);
+
+    t.after(() => {
+        if (daw.playing) daw.stopTransport();
+        try { worker.cleanup(); } catch (_) {}
+    });
+
+    // --- Start a recording on an empty pad with count-in. ---
+    daw.setRecordMode('replace');
+
+    // Intercept metronome / count-in callbacks so we can assert they fire.
+    let completionFired = false;
+    daw._onCountInComplete = () => { completionFired = true; };
+    daw._onAudioBeat = (isAccent) => {};
+
+    // Intercept _onMetronomeStop via the DAW callback chain.
+    const origOnMetronomeStop = daw._onMetronomeStop;
+    daw._onMetronomeStop = () => { metronomeStopped.push(true); };
+
+    const baseTime = performance.now();
+    const r1 = worker._triggerPad(0, 0, baseTime);
+    assert.equal(r1.action, 'record', 'empty pad starts recording');
+    assert.ok(daw.recording, 'precondition: recording is active');
+    assert.equal(daw._countInRunning, true, '_countInRunning must be set during count-in');
+
+    // --- Press Play immediately DURING the count-in (before timer fires). ---
+    const beforeStop = performance.now();
+    worker._handleProfileTransport('play', true);
+
+    // Assertions: immediate stop.
+    assert.equal(daw.playing, false, 'transport must be stopped immediately after Play during count-in');
+    assert.equal(worker._transportPlaying, false, '_transportPlaying cleared immediately');
+    assert.ok(
+        performance.now() - beforeStop < 100,
+        'stop operation should complete in under 100 ms',
+    );
+
+    // Recording must be null (count-in timer canceled + recording session destroyed).
+    assert.equal(daw.recording, null, 'recording cleared after immediate stop');
+
+    // Pending count-in timer must be null.
+    assert.equal(daw._countInTimer, null, '_countInTimer cleared on immediate stop');
+
+    // _onMetronomeStop must have been invoked (called by daw.stopTransport → _stopMetronome).
+    assert.ok(metronomeStopped.length > 0, 'metronome stopped callback was invoked');
+
+    // Count-in flag should be cleared.
+    assert.equal(daw._countInRunning, false, '_countInRunning cleared on immediate stop');
+
+    // Wait beyond two-bar deadline (2 × 200 ms = 400 ms) and verify no
+    // delayed completion fires (the _countInTimer must have been cleared).
+    await new Promise(resolve => setTimeout(resolve, 450)); // > two bars at tempo=300, meter=1 → 400ms
+    assert.equal(daw._countInRunning, false, '_countInRunning still false after count-in window');
+    assert.ok(!completionFired, 'no delayed _onCountInComplete fired after cancelled count-in');
 });
