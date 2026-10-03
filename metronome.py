@@ -36,7 +36,8 @@ import time
 # Audio constants
 # ---------------------------------------------------------------------------
 SAMPLE_RATE = 44100
-CLICK_FREQ  = 1000
+CLICK_FREQ  = 1000       # normal click (off-beats)
+ACCENT_FREQ = 2000       # accent click (first beat of bar — higher pitch)
 CLICK_DUR   = 0.05
 VOLUME      = 0.8
 BUFFER_SECS = 4.0           # chunks are interrupted and rebuilt on control changes
@@ -78,17 +79,17 @@ class Metronome:
         self._last_click_time = 0.0
 
         # Cached waveform for fast per-click emission.
-        self._normal_click = self._click_waveform(self.volume)
+        self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
         self._accent_click = self._click_waveform(
-            self.volume * (1.0 if self.accent == 1 else 0.7))
+            self.volume * (1.0 if self.accent == 1 else 0.7), ACCENT_FREQ)
 
     # -- sample generation -------------------------------------------------
-    def _click_waveform(self, amplitude: float) -> bytes:
+    def _click_waveform(self, amplitude: float, freq: int = CLICK_FREQ) -> bytes:
         n = int(CLICK_DUR * SAMPLE_RATE)
         data = bytearray(n * 2)
         for i in range(n):
             t = i / SAMPLE_RATE
-            env = amplitude * math.exp(-t / 0.008) * math.sin(2 * math.pi * CLICK_FREQ * t)
+            env = amplitude * math.exp(-t / 0.008) * math.sin(2 * math.pi * freq * t)
             val = int(math.copysign(min(abs(env), 1.0), env) * 32767)
             data[i * 2]     = val & 0xFF
             data[i * 2 + 1] = (val >> 8) & 0xFF
@@ -216,9 +217,9 @@ class Metronome:
             self.bpm = max(20.0, min(300.0, float(bpm)))
             # Recache waveforms at the new volume scaling (BPM doesn't change
             # waveform shape but we update for consistency).
-            self._normal_click = self._click_waveform(self.volume)
+            self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
             accent_vol = self.volume if self.accent == 1 else self.volume * 0.7
-            self._accent_click = self._click_waveform(accent_vol)
+            self._accent_click = self._click_waveform(accent_vol, ACCENT_FREQ)
         print(f"[metronome] BPM → {self.bpm:.1f}", flush=True)
 
     def set_beats(self, beats: int):
@@ -226,7 +227,7 @@ class Metronome:
             self.beats = max(1, int(beats))
             self.accent = min(self.accent, self.beats)
             accent_vol = self.volume if self.accent == 1 else self.volume * 0.7
-            self._accent_click = self._click_waveform(accent_vol)
+            self._accent_click = self._click_waveform(accent_vol, ACCENT_FREQ)
         print(f"[metronome] Beats → {self.beats}", flush=True)
 
     def status(self) -> dict:

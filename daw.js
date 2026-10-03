@@ -727,6 +727,9 @@ class DAWEngine {
         const track = this.tracks[trackIdx];
         if (!track) return;
         track.armed = !track.armed;
+        // Reset channel assignment so the next recording auto-detects
+        // the MIDI channel from incoming notes.
+        track.channelAssigned = false;
     }
     
     muteTrack(trackIdx) {
