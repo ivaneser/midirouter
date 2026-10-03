@@ -508,6 +508,10 @@ class DAWEngine {
                     const curCycleBeat = curBeat % this.loopLenBeats;
                     const nextBar = Math.ceil(curCycleBeat / bar) * bar;
                     startBeat = nextBar;
+                    let delayMs = (nextBar - curCycleBeat) * spb * 1000;
+                    // If pressed within 5 ms of the boundary, start immediately.
+                    if (delayMs <= 5) delayMs = 0;
+                    startTime = now + delayMs;
                 }
             }
         } else if (options.countIn || this.tracks[trackIdx].armed) {

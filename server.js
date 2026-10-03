@@ -6,7 +6,7 @@ import { join, extname } from 'path';
 import { Worker } from 'worker_threads';
 import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
 
 // === Worker Thread для MIDI роутинга ===
@@ -586,24 +586,72 @@ function startServer() {
 
     // Graceful shutdown
     let isShuttingDown = false;
-    process.on('SIGINT', () => {
+    const SHUTDOWN_TIMEOUT_MS = 3000;
+
+    /** Close every active WebSocket client, then destroy the server. */
+    function closeClients() {
+        if (!wss) return Promise.resolve();
+        return new Promise(resolve => {
+            const clients = wss.clients && [...wss.clients];
+            if (clients.length === 0) {
+                resolve();
+                return;
+            }
+            let remaining = clients.length;
+            const done = () => {
+                if (--remaining === 0) resolve();
+            };
+            for (const client of clients) {
+                const onClientClose = () => {
+                    done();
+                };
+                // Register the 'close' listener *before* calling `client.close()`
+                // so a client that closes synchronously never misses the event.
+                client.once('close', onClientClose);
+
+                // Guard against a client that never emits 'close'.
+                let fallbackTimer = setTimeout(() => {
+                    client.removeListener('close', onClientClose);
+                    client.terminate();
+                    done();
+                }, SHUTDOWN_TIMEOUT_MS);
+
+                client.on('close', () => {
+                    clearTimeout(fallbackTimer);
+                });
+
+                // `close` is safe to call repeatedly and idempotent.
+                try { client.close(1001, 'server shutdown'); } catch (_) {}
+            }
+        });
+    }
+
+    process.on('SIGINT', async () => {
         if (isShuttingDown) return;
         isShuttingDown = true;
         console.log('\n[SERVER] Shutting down...');
         router.cleanup();
-        
-        // Force exit after 3 seconds if graceful close doesn't complete
-        const forceExit = setTimeout(() => {
-            console.log('[SERVER] Force exiting...');
-            process.exit(1);
-        }, 3000);
-        forceExit.unref();
-        
-        wss.close(() => server.close(() => {
-            clearTimeout(forceExit);
-            console.log('[SERVER] All connections closed. Exiting.');
-            process.exit(0);
-        }));
+
+        // Wait for clients to close, then fall back to a bounded force-exit.
+        try {
+            await Promise.race([
+                closeClients(),
+                new Promise(resolve => {
+                    setTimeout(() => resolve('timeout'), SHUTDOWN_TIMEOUT_MS);
+                })
+            ]);
+        } catch (err) {
+            console.error('[SERVER] Error closing clients:', err.message);
+        }
+
+        // If the server socket is still holding the process open, force it.
+        if (server && server.listening) {
+            try { await server.closeAsync(); } catch (_) {
+                server.close();
+            }
+        }
+        console.log('[SERVER] Exiting.');
+        process.exit(0);
     });
 }
 
