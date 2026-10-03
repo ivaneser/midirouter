@@ -1425,8 +1425,15 @@ class MIDIRouterWorker {
         if ((control?.consume && !isNoteOn2 && !isNoteOff && control?.kind !== 'transport') || isSysEx) return;
 
         if (control?.kind === 'pad') {
-            this._handleMappedPad(control.pad, control.pressed ? 127 : 0, performance.now());
-            return; // pad notes must not be recorded
+            const eventTime = performance.now();
+            this._handleMappedPad(control.pad, control.pressed ? 127 : 0, eventTime);
+            // Pad input doubles as a performance note: keep pad triggering, but
+            // feed the same timestamped MIDI event through the DAW's recording
+            // gate.  That gate rejects events before recording.startTime.
+            if (isNoteOn2 || isNoteOff) {
+                this.daw.recordEvent(bytes[0], bytes[1], bytes[2] ?? 0, eventTime);
+            }
+            return;
         } else if (control?.kind === 'transport') {
             this._handleProfileTransport(control.action, control.ppressed);
         }

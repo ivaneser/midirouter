@@ -429,6 +429,10 @@ class DAWEngine {
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) return;
         this._stopRecording();
 
+        // Snapshot project state before replace mode clears this clip; count-in
+        // selection must reflect the project state at the user's trigger.
+        const projectWasEmptyBeforeArm = this.isEmptyProject();
+
         // Replace: стираем старый клип. Overdub: если уже записан — продолжаем (добавляем).
         // Длина пересчитывается при завершении записи (по фактическому охвату).
         if (this.recordMode === 'replace') {
@@ -470,7 +474,7 @@ class DAWEngine {
                 this._countInGeneration++;
                 // First pad on empty project → two full bars of count-in.
                 // Subsequent pad on non-empty project → snap to next bar boundary.
-                if (!this.isEmptyProject()) {
+                if (!projectWasEmptyBeforeArm) {
                     const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
                     const nextBar = Math.ceil(curBeat / bar) * bar;
                     let delayMs = (nextBar - curBeat) * spb * 1000;
