@@ -1416,16 +1416,21 @@ class MIDIRouterWorker {
         }
 
         const control = this.controllerEngine.inputEvent(deviceName, bytes);
+
+        // Note messages consumed by the controller profile must still reach
+        // recordEvent so that DAW recording captures them.  Only return early
+        // for consumed non-note events (CC, program change, etc.).
+        const isNoteOff = type === 8 && bytes.length >= 3;
+        const isNoteOn2 = type === 9 && bytes.length >= 3;
+        if ((control?.consume && !isNoteOn2 && !isNoteOff) || isSysEx) return;
+
         if (control?.kind === 'pad') {
             this._handleMappedPad(control.pad, control.pressed ? 127 : 0, performance.now());
         } else if (control?.kind === 'transport') {
-            this._handleProfileTransport(control.action, control.pressed);
+            this._handleProfileTransport(control.action, control.ppressed);
         }
-        if (control?.consume || isSysEx) return;
 
         // === Controller note handling (MIDI Port keybed, nanoPAD, etc.) ===
-        const isNoteOff = type === 8 && bytes.length >= 3;
-        const isNoteOn2 = type === 9 && bytes.length >= 3;
 
         if (isNoteOff || isNoteOn2) {
             const n = bytes[1];
