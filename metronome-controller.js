@@ -6,7 +6,7 @@
  * 3.5mm headphone jack. This controller sends start/stop/bpm commands to it.
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -41,6 +41,19 @@ export class MetronomeController {
         this._audioAvailable = this._checkAudio();
     }
 
+    _killOrphans() {
+        // Best-effort: kill any existing metronome.py processes so only one runs.
+        try {
+            const out = execSync('pgrep -f "metronome\.py" || true', { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+            for (const pid of out) {
+                const p = parseInt(pid, 10);
+                if (p && p !== process.pid) {
+                    try { process.kill(p, 'SIGTERM'); } catch (_) {}
+                }
+            }
+        } catch (_) { /* best-effort */ }
+    }
+
     _checkAudio() {
         try {
             fs.accessSync('/dev/snd', fs.constants.R_OK);
@@ -72,6 +85,9 @@ export class MetronomeController {
                 reject(new Error('aplay not found'));
                 return;
             }
+
+            // Kill any orphaned metronome processes before spawning a new one.
+            this._killOrphans();
 
             const args = [this.metronomeScript,
                 '-B', String(this.bpm),
