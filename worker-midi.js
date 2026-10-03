@@ -1422,7 +1422,7 @@ class MIDIRouterWorker {
         // for consumed non-note events (CC, program change, etc.).
         const isNoteOff = type === 8 && bytes.length >= 3;
         const isNoteOn2 = type === 9 && bytes.length >= 3;
-        if ((control?.consume && !isNoteOn2 && !isNoteOff) || isSysEx) return;
+        if ((control?.consume && !isNoteOn2 && !isNoteOff && control?.kind !== 'transport') || isSysEx) return;
 
         if (control?.kind === 'pad') {
             this._handleMappedPad(control.pad, control.pressed ? 127 : 0, performance.now());
