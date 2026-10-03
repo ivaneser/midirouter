@@ -235,10 +235,7 @@ export class MetronomeController {
     triggerBeat(isAccent = false) {
         if (!this._process || !this._pid || !this._running) return;
         try {
-            // Beat 0 (first beat of measure) is always accent, otherwise check flag.
-            const beatNum = this._beatIndex % this.beats;
-            const shouldAccent = isAccent || beatNum === 0;
-            this._process.stdin.write(`click ${shouldAccent ? '1' : '0'}\n`);
+            this._process.stdin.write(`click ${isAccent ? '1' : '0'}\n`);
         } catch (e) {
             console.warn(`[METRONOME] Failed to trigger beat: ${e.message}`);
         }
