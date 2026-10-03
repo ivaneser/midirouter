@@ -1426,6 +1426,7 @@ class MIDIRouterWorker {
 
         if (control?.kind === 'pad') {
             this._handleMappedPad(control.pad, control.pressed ? 127 : 0, performance.now());
+            return; // pad notes must not be recorded
         } else if (control?.kind === 'transport') {
             this._handleProfileTransport(control.action, control.ppressed);
         }
