@@ -12,7 +12,7 @@ import { ClockMaster, clockOutputsFor } from './clock-master.js';
 import { MetronomeController } from './metronome-controller.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -170,9 +170,13 @@ class MIDIRouterWorker {
         this._hotplug = true;
         this._ignoreDevices = ['Midi Through', 'loopback', 'timer', 'announce'];
         
-        // Hot-plug detection
+        // Hot-plug detection. Name sets track identity; index Maps remember the
+        // ALSA port index per name so an index-only change (device replugged at a
+        // different slot) is detected even when the name set is unchanged.
         this._lastInputNames = new Set();
         this._lastOutputNames = new Set();
+        this._lastInputPorts = new Map();   // name -> ALSA port index
+        this._lastOutputPorts = new Map();   // name -> ALSA port index
         this._hotplugCheckInterval = null;
         this._autoRouteOnHotplug = true;
     }
@@ -217,8 +221,8 @@ class MIDIRouterWorker {
     }
 
     _hotplugCheckLoop() {
-        this._checkHotplug().then((success) => {
-            try { this._verifyOutputConnections(); } catch (_) {}
+        this._checkHotplug().then(async (success) => {
+            try { await this._verifyOutputConnections(); } catch (_) {}
             if (success) {
                 // Healthy: back off to 5s quickly
                 this._consecutiveHotplugFailures = 0;
@@ -246,39 +250,54 @@ class MIDIRouterWorker {
     // shows the TX). Every hotplug tick we re-check all open outputs and
     // reopen any that lost the subscription.
     _verifyOutputConnections() {
-        if (!this.outputs || this.outputs.size === 0) return;
-        let listing = null;
-        try {
-            listing = execSync('aconnect -l 2>/dev/null', { encoding: 'utf8', timeout: 5000 });
-        } catch (_) {
-            return; // no aconnect / failure — skip this tick
-        }
+        if (!this.outputs || this.outputs.size === 0) return Promise.resolve();
+        if (this._aconnectProbeInFlight) return this._aconnectProbeInFlight;
 
-        let currentPorts = [];
-        try { if (this._enumOut) currentPorts = this._filterPorts(this._enumOut, 'out'); } catch (_) {}
+        const probe = new Promise((resolve, reject) => {
+            execFile('aconnect', ['-l'], { encoding: 'utf8', timeout: 5000 }, (error, stdout) => {
+                if (error) {
+                    // no aconnect / failure — skip this tick
+                    resolve();
+                    return;
+                }
+                let listing = String(stdout ?? '');
 
-        for (const [name, output] of this.outputs) {
-            // "Device:Port NN:NN" -> "Port" (display name aconnect shows)
-            const portDisplay = name.split(':').slice(1).join(':').replace(/ \d+:\d+$/, '');
-            const portIdx = listing.indexOf(`'${portDisplay}'`);
-            if (portIdx === -1) continue; // gone at kernel level — hotplug handles it
-            const blockEnd = listing.indexOf('\nclient ', portIdx);
-            const block = listing.slice(portIdx, blockEnd === -1 ? undefined : blockEnd);
-            if (block.includes('Connected From:')) continue; // subscription healthy
+                try {
+                    let currentPorts = [];
+                    try { if (this._enumOut) currentPorts = this._filterPorts(this._enumOut, 'out'); } catch (_) {}
 
-            const current = currentPorts.find((p) => p.name === name);
-            const index = current ? current.index : output._index;
-            if (index == null) continue;
-            console.warn(`[WORKER] Output lost ALSA subscription: ${name} — reopening`);
-            try {
-                output.closePort();
-                output.openPort(index, 'midirouter-out');
-                output._index = index;
-                console.log(`[WORKER] Output reopened: ${name} (index: ${index})`);
-            } catch (error) {
-                console.error(`[WORKER] Failed to reopen output ${name}:`, error.message);
-            }
-        }
+                    for (const [name, output] of this.outputs) {
+                        // "Device:Port NN:NN" -> "Port" (display name aconnect shows)
+                        const portDisplay = name.split(':').slice(1).join(':').replace(/ \d+:\d+$/, '');
+                        const portIdx = listing.indexOf(`'${portDisplay}'`);
+                        if (portIdx === -1) continue; // gone at kernel level — hotplug handles it
+                        const blockEnd = listing.indexOf('\nclient ', portIdx);
+                        const block = listing.slice(portIdx, blockEnd === -1 ? undefined : blockEnd);
+                        if (block.includes('Connected From:')) continue; // subscription healthy
+
+                        const current = currentPorts.find((p) => p.name === name);
+                        const index = current ? current.index : output._index;
+                        if (index == null) continue;
+                        console.warn(`[WORKER] Output lost ALSA subscription: ${name} — reopening`);
+                        try {
+                            output.closePort();
+                            output.openPort(index, 'midirouter-out');
+                            output._index = index;
+                            console.log(`[WORKER] Output reopened: ${name} (index: ${index})`);
+                        } catch (error) {
+                            console.error(`[WORKER] Failed to reopen output ${name}:`, error.message);
+                        }
+                    }
+
+                    resolve();
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }).finally(() => { this._aconnectProbeInFlight = null; });
+
+        this._aconnectProbeInFlight = probe;
+        return probe;
     }
 
     async _checkHotplug() {
@@ -286,40 +305,53 @@ class MIDIRouterWorker {
             // Re-use persistent enumeration objects (do NOT create new ALSA clients every tick)
             if (!this._enumIn) this._enumIn = new midi.Input();
             if (!this._enumOut) this._enumOut = new midi.Output();
-            const currentInputNames = new Set();
-            const currentOutputNames = new Set();
-            
+
+            const currentInputPorts = new Map();   // name -> index
+            const currentOutputPorts = new Map();  // name -> index
+
             try {
-                const ports = this._filterPorts(this._enumIn, 'in');
-                for (const p of ports) currentInputNames.add(p.name);
+                for (const p of this._filterPorts(this._enumIn, 'in')) {
+                    if (!currentInputPorts.has(p.name)) currentInputPorts.set(p.name, p.index);
+                }
             } catch(e) {}
-            
+
             try {
-                const ports = this._filterPorts(this._enumOut, 'out');
-                for (const p of ports) currentOutputNames.add(p.name);
+                for (const p of this._filterPorts(this._enumOut, 'out')) {
+                    if (!currentOutputPorts.has(p.name)) currentOutputPorts.set(p.name, p.index);
+                }
             } catch(e) {}
-            
+
             const addedInputs = [];
             const removedInputs = [];
+            const movedInputs = [];   // name whose ALSA index changed (name unchanged)
             const addedOutputs = [];
             const removedOutputs = [];
-            
-            for (const name of currentInputNames) {
-                if (!this._lastInputNames.has(name)) addedInputs.push(name);
+            const movedOutputs = [];  // name whose ALSA index changed (name unchanged)
+
+            for (const [name, index] of currentInputPorts) {
+                if (!this._lastInputPorts.has(name)) addedInputs.push(name);
+                else if (this._lastInputPorts.get(name) !== index) movedInputs.push(name);
             }
-            for (const name of this._lastInputNames) {
-                if (!currentInputNames.has(name)) removedInputs.push(name);
+            for (const name of this._lastInputPorts.keys()) {
+                if (!currentInputPorts.has(name)) removedInputs.push(name);
             }
-            for (const name of currentOutputNames) {
-                if (!this._lastOutputNames.has(name)) addedOutputs.push(name);
+            for (const [name, index] of currentOutputPorts) {
+                if (!this._lastOutputPorts.has(name)) addedOutputs.push(name);
+                else if (this._lastOutputPorts.get(name) !== index) movedOutputs.push(name);
             }
-            for (const name of this._lastOutputNames) {
-                if (!currentOutputNames.has(name)) removedOutputs.push(name);
+            for (const name of this._lastOutputPorts.keys()) {
+                if (!currentOutputPorts.has(name)) removedOutputs.push(name);
             }
-            
-            // If anything changed, re-enumerate ports
-            if (addedInputs.length || removedInputs.length || addedOutputs.length || removedOutputs.length) {
-                console.log(`[WORKER] HOT-PLUG: changes detected. +in:${addedInputs.length} -in:${removedInputs.length} +out:${addedOutputs.length} -out:${removedOutputs.length}`);
+
+            const changed = addedInputs.length || removedInputs.length
+                || addedOutputs.length || removedOutputs.length
+                || movedInputs.length || movedOutputs.length;
+
+            // If anything changed, re-enumerate ports. Snapshots are only
+            // committed AFTER a successful re-enumeration so a failed attempt
+            // leaves the previous state in place and the next poll retries.
+            if (changed) {
+                console.log(`[WORKER] HOT-PLUG: changes detected. +in:${addedInputs.length} -in:${removedInputs.length} ~in:${movedInputs.length} +out:${addedOutputs.length} -out:${removedOutputs.length} ~out:${movedOutputs.length}`);
                 for (const name of addedInputs) {
                     console.log(`[WORKER] HOT-PLUG: New input: ${name}`);
                     parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'input' });
@@ -327,6 +359,9 @@ class MIDIRouterWorker {
                 for (const name of removedInputs) {
                     console.log(`[WORKER] HOT-PLUG: Input removed: ${name}`);
                     parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'input' });
+                }
+                for (const name of movedInputs) {
+                    console.log(`[WORKER] HOT-PLUG: Input index changed: ${name} (${this._lastInputPorts.get(name)} -> ${currentInputPorts.get(name)})`);
                 }
                 for (const name of addedOutputs) {
                     console.log(`[WORKER] HOT-PLUG: New output: ${name}`);
@@ -336,25 +371,28 @@ class MIDIRouterWorker {
                     console.log(`[WORKER] HOT-PLUG: Output removed: ${name}`);
                     parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'output' });
                 }
-                
-                // Update tracker BEFORE re-enumeration so we don't loop forever if ALSA fails
-                this._lastInputNames = currentInputNames;
-                this._lastOutputNames = currentOutputNames;
-                
-                // FULL re-enumeration to open/close actual RtMidi ports
-                try {
-                    this._enumeratePorts();
+                for (const name of movedOutputs) {
+                    console.log(`[WORKER] HOT-PLUG: Output index changed: ${name} (${this._lastOutputPorts.get(name)} -> ${currentOutputPorts.get(name)})`);
+                }
+
+                // FULL re-enumeration to open/close actual RtMidi ports.
+                if (this._enumeratePorts()) {
+                    this._lastInputNames = new Set(currentInputPorts.keys());
+                    this._lastOutputNames = new Set(currentOutputPorts.keys());
+                    this._lastInputPorts = currentInputPorts;
+                    this._lastOutputPorts = currentOutputPorts;
                     if (this._autoRouteOnHotplug) {
                         this._rebuildMappings();
                     }
                     return true; // success
-                } catch (e) {
-                    console.error('[WORKER] HOT-PLUG re-enumeration failed:', e.message);
-                    return false;
                 }
+                console.error('[WORKER] HOT-PLUG re-enumeration failed; snapshots unchanged, will retry');
+                return false;
             } else {
-                this._lastInputNames = currentInputNames;
-                this._lastOutputNames = currentOutputNames;
+                this._lastInputNames = new Set(currentInputPorts.keys());
+                this._lastOutputNames = new Set(currentOutputPorts.keys());
+                this._lastInputPorts = currentInputPorts;
+                this._lastOutputPorts = currentOutputPorts;
                 return true; // no changes = healthy
             }
         } catch (e) {
@@ -1206,7 +1244,7 @@ class MIDIRouterWorker {
                         try { inp.off('message', inp._handler); inp.closePort(); } catch (_) {}
                     }
                     console.warn('[WORKER] _enumeratePorts aborted: input open failed');
-                    return; // Keep existing inputs untouched
+                    return false; // Keep existing inputs untouched
                 }
             }
 
@@ -1228,7 +1266,7 @@ class MIDIRouterWorker {
                         try { out.closePort(); } catch (_) {}
                     }
                     console.warn('[WORKER] _enumeratePorts aborted: output open failed');
-                    return;
+                    return false;
                 }
             }
 
@@ -1245,6 +1283,7 @@ class MIDIRouterWorker {
             }
 
             // PHASE 5: Reopen moved inputs (close old, swap in new)
+            let inputReopenFailed = false;
             for (const { name, oldPort, newIndex } of inputsToReopen) {
                 try {
                     if (oldPort._handler) oldPort.off('message', oldPort._handler);
@@ -1261,6 +1300,7 @@ class MIDIRouterWorker {
                     console.log(`[WORKER] Input reopened: ${name} (index: ${newIndex})`);
                 } catch (e) {
                     console.error(`[WORKER] Failed to reopen input ${name}:`, e.message);
+                    inputReopenFailed = true;
                 }
             }
 
@@ -1292,6 +1332,7 @@ class MIDIRouterWorker {
                 });
             }
 
+            let outputReopenFailed = false;
             for (const { name, oldPort, newIndex } of outputsToReopen) {
                 try {
                     oldPort.closePort();
@@ -1308,6 +1349,7 @@ class MIDIRouterWorker {
                 } catch (error) {
                     this.outputs.delete(name);
                     console.error(`[WORKER] Failed to reopen output ${name}: ${error.message}`);
+                    outputReopenFailed = true;
                 }
             }
 
@@ -1328,13 +1370,31 @@ class MIDIRouterWorker {
             const inputList = [...this.inputs.entries()].map(([id]) => ({ id, name: id }));
             const outputList = [...this.outputs.entries()].map(([id]) => ({ id, name: id }));
 
+            // A moved-port reopen failure must abort BEFORE any snapshot is
+            // committed: if the inventory (or a physical port) changed, the
+            // hot-plug poll needs to retry with the stale snapshot intact.
+            // Committing here would make the next poll see no diff and never
+            // re-enumerate.
+            if (inputReopenFailed || outputReopenFailed) {
+                console.warn('[WORKER] _enumeratePorts finished with reopen failures; reporting failure so hot-plug does not commit the snapshot');
+                return false;
+            }
+
             parentPort.postMessage({ type: 'ports-enumerated', inputs: inputList, outputs: outputList });
             parentPort.postMessage({ type: 'ready' });
 
             this._lastInputNames = new Set(realInputs.map(r => r.name));
             this._lastOutputNames = new Set(realOutputs.map(r => r.name));
+            // Synchronize the index snapshots too (startup and hot-plug both
+            // call _enumeratePorts): without these, a first hot-plug poll after
+            // init sees every existing port as newly added.
+            this._lastInputPorts = new Map(realInputs.map(r => [r.name, r.index]));
+            this._lastOutputPorts = new Map(realOutputs.map(r => [r.name, r.index]));
+
+            return true; // full success
         } catch (e) {
             console.error('[WORKER] Enumerate failed:', e.message);
+            return false;
         }
     }
 
