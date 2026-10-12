@@ -73,7 +73,24 @@ export class DAWUI {
         if (playBtn) playBtn.addEventListener('click', () => this._send({ type: 'daw-play' }));
         
         const stopBtn = document.getElementById('btn-stop');
-        if (stopBtn) stopBtn.addEventListener('click', () => this._send({ type: 'daw-stop' }));
+        if (stopBtn) {
+            // Update button text based on transport state
+            const updateText = () => {
+                const isPlaying = this.dawState?.playing || false;
+                stopBtn.textContent = isPlaying ? 'Stop' : 'Rec';
+            };
+            updateText();
+            stopBtn.addEventListener('click', () => {
+                // Toggle based on button text: if it says 'Stop', stop transport; otherwise start it.
+                if (stopBtn.textContent === 'Stop') {
+                    this._send({ type: 'daw_stop_transport' });
+                } else {
+                    this._send({ type: 'daw_start_transport' });
+                }
+                // Immediately toggle the button text for instant feedback
+                stopBtn.textContent = stopBtn.textContent === 'Stop' ? 'Rec' : 'Stop';
+            });
+        }
         
         const recArmBtn = document.getElementById('btn-record-arm');
         if (recArmBtn) {
@@ -86,6 +103,15 @@ export class DAWUI {
             modeSelect.addEventListener('change', () => 
                 this._send({ type: 'daw-set-record-mode', mode: modeSelect.value })
             );
+        }
+
+        // Shared master loop length
+        const masterLoopBars = document.getElementById('master-loop-bars');
+        if (masterLoopBars) {
+            masterLoopBars.addEventListener('change', () => {
+                const bars = parseInt(masterLoopBars.value, 10);
+                if (Number.isInteger(bars)) this._send({ type: 'daw-set-master-loop-bars', bars });
+            });
         }
 
         // Tempo
@@ -197,6 +223,7 @@ export class DAWUI {
     _syncControls() {
         const modeSelect = document.getElementById('record-mode');
         const tempoInput = document.getElementById('tempo');
+        const masterLoopBars = document.getElementById('master-loop-bars');
         
         if (modeSelect) {
             modeSelect.value = this.dawState.recordMode;
@@ -210,6 +237,9 @@ export class DAWUI {
             modeSelect.dataset.recordMode = this.dawState.recordMode;
         }
         if (tempoInput) tempoInput.value = Math.round(this.dawState.tempo);
+        if (masterLoopBars && this.dawState.masterLoopBars != null) {
+            masterLoopBars.value = String(this.dawState.masterLoopBars);
+        }
         
         // Metronome
         const metroBtn = document.getElementById('metronome-toggle');
@@ -219,12 +249,24 @@ export class DAWUI {
             metroBtn.textContent = enabled ? '♫ Metro ON' : '♪ Metro';
         }
 
+        // Beats per measure
+        const metroBeatsInput = document.getElementById('metro-beats');
+        if (metroBeatsInput && this.daw) {
+            metroBeatsInput.value = this.daw._metronomeBeatsPerMeasure || 4;
+        }
+
         // MIDI Clock
         const midiClockBtn = document.getElementById('midi-clock-toggle');
         if (midiClockBtn) {
             const enabled = this.dawState.midiClockEnabled;
             midiClockBtn.classList.toggle('active', !!enabled);
             midiClockBtn.textContent = enabled ? '⏱ MTC ON' : '⏱ MTC';
+        }
+        // Stop button label
+        const stopBtn = document.getElementById('btn-stop');
+        if (stopBtn) {
+            const isPlaying = this.dawState?.playing || false;
+            stopBtn.textContent = isPlaying ? 'Stop' : 'Rec';
         }
     }
 
@@ -334,7 +376,7 @@ export class DAWUI {
             // Track label (column header)
             const label = document.createElement('div');
             label.className = 'session-track-label';
-            label.textContent = `Ch${ch.channel}`;
+            label.textContent = `Tr${t + 1}`;
             block.appendChild(label);
 
             // Clip slots (vertical column under the track label)
@@ -350,8 +392,19 @@ export class DAWUI {
                 } else {
                     cls += ' has-content';
                 }
-                if (ch.playing && s === ch.activeSlot) {
+                // Determine additional state classes based on DAW state and record mode
+                const recordMode = this.dawState?.recordMode;
+                const isOverdub = recordMode === 'overdub' && clip && clip.notes > 0;
+                const isRecording = this.dawState?.recording?.track === t && this.dawState?.recording?.slot === s;
+                const isActive = ch.playing && s === ch.activeSlot;
+                if (isOverdub) {
+                    cls += ' overdub';
+                } else if (isRecording) {
+                    cls += ' recording';
+                } else if (isActive) {
                     cls += ' playing';
+                } else if (clip && clip.notes > 0) {
+                    cls += ' idle';
                 }
                 slot.className = cls;
                 
@@ -442,7 +495,9 @@ export class DAWUI {
         const meter = Math.max(1, Number(cue.meter) || 4);
         const bar = Math.floor(beat / meter) + 1;
         const beatInBar = Math.floor(beat % meter) + 1;
-        indicator.textContent = `Bar ${bar} · Beat ${beatInBar}`;
+        const masterLoopInfo = this.dawState?.masterLoopBars ? `Master loop: ${this.dawState.masterLoopBars}-bars` : '';
+const beatInfo = `${masterLoopInfo}${masterLoopInfo ? ' · ' : '' }Bar ${bar} · Beat ${beatInBar}`;
+indicator.textContent = beatInfo;
         indicator.classList.remove('beat-pulse', 'bar-start', 'cycle-start');
         const cueClass = cue.cycleStart ? 'cycle-start' : cue.barStart ? 'bar-start' : null;
         if (!cueClass) return;
