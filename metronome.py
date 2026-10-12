@@ -77,6 +77,8 @@ class Metronome:
         self._audio_process = None
         self._audio_generation = 0
         self._last_click_time = 0.0
+        self._pending_click = None
+        self._click_event = threading.Event()
 
         # Cached waveform for fast per-click emission.
         self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
@@ -110,22 +112,23 @@ class Metronome:
         """Waits for click commands and streams them."""
         print("[metronome] Playback thread started", flush=True)
         while self._running:
+            # Check if there's a click to play (set by _emit_click_locked).
             with self._lock:
                 is_running = self._running
                 do_play = self._playing
                 generation = self._audio_generation
+                click_data = self._pending_click
                 if not is_running:
                     break
-            if not do_play:
-                time.sleep(0.05)
-                continue
+                if not do_play or click_data is None:
+                    # Nothing to play right now — clear the event while still
+                    # holding the lock so a concurrent set() wakes us after
+                    # we release it, then block instead of busy-spinning.
+                    self._click_event.clear()
+            self._click_event.wait()
 
-            # Check if there's a click to play (set by _emit_click_locked).
-            with self._lock:
-                click_data = getattr(self, '_pending_click', None)
-                if click_data is None:
-                    continue
-                generation = self._audio_generation
+            if click_data is None:
+                continue
 
             path = self._write_wav(click_data)
             try:
@@ -172,10 +175,12 @@ class Metronome:
             self._last_click_time = now
             click_data = self._accent_click if is_accent else self._normal_click
             # If a previous click is still playing, interrupt it and queue the new one.
-            if getattr(self, '_pending_click', None) is not None:
+            if self._pending_click is not None:
                 self._interrupt_audio_locked()
             self._pending_click = click_data
             self._audio_generation += 1
+            # Wake the playback thread (it may be blocked in _click_event.wait()).
+            self._click_event.set()
 
     def _interrupt_audio_locked(self):
         process = self._audio_process
@@ -194,6 +199,8 @@ class Metronome:
                 print(f"[metronome] START  BPM={self.bpm:.1f}  beats={self.beats}  accent={self.accent}  vol={self.volume:.2f}", flush=True)
             else:
                 print("[metronome] Already playing", flush=True)
+            # Wake the playback thread in case it was blocked idle.
+            self._click_event.set()
 
     def stop(self):
         with self._lock:
@@ -204,6 +211,8 @@ class Metronome:
                 print("[metronome] STOP", flush=True)
             else:
                 print("[metronome] Already stopped", flush=True)
+            # Wake the playback thread so it re-evaluates state.
+            self._click_event.set()
 
     def quit(self):
         print("[metronome] QUIT", flush=True)
@@ -211,6 +220,8 @@ class Metronome:
             self._running = False
             self._playing = False
             self._interrupt_audio_locked()
+            # Wake a blocked playback thread so it exits.
+            self._click_event.set()
 
     def set_bpm(self, bpm: float):
         with self._lock:

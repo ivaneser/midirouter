@@ -114,6 +114,11 @@ class DAWEngine {
 
     // ---- Transport / tempo ----
     setTempo(bpm) {
+        // Reject non-number input (null, strings, booleans, objects...) and
+        // non-finite numbers before any state mutation.
+        if (typeof bpm !== 'number' || !Number.isFinite(bpm)) {
+            return;
+        }
         this.tempo = Math.max(20, Math.min(300, bpm));
         // Keep MIDI clock in sync with tempo changes
         if (this._midiClock) this._midiClock.setTempo(this.tempo);
@@ -161,14 +166,29 @@ class DAWEngine {
     }
 
     setMetronomeNote(note) {
+        // Reject non-number input (null, strings, booleans, objects...) and
+        // non-finite numbers before any state mutation.
+        if (typeof note !== 'number' || !Number.isFinite(note)) {
+            return;
+        }
         this._metronomeNote = Math.max(0, Math.min(127, note));
     }
 
     setMetronomeAccentNote(note) {
+        // Reject non-number input (null, strings, booleans, objects...) and
+        // non-finite numbers before any state mutation.
+        if (typeof note !== 'number' || !Number.isFinite(note)) {
+            return;
+        }
         this._metronomeAccentNote = Math.max(0, Math.min(127, note));
     }
 
     setMetronomeBeatsPerMeasure(n) {
+        // Reject non-number input (null, strings, booleans, objects...) and
+        // non-finite numbers before any state mutation.
+        if (typeof n !== 'number' || !Number.isFinite(n)) {
+            return;
+        }
         this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, n));
         this._onMetronomeMeter(this._metronomeBeatsPerMeasure);
     }
@@ -399,7 +419,13 @@ class DAWEngine {
     }
 
     setSlotsPerTrack(n) {
-        this.slotsPerTrack = Math.max(1, Math.min(16, Math.trunc(n)));
+        // Reject non-number input (null, strings, booleans, objects...) and
+        // non-finite numbers before any state mutation.
+        if (typeof n !== 'number' || !Number.isFinite(n)) {
+            return;
+        }
+        const slots = Math.trunc(n);
+        this.slotsPerTrack = Math.max(1, Math.min(16, slots));
         for (const track of this.tracks) {
             const base = track.clips.slice(0, this.slotsPerTrack);
             while (base.length < this.slotsPerTrack) {
@@ -428,6 +454,10 @@ class DAWEngine {
 
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) return;
         this._stopRecording();
+
+        // Snapshot project state before replace mode clears this clip; count-in
+        // selection must reflect the project state at the user's trigger.
+        const projectWasEmptyBeforeArm = this.isEmptyProject();
 
         // Replace: стираем старый клип. Overdub: если уже записан — продолжаем (добавляем).
         // Длина пересчитывается при завершении записи (по фактическому охвату).
@@ -470,7 +500,7 @@ class DAWEngine {
                 this._countInGeneration++;
                 // First pad on empty project → two full bars of count-in.
                 // Subsequent pad on non-empty project → snap to next bar boundary.
-                if (!this.isEmptyProject()) {
+                if (!projectWasEmptyBeforeArm) {
                     const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
                     const nextBar = Math.ceil(curBeat / bar) * bar;
                     let delayMs = (nextBar - curBeat) * spb * 1000;
@@ -504,6 +534,10 @@ class DAWEngine {
                     const curCycleBeat = curBeat % this.loopLenBeats;
                     const nextBar = Math.ceil(curCycleBeat / bar) * bar;
                     startBeat = nextBar;
+                    let delayMs = (nextBar - curCycleBeat) * spb * 1000;
+                    // If pressed within 5 ms of the boundary, start immediately.
+                    if (delayMs <= 5) delayMs = 0;
+                    startTime = now + delayMs;
                 }
             }
         } else if (options.countIn || this.tracks[trackIdx].armed) {
@@ -572,14 +606,15 @@ class DAWEngine {
         }
 
         // First completed recording: derive a shared global cycle from the elapsed
-        // recording span (not just note density), rounded UP to whole 4/4 bars with
-        // a minimum of one bar (4 beats). This drives only the transport display
-        // progress; clip playback loops on each clip's own length.
+        // recording span (not just note density), rounded UP to whole bars of the
+        // configured meter with a minimum of one bar. This drives only the transport
+        // display progress; clip playback loops on each clip's own length.
         if (!this._globalCycleLocked && r.notes.length) {
             const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
             const elapsedSpan = Math.max(0, end - r.startBeat);
-            const bars = Math.ceil(elapsedSpan / 4);
-            const globalCycleBeats = Math.max(4, bars * 4);
+            const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+            const bars = Math.ceil(elapsedSpan / bar);
+            const globalCycleBeats = Math.max(bar, bars * bar);
             this.loopLenBeats = globalCycleBeats;
             this._globalCycleLocked = true;
         }
