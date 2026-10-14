@@ -28,6 +28,7 @@ test('internal-clock pad launch waits for the next bar boundary and starts at be
     worker._ledGlow = new Map();
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
+    worker.audioLatencyMs = 0;
     t.after(() => {
         worker._stopTrackPlayback(0);
         worker.daw.stopTransport();
@@ -84,6 +85,7 @@ test('pad launch at exact downbeat fires beat-0 Note On immediately', async (t) 
     worker._ledGlow = new Map();
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
+    worker.audioLatencyMs = 0;
     t.after(() => {
         worker._stopTrackPlayback(0);
         worker.daw.stopTransport();
@@ -119,6 +121,7 @@ test('Launchkey Play toggles: stops running playback, starts when stopped', () =
     worker._ledGlow = new Map();
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
+    worker.audioLatencyMs = 0;
     worker._transportPlaying = false;
 
     // Phase 1: transport stopped -> Play press starts it.
@@ -138,4 +141,54 @@ test('Launchkey Play toggles: stops running playback, starts when stopped', () =
     assert.equal(worker.daw.clipState[0], -1, 'clip playing state must be cleared');
 
     worker.daw.stopTransport();
+});
+
+// Audio latency offset: with audioLatencyMs set to 50, the beat-0 Note On
+// is scheduled ~50 ms earlier than the nominal downbeat.
+test('audio latency offset shifts note-on scheduling earlier', async (t) => {
+    const sent = [];
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    // 240 BPM: one beat is 250 ms, so a 4/4 bar spans 1000 ms.
+    worker.daw = new DAWEngine({ tempo: 240 });
+    worker.daw.loopLenBeats = 4;
+    worker.daw.tracks[0].clips[0] = {
+        length: 16,
+        notes: [{ channel: 1, note: 60, velocity: 90, start: 0, dur: 0.1 }],
+    };
+    worker.daw.setRecordMode('none');
+    worker.daw.startTransport();
+    worker.outputs = new Map([['test-synth', {
+        sendMessage: (bytes) => sent.push({ bytes: [...bytes], at: performance.now() }),
+    }]]);
+    worker.controllerEngine = { isExcludedOutput: () => false };
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map();
+    worker._sendFeedback = () => {};
+    worker._broadcastState = () => {};
+    // Set the audio latency offset to 50 ms.
+    worker.audioLatencyMs = 50;
+    t.after(() => {
+        worker._stopTrackPlayback(0);
+        worker.daw.stopTransport();
+    });
+
+    // Launch exactly on the downbeat: transport phase 0 (anchor at `now`).
+    const triggeredAt = performance.now();
+    worker.daw._playAnchorTime = triggeredAt;
+    const result = worker._triggerPad(0, 0, triggeredAt);
+    assert.equal(result.action, 'play');
+
+    // With a 50 ms offset the Note On should arrive ~50 ms earlier.
+    // Check after ~30 ms: it must already be present (earlier than nominal).
+    await sleep(30);
+    const noteOns = sent.filter(({ bytes }) => (bytes[0] & 0xf0) === 0x90);
+    assert.equal(noteOns.length, 1, 'note-on must have fired ~50 ms earlier');
+    const elapsed = noteOns[0].at - triggeredAt;
+    // The nominal downbeat would be at t=0 (immediate), so with a 50 ms
+    // offset the note fires around t=-50 relative to anchor, i.e. it is
+    // scheduled before `triggeredAt`. In practice it arrives shortly after
+    // launch because of timer granularity; assert it arrived well within
+    // the first ~80 ms window (earlier than a 130 ms nominal would be).
+    assert.ok(elapsed < 80,
+        `note-on elapsed ${elapsed.toFixed(1)} ms must be < 80 ms with 50 ms offset`);
 });

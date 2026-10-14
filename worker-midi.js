@@ -154,6 +154,11 @@ class MIDIRouterWorker {
         this.autoAssign = true;
         this._learnCursor = 0;
 
+        // Audio latency offset (ms) applied to clip note-on scheduling in the
+        // non-external-clock path so notes fire earlier, compensating for audio
+        // output latency. Clamped to 0..300 on set.
+        this.audioLatencyMs = 30;
+
         // Hot-plug back-off state (exponential back-off on ALSA failures)
         this._hotplugBackoffMs = 5000;   // default interval between checks
         this._consecutiveHotplugFailures = 0;
@@ -574,7 +579,9 @@ class MIDIRouterWorker {
         for (const note of clip.notes) {
             // Each event is stored relative to the clip's own beat 0, repeats every clip.length.
             const eventOffset = ((note.start % loopBeats) + loopBeats) % loopBeats;
-            let nextAt = now + barDelay + eventOffset * msPerBeat;
+            // Fire note-ons earlier by the audio latency offset (non-external path).
+            // Note-off stays relative to its note-on, so duration is unchanged.
+            let nextAt = now + barDelay + eventOffset * msPerBeat - this.audioLatencyMs;
             const channel = Math.max(1, note.channel || 1);
             const key = `${channel}:${note.note}`;
             const fire = () => {
@@ -1709,6 +1716,13 @@ class MIDIRouterWorker {
                 if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
                 this._broadcastState();
                 break;
+            // Audio latency offset: clamp to 0..300 and store.
+            case 'daw_audio_latency': {
+                const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
+                this.audioLatencyMs = Math.max(0, Math.min(300, ms));
+                this._broadcastState();
+                break;
+            }
             // ---- MIDI Clock (MTC) ----
             case 'daw_midi_clock_toggle':
                 daw.setMidiClock(!daw.getMidiClockState());
@@ -1824,6 +1838,7 @@ class MIDIRouterWorker {
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
+        state.audioLatencyMs = this.audioLatencyMs;
         parentPort.postMessage({ type: 'daw_state', state });
     }
 

@@ -417,6 +417,11 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_metronome_beats_per_measure', bpm: message.bpm });
                         break;
 
+                    // Audio latency offset (ms) for clip playback.
+                    case 'daw-audio-latency':
+                        router.worker.postMessage({ type: 'daw_audio_latency', ms: message.ms });
+                        break;
+
                     // ---- MIDI Clock (MTC) ----
                     case 'daw-midi-clock-toggle':
                         router.worker.postMessage({ type: 'daw_midi_clock_toggle' });

@@ -5,9 +5,10 @@
 =====================================================
 
 Generates sample-accurate metronome clicks triggered by authoritative DAW beat
-events.  Each incoming ``click`` command plays exactly one click through ALSA
-``aplay -M`` to the 3.5 mm headphone jack.  Continuous free-running playback is
-no longer used — beats are driven externally (internal or external clock).
+events.  Each incoming ``click`` command plays exactly one click through a single
+persistent ALSA ``aplay -M`` stream fed from the audio thread's pipe.
+Continuous free-running playback is no longer used -- beats are driven externally
+(internal or external clock).
 
 IPC Controls (via stdin)
 ------------------------
@@ -22,12 +23,9 @@ IPC Controls (via stdin)
 
 import argparse
 import math
-import os
 import signal
 import subprocess
 import sys
-import tempfile
-import wave
 import threading
 import json
 import time
@@ -37,10 +35,9 @@ import time
 # ---------------------------------------------------------------------------
 SAMPLE_RATE = 44100
 CLICK_FREQ  = 1000       # normal click (off-beats)
-ACCENT_FREQ = 2000       # accent click (first beat of bar — higher pitch)
+ACCENT_FREQ = 2000       # accent click (first beat of bar -- higher pitch)
 CLICK_DUR   = 0.05
 VOLUME      = 0.8
-BUFFER_SECS = 4.0           # chunks are interrupted and rebuilt on control changes
 
 
 def _default_alsa_device():
@@ -74,7 +71,7 @@ class Metronome:
         self._running  = True      # process alive flag
         self._playing  = False     # audio-ready (clicks accepted)?
         self._lock     = threading.Lock()
-        self._audio_process = None
+        self._audio_process = None  # single persistent aplay, reused for all clicks
         self._audio_generation = 0
         self._last_click_time = 0.0
         self._pending_click = None
@@ -97,19 +94,9 @@ class Metronome:
             data[i * 2 + 1] = (val >> 8) & 0xFF
         return bytes(data)
 
-    def _write_wav(self, data: bytes) -> str:
-        tmpdir = tempfile.gettempdir()
-        path = os.path.join(tmpdir, f"metronome_{os.getpid()}_{id(data)}.wav")
-        with wave.open(path, "w") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(data)
-        return path
-
     # -- playback loop (runs in its own thread) ---------------------------
     def _play_loop(self):
-        """Waits for click commands and streams them."""
+        """Owns the one persistent aplay pipe; writes clicks into it as they arrive."""
         print("[metronome] Playback thread started", flush=True)
         while self._running:
             # Check if there's a click to play (set by _emit_click_locked).
@@ -121,7 +108,7 @@ class Metronome:
                 if not is_running:
                     break
                 if not do_play or click_data is None:
-                    # Nothing to play right now — clear the event while still
+                    # Nothing to play right now -- clear the event while still
                     # holding the lock so a concurrent set() wakes us after
                     # we release it, then block instead of busy-spinning.
                     self._click_event.clear()
@@ -130,65 +117,65 @@ class Metronome:
             if click_data is None:
                 continue
 
-            path = self._write_wav(click_data)
+            # No file I/O per click: stream raw samples straight into the
+            # persistent aplay stdin pipe (one process for the whole run).
             try:
-                cmd = ["aplay", "-M",
-                       "-D", self.alsa_device,
-                       "-r", str(SAMPLE_RATE),
-                       "-f", "S16_LE",
-                       "-c", "1",
-                       "-t", "wav",
-                       path]
-                process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL,
-                                           stderr=subprocess.DEVNULL)
                 with self._lock:
-                    self._audio_process = process
-                    interrupted = generation != self._audio_generation
-                if interrupted:
-                    process.terminate()
-                process.wait()
-            except FileNotFoundError:
-                print("[metronome] Error: 'aplay' not found. Install alsa-utils.",
-                      file=sys.stderr, flush=True)
-                break
-            finally:
+                    proc = self._audio_process
+                if proc is None or proc.poll() is not None:
+                    cmd = ["aplay", "-M",
+                           "-D", self.alsa_device,
+                           "-r", str(SAMPLE_RATE),
+                           "-f", "S16_LE",
+                           "-c", "1",
+                           "-t", "raw"]
+                    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                            stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL)
+                    with self._lock:
+                        self._audio_process = proc
+                proc.stdin.write(click_data)
+                proc.stdin.flush()
+            except (BrokenPipeError, OSError):
                 with self._lock:
                     if self._audio_process is not None and self._audio_process.poll() is not None:
                         self._audio_process = None
-                    # Clear pending click after playback.
+            finally:
+                with self._lock:
+                    # Clear pending click after it has been written to the stream.
                     self._pending_click = None
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
+        self._close_stream_locked()
         print("[metronome] Playback thread exited", flush=True)
 
-    def _emit_click(self, is_accent: bool):
-        """Public API — emit one click. Chooses accent or normal waveform."""
-        with self._lock:
-            if not self._playing or not self._running:
-                return
-            # Skip duplicate clicks within 10 ms to avoid double-fires.
-            now = time.monotonic()
-            if now - self._last_click_time < 0.01:
-                return
-            self._last_click_time = now
-            click_data = self._accent_click if is_accent else self._normal_click
-            # If a previous click is still playing, interrupt it and queue the new one.
-            if self._pending_click is not None:
-                self._interrupt_audio_locked()
-            self._pending_click = click_data
-            self._audio_generation += 1
-            # Wake the playback thread (it may be blocked in _click_event.wait()).
-            self._click_event.set()
+    def _close_stream_locked(self):
+        """Close and reap the persistent aplay pipe (must hold lock)."""
+        proc = self._audio_process
+        if proc is not None:
+            try:
+                proc.stdin.close()
+                proc.wait(timeout=2)
+            except Exception:
+                pass
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except OSError:
+                    pass
+        self._audio_process = None
 
     def _interrupt_audio_locked(self):
-        process = self._audio_process
-        if process is not None and process.poll() is None:
+        """Terminate the persistent aplay; it is restarted lazily on next click."""
+        proc = self._audio_process
+        if proc is not None and proc.poll() is None:
             try:
-                process.terminate()
+                proc.stdin.close()  # unblocks any pending write in the audio thread
             except OSError:
                 pass
+            try:
+                proc.terminate()
+            except OSError:
+                pass
+            self._audio_process = None
 
     # -- control API -------------------------------------------------------
     def start(self):
@@ -231,7 +218,7 @@ class Metronome:
             self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
             accent_vol = self.volume if self.accent == 1 else self.volume * 0.7
             self._accent_click = self._click_waveform(accent_vol, ACCENT_FREQ)
-        print(f"[metronome] BPM → {self.bpm:.1f}", flush=True)
+        print(f"[metronome] BPM -> {self.bpm:.1f}", flush=True)
 
     def set_beats(self, beats: int):
         with self._lock:
@@ -239,7 +226,7 @@ class Metronome:
             self.accent = min(self.accent, self.beats)
             accent_vol = self.volume if self.accent == 1 else self.volume * 0.7
             self._accent_click = self._click_waveform(accent_vol, ACCENT_FREQ)
-        print(f"[metronome] Beats → {self.beats}", flush=True)
+        print(f"[metronome] Beats -> {self.beats}", flush=True)
 
     def status(self) -> dict:
         with self._lock:
@@ -252,6 +239,25 @@ class Metronome:
                 "volume": self.volume,
                 "device": self.alsa_device,
             }
+
+    def _emit_click(self, is_accent: bool):
+        """Public API -- emit one click. Chooses accent or normal waveform."""
+        with self._lock:
+            if not self._playing or not self._running:
+                return
+            # Skip duplicate clicks within 10 ms to avoid double-fires.
+            now = time.monotonic()
+            if now - self._last_click_time < 0.01:
+                return
+            self._last_click_time = now
+            click_data = self._accent_click if is_accent else self._normal_click
+            # If a previous click was pending, interrupt audio and queue the new one.
+            if self._pending_click is not None:
+                self._interrupt_audio_locked()
+            self._pending_click = click_data
+            self._audio_generation += 1
+            # Wake the playback thread (it may be blocked in _click_event.wait()).
+            self._click_event.set()
 
 
 def read_commands(metronome: Metronome):
@@ -269,7 +275,7 @@ def read_commands(metronome: Metronome):
             elif cmd == "stop":
                 metronome.stop()
             elif cmd == "click":
-                # Determine accent from beat index — default to normal (beat 1).
+                # Determine accent from beat index -- default to normal (beat 1).
                 # The controller sends the is_accent flag as an optional arg.
                 is_accent = len(parts) >= 2 and parts[1].lower() in ('1', 'true', 'yes')
                 metronome._emit_click(is_accent)
@@ -295,7 +301,7 @@ def read_commands(metronome: Metronome):
 
 
 def _handle_sigusr1(signum, frame):
-    print("[metronome] SIGUSR1 → toggle play/stop", flush=True)
+    print("[metronome] SIGUSR1 -> toggle play/stop", flush=True)
     # Can't easily toggle without reference; signals mainly for systemd graceful stop
     pass
 
@@ -306,7 +312,7 @@ def main():
     parser.add_argument("-B", "--bpm", type=float, default=120, help="BPM")
     parser.add_argument("-b", "--beats", type=int, default=4, help="Beats/measure")
     parser.add_argument("-a", "--accent", type=int, default=1, help="Accent beat")
-    parser.add_argument("-v", "--volume", type=float, default=VOLUME, help="Volume 0.0–1.0")
+    parser.add_argument("-v", "--volume", type=float, default=VOLUME, help="Volume 0.0-1.0")
     parser.add_argument("-d", "--device", type=str, default=None, help="ALSA device")
     args = parser.parse_args()
 

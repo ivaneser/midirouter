@@ -145,6 +145,21 @@ export class DAWUI {
             });
         }
 
+        // Audio latency offset slider (ms). Shifts clip note-ons earlier.
+        const audioLatencyInput = document.getElementById('audio-latency');
+        if (audioLatencyInput) {
+            const label = document.getElementById('audio-latency-label');
+            const updateLabel = () => {
+                if (label) label.textContent = `${audioLatencyInput.value} ms`;
+            };
+            updateLabel();
+            audioLatencyInput.addEventListener('input', () => {
+                const ms = parseInt(audioLatencyInput.value, 10);
+                if (!Number.isNaN(ms)) this._send({ type: 'daw-audio-latency', ms });
+                updateLabel();
+            });
+        }
+
         // MIDI Clock (MTC)
         const midiClockBtn = document.getElementById('midi-clock-toggle');
         if (midiClockBtn) {
@@ -256,6 +271,14 @@ export class DAWUI {
         const metroBeatsInput = document.getElementById('metro-beats');
         if (metroBeatsInput && this.daw) {
             metroBeatsInput.value = this.daw._metronomeBeatsPerMeasure || 4;
+        }
+
+        // Audio latency offset slider: sync from state.
+        const audioLatencyInput = document.getElementById('audio-latency');
+        if (audioLatencyInput && this.dawState?.audioLatencyMs != null) {
+            audioLatencyInput.value = String(this.dawState.audioLatencyMs);
+            const label = document.getElementById('audio-latency-label');
+            if (label) label.textContent = `${this.dawState.audioLatencyMs} ms`;
         }
 
         // MIDI Clock
