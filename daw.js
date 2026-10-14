@@ -589,6 +589,12 @@ class DAWEngine {
             mode: this.recordMode,
             startTime,              // момент начала записи (выровнен по бару)
             startBeat: Math.round(startBeat * 100) / 100,
+            // Живая фаза MIDI-часов на момент старта записи. Если активен внешний
+            // мастер, _beatAt() измеряет биты от F8-якоря (обновляется на каждом
+            // тике), чтобы квантизация оставалась привязана к сетке тиков мастера.
+            liveBaseBeat: (this._externalClock && this._playAnchorTime > 0)
+                ? ((startTime - this._playAnchorTime) / 1000) / this._secondsPerBeat()
+                : null,
             notes: existing.notes,  // пишем в тот же массив (overdub накапливает)
             noteStarts: new Map(),  // `note:${channel}:${note}` -> beat начала
         };
@@ -710,7 +716,15 @@ class DAWEngine {
     }
 
     _beatAt(now) {
-        return ((now - this.recording.startTime) / 1000) / this._secondsPerBeat() + this.recording.startBeat;
+        const r = this.recording;
+        // Stick to the live MIDI clock phase: when an external master is active the
+        // beat is measured from the F8-driven anchor (updated on every tick), so
+        // quantization snaps to the master's tick grid instead of drifting with
+        // wall-clock interpolation.
+        if (r.liveBaseBeat != null && this._externalClock && this._playAnchorTime > 0) {
+            return r.startBeat + (((now - this._playAnchorTime) / 1000) / this._secondsPerBeat() - r.liveBaseBeat);
+        }
+        return ((now - r.startTime) / 1000) / this._secondsPerBeat() + r.startBeat;
     }
 
     _secondsPerBeat() {

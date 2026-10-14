@@ -95,16 +95,25 @@ class MidiClock {
 
     // ---- internal ----
     _reschedule() {
-        const interval = this._msPerBeat / PULSES_PER_QTR;
         const self = this;
-        // Use a tight interval (2x the tick rate) and check the exact
-        // boundary each time — this corrects for any JS timer drift.
+        const msPerTick = this._msPerBeat / PULSES_PER_QTR;
         if (this._timer) clearInterval(this._timer);
+        // Anchor to absolute wall-clock time so emitted F8 ticks stay phase-locked
+        // with the transport anchor: tick N lands exactly at anchor + N*msPerTick.
+        // A tight 2x-rate interval only decides WHICH tick is due from the current
+        // timestamp and catches up on late firings — no cumulative setInterval drift,
+        // so quantized notes land on the emitted tick grid.
+        const anchor = performance.now();
+        let lastTickIdx = -1;
         this._timer = setInterval(() => {
             if (!self._playing) return;
-            self._tickIdx++;
-            self._emit({ type: 'midi', data: [CLOCK_TICK] });
-        }, interval);
+            const due = Math.floor((performance.now() - anchor) / msPerTick);
+            while (lastTickIdx < due && self._playing) {
+                lastTickIdx++;
+                self._tickIdx++;
+                self._emit({ type: 'midi', data: [CLOCK_TICK] });
+            }
+        }, Math.max(1, msPerTick / 2));
     }
 }
 
