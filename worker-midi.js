@@ -1656,6 +1656,13 @@ class MIDIRouterWorker {
                 daw.setSlotsPerTrack(msg.n);
                 this._broadcastState();
                 break;
+            case 'daw_set_master_loop_bars':
+                if (Number.isInteger(msg.bars)) {
+                    const ok = daw.setMasterLoopBars(msg.bars);
+                    console.log(`[WORKER] Master loop bars: ${ok ? msg.bars : `rejected (${msg.bars})`}`);
+                }
+                this._broadcastState();
+                break;
             case 'daw_pad_learn':
                 this.autoAssign = !!msg.on;
                 if (this.autoAssign) this._learnCursor = 0;

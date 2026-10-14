@@ -97,6 +97,10 @@ class DAWEngine {
         // Global cycle: true after the first completed recording locks loopLenBeats.
         this._globalCycleLocked = false;
 
+        // Explicit master loop length in bars (UI setting). When set, every clip
+        // repeats for exactly this many bars and the global cycle is locked.
+        this.masterLoopBars = null;
+
         // Two-bar count-in flag for first empty-clip recording start.
         this._countInRunning = false;
         this._countInTimer = null;          // pending setTimeout — canceled on stop
@@ -190,6 +194,16 @@ class DAWEngine {
             return;
         }
         this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, n));
+        // Keep an explicit master loop measured in bars (not beats): re-derive
+        // the shared cycle and clip lengths from the new meter.
+        if (this.masterLoopBars != null) {
+            this.loopLenBeats = this.masterLoopBars * this._metronomeBeatsPerMeasure;
+            for (const track of this.tracks) {
+                for (const clip of track.clips) {
+                    clip.length = this.loopLenBeats;
+                }
+            }
+        }
         this._onMetronomeMeter(this._metronomeBeatsPerMeasure);
     }
 
@@ -400,10 +414,13 @@ class DAWEngine {
     resetAllClips() {
         this._stopRecording();
         this.sessionRecording = false;
+        // With an explicit master loop the emptied clips keep the full cycle
+        // length so the next take repeats for the selected number of bars.
+        const resetLength = this.masterLoopBars != null ? this.loopLenBeats : this._snapToBars(0);
         for (const track of this.tracks) {
             for (const clip of track.clips) {
                 clip.notes = [];
-                clip.length = this._snapToBars(0);
+                clip.length = resetLength;
             }
         }
         this.clipState.fill(-1);
@@ -445,6 +462,27 @@ class DAWEngine {
     _snapToBars(beats) {
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
         return Math.max(bar, Math.ceil(beats / bar) * bar);
+    }
+
+    // Explicit master loop length in bars. Locks the shared transport cycle to
+    // exactly `bars` measures and resizes every clip so playback repeats for
+    // the full master cycle. Returns false on invalid input.
+    setMasterLoopBars(bars) {
+        // Reject non-number input, non-integers, and out-of-range values before
+        // any state mutation.
+        if (typeof bars !== 'number' || !Number.isInteger(bars)) return false;
+        if (bars < 1 || bars > 64) return false;
+        this.masterLoopBars = bars;
+        this.loopLenBeats = bars * Math.max(1, this._metronomeBeatsPerMeasure);
+        // The explicit setting locks the global cycle: auto-derivation from a
+        // first completed recording must not overwrite it.
+        this._globalCycleLocked = true;
+        for (const track of this.tracks) {
+            for (const clip of track.clips) {
+                clip.length = this.loopLenBeats;
+            }
+        }
+        return true;
     }
 
     // ---- Запись ----
@@ -602,7 +640,13 @@ class DAWEngine {
             const maxEnd = r.notes.reduce((m, n) => Math.max(m, n.start + (n.dur || 0)), 0);
             const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
             const span = Math.max(0, end - r.startBeat);
-            this.tracks[r.track].clips[r.slot].length = this._snapToBars(Math.max(maxEnd, span));
+            if (this.masterLoopBars != null) {
+                // Explicit master loop: the take always repeats for the full
+                // selected cycle, regardless of note density.
+                this.tracks[r.track].clips[r.slot].length = this.loopLenBeats;
+            } else {
+                this.tracks[r.track].clips[r.slot].length = this._snapToBars(Math.max(maxEnd, span));
+            }
         }
 
         // First completed recording: derive a shared global cycle from the elapsed
@@ -925,6 +969,7 @@ class DAWEngine {
             recordMode: this.recordMode,
             slotsPerTrack: this.slotsPerTrack,
             loopLenBeats: this.loopLenBeats,
+            masterLoopBars: this.masterLoopBars,
             metronomeEnabled: this._metronomeEnabled,
             sessionRecording: this.sessionRecording,
             midiClockEnabled: this._midiClockEnabled,
@@ -945,6 +990,7 @@ class DAWEngine {
             recordMode: this.recordMode,
             slotsPerTrack: this.slotsPerTrack,
             loopLenBeats: this.loopLenBeats,
+            masterLoopBars: this.masterLoopBars,
             globalCycleLocked: this._globalCycleLocked,
             midiClockEnabled: this._midiClockEnabled,
             metronome: {
@@ -988,6 +1034,9 @@ class DAWEngine {
             this.loopLenBeats = Math.ceil(data.loopLenBeats);
         }
         this._globalCycleLocked = !!data.globalCycleLocked;
+        // Restore an explicit master loop setting (bars), if persisted.
+        this.masterLoopBars = Number.isInteger(data.masterLoopBars) && data.masterLoopBars >= 1
+            ? data.masterLoopBars : null;
         this._midiClockEnabled = data.midiClockEnabled !== false;
         const m = data.metronome || {};
         this._metronomeEnabled = !!m.enabled;

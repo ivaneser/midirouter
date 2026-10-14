@@ -393,6 +393,10 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_set_slots', n: message.n });
                         break;
 
+                    case 'daw-set-master-loop-bars':
+                        router.worker.postMessage({ type: 'daw_set_master_loop_bars', bars: message.bars });
+                        break;
+
                     case 'daw-metronome-toggle':
                         router.worker.postMessage({ type: 'daw_metronome_toggle' });
                         break;
