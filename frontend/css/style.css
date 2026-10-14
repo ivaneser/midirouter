@@ -911,7 +911,20 @@ body {
     background: #8b0000;
     border-color: #e94560;
     color: #fff;
+}
+/* Count-in pending: blinks red until recording actually starts. */
+.session-slot.pending {
+    background: #8b0000;
+    border-color: #e94560;
+    color: #fff;
     animation: pulse-record 1s infinite;
+}
+/* Overdub mode while actively recording: orange. */
+.session-slot.overdub {
+    background: #b35900;
+    border-color: #ff8c42;
+    color: #fff;
+    box-shadow: 0 0 8px #ff8c42;
 }
 .session-slot.armed {
     border-color: #e94560;

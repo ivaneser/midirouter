@@ -967,6 +967,12 @@ class DAWEngine {
         return {
             tempo: this.tempo,
             recordMode: this.recordMode,
+            // Top-level transport state (per-track `playing` is clip playback).
+            playing: this.playing,
+            recording: this.recording ? { track: this.recording.track, slot: this.recording.slot } : null,
+            // True while a pad-triggered count-in is pending (recording not
+            // started yet) so the UI can blink the armed slot red.
+            countInPending: !!(this._countInRunning && this.recording != null),
             slotsPerTrack: this.slotsPerTrack,
             loopLenBeats: this.loopLenBeats,
             masterLoopBars: this.masterLoopBars,

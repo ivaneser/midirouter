@@ -496,6 +496,12 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_start_transport' });
                         break;
 
+                    // Rec from stopped state: two-bar count-in, then the
+                    // master loop runs (recording starts on pad press).
+                    case 'daw-start-with-countin':
+                        router.worker.postMessage({ type: 'daw_start_with_countin' });
+                        break;
+
                     case 'daw-stop':
                         router.worker.postMessage({ type: 'daw_stop_transport' });
                         break;

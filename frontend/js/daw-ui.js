@@ -74,18 +74,21 @@ export class DAWUI {
         
         const stopBtn = document.getElementById('btn-stop');
         if (stopBtn) {
-            // Update button text based on transport state
+            // Update button text based on master-loop state: the loop is
+            // active while transport plays OR a recording is in progress.
             const updateText = () => {
-                const isPlaying = this.dawState?.playing || false;
-                stopBtn.textContent = isPlaying ? 'Stop' : 'Rec';
+                const isActive = !!(this.dawState?.playing || this.dawState?.recording != null);
+                stopBtn.textContent = isActive ? 'Stop' : 'Rec';
             };
             updateText();
             stopBtn.addEventListener('click', () => {
-                // Toggle based on button text: if it says 'Stop', stop transport; otherwise start it.
+                // Toggle based on button text: if it says 'Stop', stop the
+                // active master loop (play + record); otherwise start a
+                // two-bar count-in, after which the master loop runs.
                 if (stopBtn.textContent === 'Stop') {
-                    this._send({ type: 'daw_stop_transport' });
+                    this._send({ type: 'daw-stop' });
                 } else {
-                    this._send({ type: 'daw_start_transport' });
+                    this._send({ type: 'daw-start-with-countin' });
                 }
                 // Immediately toggle the button text for instant feedback
                 stopBtn.textContent = stopBtn.textContent === 'Stop' ? 'Rec' : 'Stop';
@@ -262,11 +265,12 @@ export class DAWUI {
             midiClockBtn.classList.toggle('active', !!enabled);
             midiClockBtn.textContent = enabled ? '⏱ MTC ON' : '⏱ MTC';
         }
-        // Stop button label
+        // Stop button label: "master loop active" = transport playing or
+        // a recording in progress (including count-in pending).
         const stopBtn = document.getElementById('btn-stop');
         if (stopBtn) {
-            const isPlaying = this.dawState?.playing || false;
-            stopBtn.textContent = isPlaying ? 'Stop' : 'Rec';
+            const isActive = !!(this.dawState?.playing || this.dawState?.recording != null);
+            stopBtn.textContent = isActive ? 'Stop' : 'Rec';
         }
     }
 
@@ -394,10 +398,15 @@ export class DAWUI {
                 }
                 // Determine additional state classes based on DAW state and record mode
                 const recordMode = this.dawState?.recordMode;
-                const isOverdub = recordMode === 'overdub' && clip && clip.notes > 0;
                 const isRecording = this.dawState?.recording?.track === t && this.dawState?.recording?.slot === s;
+                // Count-in pending: blink red until recording actually starts.
+                const isPending = isRecording && !!this.dawState?.countInPending;
+                // Overdub mode while actively recording -> orange.
+                const isOverdubActive = isRecording && recordMode === 'overdub';
                 const isActive = ch.playing && s === ch.activeSlot;
-                if (isOverdub) {
+                if (isPending) {
+                    cls += ' pending';
+                } else if (isOverdubActive) {
                     cls += ' overdub';
                 } else if (isRecording) {
                     cls += ' recording';

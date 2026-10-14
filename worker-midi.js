@@ -878,6 +878,9 @@ class MIDIRouterWorker {
         // Resend the physical LED feedback for this track/slot so the pad
         // transitions from orange (count-in) to red (recording).
         this._refreshPadLeds(this.daw.recording.track, this.daw.recording.slot);
+        // Broadcast so the web UI leaves the red-blink "pending" state and
+        // shows solid red (or orange for overdub) immediately.
+        this._broadcastState();
     }
 
     // Обновляет LED для одного пэда (trackIdx/slot) или для всех пэдов
@@ -958,6 +961,8 @@ class MIDIRouterWorker {
                 this._transportPlaying = false;
                 for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
                 this.daw.clipState.fill(-1);
+                // Panic: mute everything on all outputs.
+                this.sendPanicNoteOff();
             } else if (mode === 'none' && clip?.notes.length) {
                 this.daw.clipState[track] = slot;
                 this._lastActivated = { trackIdx: track, slot };
@@ -1726,6 +1731,21 @@ class MIDIRouterWorker {
                 this._syncPadClock();
                 this._broadcastState();
                 break;
+            case 'daw_start_with_countin':
+                // "Rec" from stopped state: flag a two-bar count-in BEFORE
+                // starting transport so the metronome counts in and the
+                // master loop runs after it. With no active recording the
+                // count-in completion is a no-op; pressing a pad during the
+                // loop starts actual recording.
+                if (!this._transportPlaying) {
+                    daw._countInRunning = true;
+                    daw.startTransport();
+                    this._transportPlaying = true;
+                }
+                if (this._externalClockActive) this._externalTransportState = true;
+                this._syncPadClock();
+                this._broadcastState();
+                break;
             case 'daw_stop_transport':
                 if (daw.recording && daw.playing) {
                     // During a count-in, skip the bar-boundary deferred stop so
@@ -1735,6 +1755,8 @@ class MIDIRouterWorker {
                     if (daw._countInRunning) {
                         daw.stopTransport();
                         this._transportPlaying = false;
+                        // Panic: mute everything on all outputs.
+                        this.sendPanicNoteOff();
                         break;
                     }
                     if (this._externalClockActive) this._externalTransportState = false;
@@ -1746,6 +1768,9 @@ class MIDIRouterWorker {
                     daw.stopTransport();
                     this._transportPlaying = false;
                 }
+                // Panic: mute everything on all outputs so no held/sustained
+                // notes survive the stop.
+                this.sendPanicNoteOff();
                 if (daw.recording) daw._stopRecording(daw._beatAt(performance.now()));
                 for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
                 daw.clipState.fill(-1);
