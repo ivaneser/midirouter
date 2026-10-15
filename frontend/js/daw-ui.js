@@ -160,6 +160,21 @@ export class DAWUI {
             });
         }
 
+        // Click latency slider (ms): tunes when the audio metronome click lands.
+        const clickLatencyInput = document.getElementById('click-latency');
+        if (clickLatencyInput) {
+            const label = document.getElementById('click-latency-label');
+            const updateLabel = () => {
+                if (label) label.textContent = `${clickLatencyInput.value} ms`;
+            };
+            updateLabel();
+            clickLatencyInput.addEventListener('input', () => {
+                const ms = parseInt(clickLatencyInput.value, 10);
+                if (!Number.isNaN(ms)) this._send({ type: 'daw-click-latency', ms });
+                updateLabel();
+            });
+        }
+
         // Quantization grid selector (beats). Snaps recorded note starts.
         const quantizeGridInput = document.getElementById('quantize-grid');
         if (quantizeGridInput) {
@@ -280,6 +295,14 @@ export class DAWUI {
         const metroBeatsInput = document.getElementById('metro-beats');
         if (metroBeatsInput && this.daw) {
             metroBeatsInput.value = this.daw._metronomeBeatsPerMeasure || 4;
+        }
+
+        // Click latency slider: sync from state.
+        const clickLatencyInput = document.getElementById('click-latency');
+        if (clickLatencyInput && this.dawState?.clickLatencyMs != null) {
+            clickLatencyInput.value = String(this.dawState.clickLatencyMs);
+            const label = document.getElementById('click-latency-label');
+            if (label) label.textContent = `${this.dawState.clickLatencyMs} ms`;
         }
 
         // Audio latency offset slider: sync from state.

@@ -422,6 +422,11 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_audio_latency', ms: message.ms });
                         break;
 
+                    // Click latency compensation (ms) for the audio metronome.
+                    case 'daw-click-latency':
+                        router.worker.postMessage({ type: 'daw_click_latency', ms: message.ms });
+                        break;
+
                     // Quantization grid (beats) for recorded notes.
                     case 'daw-quantize-grid':
                         router.worker.postMessage({ type: 'daw_quantize_grid', beats: message.beats });

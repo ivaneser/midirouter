@@ -23,6 +23,7 @@ IPC Controls (via stdin)
 
 import argparse
 import fcntl
+import os
 import math
 from array import array
 import signal
@@ -50,6 +51,11 @@ CHUNK_FRAMES  = 512                       # feeder write size (~11.6 ms)
 PIPE_BYTES    = 4096                      # small pipe => writes block at real time
 F_SETPIPE_SZ  = 1031                    # Linux fcntl constant
 MAX_ACTIVE_CLICKS = 8
+# Time from writing a click into the stream to hearing it: the ALSA buffer plus the
+# pipe backlog. Estimated from the sizes above; tune with MIDIR_CLICK_LATENCY_MS.
+CLICK_LATENCY_MS = float(os.environ.get(
+    "MIDIR_CLICK_LATENCY_MS",
+    (BUFFER_FRAMES + PIPE_BYTES // 2) * 1000.0 / SAMPLE_RATE))
 
 
 def _default_alsa_device():
@@ -86,6 +92,7 @@ class Metronome:
         self._audio_process = None  # single persistent aplay, fed by the feeder
         self._last_click_time = 0.0
         self._active = []           # [samples(array 'h'), position, queued_at] clicks to mix in
+        self._scheduled = set()     # threading.Timer objects for predicted clicks
         self._last_write_done = 0.0  # monotonic time last chunk write finished (feeder thread only)
         self._wake = threading.Event()
 
@@ -210,6 +217,33 @@ class Metronome:
         except subprocess.TimeoutExpired:
             proc.terminate()
 
+    # -- scheduled clicks (predicted beats) ----------------------------
+    def schedule_click(self, is_accent: bool, delay_ms: float):
+        """Play one click delay_ms from now, compensated for audio latency.
+
+        The router predicts the next beat from the external MIDI clock and asks for
+        the click ahead of time; the latency here makes it sound on that beat.
+        """
+        lead_s = (delay_ms - CLICK_LATENCY_MS) / 1000.0
+        if lead_s <= 0.0:
+            self._emit_click(is_accent)
+            return
+        with self._lock:
+            if not self._playing:
+                return
+            self._scheduled = {t for t in self._scheduled if t.is_alive()}
+            timer = threading.Timer(lead_s, self._emit_click, args=(is_accent,))
+            timer.daemon = True
+            self._scheduled.add(timer)
+        timer.start()
+
+    def _cancel_scheduled(self):
+        with self._lock:
+            pending = getattr(self, "_scheduled", set())
+            self._scheduled = set()
+        for timer in pending:
+            timer.cancel()
+
     # -- control API -------------------------------------------------------
     def start(self):
         with self._lock:
@@ -222,6 +256,7 @@ class Metronome:
         self._wake.set()
 
     def stop(self):
+        self._cancel_scheduled()
         with self._lock:
             if self._playing:
                 self._playing = False
@@ -233,6 +268,7 @@ class Metronome:
 
     def quit(self):
         print("[metronome] QUIT", flush=True)
+        self._cancel_scheduled()
         with self._lock:
             self._running = False
             self._playing = False
@@ -301,6 +337,17 @@ def read_commands(metronome: Metronome):
                 metronome.start()
             elif cmd == "stop":
                 metronome.stop()
+            elif cmd == "latency" and len(parts) >= 2:
+                try:
+                    set_click_latency(float(parts[1]))
+                except ValueError:
+                    print(f"[metronome] Invalid latency: {parts}", flush=True)
+            elif cmd == "clickin" and len(parts) >= 3:
+                # clickin <delay_ms> <accent 0|1>: a click due delay_ms from now.
+                try:
+                    metronome.schedule_click(parts[2].lower() in ('1', 'true', 'yes'), float(parts[1]))
+                except ValueError:
+                    print(f"[metronome] Invalid clickin: {parts}", flush=True)
             elif cmd == "click":
                 # Determine accent from beat index -- default to normal (beat 1).
                 # The controller sends the is_accent flag as an optional arg.
@@ -325,6 +372,13 @@ def read_commands(metronome: Metronome):
                 print(f"[metronome] Unknown command: {cmd}", flush=True)
     except (IOError, OSError):
         pass
+
+
+def set_click_latency(ms: float):
+    """Set how far ahead of the beat the click is written (audio output latency)."""
+    global CLICK_LATENCY_MS
+    CLICK_LATENCY_MS = max(0.0, min(400.0, float(ms)))
+    print(f"[metronome] Click latency -> {CLICK_LATENCY_MS:.0f} ms", flush=True)
 
 
 def _handle_sigusr1(signum, frame):

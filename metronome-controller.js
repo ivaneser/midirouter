@@ -102,6 +102,9 @@ export class MetronomeController {
 
             this._pid = this._process.pid;
             console.log(`[METRONOME] Started Python metronome (PID: ${this._pid})`);
+            if (this._clickLatencyMs != null) {
+                this._process.stdin.write(`latency ${this._clickLatencyMs}\n`);
+            }
 
             let stdoutReady = false;
             let stderrLines = [];
@@ -238,6 +241,36 @@ export class MetronomeController {
             this._process.stdin.write(`click ${isAccent ? '1' : '0'}\n`);
         } catch (e) {
             console.warn(`[METRONOME] Failed to trigger beat: ${e.message}`);
+        }
+    }
+
+    /**
+     * Schedule a click delayMs from now. The Python side subtracts its audio latency,
+     * so the click is heard on the beat it was predicted for.
+     * @param {boolean} isAccent
+     * @param {number} delayMs
+     */
+    /**
+     * Set the click latency compensation (ms). Applied immediately and on every start.
+     * @param {number} ms
+     */
+    setClickLatency(ms) {
+        this._clickLatencyMs = Math.max(0, Math.min(400, Math.round(ms)));
+        if (this._process && this._pid && this._running) {
+            try {
+                this._process.stdin.write(`latency ${this._clickLatencyMs}\n`);
+            } catch (e) {
+                console.warn(`[METRONOME] Failed to set click latency: ${e.message}`);
+            }
+        }
+    }
+
+    triggerBeatIn(isAccent = false, delayMs = 0) {
+        if (!this._process || !this._pid || !this._running) return;
+        try {
+            this._process.stdin.write(`clickin ${Math.max(0, delayMs).toFixed(3)} ${isAccent ? '1' : '0'}\n`);
+        } catch (e) {
+            console.warn(`[METRONOME] Failed to schedule beat: ${e.message}`);
         }
     }
 

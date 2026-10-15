@@ -99,6 +99,10 @@ class DAWEngine {
 
         // Global cycle: true after the first completed recording locks loopLenBeats.
         this._globalCycleLocked = false;
+        // External clock: the tick at which the global cycle starts (beat 0). Beats are
+        // counted from here without wrapping, so takes that cross a loop boundary keep
+        // their timing.
+        this._externalCycleOriginTick = 0;
 
         // Explicit master loop length in bars (UI setting). When set, every clip
         // repeats for exactly this many bars and the global cycle is locked.
@@ -153,6 +157,37 @@ class DAWEngine {
     }
 
     // ---- Metronome ----
+    // First take on an empty project while the pre-record metronome is already
+    // ticking (after Reset): that metronome grid IS the count-in. Start the count-in
+    // on its next bar line, keep the same grid, and begin recording two bars later,
+    // so the performer hears exactly one two-bar count-in.
+    adoptPreRecordCount(now = performance.now()) {
+        if (this.playing || !this.recording || !this._metronomeTimer) return false;
+        if (!this._isPreRecordMetronomeMode() || !this._metronomeAnchorTime) return false;
+        const spbMs = this._secondsPerBeatMs();
+        const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+        const sinceAnchor = (now - this._metronomeAnchorTime) / spbMs;
+        let nextBar = Math.ceil(sinceAnchor / bar) * bar;
+        if ((this._metronomeAnchorTime + nextBar * spbMs) - now < 5) nextBar += bar;
+        const countInEnd = this._metronomeAnchorTime + (nextBar + 2 * bar) * spbMs;
+        this._preRecordTwoBarRemainingBeats = null;
+        this.playing = true;
+        this._currentBeat = 0;
+        this._playAnchorTime = this._metronomeAnchorTime;
+        this._lastProgressBeat = 0;
+        this.recording.startTime = countInEnd;
+        this._countInRunning = true;
+        this._countInGeneration++;
+        const generation = this._countInGeneration;
+        this._countInTimer = setTimeout(() => {
+            if (generation !== this._countInGeneration || !this._countInRunning) return;
+            this._countInTimer = null;
+            this._countInRunning = false;
+            this._onCountInComplete();
+        }, Math.max(0, countInEnd - now));
+        return true;
+    }
+
     setMetronome(enabled) {
         this._metronomeEnabled = !!enabled;
         if (this._metronomeEnabled) {
@@ -247,6 +282,7 @@ class DAWEngine {
 
     _startMetronome() {
         if (this._metronomeTimer) return;
+        this._externalClickPrimed = false;
         this._onMetronomeStart(this.tempo, this._metronomeBeatsPerMeasure);
 
         // When external clock is active the metronome tick is driven from the
@@ -305,8 +341,19 @@ class DAWEngine {
             const note = isAccent ? this._metronomeAccentNote : this._metronomeNote;
             const vel = isAccent ? 100 : 70;
             this._emitMetronomeClick(note, vel);
-            // Drive the actual audio click for this authoritative beat.
-            if (this._onAudioBeat) {
+            if (this._externalClock && this._onAudioBeatAhead) {
+                // The audio path has a fixed latency, so the click for this beat was
+                // already scheduled one beat earlier (see below). Only the very first
+                // beat, which cannot be predicted, is triggered here.
+                if (!this._externalClickPrimed && this._onAudioBeat) {
+                    this._onAudioBeat(isAccent);
+                }
+                this._externalClickPrimed = true;
+                // Predict the next beat from the estimated tempo and schedule its click.
+                const nextAccent = ((tickInMeasure + 1) % this._metronomeBeatsPerMeasure === 0);
+                this._onAudioBeatAhead(nextAccent, this._secondsPerBeatMs());
+            } else if (this._onAudioBeat) {
+                // Drive the actual audio click for this authoritative beat.
                 this._onAudioBeat(isAccent);
             }
             this._metronomeBeatInMeasure = tickInMeasure;
@@ -468,9 +515,25 @@ class DAWEngine {
     }
 
     // Round up to a whole number of bars (minimum one bar).
+    // Milliseconds from `now` until the transport cycle reaches `phase` (a beat
+    // position inside the global cycle). 0 when transport is stopped or when we are
+    // already at that position (a few ms of timer lateness counts as "there").
+    msUntilPhase(phase, now = performance.now()) {
+        if (!this.playing) return 0;
+        const spb = this._secondsPerBeat();
+        const cycle = Math.max(1, this.loopLenBeats);
+        const cyclePos = ((now - this._playAnchorTime) / 1000 / spb) % cycle;
+        const ahead = (((cyclePos - phase) % cycle) + cycle) % cycle; // beats since phase
+        if (ahead * spb * 1000 < 5) return 0;
+        return (cycle - ahead) * spb * 1000;
+    }
+
+    // Whole bars, rounded up. A quarter beat of tolerance absorbs the few ms by
+    // which a take's start and the bar grid can differ, so a take of N bars never
+    // becomes N+1 bars.
     _snapToBars(beats) {
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
-        return Math.max(bar, Math.ceil(beats / bar) * bar);
+        return Math.max(bar, Math.ceil((beats - 0.25) / bar) * bar);
     }
 
     // Explicit master loop length in bars. Locks the shared transport cycle to
@@ -573,7 +636,11 @@ class DAWEngine {
                     // If the press is within 5 ms of a bar boundary, start exactly at that moment,
                     // without waiting for the next bar.
                     if (delayMs <= 5) delayMs = 0;
-                    startTime = now + delayMs;
+                    // First take while the transport already runs (e.g. external clock):
+                    // one two-bar count-in on the bar line, then recording starts.
+                    startTime = now + delayMs + 2 * bar * spb * 1000;
+                    this._countInRunning = true;
+                    this._countInGeneration++;
                 } else {
                     // Transport is already running and global cycle is locked:
                     // snap forward to the next bar boundary so each recording
@@ -602,7 +669,10 @@ class DAWEngine {
             // snapped start bar. Clips always play from the cycle start, so notes
             // are stored relative to this (not to startBeat, which is the bar inside
             // the cycle where recording began and would shift the take).
-            originBeat: Math.floor(startBeat / this.loopLenBeats) * this.loopLenBeats,
+            originBeat: startBeat,
+            // Cycle position where this take starts; the clip plays from here.
+            phase: ((startBeat % Math.max(1, this.loopLenBeats)) + Math.max(1, this.loopLenBeats)) % Math.max(1, this.loopLenBeats),
+            clipWasEmpty: existing.notes.length === 0,
             // Live MIDI clock phase at the moment recording starts. If an external
             // master is active, _beatAt() measures beats from the F8 anchor (updated on every
             // tick), so quantization stays locked to the master's tick grid.
@@ -655,7 +725,18 @@ class DAWEngine {
         r.noteStarts.clear();
         // Clip length = length of the recording itself: covers up to the last note,
         // rounded UP to a whole number of bars. Each clip has its own
-        // length (different clips may have a different whole number of bars).
+        // Clip length is its own whole number of bars; it loops on that length from
+        // its start phase. The first completed take defines the global cycle.
+        // First completed recording: the global cycle is derived from its elapsed
+        // span, rounded UP to whole bars of the configured meter (at least one bar).
+        if (!this._globalCycleLocked && r.notes.length) {
+            const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
+            const elapsedSpan = Math.max(0, end - r.startBeat);
+            const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+            const bars = Math.ceil((elapsedSpan - 0.25) / bar);
+            this.loopLenBeats = Math.max(bar, bars * bar);
+            this._globalCycleLocked = true;
+        }
         if (r.notes.length) {
             const maxEnd = r.notes.reduce((m, n) => Math.max(m, n.start + (n.dur || 0)), 0);
             const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
@@ -666,21 +747,8 @@ class DAWEngine {
                 this.tracks[r.track].clips[r.slot].length = this.loopLenBeats;
             } else {
                 this.tracks[r.track].clips[r.slot].length = this._snapToBars(Math.max(maxEnd, span));
+                if (r.clipWasEmpty) this.tracks[r.track].clips[r.slot].phase = r.phase;
             }
-        }
-
-        // First completed recording: derive a shared global cycle from the elapsed
-        // recording span (not just note density), rounded UP to whole bars of the
-        // configured meter with a minimum of one bar. This drives only the transport
-        // display progress; clip playback loops on each clip's own length.
-        if (!this._globalCycleLocked && r.notes.length) {
-            const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
-            const elapsedSpan = Math.max(0, end - r.startBeat);
-            const bar = Math.max(1, this._metronomeBeatsPerMeasure);
-            const bars = Math.ceil(elapsedSpan / bar);
-            const globalCycleBeats = Math.max(bar, bars * bar);
-            this.loopLenBeats = globalCycleBeats;
-            this._globalCycleLocked = true;
         }
 
         this.recording = null;
@@ -1041,6 +1109,7 @@ class DAWEngine {
                 soloed: t.soloed,
                 clips: t.clips.map((c) => ({
                     length: c.length,
+                    phase: c.phase || 0,
                     notes: c.notes.map((n) => ({
                         channel: n.channel, note: n.note, velocity: n.velocity,
                         start: n.start, dur: n.dur,
@@ -1101,6 +1170,7 @@ class DAWEngine {
                     }));
                 // normalize the length to a whole number of bars
                 clip.length = this._snapToBars(Number.isFinite(cd.length) ? cd.length : 0);
+                clip.phase = Number.isFinite(cd.phase) ? ((cd.phase % Math.max(1, this.loopLenBeats)) + Math.max(1, this.loopLenBeats)) % Math.max(1, this.loopLenBeats) : 0;
             });
             const firstNote = track.clips.flatMap((clip) => clip.notes)[0];
             track.channel = savedChannel;

@@ -33,7 +33,7 @@ class MIDIRouterWorker {
         // DAW events reach the UI; transport clock also reaches synth outputs.
         this.daw = new DAWEngine();
         this.daw._onProgress = (beat, progress, cues = {}) => {
-            if (parentPort) parentPort.postMessage({
+            if (parentPort) parentPort?.postMessage({
                 type: 'daw_progress',
                 payload: { beat, progress, loopLenBeats: this.daw.loopLenBeats, ...cues },
             });
@@ -100,6 +100,12 @@ class MIDIRouterWorker {
             this.metronomeCtrl.triggerBeat(isAccent);
             this.metronomeCtrl.advanceBeat();
         };
+        // External clock: the click for the predicted next beat, scheduled early so it
+        // sounds on the beat (the metronome process compensates its audio latency).
+        this.daw._onAudioBeatAhead = (isAccent, periodMs) => {
+            if (!this._audioMetronomeAvailable) return;
+            this.metronomeCtrl.triggerBeatIn(isAccent, periodMs);
+        };
 
         const origSetTempo = this.daw.setTempo.bind(this.daw);
         this.daw.setTempo = (bpm) => {
@@ -136,7 +142,7 @@ class MIDIRouterWorker {
 
             // Generated clock/transport also reaches the UI for timing listeners.
             if (parentPort) {
-                parentPort.postMessage({ type: 'daw_midi', data: bytes });
+                parentPort?.postMessage({ type: 'daw_midi', data: bytes });
             }
         };
 
@@ -161,6 +167,8 @@ class MIDIRouterWorker {
         // non-external-clock path so notes fire earlier, compensating for audio
         // output latency. Clamped to 0..300 on set.
         this.audioLatencyMs = 30;
+        // Click latency compensation (ms) for the audio metronome, tuned by ear.
+        this.clickLatencyMs = 139;
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
         // one of the five allowed values, default 0.125 (1/32 note).
@@ -370,22 +378,22 @@ class MIDIRouterWorker {
                 console.log(`[WORKER] HOT-PLUG: changes detected. +in:${addedInputs.length} -in:${removedInputs.length} ~in:${movedInputs.length} +out:${addedOutputs.length} -out:${removedOutputs.length} ~out:${movedOutputs.length}`);
                 for (const name of addedInputs) {
                     console.log(`[WORKER] HOT-PLUG: New input: ${name}`);
-                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'input' });
+                    parentPort?.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'input' });
                 }
                 for (const name of removedInputs) {
                     console.log(`[WORKER] HOT-PLUG: Input removed: ${name}`);
-                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'input' });
+                    parentPort?.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'input' });
                 }
                 for (const name of movedInputs) {
                     console.log(`[WORKER] HOT-PLUG: Input index changed: ${name} (${this._lastInputPorts.get(name)} -> ${currentInputPorts.get(name)})`);
                 }
                 for (const name of addedOutputs) {
                     console.log(`[WORKER] HOT-PLUG: New output: ${name}`);
-                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'output' });
+                    parentPort?.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'added', direction: 'output' });
                 }
                 for (const name of removedOutputs) {
                     console.log(`[WORKER] HOT-PLUG: Output removed: ${name}`);
-                    parentPort.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'output' });
+                    parentPort?.postMessage({ type: 'hotplug-detected', deviceName: name, action: 'removed', direction: 'output' });
                 }
                 for (const name of movedOutputs) {
                     console.log(`[WORKER] HOT-PLUG: Output index changed: ${name} (${this._lastOutputPorts.get(name)} -> ${currentOutputPorts.get(name)})`);
@@ -541,7 +549,7 @@ class MIDIRouterWorker {
     }
 
     // ---- DAW: play/stop a clip in loop ----
-    _startTrackPlayback(trackIdx, slot, now = performance.now()) {
+    _startTrackPlayback(trackIdx, slot, now = performance.now(), { immediate = false } = {}) {
         this._stopTrackPlayback(trackIdx);
         const clip = this.daw.tracks[trackIdx].clips[slot];
         if (!clip || clip.notes.length === 0) return;
@@ -564,7 +572,11 @@ class MIDIRouterWorker {
             playback.externalClock = true;
             playback.loopTicks = Math.max(24, Math.round(loopBeats * 24));
             const currentTick = this._externalMidiClock.tickCount;
-            playback.startTick = currentTick - (currentTick % playback.loopTicks);
+            // Immediate start (take just recorded) or next cycle start (manual launch).
+            const cycleTicks = Math.max(24, Math.round(this.daw.loopLenBeats * 24));
+            const sinceOrigin = currentTick - this.daw._externalCycleOriginTick;
+            const untilCycle = immediate ? 0 : ((-sinceOrigin % cycleTicks) + cycleTicks) % cycleTicks;
+            playback.startTick = currentTick + untilCycle;
             playback.noteEvents = clip.notes.map(note => ({
                 ...note,
                 startTick: ((Math.round(note.start * 24) % playback.loopTicks) + playback.loopTicks) % playback.loopTicks,
@@ -577,15 +589,8 @@ class MIDIRouterWorker {
 
         // Legato launch: a filled clip launched mid-bar waits for the nearest
         // upcoming transport cycle start, then plays every event from its own beat 0.
-        const transportBeat = this.daw.playing
-            ? ((now - this.daw._playAnchorTime) / 1000) / this.daw._secondsPerBeat()
-            : 0;
-        // Wait for the next global cycle start (loopLenBeats). A launch exactly on a
-        // cycle boundary fires immediately.
-        const loopLen = this.daw.loopLenBeats || 4;
-        const cyclePhase = ((transportBeat % loopLen) + loopLen) % loopLen;
-        const beatsToCycleStart = cyclePhase < 1e-9 ? 0 : loopLen - cyclePhase;
-        const barDelay = beatsToCycleStart * msPerBeat;
+        // Immediate start (take just recorded) or next cycle start (manual launch).
+        const barDelay = immediate ? 0 : this.daw.msUntilPhase(0, now);
 
         for (const note of clip.notes) {
             // Each event is stored relative to the clip's own beat 0, repeats every clip.length.
@@ -779,6 +784,7 @@ class MIDIRouterWorker {
             this._transportPlaying = true;
             this.daw._playAnchorTime = now;
             this.daw._currentBeat = 0;
+            this.daw._externalCycleOriginTick = this._externalMidiClock.tickCount;
             if (wasExternalClockActive) this._syncActiveClipsToExternalClock();
             // Fan out the Start message to all allowed outputs (excl. master).
             this._sendMidiClockOutputs([0xfa]);
@@ -929,6 +935,17 @@ class MIDIRouterWorker {
         console.log('[DAW] Count-in complete — starting actual recording');
         const now = performance.now();
         this.daw.recording.startTime = now;
+        // The first take defines the global cycle: beat 0 of the cycle is the start of
+        // the recording (the two-bar count-in is before it). Until a cycle is locked,
+        // move the transport anchor here so the take's stop boundary and the cycle use
+        // the same clock.
+        if (!this.daw._globalCycleLocked && this.daw.playing) {
+            this.daw._playAnchorTime = now;
+            if (this.daw._externalClock && this._externalMidiClock) {
+                this.daw._externalCycleOriginTick = this._externalMidiClock.tickCount;
+                this.daw.recording.liveBaseBeat = 0; // recording start = cycle origin
+            }
+        }
         // Resend the physical LED feedback for this track/slot so the pad
         // transitions from orange (count-in) to red (recording).
         this._refreshPadLeds(this.daw.recording.track, this.daw.recording.slot);
@@ -1020,7 +1037,7 @@ class MIDIRouterWorker {
             } else if (mode === 'none' && clip?.notes.length) {
                 this.daw.clipState[track] = slot;
                 this._lastActivated = { trackIdx: track, slot };
-                this._startTrackPlayback(track, slot, boundaryTime);
+                this._startTrackPlayback(track, slot, boundaryTime, { immediate: true });
             } else {
                 this.daw.clipState[track] = -1;
                 this._stopTrackPlayback(track);
@@ -1076,27 +1093,15 @@ class MIDIRouterWorker {
             if (result.action === 'record-stop' && !hasNotes) {
                 this._stopTrackPlayback(trackIdx);
             } else {
-                let startAt = now;
-                let delayMs = 0;
-                if (this.daw.playing) {
-                    const spb = this.daw._secondsPerBeat();
-                    const curBeat = ((now - this.daw._playAnchorTime) / 1000) / spb;
-                    // Wait for the next global cycle start so all clips are phase-aligned.
-                    const loopLen = this.daw.loopLenBeats || 4;
-                    const cyclePhase = (curBeat % loopLen + loopLen) % loopLen;
-                    const beatsToCycleStart = cyclePhase < 1e-9 ? 0 : loopLen - cyclePhase;
-                    delayMs = beatsToCycleStart * spb * 1000;
-                    // If the press is on the cycle boundary (<= 5 ms) — start immediately.
-                    if (delayMs <= 5) delayMs = 0;
-                    startAt = now + delayMs;
-                }
+                // A take that was just recorded plays at once from its own beat 0.
+                // A manual launch of a stored clip waits for the next cycle start.
+                const immediate = result.action === 'record-stop';
+                const delayMs = immediate || !this.daw.playing ? 0 : this.daw.msUntilPhase(0, now);
                 this._lastActivated = { trackIdx, slot };
-                // Start playback with a delay until the start of the bar: notes from the
-                // middle of the cycle are not played — we wait for the boundary.
-                if (delayMs > 0) {
-                    this._schedulePendingStart(trackIdx, slot, startAt, delayMs);
+                if (delayMs > 5) {
+                    this._schedulePendingStart(trackIdx, slot, now + delayMs, delayMs);
                 } else {
-                    this._startTrackPlayback(trackIdx, slot, startAt);
+                    this._startTrackPlayback(trackIdx, slot, now, { immediate });
                 }
             }
         } else if (result.action === 'stop' || result.action === 'record-stop-stopped') {
@@ -1111,7 +1116,11 @@ class MIDIRouterWorker {
             // Requirement 1: the first clip in an empty project starts the global
             // cycle (transport + MIDI clock) exactly at the press —
             // the recording is already anchored to beat 0 of this cycle.
-            if (!this.daw.playing && (countIn || wasEmptyProject)) {
+            if (!this.daw.playing && wasEmptyProject && this.daw.adoptPreRecordCount()) {
+                // The pre-record metronome (after Reset) already counted in; it is the
+                // count-in, so no second count-in is started.
+                this._transportPlaying = true;
+            } else if (!this.daw.playing && (countIn || wasEmptyProject)) {
                 this.daw.setMetronome(true);
                 // Flag count-in BEFORE startTransport so the bar-delayed timer
                 // fires inside startTransport (which stops/restarts metronome).
@@ -1142,7 +1151,7 @@ class MIDIRouterWorker {
     }
 
     _emitVisualEvent(event) {
-        if (parentPort) parentPort.postMessage({ type: 'daw_visual_event', event });
+        if (parentPort) parentPort?.postMessage({ type: 'daw_visual_event', event });
     }
 
     _handleMappedPad(mapping, velocity, now) {
@@ -1180,10 +1189,12 @@ class MIDIRouterWorker {
 
             if (this._externalMidiClock.externalClockActive) {
                 this._externalClockActive = true;
-                const loopTicks = Math.max(24, this.daw.loopLenBeats * 24);
-                const beat = (this._externalMidiClock.tickCount % loopTicks) / 24;
-                this.daw._playAnchorTime = now - beat * this.daw._secondsPerBeat() * 1000;
-                this.daw._currentBeat = beat;
+                // Beats since the cycle origin, counted without wrapping: a take that
+                // crosses a loop boundary must keep its timing (see daw.js).
+                const beats = (this._externalMidiClock.tickCount - this.daw._externalCycleOriginTick) / 24;
+                this.daw._playAnchorTime = now - beats * this.daw._secondsPerBeat() * 1000;
+                const loopLen = Math.max(1, this.daw.loopLenBeats);
+                this.daw._currentBeat = ((beats % loopLen) + loopLen) % loopLen;
                 // Drive the metronome directly from each F8 tick so it stays
                 // perfectly locked to the external clock source.
                 if (this.daw._metronomeEnabled) {
@@ -1205,7 +1216,7 @@ class MIDIRouterWorker {
             }
 
             // Emit the incoming clock to UI timing listeners.
-            parentPort.postMessage({ type: 'daw_midi', data: [0xf8] });
+            parentPort?.postMessage({ type: 'daw_midi', data: [0xf8] });
 
             // Retransmit the master tick to all allowed outputs (excluding master).
             this._sendMidiClockOutputs([0xf8]);
@@ -1444,8 +1455,8 @@ class MIDIRouterWorker {
                 return false;
             }
 
-            parentPort.postMessage({ type: 'ports-enumerated', inputs: inputList, outputs: outputList });
-            parentPort.postMessage({ type: 'ready' });
+            parentPort?.postMessage({ type: 'ports-enumerated', inputs: inputList, outputs: outputList });
+            parentPort?.postMessage({ type: 'ready' });
 
             this._lastInputNames = new Set(realInputs.map(r => r.name));
             this._lastOutputNames = new Set(realOutputs.map(r => r.name));
@@ -1775,6 +1786,14 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            // Click latency compensation (ms): tuned by ear against the synth.
+            case 'daw_click_latency': {
+                const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
+                this.clickLatencyMs = Math.max(0, Math.min(400, ms));
+                this.metronomeCtrl?.setClickLatency(this.clickLatencyMs);
+                this._broadcastState();
+                break;
+            }
             // Quantization grid (beats): accept only the five allowed values.
             case 'daw_quantize_grid': {
                 const beats = +msg.beats;
@@ -1902,14 +1921,15 @@ class MIDIRouterWorker {
         state.clockMasterSource = this._clockMaster.source;
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
         state.audioLatencyMs = this.audioLatencyMs;
+        state.clickLatencyMs = this.clickLatencyMs;
         state.quantizeGrid = this.quantizeGrid;
-        parentPort.postMessage({ type: 'daw_state', state });
+        parentPort?.postMessage({ type: 'daw_state', state });
     }
 
     _broadcastPadMap() {
         const activeProfiles = new Set([...this.inputs.keys()]
             .map(name => this.controllerEngine.profileForInput(name)?.id).filter(Boolean));
-        parentPort.postMessage({
+        parentPort?.postMessage({
             type: 'daw_pad_map_list',
             map: [
                 ...this.controllerEngine.padMappings().filter(mapping => activeProfiles.has(mapping.profileId)),
@@ -2011,7 +2031,7 @@ class MIDIRouterWorker {
                 .map((f) => f.slice(0, -5))
                 .sort();
         } catch (_) {}
-        if (parentPort) parentPort.postMessage({ type: 'daw_session_list', sessions: names });
+        if (parentPort) parentPort?.postMessage({ type: 'daw_session_list', sessions: names });
     }
 
     _saveSession(rawName) {
@@ -2027,7 +2047,7 @@ class MIDIRouterWorker {
             this._listSessions();
         } catch (error) {
             console.error(`[DAW] Session save failed: ${error.message}`);
-            if (parentPort) parentPort.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
+            if (parentPort) parentPort?.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
         }
     }
 
@@ -2053,7 +2073,7 @@ class MIDIRouterWorker {
             console.log(`[DAW] Session loaded: ${name}`);
         } catch (error) {
             console.error(`[DAW] Session load failed: ${error.message}`);
-            if (parentPort) parentPort.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
+            if (parentPort) parentPort?.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
         }
     }
 
@@ -2135,7 +2155,7 @@ if (parentPort) {
         worker.rebuildMappings();
         for (const [name, output] of worker.outputs) worker._initializeControllerOutput(name, output);
         worker._broadcastPadMap();
-        parentPort.postMessage({ type: 'config_reloaded' });
+        parentPort?.postMessage({ type: 'config_reloaded' });
     } else if (msg.type === 'rebuild_mappings') {
         // Rebuild mappings on a hot-plug event
         worker.rebuildMappings();

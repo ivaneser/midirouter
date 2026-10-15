@@ -3,13 +3,15 @@ import assert from 'node:assert/strict';
 import { MIDIRouterWorker } from '../worker-midi.js';
 import { DAWEngine } from '../daw.js';
 
-test('external-clock pad launch follows the shared cycle phase and loops on the clip\'s own length', () => {
+test('external-clock pad launch waits for the clip start phase and loops on the clip\'s own length', () => {
     const sent = [];
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = new DAWEngine({ tempo: 120 });
     worker.daw.loopLenBeats = 4;
+    // Phase 0 = the clip was recorded from the start of the cycle.
     worker.daw.tracks[0].clips[0] = {
         length: 16,
+        phase: 0,
         notes: [
             { channel: 1, note: 60, velocity: 90, start: 0, dur: 0.25 },
             { channel: 1, note: 62, velocity: 90, start: 1.5, dur: 0.25 },
@@ -28,22 +30,21 @@ test('external-clock pad launch follows the shared cycle phase and loops on the 
     worker._externalClockActive = true;
     worker.audioLatencyMs = 0; // exact-tick timing; latency has its own test
     worker._externalMidiClock = { tickCount: 36 };
+    const ons = () => sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]);
 
     const result = worker._triggerPad(0, 0, performance.now());
     assert.equal(result.action, 'play');
+    // Launched at tick 36 (beat 1.5 of the 4-beat cycle): the clip starts at its
+    // phase, which is cycle beat 0 = tick 96. Nothing fires before that.
     worker._tickExternalClipPlayback(36);
-    assert.deepEqual(sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]), [62],
-        'note at beat 1.5 is due on the current transport tick; beat-0 note is not');
-
-    // The clip loops on its OWN length (16 beats = 384 ticks), not on the
-    // global 4-beat cycle: the beat-0 note must NOT fire at beat 4 (tick 96).
+    assert.deepEqual(ons(), [], 'nothing fires before the clip start phase');
     worker._tickExternalClipPlayback(96);
-    assert.deepEqual(sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]), [62],
-        'beat-0 note is not due yet: it waits for the clip\'s own 16-beat loop boundary');
-
-    worker._tickExternalClipPlayback(384);
-    assert.deepEqual(sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]), [62, 60],
-        'beat-0 note is due at the clip\'s own 16-beat loop boundary');
+    assert.deepEqual(ons(), [60], 'the clip starts at its phase (beat 0 of the cycle)');
+    worker._tickExternalClipPlayback(132);
+    assert.deepEqual(ons(), [60, 62], 'beat 1.5 of the clip is 36 ticks later');
+    // The clip repeats on its own 16-beat length (384 ticks), not on the 4-beat cycle.
+    worker._tickExternalClipPlayback(96 + 384);
+    assert.deepEqual(ons(), [60, 62, 60], 'the clip repeats after its own length');
     worker._stopTrackPlayback(0);
 });
 
