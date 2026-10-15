@@ -12,7 +12,7 @@ export class DAWUI {
     }
 
     // Sessions: save/load recordings (DAW clips) to/from disk.
-    // Имя спрашивается в prompt после нажатия кнопки (поля в UI нет).
+    // The name is asked in a prompt after the button is pressed (there is no field in the UI).
     _initSessions() {
         if (!document.getElementById('btn-save-session') && !document.getElementById('session-list')) return;
         const saveBtn = document.getElementById('btn-save-session');
@@ -160,6 +160,15 @@ export class DAWUI {
             });
         }
 
+        // Quantization grid selector (beats). Snaps recorded note starts.
+        const quantizeGridInput = document.getElementById('quantize-grid');
+        if (quantizeGridInput) {
+            quantizeGridInput.addEventListener('change', () => {
+                const beats = Number(quantizeGridInput.value);
+                if (!Number.isNaN(beats)) this._send({ type: 'daw-quantize-grid', beats });
+            });
+        }
+
         // MIDI Clock (MTC)
         const midiClockBtn = document.getElementById('midi-clock-toggle');
         if (midiClockBtn) {
@@ -184,7 +193,7 @@ export class DAWUI {
         // (Sending it here at module-load time fails because window.app.ws is null.)
     }
 
-    /** Обработка сообщений от сервера */
+    /** Handle messages from the server */
     handleMessage(msg) {
         if (msg.type === 'daw_state') {
             this.dawState = msg.payload;
@@ -202,11 +211,11 @@ export class DAWUI {
                 const message = entry.message === 'cc' ? 'CC' : entry.message === 'program' ? 'program' : entry.message === 'sysex' ? 'SysEx pad' : 'note';
                 this.padNotes[key].push(`${source} ${message} ${entry.note}`);
             }
-            // Обновляем состояние learn mode
+            // Update the learn mode state
             if (document.getElementById('btn-learn')) {
                 document.getElementById('btn-learn').classList.toggle('active', !!msg.learnMode);
             }
-            // Перерисовываем сетку с новыми подсказками пэдов
+            // Re-render the grid with the new pad hints
             this._renderGrid();
         } else if (msg.type === 'daw_event') {
             this._flashPad(msg.payload);
@@ -279,6 +288,12 @@ export class DAWUI {
             audioLatencyInput.value = String(this.dawState.audioLatencyMs);
             const label = document.getElementById('audio-latency-label');
             if (label) label.textContent = `${this.dawState.audioLatencyMs} ms`;
+        }
+
+        // Quantization grid selector: sync from state.
+        const quantizeGridInput = document.getElementById('quantize-grid');
+        if (quantizeGridInput && this.dawState?.quantizeGrid != null) {
+            quantizeGridInput.value = String(this.dawState.quantizeGrid);
         }
 
         // MIDI Clock

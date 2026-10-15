@@ -89,16 +89,16 @@
 
 **Fix:** Moved System Real-Time message handling BEFORE the early return check in `_onIncomingMessage()`:
 ```javascript
-// Сначала обрабатываем System Real-Time (MIDI Clock, Start, Continue, Stop)
+// First process System Real-Time messages (MIDI Clock, Start, Continue, Stop)
 const isSysRealTime = type >= 8 && type <= 15;
 if (isSysRealTime) {
-    // Транслируем MTC на все USB-MIDI выходы
+    // Forward MTC to all USB-MIDI outputs
     for (const [name, outputPort] of this.outputs) {
         if (!name.toLowerCase().includes('daw port')) {
             outputPort.sendMessage(Buffer.from(bytes));
         }
     }
-    // Запускаем/останавливаем аудио метроном для наушников
+    // Start/stop the audio metronome for the headphones
     ...
 }
 ```
@@ -142,7 +142,7 @@ metronome.py → aplay -M → 3.5mm jack (headphones)
 ```
 Launchkey DAW Port (0xF8 clock, 0xFA start, 0xFB continue, 0xFC stop)
     ↓ worker-midi.js (_onIncomingMessage)
-    ├──→ Все USB-MIDI выходы (MTC 0xF8/0xFA/0xFB/0xFC)
+    ├──→ All USB-MIDI outputs (MTC 0xF8/0xFA/0xFB/0xFC)
     └──→ metronome.py → aplay -M → 3.5mm jack (headphones)
 ```
 

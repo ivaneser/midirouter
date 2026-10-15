@@ -49,6 +49,8 @@ function createWorker() {
     const worker = new Worker(WORKER_PATH, {
         eval: false,
         execArgv: [],
+        // No real MIDI devices: these tests drive the worker through messages only.
+        env: { ...process.env, MIDIR_NO_HARDWARE: '1' },
     });
 
     const messages = [];
@@ -115,7 +117,9 @@ test('Defect 2a: ClockMaster.registerOutput syncs a real output by name', () => 
     assert.equal(typeof cm.outputs[0].send, 'function', 'send adapter must exist');
 });
 
-test('Defect 2b: registered output send adapter calls .sendMessage(Buffer.from(bytes)) on a real RtMidiOut', async () => {
+// Opens a real ALSA output and sends clock bytes to it, so it only runs when
+// explicitly requested: MIDIR_HARDWARE_TESTS=1 node --test test/clock-master-worker-defects.test.js
+test('Defect 2b: registered output send adapter calls .sendMessage(Buffer.from(bytes)) on a real RtMidiOut', { skip: process.env.MIDIR_HARDWARE_TESTS !== '1' }, async () => {
     // Import the native module exactly as worker-midi.js does to verify the
     // real physical API shape.
     const midi = await import('@julusian/midi');

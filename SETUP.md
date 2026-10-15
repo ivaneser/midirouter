@@ -1,64 +1,64 @@
 # SETUP & DEPLOYMENT
 
-## 🟢 Plug & Play для Raspberry Pi (рекомендуется)
-Залуй Raspberry Pi OS через Imager → зайди по SSH → один раз:
+## 🟢 Plug & Play for Raspberry Pi (recommended)
+Flash Raspberry Pi OS with Imager → log in over SSH → once:
 ```bash
 sudo bash bootstrap.sh
 ```
-Всё сделает само: Wi-Fi `master`, Node.js, группа `audio`, фикс UMP, автозапуск сервера. Подробнее — **`BOOT.md`**.
+Everything is done automatically: Wi-Fi `master`, Node.js, the `audio` group, the UMP fix, server autostart. Details — **`BOOT.md`**.
 
-## Установка на Ubuntu (Raspberry Pi)
+## Installation on Ubuntu (Raspberry Pi)
 
-### Системные требования
+### System requirements
 - Node.js v22+ 
-- ALSA Sequencer (`/dev/snd/seq`) — драйвер MIDI ядра Linux
-- Права доступа к `/dev/snd/*` (группа `audio` или `plugdev`)
+- ALSA Sequencer (`/dev/snd/seq`) — the Linux kernel MIDI driver
+- Access rights to `/dev/snd/*` (group `audio` or `plugdev`)
 
-### Установка зависимостей
+### Installing dependencies
 ```bash
 cd ~/myprojects/midirouter
 npm install
 ```
 
-### Настройка ALSA Sequencer
+### Configuring ALSA Sequencer
 
-#### 1. Загрузка виртуальных MIDI портов (для тестирования)
+#### 1. Load virtual MIDI ports (for testing)
 ```bash
-# Автоматический скрипт:
+# Automatic script:
 sudo bash setup-midi-emulator.sh
 
-# Или вручную:
+# Or manually:
 sudo modprobe snd-seq-dummy midi_devs=2
 sudo modprobe snd-seq-virmidi midi_devs=2
 ```
 
-#### 2. Отключение UMP Mode (Universal MIDI Ports)
-ALSA 1.2+ работает в режиме UMP, который скрывает legacy порты от `aconnect`.
+#### 2. Disable UMP Mode (Universal MIDI Ports)
+ALSA 1.2+ runs in UMP mode, which hides the legacy ports from `aconnect`.
 
-**Решение:** Создать конфигурационный файл:
+**Fix:** create a configuration file:
 ```bash
 sudo bash -c 'echo "options snd-seq enable_ump=0" > /etc/modprobe.d/snd-seq-ump.conf'
 ```
-⚠️ **Требует перезагрузки системы!** Без этого `aconnect` не покажет виртуальные порты.
+⚠️ **Requires a system reboot!** Without it `aconnect` will not show the virtual ports.
 
-#### 3. Права доступа к `/dev/snd/seq`
-Если ошибка `Permission denied`:
+#### 3. Access rights to `/dev/snd/seq`
+If you get `Permission denied`:
 ```bash
-# Добавить пользователя в группу audio:
+# Add the user to the audio group:
 sudo usermod -aG audio $USER
 sudo usermod -aG plugdev $USER
-# Перезайти в систему!
+# Log out and back in!
 ```
 
-#### 4. Проверка работы
+#### 4. Verify it works
 ```bash
-aconnect -o        # Показать output порты
-aconnect -i        # Показать input порты  
-lsmod | grep snd   # Загруженные модули ALSA
-cat /proc/asound/seq/devices  # Устройства sequencer
+aconnect -o        # Show output ports
+aconnect -i        # Show input ports
+lsmod | grep snd   # Loaded ALSA modules
+cat /proc/asound/seq/devices  # Sequencer devices
 ```
 
-### Автозагрузка эмулятора (systemd)
+### Emulator autostart (systemd)
 ```bash
 sudo cp midi-emulator.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -66,49 +66,49 @@ sudo systemctl enable midi-emulator.service
 sudo systemctl start midi-emulator.service
 ```
 
-## Установка на macOS (Mac Mini)
+## Installation on macOS (Mac Mini)
 
-На Mac ALSA отсутствует — используется нативный CoreMIDI через RtMidi.
+macOS has no ALSA — the native CoreMIDI through RtMidi is used.
 
-### Установка
+### Installation
 ```bash
 cd ~/myprojects/midirouter
 npm install
 node server.js
 ```
 
-CoreMIDI работает без дополнительных настроек. Все USB-MIDI устройства автоматически обнаруживаются системой.
+CoreMIDI works without extra configuration. All USB-MIDI devices are detected automatically by the system.
 
-## Запуск сервера
+## Starting the server
 ```bash
-# Обычный режим:
+# Normal mode:
 node server.js
 
-# Режим разработки (автоперезагрузка):
+# Development mode (auto-reload):
 node --watch server.js
 ```
 
-Сервер запускается на `http://localhost:3000` и WebSocket на порту 3000.
+The server starts at `http://localhost:3000`, and the WebSocket is on port 3000.
 
-## Контейнеризация (Docker)
+## Containerization (Docker)
 ```bash
 docker build -t midirouter .
 docker run --privileged -p 3000:3000 midirouter
 ```
 
-Файлы `Dockerfile` и `docker/etc/supervisord.conf` предоставляют базовую конфигурацию.
+The `Dockerfile` and `docker/etc/supervisord.conf` provide a basic configuration.
 
-## Структура данных устройств
+## Device data structure
 
 ### device_maps/*.json
-Описания MIDI устройств для динамического рендеринга контролов в UI:
+MIDI device descriptions for dynamic rendering of the UI controls:
 - `arturia_microfreak.json`
 - `korg_nts1.json`  
 - `modal_craft_synth_v2.json`
 - `preenfm2.json`
 - `waldorf_blofeld.json`
 
-Формат:
+Format:
 ```json
 {
     "name": "NTS-1",
@@ -119,8 +119,8 @@ docker run --privileged -p 3000:3000 midirouter
 }
 ```
 
-### Автопоиск схем маппинга
-При отсутствии локального JSON — серверный запрос к GitHub API:
+### Automatic lookup of mapping schemas
+When there is no local JSON, the server makes a request to the GitHub API:
 ```
 https://api.github.com/search/code?q=...
 ```

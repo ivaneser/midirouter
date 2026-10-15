@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// Regression: `Metronome._play_loop` must sleep/wait while playing with no
-// pending click — it must NOT busy-spin.
+// Regression: `Metronome._feed_loop` must sleep/wait while stopped
+// — it must NOT busy-spin.
 //
 // Contract under test: when `_playing=True`, `_running=True`, and
 // `_pending_click is None`, the playback loop should block on a
@@ -85,19 +85,19 @@ m = Metronome.__new__(Metronome)
 
 # Seed all state _play_loop touches. No device probes, no waveform generation.
 m._running = True
-m._playing = True
+m._playing = False          # idle: feeder must wait, not open aplay
 m._lock = threading.Lock()
 m._audio_process = None
-m._audio_generation = 0
-m._pending_click = None
-m._click_event = SpyEvent()
+m._active = []
+m._last_write_done = 0.0
+m._wake = SpyEvent()
 
 # --- Start the playback loop in a daemon thread ----------------------------
-t = threading.Thread(target=m._play_loop, daemon=True)
+t = threading.Thread(target=m._feed_loop, daemon=True)
 t.start()
 
 # --- Wait up to ~1 s for the loop to call .wait() --------------------------
-spy = m._click_event
+spy = m._wake
 ok = spy.wait_started.wait(timeout=1.0)
 
 if not ok:
@@ -118,7 +118,7 @@ print(json.dumps(result))
     return py;
 }
 
-test('metronome _play_loop waits (does not busy-spin) while playing with no pending click', () => {
+test('metronome audio feeder waits (does not busy-spin) while stopped', () => {
     const script = buildPythonScript(REPO_ROOT);
 
     // Run Python via spawnSync. Use `python3 -c <script>`.

@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Устанавливаем зависимости ALSA и systemd
+# Install ALSA and systemd dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libasound2-dev \
@@ -9,27 +9,27 @@ RUN apt-get update && \
         supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Рабочая директория
+# Working directory
 WORKDIR /app
 
-# Копируем package.json сначала для кэша npm
+# Copy package.json first for npm caching
 COPY package*.json ./
 
-# Устанавливаем зависимости
+# Install dependencies
 RUN npm install --production
 
-# Копируем весь проект
+# Copy the whole project
 COPY . .
 
-# Создаём пользователя midi (не root)
+# Create user midi (not root)
 RUN groupadd -g 1000 midi && \
     useradd -m -u 1000 -g midi -s /bin/bash midi
 
-# Настраиваем supervisor для автозапуска
+# Set up supervisor for autostart
 RUN mkdir -p /etc/supervisor/conf.d
 
 EXPOSE 3000
 
-# Запуск от имени пользователя midi с доступом к ALSA
+# Run as user midi with access to ALSA
 USER midi
 CMD ["supervisord", "-c", "/app/docker/etc/supervisord.conf"]

@@ -1,27 +1,27 @@
 /* === DAW / Clip Engine ===
- * Dелает из роутера что-то вроде Ableton Live:
+ * Turns the router into something like Ableton Live:
  *  - Track  = MIDI channel (1..8)
- *  - Clip   = записанный паттерн на канале (набор note-on/off с таймстампами в битах)
- *  - Pad    = триггер клипа: нажатие включает/выключает проигрывание (loop <-> stop)
+ *  - Clip   = recorded pattern on a channel (set of note-on/off events with timestamps in beats)
+ *  - Pad    = clip trigger: press starts/stops playback (loop <-> stop)
  *  - Record modes: 'none' (play), 'replace', 'overdub'
  *
- * Движок НЕ работает с ALSA напрямую — он только держит состояние, принимает
- * входящие MIDI-события для записи и эмитит события playNote/playOff для
- * форварда на выходы. Тайминг считается в битах от начала клипа.
+ * The engine does NOT work with ALSA directly. It only holds state, accepts
+ * incoming MIDI events for recording and emits playNote/playOff events for
+ * forwarding to the outputs. Timing is computed in beats from the clip start.
  */
 
 import { MidiClock } from './midi-clock.js';
 
-const PPQ = 192;                 // pulses per quarter note (тайминг)
+const PPQ = 192;                 // pulses per quarter note (timing)
 const DEFAULT_SLOTS_PER_TRACK = 2;
-const TRACK_COUNT = 8;           // 8 треков (MIDI-каналы 1..8)
+const TRACK_COUNT = 8;           // 8 tracks (MIDI channels 1..8)
 
-// Округляем время начала/длительность нот до сотых бита (nearest hundredth).
+// Round note start/duration to the nearest hundredth of a beat.
 function roundBeats(x) {
     return Math.round(x * 100) / 100;
 }
 
-// ---- Вспомогательные: байт-формат MIDI (status, data1, data2) ----
+// ---- Helpers: MIDI byte format (status, data1, data2) ----
 function noteOn(channel, note, velocity) {
     return [0x90 | (channel & 0x0f), note & 0x7f, velocity & 0x7f];
 }
@@ -35,6 +35,9 @@ class DAWEngine {
         this.slotsPerTrack = opts.slotsPerTrack || DEFAULT_SLOTS_PER_TRACK;
         this.recordMode = opts.recordMode || 'none'; // 'none' | 'replace' | 'overdub'
         this.loopLenBeats = 16;             // quarter-note beats in four bars
+        // Quantization grid (beats, quarter note = 1) for quantizeClip;
+        // default 0.125 (1/32 note). The worker syncs it on daw_quantize_grid.
+        this.quantizeGrid = 0.125;
 
         // tracks[channel(1..8)] -> { channel, clips: [ {notes:[], length:beats} ] }
         this.tracks = [];
@@ -49,7 +52,7 @@ class DAWEngine {
             });
         }
 
-        // текущее проигрываемое состояние по клипам: trackIdx -> slotIdx | -1 stopped
+        // currently playing state per clip: trackIdx -> slotIdx | -1 stopped
         this.clipState = new Array(TRACK_COUNT).fill(-1);
 
         // recording session state
@@ -57,10 +60,10 @@ class DAWEngine {
         this.recording = null; // { track, slot, mode, startTime, startBeat, notes, noteStarts:Map }
 
         // playback scheduler state
-        this.playing = false;               // глобальный "transport play"
+        this.playing = false;               // global "transport play"
         this._playLoopTimer = null;
-        this._playAnchorTime = 0;           // performance.now() начала текущего цикла
-        this._currentBeat = 0;              // биты текущего цикла [0, loopLen)
+        this._playAnchorTime = 0;           // performance.now() at the start of the current cycle
+        this._currentBeat = 0;              // beats of the current cycle [0, loopLen)
         this._lastProgressBeat = null;
 
         // Metronome / click track
@@ -86,8 +89,8 @@ class DAWEngine {
         // restored when loading a saved session.
         this.sessionRecording = false;
 
-        this._onEvent = () => {};           // (evt) => void  — колбэк для форварда MIDI
-        this._onProgress = () => {};        // (beat, progress) => void — для UI
+        this._onEvent = () => {};           // (evt) => void  — callback that forwards MIDI
+        this._onProgress = () => {};        // (beat, progress) => void — for the UI
 
         // === MIDI Clock (MTC) — 24 PPQN, syncs external gear ===
         this._midiClockEnabled = true;
@@ -139,7 +142,7 @@ class DAWEngine {
         const interval = (now - prev) / 1000;
         this._tapCount = (this._tapCount || 1) + 1;
         if (this._tapCount >= 2) {
-            // среднее между последними 4 тапами
+            // average of the last 4 taps
             if (!this._tapBuffer) this._tapBuffer = [];
             this._tapBuffer.push(interval);
             if (this._tapBuffer.length > 4) this._tapBuffer.shift();
@@ -153,7 +156,7 @@ class DAWEngine {
     setMetronome(enabled) {
         this._metronomeEnabled = !!enabled;
         if (this._metronomeEnabled) {
-            // Не перезапускаем, если метроном уже активен.
+            // Do not restart if the metronome is already active.
             if (!this._metronomeTimer) {
                 if (this.playing) {
                     this._startMetronome();
@@ -353,7 +356,7 @@ class DAWEngine {
         return 60 / this.tempo;
     }
 
-    // True while every clip of every track/slot is empty ("пустой проект").
+    // True while every clip of every track/slot is empty ("empty project").
     // The in-flight recording session does not count — its notes are appended
     // to the clip only when the session stops.
     isEmptyProject() {
@@ -392,12 +395,12 @@ class DAWEngine {
         }
     }
 
-    // Mode определяет, во что переходит клип ПОСЛЕ окончания записи:
-    //   none (Play)   → запускать воспроизведение записи
-    //   overdub       → продолжать запись поверх дубля (слои)
-    //   replace       → остаться остановленным (дубль сохранён, повторное
-    //                   нажатие начнёт новую запись поверх старой)
-    // Пустой клип всегда начинает запись независимо от Mode.
+    // Mode decides what a clip becomes AFTER recording ends:
+    //   none (Play)   → start playback of the recording
+    //   overdub       → keep recording on top of the take (layers)
+    //   replace       → stay stopped (take kept; the next press starts a new
+    //                   recording on top of the old one)
+    // An empty clip always starts recording, regardless of Mode.
     setRecordMode(mode) {
         if (['none', 'replace', 'overdub'].includes(mode)) {
             this.recordMode = mode;
@@ -406,11 +409,11 @@ class DAWEngine {
         this._countInRunning = false;
     }
 
-    // Полный сброс: все клипы всех треков/слотов в ноль (пустые ноты,
-    // длина 1 такт), закрыть активную запись и снять playing-состояние.
-    // Готовит сессию для новой записи "с чистого листа". После обнуления
-    // метроном автоматически запускается на ДВА полных такта или до
-    // завершения этого такта (ограничение внутри _startMetronome).
+    // Full reset: all clips of all tracks/slots to zero (empty notes,
+    // length 1 bar), close the active recording and clear the playing state.
+    // Prepares the session for a new recording "from scratch". After the reset
+    // the metronome starts automatically for TWO full bars or until the end of
+    // the current bar (limited inside _startMetronome).
     resetAllClips() {
         this._stopRecording();
         this.sessionRecording = false;
@@ -423,10 +426,16 @@ class DAWEngine {
                 clip.length = resetLength;
             }
         }
+        // Clear MIDI channel assignments: the next recording on each track
+        // takes its channel from the first incoming note.
+        this.tracks.forEach((track, i) => {
+            track.channel = i + 1;
+            track.channelAssigned = false;
+        });
         this.clipState.fill(-1);
         if (!this.playing) {
-            // Перезапуск: если pre-record метроном уже тикал, сбрасываем
-            // его таймер и якорь — новый счётчик идёт ровно на два такта.
+            // Restart: if the pre-record metronome was already ticking, reset its timer
+            // and anchor — the new count runs for exactly two bars.
             this._stopMetronome();
             this._metronomeEnabled = true;
             this._preRecordTwoBarRemainingBeats = Math.max(2, 2 * this._metronomeBeatsPerMeasure);
@@ -458,7 +467,7 @@ class DAWEngine {
         }
     }
 
-    // Округляем вверх до целого числа тактов (минимум один такт).
+    // Round up to a whole number of bars (minimum one bar).
     _snapToBars(beats) {
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
         return Math.max(bar, Math.ceil(beats / bar) * bar);
@@ -485,8 +494,8 @@ class DAWEngine {
         return true;
     }
 
-    // ---- Запись ----
-    // armed: если на треке уже идёт запись в этом слоте (overdub), новая кнопка добавляет слой
+    // ---- Recording ----
+    // armed: if a recording is already running on this track/slot (overdub), the new button adds a layer
     armRecording(trackIdx, slot, now, options = {}) {
         const existing = this.tracks[trackIdx].clips[slot];
 
@@ -497,8 +506,8 @@ class DAWEngine {
         // selection must reflect the project state at the user's trigger.
         const projectWasEmptyBeforeArm = this.isEmptyProject();
 
-        // Replace: стираем старый клип. Overdub: если уже записан — продолжаем (добавляем).
-        // Длина пересчитывается при завершении записи (по фактическому охвату).
+        // Replace: erases the old clip. Overdub: if already recorded, continue (add).
+        // Length is recomputed when recording ends (from the actual span).
         if (this.recordMode === 'replace') {
             existing.notes = [];
             existing.length = this._snapToBars(0);
@@ -507,21 +516,21 @@ class DAWEngine {
             existing.length = this._snapToBars(0);
         }
 
-        // Если уже запись на этом треке/слоте — сначала её закрываем (завершаем слой)
-        // Требование: начало записи нового клипа выравнивается по СЛЕДУЮЩЕЙ
-        // границе такта (bar), но beat 0 записи = 0 (локально), а не глобальное
-        // время. Выравнивание достигается сдвигом startTime вперёд до границы:
-        //   - транспорт играет → delay = (ceil(curBeat/bar)*bar - curBeat) * spb;
-        //     если нажатие совпало с границей бара (<= 5 мс) — delay = 0;
-        //   - транспорт стоит и трек armed → count-in на ДВА полных такта;
-        //     иначе запись начинается немедленно.
-        // _beatAt(now) использует startTime, поэтому beat 0 записи
-        // соответствует моменту начала следующего такта. Якорь транспорта
-        // (_playAnchorTime) НЕ трогаем — фаза MTC внешних устройств не сдвигается.
+        // If there is already a recording on this track/slot, close it first (finish the layer)
+        // Requirement: the start of a new clip's recording is aligned to the NEXT
+        // bar boundary, and recording beat 0 = 0 (local), not global time. The alignment
+        // is done by moving startTime forward to the boundary:
+        //   - transport playing → delay = (ceil(curBeat/bar)*bar - curBeat) * spb;
+        //     if the press is on a bar boundary (<= 5 ms) — delay = 0;
+        //   - transport stopped and track armed → two full bars of count-in;
+        //     otherwise recording starts immediately.
+        // _beatAt(now) uses startTime, so recording beat 0 matches the start of the
+        // next bar. The transport anchor (_playAnchorTime) is NOT changed — the MTC phase
+        // of external devices does not shift.
         //
-        // Исключение: если транспорт УЖЕ играет (не мы его запустили с этого
-        // нажатия) и мы пишем в другой слот, запись должна захватывать
-        // текущую живую фазу — startTime = now, startBeat = live phase.
+        // Exception: if the transport is ALREADY playing (we did not start it with this
+        // press) and we record into another slot, the recording must capture the
+        // current live phase — startTime = now, startBeat = live phase.
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
         let startTime = now;
         let startBeat = 0;
@@ -561,8 +570,8 @@ class DAWEngine {
                 if (isTransportStarter) {
                     const nextBar = Math.ceil(curBeat / bar) * bar;
                     let delayMs = (nextBar - curBeat) * spb * 1000;
-                    // Если нажатие совпало с границей бара (<= 5 мс до неё) — старт
-                    // именно в этот момент, без ожидания следующего такта.
+                    // If the press is within 5 ms of a bar boundary, start exactly at that moment,
+                    // without waiting for the next bar.
                     if (delayMs <= 5) delayMs = 0;
                     startTime = now + delayMs;
                 } else {
@@ -587,16 +596,21 @@ class DAWEngine {
             track: trackIdx,
             slot,
             mode: this.recordMode,
-            startTime,              // момент начала записи (выровнен по бару)
+            startTime,              // recording start time (aligned to a bar)
             startBeat: Math.round(startBeat * 100) / 100,
-            // Живая фаза MIDI-часов на момент старта записи. Если активен внешний
-            // мастер, _beatAt() измеряет биты от F8-якоря (обновляется на каждом
-            // тике), чтобы квантизация оставалась привязана к сетке тиков мастера.
+            // Phase origin of the clip: the transport cycle start that contains the
+            // snapped start bar. Clips always play from the cycle start, so notes
+            // are stored relative to this (not to startBeat, which is the bar inside
+            // the cycle where recording began and would shift the take).
+            originBeat: Math.floor(startBeat / this.loopLenBeats) * this.loopLenBeats,
+            // Live MIDI clock phase at the moment recording starts. If an external
+            // master is active, _beatAt() measures beats from the F8 anchor (updated on every
+            // tick), so quantization stays locked to the master's tick grid.
             liveBaseBeat: (this._externalClock && this._playAnchorTime > 0)
                 ? ((startTime - this._playAnchorTime) / 1000) / this._secondsPerBeat()
                 : null,
-            notes: existing.notes,  // пишем в тот же массив (overdub накапливает)
-            noteStarts: new Map(),  // `note:${channel}:${note}` -> beat начала
+            notes: existing.notes,  // write into the same array (overdub accumulates)
+            noteStarts: new Map(),  // `note:${channel}:${note}` -> start beat
         };
 
         // Notify listeners as soon as a recording session exists.  The worker
@@ -625,7 +639,7 @@ class DAWEngine {
     _stopRecording(endBeat, closeHeldNotesAtEnd = false) {
         if (!this.recording) return;
         const r = this.recording;
-        // Закрываем все открытые note-on (velocity 0 / noteOff)
+        // Close all open note-ons (velocity 0 / noteOff)
         for (const [key, q] of r.noteStarts) {
             const [, , note] = key.split(':');
             for (const start of q) {
@@ -639,13 +653,13 @@ class DAWEngine {
             }
         }
         r.noteStarts.clear();
-        // Длина клипа = длительность самой записи: охват до последней ноты,
-        // округлённый ВВЕРХ до целого числа тактов. Каждый клип имеет собственную
-        // длину (разные клипы могут иметь разное целое число тактов).
+        // Clip length = length of the recording itself: covers up to the last note,
+        // rounded UP to a whole number of bars. Each clip has its own
+        // length (different clips may have a different whole number of bars).
         if (r.notes.length) {
             const maxEnd = r.notes.reduce((m, n) => Math.max(m, n.start + (n.dur || 0)), 0);
             const end = typeof endBeat === 'number' ? endBeat : r.startBeat;
-            const span = Math.max(0, end - r.startBeat);
+            const span = Math.max(0, end - r.originBeat);
             if (this.masterLoopBars != null) {
                 // Explicit master loop: the take always repeats for the full
                 // selected cycle, regardless of note density.
@@ -672,7 +686,7 @@ class DAWEngine {
         this.recording = null;
     }
 
-    // Входящее MIDI-событие во время записи
+    // Incoming MIDI event during recording
     recordEvent(statusByte, data1, data2, now) {
         if (!this.recording) return false;
         if (now < this.recording.startTime) return false;
@@ -686,7 +700,7 @@ class DAWEngine {
         const beat = this._beatAt(now);
 
         if ((statusByte & 0xf0) === 0x90 && data2 > 0) {
-            // noteOn (не zero-velocity)
+            // noteOn (not zero velocity)
             const key = `note:${channel}:${data1}`;
             let q = this.recording.noteStarts.get(key);
             if (!q) { q = []; this.recording.noteStarts.set(key, q); }
@@ -702,17 +716,17 @@ class DAWEngine {
                 if (q.length === 0) this.recording.noteStarts.delete(key);
                 this.recording.notes.push({
                     channel, note: data1, velocity: start.velocity,
-                    // Минимальная длительность применяется ПЕРЕД округлением:
-                    // 0.125 (минимум) -> 0.13; точное время -> nearest hundredth.
-                    // Хранить относительно начала клипа (startBeat = 0), чтобы
-                    // playback всегда начинался с beat 0 независимо от того,
-                    // на каком бите глобального цикла началась запись.
-                    start: roundBeats(start.beat - this.recording.startBeat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
+                    // The minimum duration is applied BEFORE rounding:
+                    // 0.125 (minimum) -> 0.13; exact time -> nearest hundredth.
+                    // Store relative to the clip start (startBeat = 0), so that
+                    // playback always starts at beat 0 regardless of which beat of the
+                    // global cycle the recording started on.
+                    start: roundBeats(start.beat - this.recording.originBeat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
                 });
             }
             return true;
         }
-        return false; // прочие сообщения (CC) сейчас игнорируем
+        return false; // other messages (CC) are ignored for now
     }
 
     _beatAt(now) {
@@ -731,71 +745,71 @@ class DAWEngine {
         return 60 / this.tempo; // one quarter-note beat
     }
 
-    // Quantize: сдвигаем времена начала к решетке (делим на gridSize, округляем)
+    // Quantize: move start times to the grid (divide by gridSize, round)
     quantizeClip(trackIdx, slot, gridSize = 0.125) {
         const clip = this.tracks[trackIdx].clips[slot];
         for (const n of clip.notes) {
             // snap to grid, then round stored start to nearest hundredth beat.
             n.start = roundBeats(Math.round(n.start / gridSize) * gridSize);
-            // start/dur хранятся с точностью до сотых бита.
+            // start/dur are stored to the nearest hundredth of a beat.
             n.dur = roundBeats(Math.max(0.125, n.dur || 0.25));
         }
-        // пересортируем и пересчитываем length
+        // re-sort and recompute length
         clip.notes.sort((a, b) => a.start - b.start);
         let maxEnd = 0;
         for (const n of clip.notes) {
             maxEnd = Math.max(maxEnd, n.start + n.dur);
         }
-        // растим длину только если ноты стали длиннее; держим целое число тактов
+        // grow the length only if the notes became longer; keep a whole number of bars
         clip.length = Math.max(this._snapToBars(clip.length), this._snapToBars(maxEnd));
     }
 
-    // ---- Триггер пада: запись / play-stop toggle по выбранному Mode ----
+    // ---- Pad trigger: record / play-stop toggle depending on the selected Mode ----
     // returns { action:'play'|'stop'|'record'|'overdub'|'record-stop'|'record-stop-stopped', track, slot }
-    // Сценарии:
-    //   1) Нажат именно записывающийся слот → запись завершается, и клип
-    //      переходит в состояние выбранного Mode:
-    //        none(Play) → 'record-stop' (начинает воспроизведение),
-    //        overdub    → 'record-stop-stopped' (останавливается; слои
-    //                     сохраняются, следующее нажатие добавит слой),
-    //        replace    → 'record-stop-stopped' (останавливается; дубль
-    //                     сохранён, следующее нажатие запишет заново).
-    //   2) Пустой клип (нет нот) → ВСЕГДА запись ('record'), независимо от
-    //      Mode. При этом активный клип на этом же треке останавливается
-    //      (worker закрывает плейбэк трека при action 'record'/'overdub').
-    //   3) Играющий клип → 'stop' (в Play-режиме) или новая запись поверх
-    //      (в Replace/Overdub).
-    //   4) Остановленный непустой клип → 'play' в Play-режиме; в
-    //      Replace/Overdub — новая запись (replace стирает старый дубль,
-    //      overdub добавляет поверх).
+    // Scenarios:
+    //   1) The recording slot itself is pressed → recording ends, and the clip
+    //      moves to the state of the selected Mode:
+    //        none(Play) → 'record-stop' (starts playback),
+    //        overdub    → 'record-stop-stopped' (stops; layers are
+    //                     kept, the next press adds a layer),
+    //        replace    → 'record-stop-stopped' (stops; take is
+    //                     kept, the next press records again).
+    //   2) Empty clip (no notes) → ALWAYS recording ('record'), regardless of
+    //      Mode. Any active clip on the same track is stopped
+    //      (the worker closes track playback on action 'record'/'overdub').
+    //   3) Playing clip → 'stop' (in Play mode) or a new recording on top
+    //      (in Replace/Overdub).
+    //   4) Stopped non-empty clip → 'play' in Play mode; in
+    //      Replace/Overdub — a new recording (replace erases the old take,
+    //      overdub adds on top).
     triggerPad(trackIdx, slot, now, options = {}) {
         const clip = this.tracks[trackIdx]?.clips[slot];
         if (!clip) return { action: 'invalid', track: trackIdx, slot };
         const wasPlaying = this.clipState[trackIdx] === slot;
         const mode = this.recordMode;
 
-        // (1) В этот же слот сейчас идёт запись — завершаем и ходим по Mode.
+        // (1) This slot is being recorded now — finish it and follow the Mode.
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
             this._stopRecording(this._beatAt(now));
-            this.quantizeClip(trackIdx, slot);
+            this.quantizeClip(trackIdx, slot, this.quantizeGrid ?? 0.125);
             if (mode === 'none') {
-                // Play: начинаем воспроизведение только что записанного дубля
+                // Play: start playing back the take that was just recorded
                 this.clipState[trackIdx] = clip.notes.length ? slot : -1;
                 return { action: 'record-stop', track: trackIdx, slot };
             }
-            // Overdub/Replace: клип останавливается (слои/дубль сохранены).
-            // Следующее нажатие в Overdub добавит слой, в Replace — новый дубль.
+            // Overdub/Replace: the clip stops (layers/take are kept).
+            // The next press in Overdub adds a layer; in Replace it records a new take.
             this.clipState[trackIdx] = -1;
             return { action: 'record-stop-stopped', track: trackIdx, slot };
         }
 
-        // (2) Пустой клип — всегда запись (дефолт), любой Mode.
+        // (2) Empty clip — always recording (default), any Mode.
         if (clip.notes.length === 0 && !this._countInRunning) {
             this.armRecording(trackIdx, slot, now, options); // stops any other take
             return { action: 'record', track: trackIdx, slot };
         }
 
-        // (3) Играющий клип — stop в Play, заново/поверх запись в Replace/Overdub.
+        // (3) Playing clip — stop in Play; record again / on top in Replace/Overdub.
         if (wasPlaying) {
             if (mode === 'none') {
                 this.clipState[trackIdx] = -1;
@@ -805,7 +819,7 @@ class DAWEngine {
             return { action: mode === 'overdub' ? 'overdub' : 'record', track: trackIdx, slot };
         }
 
-        // (4) Остановленный непустой клип.
+        // (4) Stopped non-empty clip.
         if (mode === 'none') {
             this.clipState[trackIdx] = slot;
             return { action: 'play', track: trackIdx, slot };
@@ -842,8 +856,8 @@ class DAWEngine {
         // Preserve count-in flag through the metronome stop/start cycle so the
         // two-bar timeout fires after transport starts.
         const wasCountIn = this._countInRunning;
-        // Если pre-record метроном уже тикает — сбрасываем его, чтобы
-        // транспортный метроном стартовал с чистого якоря.
+        // If the pre-record metronome is already ticking, reset it so that the
+        // transport metronome starts from a clean anchor.
         this._stopMetronome();
         if (wasCountIn) { this._countInRunning = true; }
         this.playing = true;
@@ -851,7 +865,7 @@ class DAWEngine {
         this._playAnchorTime = performance.now();
         this._lastProgressBeat = 0;
 
-        // Два такта count-in: задержка фактической записи перед захватом.
+        // Two-bar count-in: delay the actual recording before capture.
         if (this._countInRunning) {
             const self = this;
             let generation = ++self._countInGeneration;
@@ -876,7 +890,7 @@ class DAWEngine {
             cycleStart: true,
             meter: this._metronomeBeatsPerMeasure,
         });
-        // Тик раз в половину бита для прогресса + перепланирования цикла
+        // Tick every half beat for progress + cycle rescheduling
         this._playLoopTimer = setInterval(() => {
             const elapsed = (performance.now() - this._playAnchorTime) / 1000;
             let beat = (elapsed / this._secondsPerBeat()) % this.loopLenBeats;
@@ -895,7 +909,7 @@ class DAWEngine {
             });
             this._lastProgressBeat = beat;
 
-            // Если темп поменялся — цикл уже идёт, коррекция на след. тике ок
+            // If the tempo changed, the cycle is already running; correction on the next tick is fine
         }, 50);
         // Start metronome when transport starts
         if (this._metronomeEnabled) {
@@ -944,13 +958,13 @@ class DAWEngine {
         }
     }
 
-    // Выход MIDI-байт на выходы (форвард в worker)
+    // Output MIDI bytes to the outputs (forwarded to the worker)
     _emit(byteArray, delayMs) {
         if (delayMs < 0) delayMs = 0;
         setTimeout(() => this._onEvent({ type: 'midi', data: byteArray }), delayMs);
     }
 
-    // Записать/остановить конкретный клип по нажатию пада (в play-режиме)
+    // Record/stop a specific clip on a pad press (in play mode)
     setClipPlay(trackIdx, slot, now) {
         const clip = this.tracks[trackIdx].clips[slot];
         if (this.clipState[trackIdx] === slot) {
@@ -961,7 +975,7 @@ class DAWEngine {
         return true; // playing
     }
 
-    // Получить текущие биты цикла для синхронизации старта клипа
+    // Get the current beats of the cycle for synchronizing a clip start
     currentBeat() {
         return this._currentBeat;
     }
@@ -999,9 +1013,9 @@ class DAWEngine {
         };
     }
 
-    // ---- Сессии: полное сериализация/восстановление (для диска) ----
-    // toData() — все клипы с нотами + настройки;transport/запись не восстанавливаются
-    // при загрузке (сессия — это "контент", а не live-состояние).
+    // ---- Sessions: full serialization/restore (for disk) ----
+    // toData() — all clips with notes + settings; transport/recording are not restored
+    // on load (a session is "content", not live state).
     toData() {
         return {
             version: 1,
@@ -1085,7 +1099,7 @@ class DAWEngine {
                         start: roundBeats(Math.max(0, n.start)),
                         dur: roundBeats(Math.max(0.125, Number.isFinite(n.dur) ? n.dur : 0.25)),
                     }));
-                // нормализуем длину до целого числа тактов
+                // normalize the length to a whole number of bars
                 clip.length = this._snapToBars(Number.isFinite(cd.length) ? cd.length : 0);
             });
             const firstNote = track.clips.flatMap((clip) => clip.notes)[0];
@@ -1100,7 +1114,7 @@ class DAWEngine {
             }
         });
 
-        // Загрузка не включается transport: все пэды — "recorded", но не "playing".
+        // Loading does not enable transport: all pads are "recorded" but not "playing".
         this.clipState.fill(-1);
         this.sessionRecording = false;
         this._lastProgressBeat = null;

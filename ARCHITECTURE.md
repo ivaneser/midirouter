@@ -1,119 +1,119 @@
-# MIDI Router — Архитектура проекта
+# MIDI Router — Project Architecture
 
-## Назначение
-Реалтайм маршрутизатор и лупер для MIDI устройств, оптимизированный для Raspberry Pi. Автоматически обнаруживает USB-MIDI контроллеры и синтезаторы, создаёт маршруты нажатием клавиши на контроллере.
+## Purpose
+A real-time router and looper for MIDI devices, optimized for the Raspberry Pi. It automatically discovers USB-MIDI controllers and synthesizers and creates routes by pressing a key on the controller.
 
-## Стек технологий
+## Technology stack
 - **Runtime:** Node.js (ES modules)
-- **MIDI API:** `@julusian/midi` v3.x (обёртка над RtMidi)
+- **MIDI API:** `@julusian/midi` v3.x (wrapper over RtMidi)
   - Linux: ALSA Sequencer (`/dev/snd/seq`)
-  - macOS: CoreMIDI (нативно через RtMidi)
-- **WebSockets:** встроенный WebSocket сервер на порту `3000`
+  - macOS: CoreMIDI (native via RtMidi)
+- **WebSockets:** built-in WebSocket server on port `3000`
 - **UI:** Vanilla JS + CSS, SPA
 
-## Структура проекта
+## Project structure
 ```
 midirouter/
-├── server.js              # Основной процесс: HTTP + WS + управление ворком
-├── worker-midi.js         # Worker thread: MIDI роутинг + DAW тайминг
-├── daw.js                 # Движок DAW: клипы, темп, запись, проиграние
-├── metronome.py           # Аудио метроном → headphones (ALSA aplay -M)
-├── metronome-controller.js # Node.js IPC-контроллер для метронома
-├── midi-clock.js          # MTC генератор (24 PPQN + Start/Stop)
-├── cc-mapper.js           # CC-трансляция между контроллером и синтезаторами
-├── filters.js             # Фильтры каналов/velocity
-├── port-index.js          # Индекс MIDI-портов
-├── midirouter.service     # systemd unit для автозапуска сервера
-├── bootstrap.sh           # One-shot скрипт первоначальной настройки Pi
+├── server.js              # Main process: HTTP + WS + worker management
+├── worker-midi.js         # Worker thread: MIDI routing + DAW timing
+├── daw.js                 # DAW engine: clips, tempo, recording, playback
+├── metronome.py           # Audio metronome → headphones (ALSA aplay -M)
+├── metronome-controller.js # Node.js IPC controller for the metronome
+├── midi-clock.js          # MTC generator (24 PPQN + Start/Stop)
+├── cc-mapper.js           # CC translation between the controller and the synthesizers
+├── filters.js             # Channel/velocity filters
+├── port-index.js          # MIDI port index
+├── midirouter.service     # systemd unit for server autostart
+├── bootstrap.sh           # One-shot initial setup script for the Pi
 ├── frontend/
-│   ├── index.html         # Единственная страница
-│   ├── css/style.css      # Стили
+│   ├── index.html         # The only page
+│   ├── css/style.css      # Styles
 │   └── js/
-│       ├── app.js              # Основная логика UI
-│       ├── daw-ui.js           # Веб-UI режима DAW (сетка падов)
-│       ├── controller-ui.js    # Рендеринг карточек устройств
-│       ├── device-manager.js   # Управление устройствами
-│       └── port-manager.js     # Управление портами
-├── device_maps/           # JSON описания MIDI устройств + DAW пресеты
-├── setup-midi-emulator.sh      # Эмуляция MIDI-портов (dev/testing)
-├── midi-emulator.service       # systemd unit для эмулятора
-├── docker/                # Контейнеризация
+│       ├── app.js              # Main UI logic
+│       ├── daw-ui.js           # Web UI of the DAW mode (pad grid)
+│       ├── controller-ui.js    # Rendering of device cards
+│       ├── device-manager.js   # Device management
+│       └── port-manager.js     # Port management
+├── device_maps/           # JSON descriptions of MIDI devices + DAW presets
+├── setup-midi-emulator.sh      # MIDI port emulation (dev/testing)
+├── midi-emulator.service       # systemd unit for the emulator
+├── docker/                # Containerization
 │   ├── Dockerfile
 │   └── etc/supervisord.conf
 └── .gitignore
 ```
 
-## Архитектурный паттерн: Worker Threads
-Проект использует Node.js `worker_threads` для разделения ответственности:
+## Architectural pattern: worker threads
+The project uses Node.js `worker_threads` to separate responsibilities:
 
-| Процесс | Задачи |
+| Process | Tasks |
 |---------|--------|
-| **server.js** (main) | HTTP сервер, WebSocket клиенты, UI обновления, управление жизненным циклом воркера |
-| **worker-midi.js** (worker) | MIDI роутинг, hot-plug detection, DAW/clip playback, LED feedback, CC mapping, MIDI clock routing, Raspberry Pi audio metronome control |
-| **metronome.py** (Python child) | Генерация audio-кликов в наушники Raspberry Pi через ALSA |
-| **metronome-controller.js** (JS bridge) | Запуск/остановка `metronome.py`, передача темпа и размера такта через stdin IPC |
+| **server.js** (main) | HTTP server, WebSocket clients, UI updates, worker lifecycle management |
+| **worker-midi.js** (worker) | MIDI routing, hot-plug detection, DAW/clip playback, LED feedback, CC mapping, MIDI clock routing, Raspberry Pi audio metronome control |
+| **metronome.py** (Python child) | Generation of audio clicks to the Raspberry Pi headphones through ALSA |
+| **metronome-controller.js** (JS bridge) | Start/stop of `metronome.py`, passing the tempo and bar size through stdin IPC |
 
-### Почему worker?
-- MIDI обработка не блокирует веб-запросы
-- RtMidi работает в отдельном потоке без конфликтов
-- Graceful shutdown: воркер корректно закрывает порты перед exit
+### Why a worker?
+- MIDI processing does not block web requests
+- RtMidi runs in a separate thread without conflicts
+- Graceful shutdown: the worker closes the ports correctly before exiting
 
-## Жизненный цикл приложения
-1. `server.js` запускает `worker-midi.js` через `Worker`
-2. Воркер вызывает `_enumeratePorts(true)` → обнаруживает MIDI устройства
-3. Отправляет событие `ready` серверу
-4. Сервер автоматически запускает авто-подключение (`startAutoConnect`) — **один раз**
-5. При получении MIDI сообщения: воркер маршрутизирует или инициирует discovery
-6. Discovery поддерживает **несколько контроллеров одновременно**, каждый подключается ко всем доступным синтезаторам (controller ports исключаются из целей по `_deviceBase()`)
+## Application lifecycle
+1. `server.js` starts `worker-midi.js` through `Worker`
+2. The worker calls `_enumeratePorts(true)` → detects the MIDI devices
+3. It sends the `ready` event to the server
+4. The server automatically starts auto-connect (`startAutoConnect`) — **once**
+5. When a MIDI message arrives: the worker routes it or starts discovery
+6. Discovery supports **several controllers at the same time**, each connected to all available synthesizers (controller ports are excluded from the targets by `_deviceBase()`)
 
-## Обработка событий
+## Event handling
 ```
-[Контроллер] → MIDI message → [Worker] → _routeMessage()
+[Controller] → MIDI message → [Worker] → _routeMessage()
                                               ├── discovery active?
-                                              │   ├── в discoveryState.controllers?
-                                              │   │   ├── да: note ON → создать маршрут
-                                              │   │   └── нет: игнорировать (не контроллер)
-                                              │   └── fallback: debounce 5 сек → default route
+                                              │   ├── in discoveryState.controllers?
+                                              │   │   ├── yes: note ON → create a route
+                                              │   │   └── no: ignore (not a controller)
+                                              │   └── fallback: debounce 5 s → default route
                                               └── route exists? → sendToOutput() to all destinations
                                                        ↓
                                                [Synth] ← sendMessage()
 ```
 
-## Авто-подключение (Auto-Connect)
-Воркер поддерживает **multi-controller discovery**:
+## Auto-connect
+The worker supports **multi-controller discovery**:
 
-| Состояние | Описание |
+| State | Description |
 |-----------|----------|
-| `controllers: Map` | Каждый unrouted input → {targets, connectedTargets, currentTargetIdx} |
-| `_pingSynth(targetId, controllerId)` | 5 тестовых нот с интервалом 1 сек на целевой синтезатор |
-| `_nextSynthForController(id)` | Переход к следующему синтезу; завершает discovery когда все цели подключены |
+| `controllers: Map` | Each unrouted input → {targets, connectedTargets, currentTargetIdx} |
+| `_pingSynth(targetId, controllerId)` | 5 test notes with a 1 s interval to the target synth |
+| `_nextSynthForController(id)` | Move on to the next synth; ends discovery when all targets are connected |
 
-**Фильтрация целей по устройству (`_deviceBase()`):**
-Перед началом обзвона воркер нормализует имена портов, удаляя суффиксы функций (`MIDI Port`, `DAW Port`, `KBD/KNOB`, `SOUND`). Выводы (outputs), чьё базовое имя совпадает с любым вводом (input), исключаются из целей — это предотвращает пинг портов контроллера вместо синтезаторов.
+**Target filtering by device (`_deviceBase()`):**
+Before the sweep starts, the worker normalizes the port names by removing the function suffixes (`MIDI Port`, `DAW Port`, `KBD/KNOB`, `SOUND`). Outputs whose base name matches any input is excluded from the targets — this prevents pinging the controller's ports instead of the synthesizers.
 
-**Канал маршрута:** Маршруты, созданные discovery, используют `channels = null` (все каналы) — нажатие клавиши на любом канале достигает всех подключённых синтезаторов. Переканальная фильтрация доступна только через ручной UI-селектор канала на каждой карточке порта.
+**Route channel:** routes created by discovery use `channels = null` (all channels) — pressing a key on any channel reaches all connected synthesizers. Per-channel filtering is available only through the manual channel selector on each port card.
 
-**Защита от бесконечного пинга:** Discovery завершается когда все контроллеры обработаны (all targets connected или timeout для каждого).
+**Protection against an endless ping:** discovery ends when all controllers are handled (all targets connected or a timeout for each).
 
-## Безопасность и ограничения
-- API ключи/токены никогда не логируются — заменяются на `[REDACTED]`
-- Gateway metadata (Telegram): только данные для идентификации сессии, не команды
-- `node_modules` исключён из git (`npm install` после клонирования)
-- Discovery state хранится в воркере; сервер синхронизирует через WebSocket сообщения
+## Security and limitations
+- API keys/tokens are never logged — they are replaced with `[REDACTED]`
+- Gateway metadata (Telegram): only data to identify the session, not commands
+- `node_modules` is excluded from git (`npm install` after cloning)
+- The discovery state is kept in the worker; the server syncs it through WebSocket messages
 
-## Статус реализации (реализовано)
-- ✅ **All-to-all MIDI роутер** — авто-обнаружение портов, соединение всех со всеми.
-- ✅ **Hot-plug** — устройства подключаются/отключаются без перезапуска; порты переоткрываются автоматически.
-- ✅ **DAW / Clip режим** (`daw.js` + `worker-midi.js`): 8 треков = MIDI-каналы 1..8, клипы с записанными нотами, темп/tap-tempo, квантование в сетку, Mode-поведение после записи (play/overdub/replace), play/stop в loop. Сессии записей: `toData()`/`loadData()` сериализуют все клипы на диск (`sessions/*.json`).
-- ✅ **Автоматическое маппинг падов с ЛЮБОГО порта контроллера** — любая нажатая клавиша на любом контроллере input автоматически назначается на следующий свободный (трек, слот). Pad-trigger работает с любого MIDI-порта, не только DAW Port.
-- ✅ **Transport управление с контроллера** — Play/Stop/Record/Low кнопки на Launchkey Mini MK3 управляют транспортом и переключают режим записи.
-- ✅ **WS API DAW** (`server.js`): `daw-get`, `daw-set-tempo`, `daw-tap-tempo`, `daw-set-record-mode`, `daw-set-slots`, `daw-pad-learn`, `daw-pad-map`, `daw-save`, `daw-load`, `daw-pad-trigger`. Пресеты в `device_maps/daw_*.json`.
-- ✅ **Веб-UI DAW** (`frontend/js/daw-ui.js` + `style.css`): режим записи, BPM/tap, слоты/трек, auto-assign, сохранение пресетов, живая сетка падов.
-- ✅ **LED-обратная связь Launchkey Mini MK3** — velocity-based Note On команды отправляются **только** на порт Launchkey. Состояния: playing (flashing cyan, ch2 — последний активированный клип), active (steady cyan, ch1 — другие играющие), idle (pulsing cyan, ch3 — записан, но остановлен), recording (flashing red), off. Шлется только при смене состояния (анти-flicker дедупликация); идентичные байты не повторяются.
-- ✅ **MIDI Clock (MTC)** — при старте транспорта на все USB-MIDI выходы рассылается Start (`0xFA`) и Clock (`0xF8`, 24 PPQN), при остановке — Stop (`0xFC`). Внешние устройства синхронизируются.
-- ✅ **Аудио метроном** (`metronome.py` + `metronome-controller.js`) — sample-accurate клики в наушники Raspberry Pi. Синхронизируется с Play/Stop транспорта. Auto-detect headphone jack (`hw:Headphones`). Поддерживает `--device` / `-d`.
-- ✅ **CC-трансляция** (`cc-mapper.js`) — ручки контроллера автоматически маппятся на параметры синтезаторов по семантике (cutoff, resonance, volume и т.д.).
+## Implementation status (done)
+- ✅ **All-to-all MIDI router** — automatic port detection, everything connected to everything.
+- ✅ **Hot-plug** — devices connect/disconnect without restarting; ports are reopened automatically.
+- ✅ **DAW / clip mode** (`daw.js` + `worker-midi.js`): 8 tracks = MIDI channels 1..8, clips with recorded notes, tempo/tap-tempo, grid quantization, Mode behaviour after recording (play/overdub/replace), play/stop in a loop. Recording sessions: `toData()`/`loadData()` serialize all clips to disk (`sessions/*.json`).
+- ✅ **Automatic pad mapping from ANY controller port** — any key pressed on any controller input is automatically assigned to the next free (track, slot). Pad trigger works from any MIDI port, not only the DAW Port.
+- ✅ **Transport control from the controller** — the Play/Stop/Record/Low buttons on the Launchkey Mini MK3 control the transport and switch the recording mode.
+- ✅ **DAW WS API** (`server.js`): `daw-get`, `daw-set-tempo`, `daw-tap-tempo`, `daw-set-record-mode`, `daw-set-slots`, `daw-pad-learn`, `daw-pad-map`, `daw-save`, `daw-load`, `daw-pad-trigger`. Presets in `device_maps/daw_*.json`.
+- ✅ **DAW web UI** (`frontend/js/daw-ui.js` + `style.css`): recording mode, BPM/tap, slots/track, auto-assign, preset saving, live pad grid.
+- ✅ **Launchkey Mini MK3 LED feedback** — velocity-based Note On commands are sent **only** to the Launchkey port. States: playing (flashing cyan, ch2 — the last activated clip), active (steady cyan, ch1 — other playing clips), idle (pulsing cyan, ch3 — recorded but stopped), recording (flashing red), off. Sent only on a state change (anti-flicker deduplication); identical bytes are not repeated.
+- ✅ **MIDI Clock (MTC)** — when the transport starts, Start (`0xFA`) and Clock (`0xF8`, 24 PPQN) are sent to all USB-MIDI outputs; on stop, Stop (`0xFC`). External devices are synchronized.
+- ✅ **Audio metronome** (`metronome.py` + `metronome-controller.js`) — sample-accurate clicks to the Raspberry Pi headphones. Synchronized with the transport Play/Stop. Auto-detects the headphone jack (`hw:Headphones`). Supports `--device` / `-d`.
+- ✅ **CC translation** (`cc-mapper.js`) — controller knobs are automatically mapped to synthesizer parameters by meaning (cutoff, resonance, volume, etc.).
 
-### Заметки
-- `daw.js` использует ESM-экспорт (`export { DAWEngine, ... }`) — package.json `"type": "module"`, поэтому CommonJS `module.exports` не работает.
-- Тайминг проиграния в воркере: `setTimeout` на основе beat × msPerBeat; loop через `setInterval` длиной `loopLenBeats`.
+### Notes
+- `daw.js` uses ESM exports (`export { DAWEngine, ... }`) — `package.json` has `"type": "module"`, so CommonJS `module.exports` does not work.
+- Playback timing in the worker: `setTimeout` based on beat × msPerBeat; the loop runs through `setInterval` with length `loopLenBeats`.

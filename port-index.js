@@ -1,6 +1,6 @@
 /**
- * PortIndex — реестр MIDI портов по никнеймам
- * Аналог PortIndex из PiMidiBox
+ * PortIndex — registry of MIDI ports by nicknames
+ * Analogous to the PortIndex of PiMidiBox
  */
 export class PortRecord {
     constructor(name, port, nickname) {
@@ -14,7 +14,7 @@ export class PortRecord {
     get nickname() { return this._nickname; }
     
     _normalizeName(name) {
-        // Убираем спецсимволы и делаем snake_case
+        // Remove special characters and make snake_case
         return name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').toLowerCase();
     }
 }
@@ -27,14 +27,14 @@ export class PortIndex {
     get count() { return Object.keys(this._records).length; }
     get records() { return { ...this._records }; }
     
-    /** Добавить порты */
+    /** Add ports */
     add(...items) {
         for (const item of items) {
             this.put(item.nickname, item);
         }
     }
     
-    /** Установить запись */
+    /** Set an entry */
     put(nickname, record) {
         if (!record) {
             this.remove(nickname);
@@ -47,24 +47,24 @@ export class PortIndex {
         }
     }
     
-    /** Удалить запись */
+    /** Remove an entry */
     remove(nickname) {
         delete this._records[nickname];
     }
     
-    /** Получить запись по никнейму */
+    /** Get an entry by nickname */
     get(nickname) {
         return this._records[nickname];
     }
     
-    /** Собрать записи по никнеймам */
+    /** Collect entries by nickname */
     gather(...nicknames) {
         return nicknames
             .filter(n => this._records[n])
             .map(n => this._records[n]);
     }
     
-    /** Найти по имени устройства */
+    /** Find by device name */
     find(name) {
         const result = [];
         for (const record of Object.values(this._records)) {
@@ -75,7 +75,7 @@ export class PortIndex {
         return result;
     }
     
-    /** Очистить все записи */
+    /** Clear all entries */
     clear() {
         for (const name in this._records) {
             delete this._records[name];
@@ -83,5 +83,5 @@ export class PortIndex {
     }
 }
 
-// Глобальный экземпляр
+// Global instance
 export const portIndex = new PortIndex();

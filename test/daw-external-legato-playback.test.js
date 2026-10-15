@@ -26,6 +26,7 @@ test('external-clock pad launch follows the shared cycle phase and loops on the 
     worker._broadcastState = () => {};
     worker._clearStaleRecordingFeedback = () => {};
     worker._externalClockActive = true;
+    worker.audioLatencyMs = 0; // exact-tick timing; latency has its own test
     worker._externalMidiClock = { tickCount: 36 };
 
     const result = worker._triggerPad(0, 0, performance.now());
@@ -68,6 +69,7 @@ test('skipped F8 ticks must not leave pending note-offs hanging forever', () => 
     worker._broadcastState = () => {};
     worker._clearStaleRecordingFeedback = () => {};
     worker._externalClockActive = true;
+    worker.audioLatencyMs = 0; // exact-tick timing; latency has its own test
     worker._externalMidiClock = { tickCount: 0 };
 
     // Start playback at tick 0 so the clip is anchored to the shared cycle.
@@ -108,5 +110,35 @@ test('skipped F8 ticks must not leave pending note-offs hanging forever', () => 
         !playback2.pendingNoteOffs.get(6),
         'that note-off must no longer remain pending after release',
     );
+    worker._stopTrackPlayback(0);
+});
+
+test('audio latency offset shifts external-clock note-ons earlier by the same amount', () => {
+    const sent = [];
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat = 24 ticks
+    worker.daw.loopLenBeats = 4;
+    worker.daw.tracks[0].clips[0] = {
+        length: 16,
+        notes: [{ channel: 1, note: 62, velocity: 90, start: 1.5, dur: 0.25 }],
+    };
+    worker.daw.setRecordMode('none');
+    worker.outputs = new Map([['test-synth', { sendMessage: (bytes) => sent.push([...bytes]) }]]);
+    worker.controllerEngine = { isExcludedOutput: () => false };
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map();
+    worker._sendFeedback = () => {};
+    worker._broadcastState = () => {};
+    worker._clearStaleRecordingFeedback = () => {};
+    worker._externalClockActive = true;
+    worker.audioLatencyMs = 60; // 60 ms = 2.88 ticks -> 3 ticks earlier
+    worker._externalMidiClock = { tickCount: 0 };
+
+    worker._startTrackPlayback(0, 0, performance.now());
+    // Beat 1.5 = tick 36, so the note-on must fire at tick 33, not 36.
+    worker._tickExternalClipPlayback(32);
+    assert.equal(sent.filter((b) => (b[0] & 0xf0) === 0x90).length, 0);
+    worker._tickExternalClipPlayback(33);
+    assert.equal(sent.filter((b) => (b[0] & 0xf0) === 0x90).length, 1);
     worker._stopTrackPlayback(0);
 });

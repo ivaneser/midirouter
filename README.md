@@ -1,132 +1,132 @@
 # MIDI Router / Looper (midirouter)
 
-Веб-приложение + сервер на Raspberry Pi 4 для маршрутизации и записи MIDI в реальном времени.
-Управляется с браузера/смартфона через WebSocket, работает с физическими USB-MIDI устройствами.
+Web app + server on a Raspberry Pi 4 for real-time MIDI routing and recording.
+Controlled from a browser/smartphone over WebSocket; works with physical USB-MIDI devices.
 
-## Возможности
+## Features
 
-### 1. MIDI роутер (all-to-all)
-Автоматически обнаруживает входные и выходные MIDI-порты и соединяет их все со всеми в реальном времени. Контроллеры, синтезаторы, loopback — всё работает сразу после подключения. **Hot-plug**: устройства подключаются/отключаются без перезапуска сервера.
+### 1. MIDI router (all-to-all)
+Automatically detects input and output MIDI ports and connects them all to each other in real time. Controllers, synthesizers, loopback — everything works right after connecting. **Hot-plug**: devices connect/disconnect without restarting the server.
 
-### 2. DAW / Clip режим (Ableton Live style)
-Превращает роутер в мини-DAW: каждый **MIDI-канал = трек**, записанный паттерн = **клип**. Управление с помощью клавиш контроллера (LaunchKey, nanoPAD2 и любого другого):
+### 2. DAW / Clip mode (Ableton Live style)
+Turns the router into a mini DAW: each **MIDI channel = track**, a recorded pattern = **clip**. Controlled with the keys of the controller (LaunchKey, nanoPAD2 and any other):
 
-| Концепция | Реализация |
+| Concept | Implementation |
 |---|---|
-| Track (канал) | MIDI-канал 1–8 (8 треков) |
-| Clip slot | записанный паттерн на канале |
-| Пустой пада → запись, повторное нажатие → стоп | toggle, отпускающий пада ничего не делает |
-| Mode: Play / Overdub / Replace | определяет поведение после стопа записи: loop / слои / перезапись |
-| Длина клипа | своё целое число тактов (снап вверх) |
-| Записанные ноты | привязаны к темпу и квантованы в сетку |
-| Сессии | сохранение/загрузка записей на диск (`sessions/*.json`) |
+| Track (channel) | MIDI channel 1–8 (8 tracks) |
+| Clip slot | a recorded pattern on a channel |
+| Empty pad → record, press again → stop | toggle; releasing the pad does nothing |
+| Mode: Play / Overdub / Replace | defines what happens after recording stops: loop / layers / overwrite |
+| Clip length | its own whole number of bars (snapped up) |
+| Recorded notes | tied to the tempo and quantized to the grid |
+| Sessions | save/load recordings to disk (`sessions/*.json`) |
 
-**Как играть.** Пустой клип всегда начинает запись при нажатии пада (любой Mode). Повторное нажатие того же пада останавливает запись, и клип переходит в состояние выбранного **Mode**: **Play** — дубль начинает зацикливаться (дальше нажатия = toggle play/stop); **Overdub** — клип останавливается, слои сохраняются, следующее нажатие добавляет слой; **Replace** — клип останавливается, следующее нажатие стирает старый дубль и записывает новый. Нажатие на новый пустой клип той же группы (трека) останавливает текущий клип и начинает запись в новый.
+**How to play.** An empty clip always starts recording when its pad is pressed (any Mode). Pressing the same pad again stops the recording, and the clip moves to the state of the selected **Mode**: **Play** — the take starts looping (further presses = toggle play/stop); **Overdub** — the clip stops, layers are kept, the next press adds a layer; **Replace** — the clip stops, the next press erases the old take and records a new one. Pressing a new empty clip in the same group (track) stops the current clip and starts recording into the new one.
 
-**Профили контроллеров:** входные порты, пады, транспортные кнопки и LED-ответы задаются JSON-файлами в `controller_profiles/`. Профиль Launchkey Mini MK3 включён; пример для nanoPAD2 находится в `controller_profiles/examples/` и требует сверки с настройками устройства. Обычные клавиши остаются на MIDI-маршруте к синтезаторам. Для нового контроллера см. [CONTROLLERS.md](CONTROLLERS.md).
+**Controller profiles:** input ports, pads, transport buttons and LED responses are defined by JSON files in `controller_profiles/`. The Launchkey Mini MK3 profile is enabled; an example for nanoPAD2 is in `controller_profiles/examples/` and needs to be checked against the device settings. Regular keys stay on the MIDI route to the synthesizers. For a new controller see [CONTROLLERS.md](CONTROLLERS.md).
 
-### 3. Аудио метроном → наушники Raspberry Pi
-Python-метроном `metronome.py` генерирует клики через ALSA `aplay` прямо в аудиовыход Raspberry Pi. Node.js worker управляет им вместе с DAW транспортом, темпом и размером такта. Клики идут только в аудиовыход; синтезаторам по MIDI отправляются ноты и MIDI Clock, но никогда не метрономные ноты.
+### 3. Audio metronome → Raspberry Pi headphones
+The Python metronome `metronome.py` generates clicks through ALSA `aplay` straight to the Raspberry Pi audio output. The Node.js worker controls it together with the DAW transport, tempo and bar size. Clicks go only to the audio output; synthesizers receive notes and MIDI Clock over MIDI, but never metronome notes.
 
-### 4. MIDI Clock (MTC) — синхронизация внешних устройств
-При Play запускается MIDI Clock (24 PPQN), при Stop отправляется `0xFC`. Clock идёт на MIDI-выходы синтезаторов и на контроллеры, выбранные в `midiClockOutput` профиля. В профиле Launchkey Mini MK3 DAW-порт получает clock для синхронизации мигающих LED.
+### 4. MIDI Clock (MTC) — syncing external devices
+On Play the MIDI Clock (24 PPQN) starts; on Stop `0xFC` is sent. The clock goes to the MIDI outputs of the synthesizers and to the controllers selected in the profile's `midiClockOutput`. In the Launchkey Mini MK3 profile the DAW port receives the clock to sync the blinking LEDs.
 
-Входящий MIDI Clock также работает как внешний master: Start/Continue/Stop управляют транспортом, темп и фаза клипов следуют тактам, а ноты воспроизводятся по 24 импульсам на долю. Источник без Start автоматически запускает транспорт на первом импульсе. Пока приходит внешний clock, внутренний генератор приостанавливается; после потери clock дольше 750 мс роутер возвращается к внутреннему темпу. Для Launchkey включите MIDI Clock Output в настройках контроллера.
+Incoming MIDI Clock also works as an external master: Start/Continue/Stop control the transport, the tempo and clip phase follow the bars, and notes are played on the 24 pulses per beat. A source without Start automatically starts the transport on the first pulse. While an external clock is arriving, the internal generator is paused; after losing the clock for more than 750 ms the router returns to the internal tempo. For the Launchkey, enable MIDI Clock Output in the controller settings.
 
-### 5. Светодиоды контроллеров
-Профиль задаёт MIDI-сообщения для статусов клипа: **playing**, **recorded**, **recording**, **off**. Для других устройств можно задать Note, CC или SysEx байты в JSON.
+### 5. Controller LEDs
+The profile defines the MIDI messages for clip states: **playing**, **recorded**, **recording**, **off**. For other devices, Note, CC or SysEx bytes can be defined in JSON.
 
-Launchkey Mini MK3 (DAW-порт, цвета через velocity Note On): **playing** — последний активированный играющий клип: blinking cyan (ch2, vel 37); **active** — другие играющие клипы: steady cyan (ch1, vel 37); **idle** — остановленный, но с записью: pulsing cyan (ch3, vel 37); **recording** — blinking red (ch2, vel 5); **off** — note off. Каналы LKM3: ch1 — постоянный цвет, ch2 — мигающий (период 1 доля), ch3 — пульсирующий (период 2 доли).
+Launchkey Mini MK3 (DAW port, colours via Note On velocity): **playing** — the last activated playing clip: blinking cyan (ch2, vel 37); **active** — other playing clips: steady cyan (ch1, vel 37); **idle** — stopped but recorded: pulsing cyan (ch3, vel 37); **recording** — blinking red (ch2, vel 5); **off** — note off. LKM3 channels: ch1 — steady colour, ch2 — blinking (period 1 beat), ch3 — pulsing (period 2 beats).
 
-### 6. Список MIDI-устройств
-Вкладка «🔊 MIDI Devices» показывает все подключённые MIDI-порты (входы и выходы) одним плоским списком; hot-plug отображается вживую.
+### 6. MIDI device list
+The «🔊 MIDI Devices» tab shows all connected MIDI ports (inputs and outputs) in one flat list; hot-plug is shown live.
 
-## Быстрый старт
+## Quick start
 
-### Одноразовая настройка (новая Pi / новая SD-карта)
+### One-time setup (new Pi / new SD card)
 ```bash
 ssh pi@<ip>
 sudo bash ~/myprojects/midirouter/bootstrap.sh
-# Скрипт сам поставит Node.js, ALSA, добавит в группу audio,
-# включит автозапуск и перезагрузит Pi.
+# The script installs Node.js and ALSA itself, adds the user to the audio group,
+# enables autostart and reboots the Pi.
 ```
 
-### Ежедневный запуск (если автозапуск не нужен)
+### Daily start (if autostart is not needed)
 ```bash
 cd ~/myprojects/midirouter
-npm start          # запуск server.js
-# открыть http://<ip-pi>:3000
+npm start          # start server.js
+# open http://<ip-pi>:3000
 ```
 
-### Проверка что работает
+### Check that it works
 ```bash
-sudo systemctl status midirouter.service   # статус сервера
-sudo journalctl -u midirouter.service -n 30 # логи
-aconnect -i                                 # список MIDI-портов
+sudo systemctl status midirouter.service   # server status
+sudo journalctl -u midirouter.service -n 30 # logs
+aconnect -i                                 # list of MIDI ports
 ```
 
-Требования: Raspberry Pi 4 (или 3B+), USB-MIDI контроллер/синтезатор, ALSA (`/dev/snd`), alsa-utils, Python 3. У пользователя службы `midirouter` должен быть доступ к группе `audio`.
+Requirements: Raspberry Pi 4 (or 3B+), a USB-MIDI controller/synthesizer, ALSA (`/dev/snd`), alsa-utils, Python 3. The `midirouter` service user must have access to the `audio` group.
 
-**ALSA device для наушников:**
-- Метроном автоматически ищет `hw:Headphones` или `headphones` через `aplay -L`.
-- Для принудительного выбора задайте `MIDIR_METRONOME_DEVICE`, например `hw:0,0`, в окружении службы.
+**ALSA device for headphones:**
+- The metronome automatically looks for `hw:Headphones` or `headphones` through `aplay -L`.
+- To force a choice, set `MIDIR_METRONOME_DEVICE`, for example `hw:0,0`, in the service environment.
 
-## Управление
-- **Mode (поведение после окончания записи):** Play / Replace / Overdub (в веб-UI).
+## Controls
+- **Mode (behaviour after recording ends):** Play / Replace / Overdub (in the web UI).
 - **BPM + Tap Tempo.**
-- **Слоты на трек:** 1 / 2 / 4 / 8.
-- **Auto-assign pads:** вкл/выкл автоматическое маппинг клавиш.
-- **Сессии:** 💾 Save / ⏬ Load — сохранение/загрузка записей (всех клипов) на диск в `sessions/*.json`; имя спрашивается диалогом после нажатия.
-- **Пресеты конфигурации:** сохранение/загрузка настроек роутинга (`device_maps/daw_*.json`, вкладка ⚙️ MIDI Routing).
+- **Slots per track:** 1 / 2 / 4 / 8.
+- **Auto-assign pads:** turns the automatic key mapping on/off.
+- **Sessions:** 💾 Save / ⏬ Load — save/load recordings (all clips) to disk in `sessions/*.json`; a dialog asks for the name after the button is pressed.
+- **Configuration presets:** save/load routing settings (`device_maps/daw_*.json`, tab ⚙️ MIDI Routing).
 
-### Как играть (LaunchKey или любой MIDI-контроллер)
-1. Пустой пада = **запись**: нажал — записывается, повторное нажатие того же пада — стоп записи.
-2. После стопа клип переходит в состояние выбранного **Mode**:
-   - **Play** — дубль начинает зацикливаться; нажатие = стоп, ещё одно нажатие = снова play.
-   - **Overdub** — клип останавливается со всеми слоями; следующее нажатие добавляет новый слой.
-   - **Replace** — клип останавливается; следующее нажатие стирает дубль и записывает новый.
-3. Нажатие на **новый пустой клип той же группы** останавливает текущий клип и начинает запись в новый.
-4. **Транспортные кнопки Launchkey:** Play (CC115) — toggle транспорта (MIDI Clock + метроном + активные клипы), Stop (CC116) — стоп всего, Record (CC117) — включает/выключает Session Record без удаления клипов. При включении запускаются транспорт и метроном; нажмите пустой пэд, чтобы выбрать клип для записи. Если транспорт стоял, запись начнётся после слышимого count-in в два такта. Повторное нажатие Record завершает дубль на ближайшей границе такта. Loop (CC118) переключает длину глобального цикла.
+### How to play (LaunchKey or any MIDI controller)
+1. Empty pad = **record**: press it — recording starts; press the same pad again — recording stops.
+2. After stopping, the clip moves to the state of the selected **Mode**:
+   - **Play** — the take starts looping; press = stop, another press = play again.
+   - **Overdub** — the clip stops with all its layers; the next press adds a new layer.
+   - **Replace** — the clip stops; the next press erases the take and records a new one.
+3. Pressing a **new empty clip in the same group** stops the current clip and starts recording into the new one.
+4. **Launchkey transport buttons:** Play (CC115) — toggles the transport (MIDI Clock + metronome + active clips), Stop (CC116) — stops everything, Record (CC117) — turns Session Record on/off without deleting clips. When switched on, the transport and metronome start; press an empty pad to choose the clip to record. If the transport was stopped, recording starts after an audible two-bar count-in. Pressing Record again finishes the take at the nearest bar boundary. Loop (CC118) switches the length of the global cycle.
 
-### Свет падов (LaunchKey Mini MK3 RGB)
-Пады светятся через Note On на **Launchkey DAW Port** (нижний ряд Session mode — ноты 112–119, верхний — 96–103):
-- **Мигающий cyan** (ch2, vel 37) — последний активированный клип, играющий в loop.
-- **Непрерывный cyan** (ch1, vel 37) — другие играющие клипы.
-- **Пульсирующий cyan** (ch3, vel 37) — клип записан, но остановлен.
-- **Мигающий красный** (ch2, vel 5) — идёт запись.
-- **Выключен** — пустой клип (или после сброса Rec Arm).
+### Pad lights (LaunchKey Mini MK3 RGB)
+The pads light up through Note On on the **Launchkey DAW Port** (bottom row of Session mode — notes 112–119, top row — 96–103):
+- **Blinking cyan** (ch2, vel 37) — the last activated clip, playing in a loop.
+- **Steady cyan** (ch1, vel 37) — other playing clips.
+- **Pulsing cyan** (ch3, vel 37) — clip recorded but stopped.
+- **Blinking red** (ch2, vel 5) — recording in progress.
+- **Off** — empty clip (or after a Reset).
 
-Каналы LKM3: ch1 — постоянный цвет, ch2 — мигающий (период = 1 доля), ch3 — пульсирующий (период = 2 доли); цвет выбирается velocity Note On. Повторная отправка идентичного noteOn не шлётся — иначе LKM3 перемигает LED.
+LKM3 channels: ch1 — steady colour, ch2 — blinking (period = 1 beat), ch3 — pulsing (period = 2 beats); the colour is chosen by the Note On velocity. An identical noteOn is not sent again — otherwise the LKM3 flickers the LED.
 
-## Структура проекта
+## Project structure
 ```
 midirouter/
-├── server.js              # HTTP + WS + управление воркером + DAW API
-├── worker-midi.js         # Worker thread: MIDI роутинг + тайминг DAW
-├── controller-engine.js   # Загрузка и исполнение JSON-профилей контроллеров
-├── controller_profiles/   # Пады, транспорт, LED, выбор MIDI-портов
-├── daw.js                 # Движок DAW (клипы, темп, запись, проиграние)
-├── metronome.py           # Аудио метроном → Raspberry Pi наушники (ALSA aplay)
-├── metronome-controller.js # Node.js контроллер метронома (stdin IPC)
+├── server.js              # HTTP + WS + worker control + DAW API
+├── worker-midi.js         # Worker thread: MIDI routing + DAW timing
+├── controller-engine.js   # Loads and runs the JSON controller profiles
+├── controller_profiles/   # Pads, transport, LEDs, MIDI port selection
+├── daw.js                 # DAW engine (clips, tempo, recording, playback)
+├── metronome.py           # Audio metronome → Raspberry Pi headphones (ALSA aplay)
+├── metronome-controller.js # Node.js metronome controller (stdin IPC)
 ├── midi-clock.js          # MIDI Time Code (MTC): 24 PPQN + Start/Stop
-├── metronome.service      # устаревший unit; bootstrap удаляет его
-├── midirouter.service     # systemd unit для самого сервера
+├── metronome.service      # obsolete unit; bootstrap removes it
+├── midirouter.service     # systemd unit for the server itself
 ├── bootstrap.sh           # One-time setup: Wi-Fi + Node.js + ALSA + autostart
 ├── frontend/
-│   ├── index.html         # Страница с панелью роутера и DAW
+│   ├── index.html         # Page with the router and DAW panels
 │   ├── css/style.css
 │   └── js/
-│       ├── app.js              # Основная логика UI + WS
-│       ├── daw-ui.js           # Веб-UI DAW: сетка падов, сессии, transport
-│       ├── device-manager.js   # Карточки устройств и синтезаторов
-│       └── synth-catalog.js    # Классификация выходов (Craft/NTS-1) + CC-карты
-├── device_maps/           # Пресеты конфигурации (daw_*.json) и CC-карты синтезаторов
-├── sessions/              # Сессии записей: sessions/<имя>.json
-└── docs/*.md              # Документация (SPEC, ARCHITECTURE и т.д.)
+│       ├── app.js              # Main UI logic + WS
+│       ├── daw-ui.js           # DAW web UI: pad grid, sessions, transport
+│       ├── device-manager.js   # Device and synthesizer cards
+│       └── synth-catalog.js    # Output classification (Craft/NTS-1) + CC maps
+├── device_maps/           # Configuration presets (daw_*.json) and synthesizer CC maps
+├── sessions/              # Recording sessions: sessions/<name>.json
+└── docs/*.md              # Documentation (SPEC, ARCHITECTURE, etc.)
 ```
 
-## Автозапуск при включении Pi
-Сервис уже настроен через `bootstrap.sh`. Если нужно вручную:
+## Autostart when the Pi boots
+The service is already set up by `bootstrap.sh`. If you need to do it manually:
 ```bash
 sudo cp midirouter.service /etc/systemd/system/
 sudo systemctl disable --now metronome.service 2>/dev/null || true
@@ -135,15 +135,15 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now midirouter.service
 ```
 
-## Документация
-- `SPEC.md` — техническое задание
-- `ARCHITECTURE.md` — архитектура проекта
-- `AUTO-CONNECT.md` — авто-соединение портов
-- `DEVICE-MAPPING.md` — маппинг устройств
-- `DEBUGGING.md` — диагностика
+## Documentation
+- `SPEC.md` — technical specification
+- `ARCHITECTURE.md` — project architecture
+- `AUTO-CONNECT.md` — automatic port connection
+- `DEVICE-MAPPING.md` — device mapping
+- `DEBUGGING.md` — diagnostics
 
-## Зависимости
+## Dependencies
 - `@julusian/midi` (RtMidi)
 - `ws` (WebSocket)
 
-Проверка логики записи и карты падов без MIDI-оборудования: `npm test`.
+Check the recording logic and the pad map without MIDI hardware: `npm test`.

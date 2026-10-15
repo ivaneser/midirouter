@@ -21,6 +21,9 @@ const __dirname = path.dirname(__filename);
 // Per-message MIDI logging is very verbose (clock ticks alone can be 100s/sec).
 // Opt in explicitly: MIDI_DEBUG=1 systemctl restart midirouter
 const MIDI_DEBUG = process.env.MIDI_DEBUG === '1';
+// Test-only switch: MIDIR_NO_HARDWARE=1 skips real MIDI port enumeration, hot-plug
+// and the audio metronome, so the worker can run in tests without devices.
+const NO_HARDWARE = process.env.MIDIR_NO_HARDWARE === '1';
 
 class MIDIRouterWorker {
     constructor() {
@@ -61,7 +64,7 @@ class MIDIRouterWorker {
         // Metronome clicks use the Raspberry Pi's local ALSA audio output,
         // completely separate from MIDI note and MIDI clock routing.
         this.metronomeCtrl = new MetronomeController();
-        this._audioMetronomeAvailable = process.platform === 'linux'
+        this._audioMetronomeAvailable = process.platform === 'linux' && !NO_HARDWARE
             && this.metronomeCtrl.isAvailable();
         if (this._audioMetronomeAvailable) {
             this.metronomeCtrl.start().catch((error) => {
@@ -143,8 +146,8 @@ class MIDIRouterWorker {
         // LED state per active track: trackIdx -> { slot, state }
         this._ledGlow = new Map();
         this._padLedSent = new Map();   // "trackIdx:slot" -> last sent LED state
-        this._lastActivated = null;      // { trackIdx, slot } — последний активированный клип (мигает)
-        this._padClockTimer = null;      // MTC-тикеры только в DAW-порт контроллера
+        this._lastActivated = null;      // { trackIdx, slot } — last activated clip (blinks)
+        this._padClockTimer = null;      // MTC tickers only on the controller's DAW port
         this._padClockPhase = 0;
 
         // controller input ports whose notes drive DAW trigger/recording
@@ -159,12 +162,16 @@ class MIDIRouterWorker {
         // output latency. Clamped to 0..300 on set.
         this.audioLatencyMs = 30;
 
+        // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
+        // one of the five allowed values, default 0.125 (1/32 note).
+        this.quantizeGrid = 0.125;
+
         // Hot-plug back-off state (exponential back-off on ALSA failures)
         this._hotplugBackoffMs = 5000;   // default interval between checks
         this._consecutiveHotplugFailures = 0;
         this.padMap = new Map();   // note(number) -> { trackIdx, slot }
 
-        // CC Mapper — трансляция команд контроллера в команды синта
+        // CC Mapper — translates controller commands into synth commands
         this.ccMapper = new CCMapper();
 
         this.controllerEngine = ControllerEngine.fromDirectory(path.join(__dirname, 'controller_profiles'));
@@ -190,9 +197,13 @@ class MIDIRouterWorker {
         try {
             console.log('[WORKER] MIDI initializing...');
             this._loadConfig();
-            this._enumeratePorts();
+            if (NO_HARDWARE) {
+                console.log('[WORKER] MIDIR_NO_HARDWARE=1: skipping port enumeration and hot-plug');
+            } else {
+                this._enumeratePorts();
+            }
             this._selectDefaultClockSource();
-            this._startHotplugDetection();
+            if (!NO_HARDWARE) this._startHotplugDetection();
         } catch (e) {
             console.error('[WORKER] MIDI init failed:', e.message);
             process.exit(1);
@@ -200,21 +211,21 @@ class MIDIRouterWorker {
     }
     
     /**
-     * По умолчанию источник MIDI clock — первый контроллер из профилей
-     * (Launchkey Mini MK3). Вызывается после _enumeratePorts, когда известны
-     * реальные имена портов.
+     * The default MIDI clock source is the first controller from the profiles
+     * (Launchkey Mini MK3). Called after _enumeratePorts, when the real
+     * port names are known.
      */
     _selectDefaultClockSource() {
         const profile = this.controllerEngine.profiles[0];
         if (!profile) return;
-        // Найти реальный input-порт, который совпадает с matcher профиля.
+        // Find the real input port that matches the profile matcher.
         let portName = null;
         for (const name of this.inputs.keys()) {
             if (matches(name, profile.input)) { portName = name; break; }
         }
         if (!portName) return;
         this._clockMaster.selectExternal(portName);
-        this.daw.setMidiClock(false); // внешний master не тикает сам
+        this.daw.setMidiClock(false); // the external master does not tick by itself
         console.log(`[WORKER] Default clock source: external (${portName})`);
     }
 
@@ -407,7 +418,7 @@ class MIDIRouterWorker {
     }
     
     _rebuildMappings() {
-        // Пересборка маппингов при изменении устройств
+        // Rebuild mappings when devices change
         if (this._config && this._config.mappings) {
             this._mappings.clear();
             for (const [name, mapping] of Object.entries(this._config.mappings)) {
@@ -536,8 +547,8 @@ class MIDIRouterWorker {
         if (!clip || clip.notes.length === 0) return;
 
         const msPerBeat = this.daw._secondsPerBeat() * 1000;
-        // Каждый клип лупит по СВОЕЙ длине (целое число тактов), но остаётся
-        // фазово синхронизированным с общим транспорт-циклом (tempo + tick grid).
+        // Each clip loops on ITS OWN length (a whole number of bars), but stays
+        // phase-synchronized with the shared transport cycle (tempo + tick grid).
         const loopBeats = Math.max(1, Number(clip.length) || this.daw.loopLenBeats);
         const loopMs = loopBeats * msPerBeat;
         const playback = { interval: null, timeouts: new Set(), active: new Map() };
@@ -605,7 +616,37 @@ class MIDIRouterWorker {
         this._trackPlayTimers.set(trackIdx, playback);
     }
 
+    // A clip launched mid-bar waits for the next cycle start. The wait is kept
+    // in its own map so that stop/reset can cancel it (otherwise the clip would
+    // start after the transport was already stopped).
+    _schedulePendingStart(trackIdx, slot, startAt, delayMs) {
+        this._cancelPendingStart(trackIdx);
+        if (!this._pendingClipStarts) this._pendingClipStarts = new Map();
+        const timer = setTimeout(() => {
+            this._pendingClipStarts.delete(trackIdx);
+            // Start at the boundary we waited for, not at the (possibly late) timer
+            // time, so a few ms of timer lateness is not read as a missed cycle.
+            this._startTrackPlayback(trackIdx, slot, startAt);
+        }, Math.max(0, delayMs));
+        this._pendingClipStarts.set(trackIdx, timer);
+    }
+
+    _cancelPendingStart(trackIdx) {
+        const timer = this._pendingClipStarts?.get(trackIdx);
+        if (timer) {
+            clearTimeout(timer);
+            this._pendingClipStarts.delete(trackIdx);
+        }
+    }
+
+    // Stops every clip that is playing or waiting to start.
+    _stopAllClipPlayback() {
+        const tracks = new Set([...this._trackPlayTimers.keys(), ...(this._pendingClipStarts?.keys() ?? [])]);
+        for (const trackIdx of tracks) this._stopTrackPlayback(trackIdx);
+    }
+
     _stopTrackPlayback(trackIdx) {
+        this._cancelPendingStart(trackIdx);
         const playback = this._trackPlayTimers.get(trackIdx);
         if (playback) {
             clearInterval(playback.interval);
@@ -618,8 +659,8 @@ class MIDIRouterWorker {
         }
         const glow = this._ledGlow.get(trackIdx);
         if (glow) {
-            // Пэд может остаться подсвеченным как "idle" (пульс), если в клипе
-            // есть запись — состояние вычисляется по DAW, а не hardcoded.
+            // A pad may stay lit as "idle" (pulsing) if the clip
+            // has a recording — the state is computed from the DAW, not hardcoded.
             this._refreshPadLeds(trackIdx, glow.slot);
             this._ledGlow.delete(trackIdx);
         }
@@ -660,14 +701,20 @@ class MIDIRouterWorker {
 
             const elapsedTicks = tick - playback.startTick;
             const localTick = elapsedTicks % playback.loopTicks;
-            const loopStartTick = tick - localTick;
+            // Audio latency offset (same compensation as the internal-clock path):
+            // fire note-ons earlier by the latency converted to ticks
+            // (24 PPQN: 1 beat = 24 ticks). Note-offs are scheduled relative to
+            // when their note-on fired, so duration is unchanged.
+            const msPerBeat = this.daw._secondsPerBeat() * 1000;
+            const latencyTicks = Math.round((this.audioLatencyMs || 0) / msPerBeat * 24);
             for (const event of playback.noteEvents) {
-                if (event.startTick !== localTick) continue;
+                const onTick = (event.startTick - latencyTicks + playback.loopTicks) % playback.loopTicks;
+                if (onTick !== localTick) continue;
                 const channel = Math.max(1, event.channel || 1);
                 const key = `${channel}:${event.note}`;
                 this._sendToSynthOutputs(noteOn(channel - 1, event.note, event.velocity > 0 ? event.velocity : 80));
                 playback.active.set(key, (playback.active.get(key) || 0) + 1);
-                const offTick = loopStartTick + event.startTick + event.durationTicks;
+                const offTick = tick + event.durationTicks;
                 const scheduled = playback.pendingNoteOffs.get(offTick) || [];
                 scheduled.push({ key, channel, note: event.note });
                 playback.pendingNoteOffs.set(offTick, scheduled);
@@ -788,19 +835,19 @@ class MIDIRouterWorker {
         }
     }
 
-    // --- Pad clock: MTC строго в DAW-порт контроллера (clock-synced LED) ---
-    // Пока активен хотя бы один клип или идёт запись, DAW-порт контроллера
-    // (раздел midiClockOutput профиля) получает MIDI clock независимо от
-    // глобального MTC-переключателя и состояния транспорта — на нём
-    // синхронизируется мигание LED пэдов (LKM3: ch2 = blink, 1 такт).
-    // Не запускается, если глобальные часы уже тикают в эти порты
-    // (транспорт + MTC включены, внутренний мастер), чтобы не дублировать.
+    // --- Pad clock: MTC strictly on the controller's DAW port (clock-synced LED) ---
+    // While at least one clip is active or a recording is running, the DAW port
+    // of the controller (the profile's midiClockOutput section) receives MIDI clock
+    // independently of the global MTC switch and the transport state — the pad LED
+    // blinking is synced to it (LKM3: ch2 = blink, 1 bar).
+    // Not started if the global clocks already tick to these ports
+    // (transport + MTC enabled, internal master), to avoid duplicates.
     _padClockNeeded() {
         const active = this.daw.clipState?.some(s => s >= 0) || this.daw.recording != null;
         if (!active) return false;
-        // Внешний мастер тикает сам; отсутствие _clockMaster (тестовые stubs) — не тикаем.
+        // The external master ticks by itself; a missing _clockMaster (test stubs) — no ticking.
         if (this._clockMaster?.source?.kind !== 'internal') return false;
-        if (this.daw.playing && this.daw._midiClockEnabled) return false; // глобальный MTC уже тикает
+        if (this.daw.playing && this.daw._midiClockEnabled) return false; // global MTC already ticks
         return true;
     }
 
@@ -822,7 +869,7 @@ class MIDIRouterWorker {
             const ticks = Math.floor((now - this._padClockPhase) / tick);
             if (ticks <= 0) return;
             this._padClockPhase += ticks * tick;
-            if (ticks > 24) { this._padClockPhase = now; return; } // без бурст-гонки
+            if (ticks > 24) { this._padClockPhase = now; return; } // no burst race
             this._sendPadClockOutputs([0xf8]);
         }, Math.max(4, Math.round((this.daw._secondsPerBeat() * 1000) / 24)));
         console.log('[DAW] Pad clock started: MIDI clock → DAW controller port(s)');
@@ -850,14 +897,14 @@ class MIDIRouterWorker {
         }
     }
 
-    // Желанное LED-состояние пэда по фактическому состоянию DAW:
-    //   recording — прямо сейчас записан этот пэд;
-    //   playing   — ПОСЛЕДНИЙ активированный клип, который сейчас играет
-    //               (единственный, кто мигает);
-    //   active  — другой играющий клип (горит непрерывно);
-    //   idle    — неактивный, но заполненный (есть запись, клип остановлен)
-    //               — пульсирует;
-    //   off     — пустой клип без записи.
+    // Desired LED state of a pad based on the actual DAW state:
+    //   recording — this pad is being recorded right now;
+    //   playing   — the LAST activated clip that is playing now (the only one that blinks);
+    //   active    — another playing clip (lit continuously);
+    //   idle      — inactive but filled (has a take, clip stopped)
+    //               — pulsates;
+    //   off       — empty clip with no recording.
+    
     _padLedStateFor(trackIdx, slot) {
         // Count-in takes priority over recording LED while pending.
         if (this.daw.recording && this.daw.recording.track === trackIdx && this.daw.recording.slot === slot) {
@@ -890,10 +937,10 @@ class MIDIRouterWorker {
         this._broadcastState();
     }
 
-    // Обновляет LED для одного пэда (trackIdx/slot) или для всех пэдов
-    // профиля. Сообщения отправляются только при смене желаемого состояния,
-    // чтобы не спамить контроллер идентичными сообщениями.
-    // MIDI-байты фидбека пэда во всех выходах (для сравнения состояний).
+    // Updates the LED for one pad (trackIdx/slot) or for all pads of the profile.
+    // Messages are sent only when the desired state changes, so the controller
+    // is not flooded with identical messages. The pad feedback MIDI bytes on all outputs (for state comparison).
+    
     _padLedMessagesFor(t, s, state) {
         return [...this.outputs.keys()].flatMap(name =>
             this.controllerEngine.feedbackMessagesFor?.(name, t, s, state) || []);
@@ -911,9 +958,9 @@ class MIDIRouterWorker {
             const prev = this._padLedSent.get(key);
             if (prev === state) continue;
             this._padLedSent.set(key, state);
-            // playing/recorded могут иметь ОДИНАКОВЫЕ байты (тот же цвет). повторная
-            // отправка того же noteOn заставляет LED Launchkey пересвечиваться
-            // (мигать) — поэтому пропускаем отправку при идентичных байтах.
+            // playing/recorded may have IDENTICAL bytes (same color). Re-sending the same
+            // noteOn makes the Launchkey LED flash again (blink) — so skip sending on identical bytes.
+            
             if (prev && JSON.stringify(this._padLedMessagesFor(t, s, prev))
                 === JSON.stringify(this._padLedMessagesFor(t, s, state))) continue;
             this._sendFeedback(t, s, state);
@@ -923,8 +970,8 @@ class MIDIRouterWorker {
     _armLed(trackIdx, slot) {
         const prevSlot = this._ledGlow.get(trackIdx)?.slot;
         this._ledGlow.set(trackIdx, { trackIdx, slot, state: 'recording' });
-        // Соседний пэд того же трека (был playing/recorded) пересчитываем сразу
-        // в своё фактическое состояние — idle-пульс для непустого клипа.
+        // A neighbouring pad of the same track (was playing/recorded) is recalculated at once
+        // to its actual state — idle pulse for a non-empty clip.
         if (prevSlot != null && prevSlot !== slot) this._refreshPadLeds(trackIdx, prevSlot);
         this._refreshPadLeds(trackIdx, slot);
     }
@@ -961,12 +1008,12 @@ class MIDIRouterWorker {
             const { track, slot, mode } = recording;
             const clip = this.daw.tracks[track]?.clips[slot];
             this.daw._stopRecording(this.daw._beatAt(boundaryTime), true);
-            this.daw.quantizeClip(track, slot);
+            this.daw.quantizeClip(track, slot, this.quantizeGrid ?? 0.125);
 
             if (stopTransport) {
                 this.daw.stopTransport();
                 this._transportPlaying = false;
-                for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
+                this._stopAllClipPlayback();
                 this.daw.clipState.fill(-1);
                 // Panic: mute everything on all outputs.
                 this.sendPanicNoteOff();
@@ -1000,9 +1047,9 @@ class MIDIRouterWorker {
             this._scheduleRecordingStop({ now });
             return { action: 'record-stop-pending', track: trackIdx, slot };
         }
-        // Требование 1: фиксируем состояние "пустой проект" ДО triggerPad —
-        // первый клип в пустом проекте запускает глобальный цикл с этого
-        // самого момента (transport стартует ниже).
+        // Requirement 1: capture the "empty project" state BEFORE triggerPad —
+        // the first clip in an empty project starts the global cycle from this
+        // very moment (the transport starts below).
         const wasEmptyProject = this.daw.isEmptyProject();
         const result = this.daw.triggerPad(trackIdx, slot, now, { countIn });
         let visualEvent = null;
@@ -1014,17 +1061,17 @@ class MIDIRouterWorker {
                 mode: this.daw.recordMode,
             };
         }
-        // Пэд, с которого снимаем свечение/запись, должен сразу пересчитаться
-        // в своё фактическое состояние (idle-пульс для непустого клипа и т.д.),
-        // а не ждать общего _refreshPadLeds() — иначе предыдущий пэд остаётся
-        // гореть без перехода в пульсацию.
+        // The pad whose glow/recording is removed must immediately recalculate
+        // to its actual state (idle pulse for a non-empty clip, etc.),
+        // rather than wait for the general _refreshPadLeds() — otherwise the previous pad stays
+        // lit without switching to pulsing.
         const prevTrackIdx = this._ledGlow.get(trackIdx)?.trackIdx;
         this._clearStaleRecordingFeedback();
         if (prevTrackIdx === trackIdx) this._refreshPadLeds(trackIdx, slot);
         if (result.action === 'play' || result.action === 'record-stop') {
-            // record-stop: запуск воспроизведения только если в дубле есть ноты.
-            // Если осталось время до начала нового такта — ждём его, чтобы не
-            // проигрывать хвост предыдущего цикла (ноты из середины такта).
+            // record-stop: start playback only if the take has notes.
+            // If there is time left until the start of the new bar, wait for it so as not to
+            // play the tail of the previous cycle (notes from the middle of a bar).
             const hasNotes = this.daw.tracks?.[trackIdx]?.clips?.[slot]?.notes?.length > 0;
             if (result.action === 'record-stop' && !hasNotes) {
                 this._stopTrackPlayback(trackIdx);
@@ -1039,21 +1086,21 @@ class MIDIRouterWorker {
                     const cyclePhase = (curBeat % loopLen + loopLen) % loopLen;
                     const beatsToCycleStart = cyclePhase < 1e-9 ? 0 : loopLen - cyclePhase;
                     delayMs = beatsToCycleStart * spb * 1000;
-                    // Если нажатие совпало с границей цикла (<= 5 мс) — старт сразу.
+                    // If the press is on the cycle boundary (<= 5 ms) — start immediately.
                     if (delayMs <= 5) delayMs = 0;
                     startAt = now + delayMs;
                 }
                 this._lastActivated = { trackIdx, slot };
-                // Запускаем плейбэк с задержкой до начала такта: ноты из
-                // середины цикла не проигрываются — ждём границы.
+                // Start playback with a delay until the start of the bar: notes from the
+                // middle of the cycle are not played — we wait for the boundary.
                 if (delayMs > 0) {
-                    setTimeout(() => this._startTrackPlayback(trackIdx, slot), delayMs);
+                    this._schedulePendingStart(trackIdx, slot, startAt, delayMs);
                 } else {
                     this._startTrackPlayback(trackIdx, slot, startAt);
                 }
             }
         } else if (result.action === 'stop' || result.action === 'record-stop-stopped') {
-            // stop (Play-режим) или replace-остановка: клип остаётся остановленным
+            // stop (Play mode) or replace-stop: the clip stays stopped
             this._stopTrackPlayback(trackIdx);
             this.daw.clipState[trackIdx] = -1;
         } else if (result.action === 'record' || result.action === 'overdub') {
@@ -1061,9 +1108,9 @@ class MIDIRouterWorker {
             // the old clip as idle (pulse), not as still playing.
             this.daw.clipState[trackIdx] = -1;
             this._stopTrackPlayback(trackIdx);
-            // Требование 1: первый клип в пустом проекте стартует глобальный
-            // цикл (транспорт + MIDI clock) ровно с момента нажатия —
-            // запись уже закреплена на beat 0 этого цикла.
+            // Requirement 1: the first clip in an empty project starts the global
+            // cycle (transport + MIDI clock) exactly at the press —
+            // the recording is already anchored to beat 0 of this cycle.
             if (!this.daw.playing && (countIn || wasEmptyProject)) {
                 this.daw.setMetronome(true);
                 // Flag count-in BEFORE startTransport so the bar-delayed timer
@@ -1079,6 +1126,11 @@ class MIDIRouterWorker {
                 this.daw.startTransport();
                 this._transportPlaying = true;
             }
+            // The recording was armed before the transport anchor was set, a few ms
+            // later. Shift its start by the same amount so beat 0 of the take lines up
+            // with the transport beat grid (otherwise the stop boundary is off by that gap).
+            const anchorDrift = this.daw._playAnchorTime - now;
+            if (this.daw.recording && anchorDrift > 0) this.daw.recording.startTime += anchorDrift;
             this._armLed(trackIdx, slot);
         } else if (result.action === 'invalid') {
             console.warn(`[DAW] Invalid pad target track ${trackIdx}, slot ${slot}`);
@@ -1166,8 +1218,8 @@ class MIDIRouterWorker {
     // Controller transport actions are defined by each profile.
     _handleProfileTransport(action, pressed = true) {
         if (action === 'play') {
-            // Play на Launchkey — toggle: если воспроизведение идёт, нажатие
-            // Play его останавливает (транспорт + все клипы).
+            // Play on Launchkey — toggle: if playback is running, a press
+            // stops it (transport + all clips).
             if (this._transportPlaying || this.daw.playing) {
                 this.handleDawControl({ type: 'daw_stop_transport' });
             } else {
@@ -1595,7 +1647,7 @@ class MIDIRouterWorker {
         const daw = this.daw;
         switch (msg.type) {
             case 'daw_request_state':
-                // Отправить текущее состояние DAW при запросе от фронтенда
+                // Send the current DAW state when the frontend requests it
                 this._broadcastState();
                 break;
             case 'daw_set_tempo':
@@ -1621,21 +1673,21 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             case 'daw_reset_arm_record': {
-                // Rec Arm: все клипы в ноль + готовность к новой записи.
-                // Сначала останавливаем проигрывание (note-offs) и транспорт,
-                // затем стираем клипы; Mode по умолчанию — Play ('none').
-                for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
+                // Reset: all clips to zero + ready for a new recording.
+                // First stop playback (note-offs) and the transport,
+                // then erase the clips; the default Mode is Play ('none').
+                this._stopAllClipPlayback();
                 if (this._transportPlaying || daw.playing) {
                     daw.stopTransport();
                     this._transportPlaying = false;
                 }
-                // resetAllClips сам запускает метроном ровно на два такта
-                // (требование 4): до первой записи или до конца такта.
+                // resetAllClips itself starts the metronome for exactly two bars
+                // (requirement 4): before the first recording or until the end of the bar.
                 daw.resetAllClips();
                 daw.setRecordMode('none');
                 this._clearStaleRecordingFeedback();
                 this._refreshPadLeds();
-                console.log('[DAW] Rec Arm: all clips reset to zero, Play mode armed');
+                console.log('[DAW] Reset: all clips cleared, track channels unassigned, Play mode armed');
                 this._syncPadClock();
                 this._broadcastState();
                 break;
@@ -1648,7 +1700,7 @@ class MIDIRouterWorker {
                     } else if (daw.recording) {
                         const recording = daw.recording;
                         daw._stopRecording(daw._beatAt(performance.now()), true);
-                        daw.quantizeClip(recording.track, recording.slot);
+                        daw.quantizeClip(recording.track, recording.slot, this.quantizeGrid ?? 0.125);
                         this._clearStaleRecordingFeedback();
                         this._refreshPadLeds();
                     }
@@ -1723,6 +1775,17 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            // Quantization grid (beats): accept only the five allowed values.
+            case 'daw_quantize_grid': {
+                const beats = +msg.beats;
+                if ([0.125, 0.25, 0.5, 1, 2].includes(beats)) {
+                    this.quantizeGrid = beats;
+                    // DAW keeps its own copy: quantizeClip is called with it as gridSize.
+                    this.daw.quantizeGrid = beats;
+                }
+                this._broadcastState();
+                break;
+            }
             // ---- MIDI Clock (MTC) ----
             case 'daw_midi_clock_toggle':
                 daw.setMidiClock(!daw.getMidiClockState());
@@ -1786,7 +1849,7 @@ class MIDIRouterWorker {
                 // notes survive the stop.
                 this.sendPanicNoteOff();
                 if (daw.recording) daw._stopRecording(daw._beatAt(performance.now()));
-                for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
+                this._stopAllClipPlayback();
                 daw.clipState.fill(-1);
                 this._refreshPadLeds();
                 this._syncPadClock();
@@ -1839,6 +1902,7 @@ class MIDIRouterWorker {
         state.clockMasterSource = this._clockMaster.source;
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
         state.audioLatencyMs = this.audioLatencyMs;
+        state.quantizeGrid = this.quantizeGrid;
         parentPort.postMessage({ type: 'daw_state', state });
     }
 
@@ -1868,8 +1932,8 @@ class MIDIRouterWorker {
                 catch (error) { console.warn(`[CONTROLLER] LED reset on ${name} failed: ${error.message}`); }
             }
         }
-        // Восстановить фактическое состояние (playing/recorded/recording),
-        // вычисленное по DAW, — в том числе пэды с записью, но не играющие.
+        // Restore the actual state (playing/recorded/recording),
+        // computed from the DAW — including pads with a recording that are not playing.
         for (const { trackIdx, slot } of targets.values()) {
             const state = this._padLedStateFor(trackIdx, slot);
             for (const bytes of this.controllerEngine.feedbackMessagesFor(name, trackIdx, slot, state)) {
@@ -1895,7 +1959,7 @@ class MIDIRouterWorker {
         this.daw?._stopMetronome();
         this.metronomeCtrl?.kill();
 
-        for (const trackIdx of this._trackPlayTimers.keys()) this._stopTrackPlayback(trackIdx);
+        this._stopAllClipPlayback();
         this._stopPadClock();
         for (const [, input] of this.inputs || []) {
             if (input._handler) input.off('message', input._handler);
@@ -1909,7 +1973,7 @@ class MIDIRouterWorker {
         if (this._enumOut) { try { this._enumOut.closePort(); } catch(e) {} this._enumOut = null; }
     }
     
-    // ---- Hot-plug: пересборка портов при подключении/отключении устройств ----
+    // ---- Hot-plug: rebuild ports when devices are connected/disconnected ----
     _handleHotplug() {
         console.log('[WORKER] Hot-plug event detected, rescanning...');
         this._enumeratePorts();
@@ -1926,7 +1990,7 @@ class MIDIRouterWorker {
         console.log('[WORKER] Mappings rebuilt');
     }
     
-    // ---- Сессии: сохранение/загрузка записей на диск (sessions/*.json) ----
+    // ---- Sessions: save/load recordings to disk (sessions/*.json) ----
     _sessionNameOf(rawName) {
         const base = String(rawName || '').replace(/\.json$/, '').replace(/[/\\]+/g, '').trim();
         const clean = base.replace(/[^a-zA-Z0-9._ -]/g, '_').replace(/^\.+/, '').slice(0, 64);
@@ -1974,8 +2038,8 @@ class MIDIRouterWorker {
             const file = path.join(this._sessionsDir(), `${name}.json`);
             const data = JSON.parse(fs.readFileSync(file, 'utf8'));
 
-            // Останавливаем clip playback before restoring session content.
-            for (const trackIdx of [...this._trackPlayTimers.keys()]) this._stopTrackPlayback(trackIdx);
+            // Stop clip playback before restoring session content.
+            this._stopAllClipPlayback();
             if (this._recordingStopTimer) {
                 clearTimeout(this._recordingStopTimer);
                 this._recordingStopTimer = null;
@@ -2008,7 +2072,7 @@ class MIDIRouterWorker {
 
     // ---- Panic: send All Notes Off to all outputs on all channels ----
     sendPanicNoteOff() {
-        if (this.outputs.size === 0) return;
+        if (!this.outputs || this.outputs.size === 0) return;
         console.log('[WORKER] Sending All Notes Off to all outputs...');
         try {
             this.outputs.forEach((out) => {
@@ -2029,7 +2093,7 @@ if (parentPort) {
     const worker = new MIDIRouterWorker();
     parentPort.on('message', (msg) => {
     if (msg.type === 'shutdown') {
-        // Отправить panic note-off перед выключением чтобы сбросить зажатые ноты
+        // Send a panic note-off before shutting down to release held notes
         worker.sendPanicNoteOff();
         worker.cleanup();
         // Force exit after 1 second to prevent blocking
@@ -2038,7 +2102,7 @@ if (parentPort) {
     } else if (msg.type.startsWith('daw_')) {
         worker.handleDawControl(msg);
     } else if (msg.type === 'midi_send_to_target') {
-        // Отправить сырое MIDI-сообщение на целевой выход
+        // Send a raw MIDI message to the target output
         const targetName = msg.target;
         const bytes = Array.isArray(msg.bytes) ? msg.bytes : Array.from(msg.bytes);
         const output = worker.outputs.get(targetName);
@@ -2053,10 +2117,10 @@ if (parentPort) {
             console.warn(`[MIDI] [SERVER] Target not found: ${targetName}`);
         }
     } else if (msg.type === 'panic_note_off') {
-        // Отправить panic note-off на все выходы
+        // Send panic note-off on all outputs
         worker.sendPanicNoteOff();
     } else if (msg.type === 'reload_config') {
-        // Перезагрузить конфигурацию
+        // Reload the configuration
         worker._loadConfig();
         const oldEngine = worker.controllerEngine;
         for (const [name, output] of worker.outputs) {
@@ -2073,7 +2137,7 @@ if (parentPort) {
         worker._broadcastPadMap();
         parentPort.postMessage({ type: 'config_reloaded' });
     } else if (msg.type === 'rebuild_mappings') {
-        // Пересборка маппингов при hot-plug событии
+        // Rebuild mappings on a hot-plug event
         worker.rebuildMappings();
     } else if (msg.type.startsWith('clock_')) {
         // Clock master selection commands from server.

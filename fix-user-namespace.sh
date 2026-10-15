@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
-# fix-user-namespace.sh — починить EPERM на open("/dev/snd/seq") в midirouter.service
+# fix-user-namespace.sh — fix EPERM on open("/dev/snd/seq") in midirouter.service
 # -----------------------------------------------------------------------------
-# Причина: systemd по умолчанию ставит PrivateUsers=yes, и сервис стартует во
-# вложенном user namespace. Внутри not-initial userns CAP_SYS_RAWIO НЕ даёт
-# доступ к устройствам вроде /dev/snd/seq -> snd_seq_open возвращает EPERM.
-# Из-за этого worker падает, HTTP/WS-сервер не стартует, :3000 недоступен.
+# Cause: systemd sets PrivateUsers=yes by default, so the service starts in a
+# nested user namespace. Inside a not-initial userns, CAP_SYS_RAWIO does NOT grant
+# access to devices such as /dev/snd/seq -> snd_seq_open returns EPERM.
+# Because of this the worker crashes, the HTTP/WS server does not start, and :3000 is unavailable.
 #
-# Решение: PrivateUsers=no  ->  сервис в init userns, устройства доступны.
+# Fix: PrivateUsers=no  ->  the service runs in the init userns, devices are accessible.
 #
 #     sudo bash fix-user-namespace.sh
-# Скрипт ипотентен, можно гонять повторно.
+# The script is idempotent, it can be re-run safely.
 # =============================================================================
 
 set -uo pipefail
 
 SERVICE="midirouter.service"
 DROPIN="/etc/systemd/system/${SERVICE}.d/10-fix-user-ns.conf"
-SUDO=""   # скрипт требует root (проверка ниже), поэтому sudo не нужен внутри
+SUDO=""   # the script requires root (checked below), so sudo is not needed inside
 
 RED=$'\033[0;31m'; GRN=$'\033[0;32m'; YEL=$'\033[1;33m'; NC=$'\033[0m'
 log() { echo -e "${GRN}[midirouter]${NC} $*"; }
@@ -25,41 +25,41 @@ warn() { echo -e "${YEL}[warning]${NC} $*"; }
 err()  { echo -e "${RED}[error]${NC} $*"; }
 
 if [ "$(id -u)" -ne 0 ]; then
-    err "Нужен sudo:  sudo bash fix-user-namespace.sh"
+    err "Requires sudo:  sudo bash fix-user-namespace.sh"
     exit 1
 fi
 
-# 1) Пишем drop-in (перезаписываем каждый раз -> ипотентно)
-log "Пишу override: ${DROPIN} (PrivateUsers=no)"
+# 1) Write the drop-in (overwritten every time -> idempotent)
+log "Writing override: ${DROPIN} (PrivateUsers=no)"
 mkdir -p "$(dirname "$DROPIN")"
 cat > "$DROPIN" <<'EOF'
 [Service]
-# Запуск в init user namespace. Во вложенном userns CAP_SYS_RAWIO не даёт
-# доступ к /dev/snd/* -> snd_seq_open -> EPERM, worker падает, :3000 не поднимается.
+# Run in the init user namespace. In a nested userns CAP_SYS_RAWIO does not grant
+# access to /dev/snd/* -> snd_seq_open -> EPERM, the worker crashes, :3000 does not come up.
 PrivateUsers=no
 EOF
 
-# 2) Перезагрузка systemd + перезапуск сервиса
+# 2) Reload systemd + restart the service
 $SUDO systemctl daemon-reload
-log "Перезапускаю ${SERVICE}"
+log "Restarting ${SERVICE}"
 $SUDO systemctl restart "$SERVICE"
 sleep 6
 
-# 3) Проверка: дошёл ли worker до готовности (значит /dev/snd/seq доступен)
+# 3) Check whether the worker reached readiness (meaning /dev/snd/seq is accessible)
 if $SUDO journalctl -u "$SERVICE" --no-pager 2>/dev/null | grep -q "Worker is ready"; then
-    log "✅ Worker дошёл до 'Worker is ready' — /dev/snd/seq доступен"
+    log "✅ Worker reached 'Worker is ready' — /dev/snd/seq is accessible"
 else
-    warn "worker не дошёл до готовности. Последние логи:"
+    warn "worker did not reach readiness. Latest logs:"
     $SUDO journalctl -u "$SERVICE" -n 25 --no-pager
 fi
 
-# 4) Проверка веб-сервера на :3000
+# 4) Check the web server on :3000
 if $SUDO curl -fsS http://localhost:3000 >/dev/null 2>&1; then
-    log "✅ OK — веб-сервер отвечает на http://localhost:3000"
+    log "✅ OK — the web server responds at http://localhost:3000"
     echo
     IP=$(hostname -I | awk '{print $1}')
-    log "Открой в браузере:  http://${IP}:3000"
+    log "Open in a browser:  http://${IP}:3000"
 else
-    warn "curl не ответил на :3000. Последние 40 строк логов:"
+    warn "curl got no response on :3000. Last 40 lines of the logs:"
     $SUDO journalctl -u "$SERVICE" -n 40 --no-pager
 fi

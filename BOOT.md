@@ -1,56 +1,56 @@
-# BOOT — plug & play для Raspberry Pi
+# BOOT — plug & play for Raspberry Pi
 
-Готовый сценарий «вставил карту → работает». Никаких команд не нужно, кроме **одного** запуска `bootstrap.sh` по SSH в первый раз.
+A ready-made workflow: "insert the card → it works". No commands are needed except **one** run of `bootstrap.sh` over SSH the first time.
 
-## Что нужно на старте
-1. Образ **Raspberry Pi OS (64-bit, Bookworm)** — залей через *Raspberry Pi Imager*.
-2. В Imager (Advanced options / ⚙) включи:
+## What you need at the start
+1. A **Raspberry Pi OS (64-bit, Bookworm)** image — flash it with *Raspberry Pi Imager*.
+2. In Imager (Advanced options / ⚙) enable:
    - **SSH** — Remote SSH access enabled
-   - Wi-Fi — можно оставить пустым, сеть `master` настроит сам bootstrap
-3. Вставь карту в Pi, включи.
+   - Wi-Fi — can be left empty; bootstrap itself configures the `master` network
+3. Insert the card into the Pi and power it on.
 
-## Первый запуск (один раз)
-Зайди по SSH (или через HDMI+клавиатуру):
+## First run (once)
+Log in over SSH (or via HDMI + keyboard):
 ```bash
-ssh pi@<ip>                 # пароль по умолчанию raspberry
-sudo bash ~/myprojects/midirouter/bootstrap.sh   # если скопировал репозиторий
-# или, если репозитория ещё нет:
+ssh pi@<ip>                 # default password: raspberry
+sudo bash ~/myprojects/midirouter/bootstrap.sh   # if you have copied the repository
+# or, if there is no repository yet:
 cd /tmp && curl -fsSL https://raw.githubusercontent.com/ivaneser/midirouter/main/bootstrap.sh -o bootstrap.sh && sudo bash bootstrap.sh
 ```
 
-Скрипт сам:
-- находит Wi-Fi `master` и подключается;
-- ставит Node.js, ALSA, git;
-- добавляет юзера `pi` в группу `audio`;
-- применяет фикс UMP для ALSA (`enable_ump=0`) — иначе порты не видны;
-- клонирует/обновляет репозиторий и делает `npm install`;
-- включает автозапуск `midirouter.service`;
-- отключает прежний standalone `metronome.service`; аудио-метрономом управляет worker;
-- **перезагружает Pi** (чтобы применился фикс UMP).
+The script will:
+- find the `master` Wi-Fi network and connect to it;
+- install Node.js, ALSA, git;
+- add the user `pi` to the `audio` group;
+- apply the UMP fix for ALSA (`enable_ump=0`) — otherwise the ports are not visible;
+- clone/update the repository and run `npm install`;
+- enable autostart of `midirouter.service`;
+- disable the old standalone `metronome.service`; the worker controls the audio metronome;
+- **reboot the Pi** (so that the UMP fix takes effect).
 
-После перезагрузки сервер стартует автоматически. Открой в браузере:
+After the reboot the server starts automatically. Open in a browser:
 ```
 http://<ip-pi>:3000
 ```
 
-## Настройки под себя
-Все параметры меняются переменными окружения перед запуском:
+## Settings
+All parameters are changed with environment variables before launch:
 ```bash
 MIDIR_USER=pi MIDIR_REPO=/home/pi/myprojects/midirouter sudo bash bootstrap.sh
 ```
-- `WIFI_SSID` / `WIFI_PASS` — имя и пароль Wi-Fi (внутри скрипта).
+- `WIFI_SSID` / `WIFI_PASS` — Wi-Fi name and password (inside the script).
 
-## Если что-то не запустилось
+## If something did not start
 ```bash
-sudo journalctl -u midirouter.service -n 50     # логи сервера
-sudo journalctl -u midirouter.service -n 100    # логи сервера и аудио-метронома
-aconnect -i                                      # видны ли MIDI-порты?
-aplay -L | grep -i headphone                     # найден ли выход на наушники?
-lsmod | grep snd                                 # snd_seq с enable_ump=0
-systemctl status midirouter.service              # статус сервиса
+sudo journalctl -u midirouter.service -n 50     # server logs
+sudo journalctl -u midirouter.service -n 100    # server and audio-metronome logs
+aconnect -i                                      # are the MIDI ports visible?
+aplay -L | grep -i headphone                     # is the headphone output found?
+lsmod | grep snd                                 # snd_seq with enable_ump=0
+systemctl status midirouter.service              # service status
 ```
 
-## Откат / удаление автозапуска
+## Rollback / removing autostart
 ```bash
 sudo systemctl disable --now midirouter.service
 sudo rm /etc/systemd/system/midirouter.service

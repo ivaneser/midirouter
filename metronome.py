@@ -22,7 +22,9 @@ IPC Controls (via stdin)
 """
 
 import argparse
+import fcntl
 import math
+from array import array
 import signal
 import subprocess
 import sys
@@ -38,6 +40,16 @@ CLICK_FREQ  = 1000       # normal click (off-beats)
 ACCENT_FREQ = 2000       # accent click (first beat of bar -- higher pitch)
 CLICK_DUR   = 0.05
 VOLUME      = 0.8
+# One persistent aplay is fed continuously (silence + mixed-in clicks), in
+# chunks of CHUNK_FRAMES. aplay reads raw stdin in whole periods and blocks
+# until one is full, so a stream that only receives clicks sits on them and
+# then plays them in bursts. A continuous feed avoids that.
+PERIOD_FRAMES = 512                       # aplay period (1024 bytes S16_LE mono)
+BUFFER_FRAMES = 4096                      # ~93 ms ALSA buffer (constant latency)
+CHUNK_FRAMES  = 512                       # feeder write size (~11.6 ms)
+PIPE_BYTES    = 4096                      # small pipe => writes block at real time
+F_SETPIPE_SZ  = 1031                    # Linux fcntl constant
+MAX_ACTIVE_CLICKS = 8
 
 
 def _default_alsa_device():
@@ -71,11 +83,11 @@ class Metronome:
         self._running  = True      # process alive flag
         self._playing  = False     # audio-ready (clicks accepted)?
         self._lock     = threading.Lock()
-        self._audio_process = None  # single persistent aplay, reused for all clicks
-        self._audio_generation = 0
+        self._audio_process = None  # single persistent aplay, fed by the feeder
         self._last_click_time = 0.0
-        self._pending_click = None
-        self._click_event = threading.Event()
+        self._active = []           # [samples(array 'h'), position, queued_at] clicks to mix in
+        self._last_write_done = 0.0  # monotonic time last chunk write finished (feeder thread only)
+        self._wake = threading.Event()
 
         # Cached waveform for fast per-click emission.
         self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
@@ -94,88 +106,109 @@ class Metronome:
             data[i * 2 + 1] = (val >> 8) & 0xFF
         return bytes(data)
 
-    # -- playback loop (runs in its own thread) ---------------------------
-    def _play_loop(self):
-        """Owns the one persistent aplay pipe; writes clicks into it as they arrive."""
-        print("[metronome] Playback thread started", flush=True)
+    # -- audio feeder (runs in its own thread) ----------------------------
+    def _open_stream(self) -> subprocess.Popen:
+        cmd = ["aplay", "-M",
+               "-D", self.alsa_device,
+               "-r", str(SAMPLE_RATE),
+               "-f", "S16_LE",
+               "-c", "1",
+               "-t", "raw",
+               f"--period-size={PERIOD_FRAMES}",
+               f"--buffer-size={BUFFER_FRAMES}"]
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        try:
+            fcntl.fcntl(proc.stdin.fileno(), F_SETPIPE_SZ, PIPE_BYTES)
+        except OSError:
+            pass
+        return proc
+
+    def _next_chunk(self) -> bytes:
+        """Silence plus any clicks that are due, for the next CHUNK_FRAMES.
+
+        A not-yet-started click is placed at the frame offset matching when it
+        was queued relative to the last completed chunk write, so consecutive
+        clicks keep their true spacing instead of all starting at chunk 0
+        (which makes near-simultaneous queueing audible as pairs).
+        """
+        with self._lock:
+            out = array('h', bytes(CHUNK_FRAMES * 2))
+            ref_time = self._last_write_done
+            still = []
+            for clip in self._active:
+                samples, pos, queued_at = clip
+                off = int((queued_at - ref_time) * SAMPLE_RATE) if pos == 0 else 0
+                if off < 0:
+                    off = 0               # queued during/after this chunk's write began
+                elif off >= CHUNK_FRAMES:   # not in this chunk; try the next one
+                    still.append(clip)
+                    continue
+                n = min(CHUNK_FRAMES - off, len(samples) - pos)
+                for i in range(n):
+                    v = out[off + i] + samples[pos + i]
+                    out[off + i] = max(-32768, min(32767, v))
+                clip[1] = pos + n
+                if clip[1] < len(samples):
+                    still.append(clip)
+            self._active = still
+        return out.tobytes()
+
+    def _feed_loop(self):
+        """Keeps aplay fed while playing. Blocking writes pace it to real time."""
+        print("[metronome] Audio feeder started", flush=True)
+        proc = None
         while self._running:
-            # Check if there's a click to play (set by _emit_click_locked).
             with self._lock:
-                is_running = self._running
-                do_play = self._playing
-                generation = self._audio_generation
-                click_data = self._pending_click
-                if not is_running:
-                    break
-                if not do_play or click_data is None:
-                    # Nothing to play right now -- clear the event while still
-                    # holding the lock so a concurrent set() wakes us after
-                    # we release it, then block instead of busy-spinning.
-                    self._click_event.clear()
-            self._click_event.wait()
-
-            if click_data is None:
-                continue
-
-            # No file I/O per click: stream raw samples straight into the
-            # persistent aplay stdin pipe (one process for the whole run).
-            try:
-                with self._lock:
-                    proc = self._audio_process
-                if proc is None or proc.poll() is not None:
-                    cmd = ["aplay", "-M",
-                           "-D", self.alsa_device,
-                           "-r", str(SAMPLE_RATE),
-                           "-f", "S16_LE",
-                           "-c", "1",
-                           "-t", "raw"]
-                    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
-                                            stdout=subprocess.DEVNULL,
-                                            stderr=subprocess.DEVNULL)
+                playing = self._playing
+                if not playing:
+                    self._active = []
+            if not playing:
+                if proc is not None:
+                    self._close_proc(proc)
+                    proc = None
                     with self._lock:
-                        self._audio_process = proc
-                proc.stdin.write(click_data)
-                proc.stdin.flush()
-            except (BrokenPipeError, OSError):
-                with self._lock:
-                    if self._audio_process is not None and self._audio_process.poll() is not None:
                         self._audio_process = None
-            finally:
-                with self._lock:
-                    # Clear pending click after it has been written to the stream.
-                    self._pending_click = None
-        self._close_stream_locked()
-        print("[metronome] Playback thread exited", flush=True)
-
-    def _close_stream_locked(self):
-        """Close and reap the persistent aplay pipe (must hold lock)."""
-        proc = self._audio_process
-        if proc is not None:
-            try:
-                proc.stdin.close()
-                proc.wait(timeout=2)
-            except Exception:
-                pass
-            if proc.poll() is None:
+                self._wake.wait(0.2)
+                self._wake.clear()
+                continue
+            if proc is None or proc.poll() is not None:
                 try:
-                    proc.terminate()
-                except OSError:
-                    pass
-        self._audio_process = None
-
-    def _interrupt_audio_locked(self):
-        """Terminate the persistent aplay; it is restarted lazily on next click."""
-        proc = self._audio_process
-        if proc is not None and proc.poll() is None:
+                    proc = self._open_stream()
+                except FileNotFoundError:
+                    print("[metronome] Error: 'aplay' not found. Install alsa-utils.",
+                          file=sys.stderr, flush=True)
+                    break
+                with self._lock:
+                    self._audio_process = proc
+                # Anchor sub-chunk click placement to the fresh stream.
+                self._last_write_done = time.monotonic()
             try:
-                proc.stdin.close()  # unblocks any pending write in the audio thread
-            except OSError:
-                pass
-            try:
-                proc.terminate()
-            except OSError:
-                pass
+                proc.stdin.write(self._next_chunk())
+                proc.stdin.flush()
+                self._last_write_done = time.monotonic()
+            except (BrokenPipeError, OSError):
+                self._close_proc(proc)
+                proc = None
+                with self._lock:
+                    self._audio_process = None
+        if proc is not None:
+            self._close_proc(proc)
+        with self._lock:
             self._audio_process = None
+        print("[metronome] Audio feeder exited", flush=True)
+
+    @staticmethod
+    def _close_proc(proc: subprocess.Popen):
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
 
     # -- control API -------------------------------------------------------
     def start(self):
@@ -186,29 +219,25 @@ class Metronome:
                 print(f"[metronome] START  BPM={self.bpm:.1f}  beats={self.beats}  accent={self.accent}  vol={self.volume:.2f}", flush=True)
             else:
                 print("[metronome] Already playing", flush=True)
-            # Wake the playback thread in case it was blocked idle.
-            self._click_event.set()
+        self._wake.set()
 
     def stop(self):
         with self._lock:
             if self._playing:
                 self._playing = False
-                self._pending_click = None
-                self._interrupt_audio_locked()
+                self._active = []
                 print("[metronome] STOP", flush=True)
             else:
                 print("[metronome] Already stopped", flush=True)
-            # Wake the playback thread so it re-evaluates state.
-            self._click_event.set()
+        self._wake.set()
 
     def quit(self):
         print("[metronome] QUIT", flush=True)
         with self._lock:
             self._running = False
             self._playing = False
-            self._interrupt_audio_locked()
-            # Wake a blocked playback thread so it exits.
-            self._click_event.set()
+            self._active = []
+        self._wake.set()
 
     def set_bpm(self, bpm: float):
         with self._lock:
@@ -241,7 +270,7 @@ class Metronome:
             }
 
     def _emit_click(self, is_accent: bool):
-        """Public API -- emit one click. Chooses accent or normal waveform."""
+        """Public API -- queue one click for the feeder to mix into the stream."""
         with self._lock:
             if not self._playing or not self._running:
                 return
@@ -250,14 +279,12 @@ class Metronome:
             if now - self._last_click_time < 0.01:
                 return
             self._last_click_time = now
-            click_data = self._accent_click if is_accent else self._normal_click
-            # If a previous click was pending, interrupt audio and queue the new one.
-            if self._pending_click is not None:
-                self._interrupt_audio_locked()
-            self._pending_click = click_data
-            self._audio_generation += 1
-            # Wake the playback thread (it may be blocked in _click_event.wait()).
-            self._click_event.set()
+            data = self._accent_click if is_accent else self._normal_click
+            if len(self._active) >= MAX_ACTIVE_CLICKS:
+                self._active.pop(0)
+            samples = array('h')
+            samples.frombytes(data)
+            self._active.append([samples, 0, time.monotonic()])
 
 
 def read_commands(metronome: Metronome):
@@ -320,8 +347,8 @@ def main():
                       accent_beat=args.accent, volume=args.volume,
                       alsa_device=args.device)
 
-    # Start playback thread first (generates silence until 'start' command)
-    playback_thread = threading.Thread(target=metro._play_loop, daemon=True)
+    # Start audio feeder (idle until 'start' command)
+    playback_thread = threading.Thread(target=metro._feed_loop, daemon=True)
     playback_thread.start()
 
     # Start command reader

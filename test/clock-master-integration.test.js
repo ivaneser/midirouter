@@ -21,6 +21,8 @@ function createWorker() {
     const worker = new Worker(WORKER_PATH, {
         eval: false,
         execArgv: [],
+        // No real MIDI devices: these tests drive the worker through messages only.
+        env: { ...process.env, MIDIR_NO_HARDWARE: '1' },
     });
 
     const messages = [];

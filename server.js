@@ -9,7 +9,7 @@ import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
 
-// === Worker Thread для MIDI роутинга ===
+// === Worker thread for MIDI routing ===
 class MIDIRouterWorker {
     constructor() {
         this.worker = null;
@@ -82,7 +82,7 @@ class MIDIRouterWorker {
                 msg.inputs.forEach(i => this.inputs.set(i.id, i.name));
                 msg.outputs.forEach(o => this.outputs.set(o.id, o.name));
 
-                // Уведомляем клиентов о доступных портах
+                // Notify clients about the available ports
                 this._broadcast({
                     type: 'devices',
                     inputs: [...this.inputs.entries()].map(([id, name]) => ({ id, name })),
@@ -97,7 +97,7 @@ class MIDIRouterWorker {
 
             case 'ready':
                 console.log('[SERVER] Worker ready — auto-connect all to all');
-                // Отправить panic note-off чтобы сбросить зажатые ноты
+                // Send panic note-off to release held notes
                 if (this.worker) {
                     this.worker.postMessage({ type: 'panic_note_off' });
                 }
@@ -109,7 +109,7 @@ class MIDIRouterWorker {
                 break;
 
             case 'daw_midi':
-                // DAW-события для визуализации (запись/проигрывание нот) в UI
+                // DAW events for visualization (recording/playing notes) in the UI
                 this._broadcast({ type: 'daw_event', payload: msg.data });
                 break;
 
@@ -136,19 +136,19 @@ class MIDIRouterWorker {
                 break;
 
             case 'daw_pad_map_list':
-                // Обновление карты пэдов — перенаправляем во фронтенд
+                // Pad map update — forward to the frontend
                 this._broadcast({ type: 'daw_pad_map_list', map: msg.map, learnMode: msg.learnMode });
                 break;
 
             case 'hotplug':
-                // Пересборка маппингов при hot-plug событии
+                // Rebuild mappings on a hot-plug event
                 if (this.worker) {
                     this.worker.postMessage({ type: 'rebuild_mappings' });
                 }
                 break;
 
             case 'hotplug-detected':
-                // Уведомление о обнаружении нового устройства
+                // Notify about a newly detected device
                 console.log('[SERVER] Hot-plug detected:', msg.deviceName);
                 this._broadcast({
                     type: 'hotplug-notification',
@@ -159,7 +159,7 @@ class MIDIRouterWorker {
         }
     }
 
-    // Запросить состояние DAW у воркера (обещание резолвится на daw_state)
+    // Request the DAW state from the worker (promise resolves on daw_state)
     _requestDawState() {
         return new Promise((resolve) => {
             const handler = (msg) => {
@@ -177,7 +177,7 @@ class MIDIRouterWorker {
         this.worker.postMessage({ type: 'daw_apply_state', state });
     }
 
-    // Получить список портов
+    // Get the list of ports
     getPorts() {
         return {
             inputs: [...this.inputs.entries()].map(([id, name]) => ({ id, name })),
@@ -185,7 +185,7 @@ class MIDIRouterWorker {
         };
     }
 
-    // Отправить сообщение всем WS клиентам
+    // Send a message to all WS clients
     _broadcast(message) {
         if (!wss || wss.clients.size === 0) return;
 
@@ -197,7 +197,7 @@ class MIDIRouterWorker {
         });
     }
 
-    // ---- DAW: сохранение/загрузка конфигурации на диск ----
+    // ---- DAW: save/load configuration to disk ----
     _configPath(name) {
         return join(import.meta.dirname, 'device_maps', `daw_${name}.json`);
     }
@@ -241,7 +241,7 @@ class MIDIRouterWorker {
         }
     }
 
-    // Отправить сырое MIDI-сообщение на целевой выход
+    // Send a raw MIDI message to the target output
     _sendMidiToTarget(bytes, targetId) {
         if (!this.worker) {
             console.warn('[SERVER] Worker not available');
@@ -254,11 +254,11 @@ class MIDIRouterWorker {
         });
     }
 
-    // Очистка при закрытии
+    // Cleanup on close
     cleanup() {
         console.log('[SERVER] Shutting down worker...');
         if (this.worker) {
-            // Отправить panic note-off перед выключением
+            // Send panic note-off before shutting down
             this.worker.postMessage({ type: 'panic_note_off' });
             this.worker.postMessage({ type: 'shutdown' });
             // Wait for worker to exit, then terminate if needed
@@ -279,7 +279,7 @@ let wss;
 const router = new MIDIRouterWorker();
 
 function startServer() {
-    // HTTP сервер для фронтенда — без кэширования JS/CSS
+    // HTTP server for the frontend — no caching of JS/CSS
     const server = createServer((req, res) => {
         const captivePortalRedirect = getCaptivePortalRedirect({
             host: req.headers.host,
@@ -347,13 +347,13 @@ function startServer() {
         }
     });
 
-    // WebSocket сервер
+    // WebSocket server
     wss = new WebSocketServer({ server });
 
     wss.on('connection', (ws, req) => {
         console.log('[SERVER] Client connected from', req.socket.remoteAddress);
 
-        // Отправляем список портов при подключении
+        // Send the port list on connection
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('error', (err) => {
@@ -366,14 +366,14 @@ function startServer() {
 
                 switch (message.type) {
                     case 'get-devices':
-                        // Запрос устройств от клиента — ответим текущими
+                        // Device request from the client — reply with the current ones
                         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
                         break;
 
                     case 'daw-get':
-                        // запросить текущее состояние DAW у воркера
+                        // request the current DAW state from the worker
                         router.worker.postMessage({ type: 'daw_request_state' });
-                        // список доступных пресетов
+                        // list of available presets
                         router._broadcastPresets();
                         break;
 
@@ -422,6 +422,11 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_audio_latency', ms: message.ms });
                         break;
 
+                    // Quantization grid (beats) for recorded notes.
+                    case 'daw-quantize-grid':
+                        router.worker.postMessage({ type: 'daw_quantize_grid', beats: message.beats });
+                        break;
+
                     // ---- MIDI Clock (MTC) ----
                     case 'daw-midi-clock-toggle':
                         router.worker.postMessage({ type: 'daw_midi_clock_toggle' });
@@ -456,7 +461,7 @@ function startServer() {
                         break;
 
                     case 'daw-pad-map':
-                        // пользователь вручную мапит note -> (trackIdx, slot)
+                        // the user maps a note -> (trackIdx, slot) manually
                         router.worker.postMessage({
                             type: 'daw_pad_map',
                             note: message.note,
@@ -471,7 +476,7 @@ function startServer() {
                         break;
 
                     case 'daw-pad-trigger':
-                        // симуляция нажатия пада из веб-UI (для тестирования без контроллера)
+                        // simulate a pad press from the web UI (for testing without a controller)
                         router.worker.postMessage({ type: 'daw_pad_trigger', trackIdx: message.trackIdx, slot: message.slot });
                         break;
 
@@ -512,8 +517,8 @@ function startServer() {
                         break;
 
                     case 'daw-rec-arm-toggle':
-                        // Rec Arm: сбросить все клипы в ноль и вернуть Mode = Play
-                        // — новая запись с чистого листа.
+                        // Reset: clear all clips to zero and return Mode = Play
+                        // — a new recording from scratch.
                         router.worker.postMessage({ type: 'daw_reset_arm_record' });
                         this._sendToAll({ type: 'daw_rec_arm_toggle' });
                         break;
@@ -532,7 +537,7 @@ function startServer() {
                         break;
 
                     case 'midi-send':
-                        // Отправить сырой MIDI-сообщение на указанный выход
+                        // Send a raw MIDI message to the specified output
                         if (message.data && message.target) {
                             const bytes = Array.isArray(message.data) ? message.data : (message.data.bytes || Array.from(message.data));
                             router._sendMidiToTarget(bytes, message.target);
@@ -540,14 +545,14 @@ function startServer() {
                         break;
 
                     case 'reload-config':
-                        // Перезагрузить конфигурацию из config.json
+                        // Reload the configuration from config.json
                         if (router.worker) {
                             router.worker.postMessage({ type: 'reload_config' });
                         }
                         break;
 
                     case 'get-config':
-                        // Получить текущую конфигурацию
+                        // Get the current configuration
                         try {
                             const configPath = join(import.meta.dirname, 'config.json');
                             if (existsSync(configPath)) {
@@ -563,12 +568,12 @@ function startServer() {
                         break;
 
                     case 'save-config':
-                        // Сохранить конфигурацию в config.json
+                        // Save the configuration to config.json
                         try {
                             const configPath = join(import.meta.dirname, 'config.json');
                             writeFileSync(configPath, JSON.stringify(message.config, null, 2));
                             ws.send(JSON.stringify({ type: 'config_saved' }));
-                            // Перезагрузить конфигурацию
+                            // Reload the configuration
                             if (router.worker) {
                                 router.worker.postMessage({ type: 'reload_config' });
                             }

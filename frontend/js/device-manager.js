@@ -1,4 +1,4 @@
-/* === Device Manager — управление MIDI устройствами === */
+/* === Device Manager — MIDI device management === */
 
 import {
     buildMidiCcBytes,
@@ -15,7 +15,7 @@ export class DeviceManager {
         this._synthControlCache = new Map();
     }
 
-    /** Обновить список портов */
+    /** Refresh the port list */
     updatePorts(inputs, outputs) {
         this.inputs = inputs || [];
         this.outputs = outputs || [];
@@ -23,20 +23,20 @@ export class DeviceManager {
         this.render();
     }
 
-    /** Получить все устройства */
+    /** Get all devices */
     getAllDevices() {
         return [...this.inputs, ...this.outputs];
     }
 
-    /** Получить устройство по ID */
+    /** Get a device by ID */
     getDeviceById(id) {
         return this.inputs.find(d => d.id === id) || this.outputs.find(d => d.id === id);
     }
 
     /**
-     * Рендеринг устройств: один плоский список всех MIDI-портов (входы + выходы).
-     * Название устройства кликабельно: по клику раскрывается панель параметров
-     * (контролы синтезатора из device_maps) или заглушка для неизвестных устройств.
+     * Rendering devices: one flat list of all MIDI ports (inputs + outputs).
+     * The device name is clickable: a click expands a panel with its parameters
+     * (synth controls from device_maps) or a placeholder for unknown devices.
      */
     render() {
         const deviceList = document.getElementById('device-list');
@@ -166,7 +166,7 @@ export class DeviceManager {
         return row;
     }
 
-    /** Уведомить об изменении */
+    /** Notify about a change */
     _notifyChange() {
         if (this.onStateChange) {
             this.onStateChange({
@@ -177,7 +177,7 @@ export class DeviceManager {
         }
     }
 
-    /** Отправить MIDI сообщение */
+    /** Send a MIDI message */
     sendMidi(targetId, bytes) {
         if (window.app && window.app.ws && window.app.ws.readyState === WebSocket.OPEN) {
             window.app.ws.send(JSON.stringify({

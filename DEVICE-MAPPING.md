@@ -1,73 +1,73 @@
-# Подключение устройств (Device Mapping)
+# Device connection (Device Mapping)
 
-## Маппинг по имени устройства
-USB-MIDI устройства привязываются к маршрутам по **стабильному имени**, а не по временному индексу порта. Это гарантирует сохранение маршрутов при:
-- Hot-plug (переподключении USB кабеля)
-- Перезагрузке системы
-- Изменении порядка подключения устройств
+## Mapping by device name
+USB-MIDI devices are bound to routes by a **stable name**, not by a temporary port index. This keeps the routes when:
+- Hot-plugging (reconnecting the USB cable)
+- Rebooting the system
+- The order in which devices are connected changes
 
-### Как работает ALSA/RtMidi
-| Параметр | Описание |
+### How ALSA/RtMidi works
+| Parameter | Description |
 |----------|----------|
-| **Имя устройства** | Стабильное, например "Korg nanoKONTROL2 MIDI 1", "NTS-1 digital kit KBD/KNOB" |
-| **Индекс порта** | Временный номер (0, 1, 2...), меняется при hot-plug или рестарте |
+| **Device name** | Stable, for example "Korg nanoKONTROL2 MIDI 1", "NTS-1 digital kit KBD/KNOB" |
+| **Port index** | Temporary number (0, 1, 2...), changes on hot-plug or restart |
 
-### Реализация в воркере
+### Implementation in the worker
 ```js
-// Worker-midi.js — конструктор:
+// Worker-midi.js — constructor:
 this.nameToPortId = new Map();   // deviceName → portId
-this.portIdToName = new Map();   // portId → deviceName (обратный маппинг)
+this.portIdToName = new Map();   // portId → deviceName (reverse mapping)
 
-// _enumeratePorts() — сохранение связи имя→portId:
+// _enumeratePorts() — storing the name→portId link:
 for (const newPort of realInputs) {
-    const deviceName = newPort.name;  // стабильное имя устройства
+    const deviceName = newPort.name;  // stable device name
     
-    this.inputs.set(deviceName, midiIn);       // ключ — имя, не индекс!
+    this.inputs.set(deviceName, midiIn);       // the key is the name, not the index!
     this.nameToPortId.set(deviceName, deviceName);
     this.portIdToName.set(deviceName, deviceName);
     
     console.log(`[WORKER] Input added: ${deviceName} (index: ${newPort.index})`);
 }
 
-// Обновление при hot-plug (изменился индекс):
+// Update on hot-plug (the index changed):
 if (currentIndex !== newPort.index) {
-    // Удаляем старый handler, закрываем порт
+    // Remove the old handler, close the port
     existingRtMidiIn.closePort();
     
-    // Открываем новый порт с тем же portId (имя устройства)
+    // Open the new port with the same portId (device name)
     const midiIn = new midi.Input();
     midiIn.openPort(newPort.index, 'midirouter-in');
     
-    this.inputs.set(deviceName, midiIn);  // тот же ключ — имя!
+    this.inputs.set(deviceName, midiIn);  // same key — the name!
 }
 ```
 
-## Структура данных маршрутов
+## Route data structure
 ```js
 this.routes = new Map();   // deviceName → [{ outputId, channels }]
-// channels = null (по умолчанию) → все MIDI-каналы
-// channels = [1] или [1,3] → фильтрация по указанным каналам
-// Пример:
+// channels = null (default) → all MIDI channels
+// channels = [1] or [1,3] → filtering by the specified channels
+// Example:
 // "Launchkey Mini MK3 MIDI Port" → [
 //   { outputId: "NTS-1 digital kit SOUND", channels: null },
 //   { outputId: "Craft Synth 2.0", channels: [2] }
 // ]
 ```
 
-**Создание маршрутов:**
-- **Auto-connect (discovery):** `channels = null` — все нажатия клавиш достигают подключённого синтезатора независимо от MIDI-канала контроллера.
-- **Ручной UI:** пользователь выбирает канал через dropdown (`ALL / CH1–CH16`) на карточке порта, маршрут получает массив каналов для фильтрации.
+**Creating routes:**
+- **Auto-connect (discovery):** `channels = null` — all key presses reach the connected synthesizer regardless of the controller's MIDI channel.
+- **Manual UI:** the user selects a channel through the dropdown (`ALL / CH1–CH16`) on the port card; the route gets an array of channels for filtering.
 
-## Обработка hot-plug
-При изменении индекса порта:
-1. `_enumeratePorts()` обнаруживает устройство с новым индексом
-2. Старый handler удаляется (`inp.off('message', inp._handler)`)
-3. Порт закрывается (`inp.closePort()`)
-4. Открывается новый порт с тем же portId (имя устройства)
-5. Handler навешивается заново
+## Hot-plug handling
+When the port index changes:
+1. `_enumeratePorts()` detects the device with the new index
+2. The old handler is removed (`inp.off('message', inp._handler)`)
+3. The port is closed (`inp.closePort()`)
+4. The new port is opened with the same portId (device name)
+5. The handler is attached again
 
-## Динамические карты устройств
-Устройства могут иметь описания в формате JSON для управления параметрами:
+## Dynamic device maps
+Devices may have descriptions in JSON format for controlling parameters:
 
 ```json
 {
@@ -79,23 +79,23 @@ this.routes = new Map();   // deviceName → [{ outputId, channels }]
 }
 ```
 
-Файлы хранятся в `device_maps/`:
+Files are stored in `device_maps/`:
 - `arturia_microfreak.json`
 - `korg_nts1.json`
 - `modal_craft_synth_v2.json`
 - `preenfm2.json`
 - `waldorf_blofeld.json`
 
-### Автопоиск схем маппинга
-При отсутствии локального JSON совпадения — серверный запрос к GitHub API:
+### Automatic lookup of mapping schemas
+When there is no local JSON match, the server makes a request to the GitHub API:
 ```
 https://api.github.com/search/code?q=...
 ```
 
-## Нормализация устройства (`_deviceBase()`)
-При auto-connect воркер нормализует имена портов, удаляя суффиксы функций:
+## Device normalization (`_deviceBase()`)
+During auto-connect the worker normalizes port names by removing the function suffixes:
 
-| Полное имя порта | `_deviceBase()` → базовое имя |
+| Full port name | `_deviceBase()` → base name |
 |------------------|-------------------------------|
 | "Launchkey Mini MK3 MIDI Port" | "Launchkey Mini MK3" |
 | "Launchkey Mini MK3 DAW Port" | "Launchkey Mini MK3" |
@@ -103,10 +103,10 @@ https://api.github.com/search/code?q=...
 | "NTS-1 digital kit SOUND" | "NTS-1 digital kit" |
 | "Craft Synth 2.0" | "Craft Synth 2.0" |
 
-**Принцип:** outputs, чьё базовое имя совпадает с любым input's base, исключаются из целей discovery — предотвращает пинг портов контроллера вместо синтезаторов.
+**Principle:** outputs whose base name matches any input's base are excluded from the discovery targets — this prevents pinging the controller's ports instead of the synthesizers.
 
-## Типичные имена устройств
-| Устройство | Имя в системе |
+## Typical device names
+| Device | Name in the system |
 |------------|---------------|
 | Launchkey Mini MK3 MIDI Port | "Launchkey Mini MK3 MIDI Port" |
 | NTS-1 digital kit KBD/KNOB | "NTS-1 digital kit KBD/KNOB" |

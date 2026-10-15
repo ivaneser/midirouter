@@ -130,14 +130,16 @@ test('Launchkey Play toggles: stops running playback, starts when stopped', () =
     assert.equal(worker._transportPlaying, true);
 
     // Phase 2: launch a clip so running playback exists.
+    // Transport is running mid-bar, so the clip is armed until the next cycle start.
     worker._triggerPad(0, 0, performance.now());
-    assert.equal(worker._trackPlayTimers.size, 1, 'clip must be playing');
+    assert.ok(worker._pendingClipStarts?.has(0) || worker._trackPlayTimers.size === 1, 'clip must be armed or playing');
 
     // Phase 3: transport running -> Play press stops it and all clips.
     worker._handleProfileTransport('play', true);
     assert.equal(worker.daw.playing, false, 'Play press while running must stop transport');
     assert.equal(worker._transportPlaying, false);
     assert.equal(worker._trackPlayTimers.size, 0, 'all clip playback must stop');
+    assert.equal(worker._pendingClipStarts?.size ?? 0, 0, 'a pending clip start must be cancelled');
     assert.equal(worker.daw.clipState[0], -1, 'clip playing state must be cleared');
 
     worker.daw.stopTransport();

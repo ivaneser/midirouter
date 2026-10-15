@@ -1,6 +1,6 @@
 import midi from '@julusian/midi';
 
-// Проверяем какие MIDI порты видит RtMidi (через ALSA seq)
+// Check which MIDI ports RtMidi sees (through ALSA seq)
 console.log('=== RtMidi Port Detection ===\n');
 
 try {
@@ -42,7 +42,7 @@ try {
 }
 
 console.log('\n=== ALSA Sequencer Info ===');
-// Показываем что видит ALSA seq напрямую
+// Show what ALSA seq sees directly
 const fs = await import('fs');
 try {
     const clients = fs.readFileSync('/proc/asound/seq/clients', 'utf-8');

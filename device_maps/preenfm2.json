@@ -129,7 +129,7 @@
     }
   ],
   "controls_nrpn": {
-    "description": "PreenFM2 использует NRPN для большинства параметров FM-синтеза",
+    "description": "PreenFM2 uses NRPN for most FM synthesis parameters",
     "parameters": [
       {
         "nrpn_ms": 0,
@@ -330,7 +330,7 @@
     ]
   },
   "controls_sysex": {
-    "description": "Полный маппинг параметров через SysEx для загрузки/сохранения пресетов",
-    "note": "Используется для полного бэкапа, не для realtime управления"
+    "description": "Full parameter mapping via SysEx for loading/saving presets",
+    "note": "Used for full backup, not for realtime control"
   }
 }

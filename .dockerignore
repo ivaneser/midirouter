@@ -1,4 +1,4 @@
-# Исключаем из Docker-образа
+# Excluded from the Docker image
 node_modules/
 .git/
 *.log

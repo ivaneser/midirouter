@@ -76,7 +76,7 @@ test('a held note records quarter-note timing, velocity and MIDI channel', () =>
     assert.equal(daw.triggerPad(0, 1, 1000).action, 'record');
     daw.recordEvent(0x90, 60, 103, 1000);
     daw.recordEvent(0x80, 60, 0, 1500);
-    // Replace-режим: после остановки клип остаётся остановленным (дубль сохранён)
+    // Replace mode: after stopping, the clip stays stopped (take kept)
     assert.equal(daw.triggerPad(0, 1, 1500).action, 'record-stop-stopped');
     const note = daw.tracks[0].clips[1].notes[0];
     assert.deepEqual(note, { channel: 1, note: 60, velocity: 103, start: 0, dur: 1 });
@@ -87,7 +87,7 @@ test('a held note records quarter-note timing, velocity and MIDI channel', () =>
 
 test('empty pad always starts recording (any Mode); out-of-range is invalid', () => {
     const daw = new DAWEngine();
-    // Пустой клип в Play-режиме — тоже запись (по умолчанию)
+    // An empty clip in Play mode — also a recording (default)
     assert.equal(daw.triggerPad(0, 0, 0).action, 'record');
     assert.equal(daw.triggerPad(0, 2, 0).action, 'invalid');
     assert.equal(daw.clipState[0], -1, 'recording never puts the clip into playing state');
@@ -148,6 +148,9 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     daw.setRecordMode('replace');
     assert.equal(daw.triggerPad(0, 0, 4000).action, 'record');
     daw.triggerPad(0, 0, 4100); // stop the fresh recording so state stays clean
+    // reset starts the pre-record metronome timer; stop it so the test process can exit
+    daw.setMetronome(false);
+    daw.stopTransport();
 });
 
 test('starting a new recording sends the previous playing clip back to pulse', () => {
@@ -260,7 +263,7 @@ test('daw_stop_transport finalizes an in-flight recording before clearing transp
     assert.equal(note.note, 60);
     assert.equal(note.velocity, 90);
     assert.equal(note.dur, 0.25);
-    // Note Off закрывает ноту: start/dur хранятся с точностью до сотых бита.
+    // Note Off closes the note: start/dur are stored to the nearest hundredth of a beat.
     assert.deepEqual({ start: note.start, dur: note.dur }, { start: 0.2, dur: 0.25 });
 });
 

@@ -1,4 +1,4 @@
-/* === Controller UI — рендеринг виртуальных контроллеров из JSON маппингов === */
+/* === Controller UI — rendering of virtual controllers from JSON mappings === */
 
 class ControllerUI {
     constructor(deviceManager) {
@@ -6,18 +6,18 @@ class ControllerUI {
         this.deviceValues = new Map();  // deviceId → { ccNumber: value }
     }
 
-    // Загрузить все устройства и отрендерить карточки
+    // Load all devices and render the cards
     async loadDevices() {
         const container = document.getElementById('devices-container');
         if (!container) return;
 
-        // Очищаем контейнер перед загрузкой — предотвращаем дубликаты при hot-plug
+        // Clear the container before loading — prevents duplicates on hot-plug
         container.innerHTML = '';
 
-        // НЕ загружаем JSON файлы здесь — карточки создаются только для реальных устройств
-        // через _updateDeviceList() когда приходит сообщение devices от сервера
+        // Do NOT load JSON files here — cards are created only for real devices
+        // through _updateDeviceList() when the devices message arrives from the server
         
-        // Обновить счётчик устройств
+        // Update the device counter
         const countEl = document.getElementById('device-count');
         if (countEl) {
             countEl.textContent = `0 devices`;
@@ -29,7 +29,7 @@ class ControllerUI {
         return resp.json();
     }
 
-    // Создать HTML-карточку устройства
+    // Create the HTML card of a device
     _createCard(deviceData) {
         const card = document.createElement('div');
         card.className = 'device-card';
@@ -44,7 +44,7 @@ class ControllerUI {
         const body = document.createElement('div');
         body.className = 'device-body';
 
-        // Инициализация значений по умолчанию (64 для слайдеров, 0 для дропдаунов)
+        // Initialize default values (64 for sliders, 0 for dropdowns)
         this.deviceValues.set(deviceData.model, {});
 
         header.addEventListener('click', () => {
@@ -52,11 +52,11 @@ class ControllerUI {
             header.querySelector('.arrow').classList.toggle('open', isOpen);
         });
 
-        // Рендеринг параметров в зависимости от структуры данных
+        // Render parameters depending on the data structure
         if (deviceData.controls) {
             this._renderFlatControls(body, deviceData.controls, deviceData);
         } else if (deviceData.controls_cc || deviceData.controls_nrpn) {
-            // PreenFM2 — смешанный режим
+            // PreenFM2 — mixed mode
             if (deviceData.controls_cc) {
                 const ccSection = document.createElement('div');
                 ccSection.className = 'section-title';
@@ -72,7 +72,7 @@ class ControllerUI {
                 this._renderFlatControls(body, deviceData.controls_nrpn.parameters, deviceData, true);
             }
         } else {
-            // Вложенная структура (Blofeld — osc1/osc2/filter/env...)
+            // Nested structure (Blofeld — osc1/osc2/filter/env...)
             const nestedKeys = Object.keys(deviceData).filter(k => k.startsWith('controls_'));
             for (const key of sortedNestedKeys(nestedKeys)) {
                 const sectionTitle = document.createElement('div');
@@ -90,7 +90,7 @@ class ControllerUI {
         return card;
     }
 
-    // Рендеринг плоского списка контролов
+    // Render a flat list of controls
     _renderFlatControls(container, controls, deviceData, isNRPN = false) {
         for (const ctrl of controls) {
             const row = document.createElement('div');
@@ -102,7 +102,7 @@ class ControllerUI {
             label.textContent = ctrl.name;
             row.appendChild(label);
 
-            // Контрол в зависимости от типа
+            // Control depending on its type
             switch (ctrl.type) {
                 case 'slider':
                     this._createSlider(row, ctrl, deviceData, isNRPN);
@@ -137,9 +137,9 @@ class ControllerUI {
             valueEl.textContent = slider.value;
             this.deviceValues.get(deviceData.model)[ctrl.cc] = parseInt(slider.value);
 
-            // Отправка MIDI CC на порт устройства
+            // Send MIDI CC to the device port
             if (window.app?.ws?.readyState === WebSocket.OPEN) {
-                const portId = deviceData.portId;  // Будет установлено при подключении устройства
+                const portId = deviceData.portId;  // Set when the device is connected
                 if (portId) {
                     this.dm.sendMidi(portId, [0xB0, ctrl.cc, parseInt(slider.value)]);
                     this._log(`CC ${ctrl.cc} → ${slider.value} (${deviceData.model})`);
@@ -167,7 +167,7 @@ class ControllerUI {
             if (window.app?.ws?.readyState === WebSocket.OPEN) {
                 const portId = deviceData.portId;
                 if (portId) {
-                    // Для дропдаунов отправляем индекс как значение CC
+                    // For dropdowns send the index as the CC value
                     this.dm.sendMidi(portId, [0xB0, ctrl.cc, ctrl.options.indexOf(select.value)]);
                     this._log(`Dropdown ${ctrl.name} → ${select.value}`);
                 }
@@ -224,14 +224,14 @@ class ControllerUI {
         entry.textContent = `[${time}] ${message}`;
         logs.prepend(entry);
 
-        // Ограничиваем количество логов
+        // Limit the number of logs
         while (logs.children.length > 100) {
             logs.removeChild(logs.lastChild);
         }
     }
 }
 
-// Вспомогательная функция для сортировки вложенных ключей
+// Helper function to sort nested keys
 function sortedNestedKeys(keys) {
     const order = ['osc1', 'osc2', 'osc3', 'noise', 'filter1', 'filter2', 'env', 'lfo', 'arp', 'global'];
     return keys.sort((a, b) => {
@@ -243,14 +243,14 @@ function sortedNestedKeys(keys) {
     });
 }
 
-// Динамический рендеринг контроллеров из загруженной схемы устройства
+// Dynamic rendering of controllers from the loaded device schema
 ControllerUI.prototype.renderDynamicControls = function(deviceName, inputId, scheme) {
     const container = document.getElementById('devices-container');
     if (!container || !scheme) return;
 
     console.log(`[CONTROLLER-UI] Rendering dynamic controls for: ${deviceName}`);
 
-    // Проверяем есть ли уже карточка для этого устройства (созданная через _createRealDeviceCard)
+    // Check whether there is already a card for this device (created through _createRealDeviceCard)
     const existingCards = container.querySelectorAll('.device-card[data-device-id]');
     let targetCard = null;
     
@@ -262,7 +262,7 @@ ControllerUI.prototype.renderDynamicControls = function(deviceName, inputId, sch
         }
     }
 
-    // Если карточка уже существует — просто добавляем контролы в body существующей карточки
+    // If the card already exists — just add the controls to the body of the existing card
     if (targetCard) {
         let body = targetCard.querySelector('.device-body');
         if (!body) {
@@ -271,24 +271,24 @@ ControllerUI.prototype.renderDynamicControls = function(deviceName, inputId, sch
             targetCard.appendChild(body);
         }
         
-        // Очищаем старые контролы если есть
+        // Clear old controls if there are any
         body.innerHTML = '';
         
         this._buildControlsFromBody(body, scheme, deviceName, inputId);
     } else {
-        // Карточки нет — создаём новую (для legacy совместимости)
+        // No card — create a new one (for legacy compatibility)
         const card = this._createDynamicCard(deviceName, inputId, scheme);
         container.appendChild(card);
 
-        // Обновляем счётчик устройств
+        // Update the device counter
         const countEl = document.getElementById('device-count');
         if (countEl) {
-            countEl.textContent = `${container.querySelectorAll('.device-card[data-device-id]').length} devices`;}
+            countEl.textContent = `${container.querySelectorAll('.device-card[data-device-id]').length} devices`;
         }
     }
 };
 
-// Вспомогательный метод — строит контролы из схемы и добавляет в body
+// Helper method — builds the controls from the schema and adds them to the body
 ControllerUI.prototype._buildControlsFromBody = function(body, scheme, deviceName, inputId) {
     const renderData = { model: deviceName, portId: inputId };
     
@@ -337,7 +337,7 @@ ControllerUI.prototype._createDynamicCard = function(name, portId, scheme) {
     const body = document.createElement('div');
     body.className = 'device-body';
 
-    // Инициализация значений по умолчанию
+    // Initialize default values
     this.deviceValues.set(name, {});
 
     header.addEventListener('click', () => {
@@ -345,7 +345,7 @@ ControllerUI.prototype._createDynamicCard = function(name, portId, scheme) {
         header.querySelector('.arrow').classList.toggle('open', isOpen);
     });
 
-    // Рендерим контролы из схемы
+    // Render the controls from the schema
     if (scheme.controls) {
         this._renderFlatControls(body, scheme.controls, { model: name, portId: portId });
     } else if (scheme.controls_cc || scheme.controls_nrpn) {
@@ -364,7 +364,7 @@ ControllerUI.prototype._createDynamicCard = function(name, portId, scheme) {
             this._renderFlatControls(body, scheme.controls_nrpn.parameters, { model: name, portId: portId }, true);
         }
     } else {
-        // Вложенная структура (controls_osc1, controls_filter и т.д.)
+        // Nested structure (controls_osc1, controls_filter, etc.)
         const nestedKeys = Object.keys(scheme).filter(k => k.startsWith('controls_'));
         for (const key of sortedNestedKeys(nestedKeys)) {
             const sectionTitle = document.createElement('div');

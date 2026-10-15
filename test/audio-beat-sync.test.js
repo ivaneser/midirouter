@@ -219,8 +219,9 @@ test('MetronomeController triggers beat with accent flag based on beat index', a
     ctrl._pid = 9999;
     ctrl._running = true;
 
-    // Beat index starts at 0 → beat 0 is accent.
-    ctrl.triggerBeat(false);
+    // Beat index starts at 0 → beat 0 is accent. The DAW decides the accent and
+    // passes it in (daw.js _onAudioBeat(isAccent)), so the caller sends true here.
+    ctrl.triggerBeat(true);
     assert.ok(stdinWrites[0].includes('click 1'), 'beat 0 should be accent');
 
     // Advance to beat 1 (index 1) → not accent.
@@ -240,12 +241,12 @@ test('MetronomeController triggers beat with accent flag based on beat index', a
 
     // Advance to beat 4 (index 4, wraps to beat 0 of next measure) → accent.
     ctrl.advanceBeat();
-    ctrl.triggerBeat(false);
+    ctrl.triggerBeat(true);
     assert.ok(stdinWrites[4].includes('click 1'), 'beat 4 (wrap) should be accent');
 
     // Verify resetBeatIndex resets the counter.
     ctrl.resetBeatIndex();
     stdinWrites = [];
-    ctrl.triggerBeat(false);
+    ctrl.triggerBeat(true);
     assert.ok(stdinWrites[0].includes('click 1'), 'after reset, beat 0 is accent again');
 });

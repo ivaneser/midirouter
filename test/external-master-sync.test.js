@@ -33,6 +33,37 @@ function feedTicks(ec, count, intervalMs) {
     }
 }
 
+
+/**
+ * Drive the external-clock metronome the way the worker does on every F8 tick
+ * (worker-midi.js _handleMidiClock): set the beat from the tick count, re-anchor
+ * the transport and call daw._metronomeTick(). Runs in real time for durationMs.
+ */
+function driveExternalF8(daw, durationMs) {
+    const spb = daw._secondsPerBeat() * 1000;
+    const tickMs = spb / 24;
+    const start = performance.now();
+    return new Promise((resolve) => {
+        let tickCount = 0;
+        const timer = setInterval(() => {
+            const now = performance.now();
+            const due = Math.floor((now - start) / tickMs);
+            while (tickCount < due) {
+                tickCount++;
+                const loopTicks = Math.max(24, daw.loopLenBeats * 24);
+                const beat = (tickCount % loopTicks) / 24;
+                daw._playAnchorTime = now - beat * spb;
+                daw._currentBeat = beat;
+                daw._metronomeTick();
+            }
+            if (now - start >= durationMs) {
+                clearInterval(timer);
+                resolve();
+            }
+        }, 2);
+    });
+}
+
 // ---- cleanup ---------------------------------------------------------------
 
 const _dawEngines = [];
@@ -98,7 +129,7 @@ test('metronome: external clock path must click once per beat at tick-grid phase
     // Listen for ~2450 ms — at 120 BPM that is ~4.9 beats, so we expect
     // between 4 and 6 distinct beat-clicks (one per quarter note), NOT
     // ~49 clicks per second that a 24 PPQN-over-click path would produce.
-    await new Promise(resolve => setTimeout(resolve, 2450));
+    await driveExternalF8(daw, 2450);
 
     const accNote = daw._metronomeAccentNote;
 
@@ -168,7 +199,7 @@ test('metronome: external master accents every bar inside a multi-bar global cyc
 
     daw.startTransport();
     daw._playAnchorTime = performance.now();
-    await new Promise(resolve => setTimeout(resolve, 1050));
+    await driveExternalF8(daw, 1050);
 
     const accentCount = events.filter(note => note === daw._metronomeAccentNote).length;
     assert.ok(

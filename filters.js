@@ -1,5 +1,5 @@
 /**
- * MIDI Filters — аналог PiMidiBox filters
+ * MIDI filters — analogous to the PiMidiBox filters
  * ChannelFilter, VelocityFilter, MessageTypeFilter
  */
 
@@ -14,10 +14,10 @@ export class Filter {
 }
 
 /**
- * ChannelFilter — фильтрация по каналам
- * - whitelist: только эти каналы проходят
- * - blacklist: эти каналы блокируются
- * - map: маппинг каналов (вход -> выход)
+ * ChannelFilter — filtering by channels
+ * - whitelist: only these channels pass
+ * - blacklist: these channels are blocked
+ * - map: channel mapping (input -> output)
  */
 export class ChannelFilter extends Filter {
     constructor({ whitelist = [], blacklist = [], map = {} } = {}) {
@@ -30,7 +30,7 @@ export class ChannelFilter extends Filter {
     _process(message) {
         const channel = message.channel + 1; // 1-based
         
-        // Whitelist имеет приоритет
+        // The whitelist has priority
         if (this._whitelist.length > 0) {
             if (!this._whitelist.includes(channel)) {
                 return false;
@@ -41,8 +41,8 @@ export class ChannelFilter extends Filter {
             }
         }
         
-        // Маппинг каналов — применяем к status nibble, чтобы мутация не утекала
-        // обратно в общий filterCtx (каждый route использует свой Buffer/контекст).
+        // Channel mapping — applied to the status nibble so the mutation does not leak
+        // back into the shared filterCtx (each route uses its own Buffer/context).
         let result = message;
         if (channel.toString() in this._map) {
             const newChannel1Based = this._map[channel];
@@ -52,14 +52,14 @@ export class ChannelFilter extends Filter {
                     : Uint8Array.from(message.bytes);
                 const status = bytes[0];
                 const type = (status & 0xf0) >> 4;
-                // Применяем ремapping канала только к channel voice статусам 0x80–0xEF.
-                // System Common/SysEx (0xF0 => type 15) каналом не является — его трогать нельзя.
+                // Apply channel remapping only to channel voice statuses 0x80–0xEF.
+                // System Common/SysEx (0xF0 => type 15) is not a channel message — it must not be touched.
                 if (status < 0xF0) {
                     bytes[0] = (status & 0xf0) | ((newChannel1Based - 1) & 0x0f);
                 }
                 result = { ...message, bytes };
             }
-            // Канал сохраняется 0-based для CCMapper / downstream логики.
+            // The channel is kept 0-based for CCMapper / downstream logic.
             result.channel = newChannel1Based - 1;
         }
         
@@ -76,9 +76,9 @@ export class ChannelFilter extends Filter {
 }
 
 /**
- * VelocityFilter — фильтрация по velocity
- * - min: минимальная velocity
- * - max: максимальная velocity
+ * VelocityFilter — filtering by velocity
+ * - min: minimum velocity
+ * - max: maximum velocity
  * - mode: 'clip' | 'drop' | 'scaled'
  */
 export class VelocityFilter extends Filter {
@@ -146,7 +146,7 @@ export class VelocityFilter extends Filter {
 }
 
 /**
- * MessageTypeFilter — фильтрация по типу сообщения
+ * MessageTypeFilter — filtering by message type
  */
 export class MessageTypeFilter extends Filter {
     constructor({ whitelist = [], blacklist = [] } = {}) {

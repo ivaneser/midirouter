@@ -65,6 +65,17 @@
                         <input type="range" id="audio-latency" min="0" max="300" step="1" value="30">
                         <span id="audio-latency-label">30 ms</span>
                     </label>
+
+                    <label class="transport-label">
+                        Quantize:
+                        <select id="quantize-grid">
+                            <option value="0.125" selected>1/32</option>
+                            <option value="0.25">1/16</option>
+                            <option value="0.5">1/8</option>
+                            <option value="1">1/4</option>
+                            <option value="2">1/2</option>
+                        </select>
+                    </label>
                 </div>
                 
                 <div class="transport-separator"></div>
@@ -73,7 +84,7 @@
                 <div class="transport-buttons-group">
                     <button id="btn-play" class="btn btn-green">▶ Play</button>
                     <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
-                    <button id="btn-record-arm" class="btn btn-orange">● Rec Arm</button>
+                    <button id="btn-record-arm" class="btn btn-orange">● Reset</button>
                     <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
                     <!-- Sessions: save/load recordings to/from disk (name asked on click) -->
                     <span class="sessions-controls">
@@ -171,10 +182,10 @@
                 <ul>
                     <li><strong>▶ Play</strong> — starts the transport (MIDI clock + metronome + active clips). Press again to stop it (toggle).</li>
                     <li><strong>⏹ Stop</strong> — stops all playback.</li>
-                    <li><strong>● Rec Arm</strong> — resets ALL clips to zero (wipe everything) and sets Mode back to Play for a fresh session.</li>
+                    <li><strong>● Reset</strong> — resets ALL clips to zero (wipe everything), clears track MIDI channel assignments, and sets Mode back to Play for a fresh session.</li>
                     <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown. <strong>⏱ MTC</strong> — toggle MIDI Clock output for external gear.</li>
                     <li><strong>Tap</strong> — tap tempo for BPM.</li>
-                    <li><strong>Launchkey buttons:</strong> Play (CC115, toggle), Stop (CC116), Rec Arm (CC117, full reset), Loop (CC118).</li>
+                    <li><strong>Launchkey buttons:</strong> Play (CC115, toggle), Stop (CC116), Reset (CC117, full reset), Loop (CC118).</li>
                 </ul>
 
                 <h4>📝 Mode (what happens when you stop a take)</h4>

@@ -1,11 +1,11 @@
 /**
- * CC Mapper — трансляция команд контроллера в команды синтезатора
+ * CC Mapper — translates controller commands into synthesizer commands
  * 
- * Архитектура:
- * 1. DeviceProfile — база всех MIDI-команд каждого устройства
- * 2. FunctionMap — маппинг функций (cutoff, resonance...) → CC номера для каждого синта
- * 3. ControllerLayout — раскладка контроллера (какая ручка = какой CC)
- * 4. AutoMapper — автоматический перевод по семантике функции
+ * Architecture:
+ * 1. DeviceProfile — database of all MIDI commands of each device
+ * 2. FunctionMap — function mapping (cutoff, resonance...) → CC numbers for each synth
+ * 3. ControllerLayout — controller layout (which knob = which CC)
+ * 4. AutoMapper — automatic translation by function semantics
  */
 
 export class CCMapper {
@@ -16,7 +16,7 @@ export class CCMapper {
         // userMappings: { routeId: { controllerCC: targetCC } }
         this.userMappings = new Map();
         
-        // functionAliases — синонимы функций для умного маппинга
+        // functionAliases — synonyms of functions for smart mapping
         this.functionAliases = {
             'cutoff': ['filter', 'cut', 'lowpass', 'lpf', 'freq'],
             'resonance': ['res', 'rc', 'peak', 'q'],
@@ -33,7 +33,7 @@ export class CCMapper {
     }
     
     /**
-     * Инициализация профилей устройств — полная база команд
+     * Initialization of device profiles — the full command database
      */
     _initProfiles() {
         // ===== Craft Synth 2.0 (Arturia) =====
@@ -88,7 +88,7 @@ export class CCMapper {
     }
     
     /**
-     * Добавить пользовательский маппинг для маршрута
+     * Add a custom mapping for a route
      */
     addUserMapping(routeId, controllerCC, targetCC) {
         if (!this.userMappings.has(routeId)) {
@@ -99,40 +99,40 @@ export class CCMapper {
     }
     
     /**
-     * Удалить маппинг маршрута
+     * Remove a mapping of a route
      */
     removeUserMapping(routeId) {
         this.userMappings.delete(routeId);
     }
     
     /**
-     * Получить все маппинги для маршрута
+     * Get all mappings for a route
      */
     getUserMappings(routeId) {
         return this.userMappings.get(routeId) || {};
     }
     
     /**
-     * Найти CC функции по имени устройства и функции
+     * Find the CC of a function by device name and function
      */
     getCCForFunction(deviceName, functionName) {
         const profile = this._findProfile(deviceName);
         if (!profile) return null;
         
-        // Нормализуем имя функции
+        // Normalize the function name
         const normalized = functionName.toLowerCase().replace(/[\s_-]/g, '');
         
-        // Прямой поиск
+        // Direct lookup
         for (const [key, func] of Object.entries(profile.functions)) {
             if (key === normalized) return func.cc;
             
-            // Поиск по алиасам
+            // Lookup by alias
             for (const alias of this.functionAliases[normalized] || []) {
                 if (alias === key) return func.cc;
             }
         }
         
-        // Поиск по алиасам функции
+        // Lookup by function alias
         for (const [funcKey, aliases] of Object.entries(this.functionAliases)) {
             if (aliases.includes(normalized)) {
                 const func = profile.functions[funcKey];
@@ -144,8 +144,8 @@ export class CCMapper {
     }
     
     /**
-     * Автоматический маппинг по семантике функции
-     *   Launchkey Knob1(CC16) → Craft Synth Cutoff(CC1) если оба маппятся на 'filter/cutoff'
+     * Automatic mapping by function semantics
+     *   Launchkey Knob1(CC16) → Craft Synth Cutoff(CC1) if both map to 'filter/cutoff'
      */
     autoMapByFunction(controllerDevice, targetDevice, controllerCC) {
         const ctrlProfile = this._findProfile(controllerDevice);
@@ -153,17 +153,17 @@ export class CCMapper {
         
         if (!ctrlProfile || !tgtProfile) return null;
         
-        // Безопасная работа с layout — если его нет, используем пустой объект
+        // Safe access to the layout — if it is missing, use an empty object
         const layout = ctrlProfile.layout || {};
         
-        // Находим какую функцию контролирует CC на контроллере
+        // Find which function the CC on the controller controls
         let ctrlFunction = null;
         for (const [key, layoutEntry] of Object.entries(layout)) {
             if (!layoutEntry || !layoutEntry.label) continue;
             // Layout keys are symbolic names ('knob1', 'fader1'); match by the real CC number.
             const entryCC = typeof layoutEntry.cc === 'number' ? layoutEntry.cc : parseInt(layoutEntry.cc, 10);
             if (entryCC === controllerCC) {
-                // Определяем функцию по названию лейбла (убираем пробелы, чтобы "knob 1" совпадало с 'knob1').
+                // Determine the function from the label name (remove spaces so that "knob 1" matches 'knob1').
                 const label = layoutEntry.label.toLowerCase().replace(/\s+/g, '');
                 if (label.includes('fader1') || label.includes('knob1')) ctrlFunction = 'volume';
                 else if (label.includes('fader2') || label.includes('knob2')) ctrlFunction = 'pan';
@@ -179,14 +179,14 @@ export class CCMapper {
         
         if (!ctrlFunction) return null;
         
-        // Ищем тот же CC для функции на целевом устройстве
+        // Find the same CC for the function on the target device
         const targetFunc = tgtProfile.functions[ctrlFunction];
         if (targetFunc) {
             console.log(`[CC-MAPPER] Auto-map: ${controllerDevice}.${ctrlFunction}(CC${controllerCC}) → ${targetDevice}.CC${targetFunc.cc}`);
             return targetFunc.cc;
         }
         
-        // Если функция не найдена, ищем ближайшую по типу
+        // If the function is not found, look for the nearest one by type
         const typeMap = {
             'cutoff': ['filter', 'freq'],
             'resonance': ['rc', 'q'],
@@ -210,7 +210,7 @@ export class CCMapper {
     }
     
     /**
-     * Трансляция CC команды
+     * Translate a CC command
      */
     transformCC(message, inputDeviceName, outputDeviceName, routeId) {
         if (!message || !message.bytes || !(message.bytes instanceof Uint8Array)) {
@@ -220,11 +220,11 @@ export class CCMapper {
         
         const cc = message.bytes[1];
         if (cc === undefined || cc < 0 || cc > 127) {
-            // Не является валидным CC номером — возвращаем без изменений
+            // Not a valid CC number — return it unchanged
             return message;
         }
         
-        // Проверяем пользовательские маппинги маршрута
+        // Check the custom mappings of the route
         if (this.userMappings.has(routeId)) {
             const mappings = this.userMappings.get(routeId);
             if (cc in mappings) {
@@ -235,19 +235,19 @@ export class CCMapper {
             }
         }
         
-        // Пробуем авто-маппинг по функции
+        // Try automatic mapping by function
         const targetCC = this.autoMapByFunction(inputDeviceName, outputDeviceName, cc);
         if (targetCC !== null) {
             message.bytes[1] = targetCC;
             return message;
         }
         
-        // Без изменений
+        // No change
         return message;
     }
     
     /**
-     * Найти профиль устройства по имени
+     * Find a device profile by name
      */
     _findProfile(deviceName) {
         const lower = deviceName.toLowerCase();
@@ -255,7 +255,7 @@ export class CCMapper {
             if (lower.includes(key)) return profile;
         }
         
-        // Поиск по vendor
+        // Search by vendor
         for (const [k, profile] of this.profiles) {
             if (profile.vendor && lower.includes(profile.vendor.toLowerCase())) {
                 return profile;
@@ -266,7 +266,7 @@ export class CCMapper {
     }
     
     /**
-     * Получить список всех устройств и их функций
+     * Get the list of all devices and their functions
      */
     getDeviceFunctions(deviceName) {
         const profile = this._findProfile(deviceName);
@@ -275,7 +275,7 @@ export class CCMapper {
     }
     
     /**
-     * Начать Learn mode для маршрута
+     * Start Learn mode for a route
      */
     beginLearn(routeId) {
         this._learningRoute = routeId;
@@ -284,7 +284,7 @@ export class CCMapper {
     
     recordLearnedMapping(controllerCC, targetFunctionOrCC) {
         if (this._learningRoute) {
-            // Если target — функция, ищем CC для неё
+            // If the target is a function, look up its CC
             let targetCC = targetFunctionOrCC;
             if (typeof targetFunctionOrCC === 'string') {
                 const profile = this._findProfile('craft synth'); // default target
@@ -301,7 +301,7 @@ export class CCMapper {
     }
     
     /**
-     * Получить список профилей
+     * Get the list of profiles
      */
     getProfileNames() {
         return [...this.profiles.keys()];
@@ -309,7 +309,7 @@ export class CCMapper {
 }
 
 /**
- * DeviceProfile — профиль устройства с его MIDI-командами
+ * DeviceProfile — device profile with its MIDI commands
  */
 export class DeviceProfile {
     constructor({ name, vendor, functions = {}, layout = {} }) {
@@ -320,14 +320,14 @@ export class DeviceProfile {
     }
     
     /**
-     * Добавить функцию
+     * Add a function
      */
     addFunction(name, cc, min = 0, max = 127) {
         this.functions[name] = { cc, min, max };
     }
     
     /**
-     * Получить CC для функции
+     * Get the CC for a function
      */
     getCC(functionName) {
         const func = this.functions[functionName];

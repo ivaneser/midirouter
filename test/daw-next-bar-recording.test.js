@@ -1,13 +1,13 @@
 // ---------------------------------------------------------------------------
-// RED regression — уточнённая семантика остановки записи (next-bar boundary).
+// RED regression — refined semantics of stopping a recording (next-bar boundary).
 //
-// Тесты используют только публичные entrypoints worker/DAW:
+// The tests use only the public entry points of the worker/DAW:
 //   MIDIRouterWorker.handleDawControl, DAWEngine.triggerPad / recordEvent /
-//   stopTransport / setRecordMode / armTrack. Никаких production API ради
-//   теста не вводится. Контролируемое время достигается минимальными
-//   real wall-clock интервалами (tempo=300 → 200 ms/beat; meter=1 → 200 ms/bar),
-//   так что ближайшая bar boundary наступает через ~200 мс — тесты быстрые
-//   и не зависают. Cleanup — через `t.after`.
+//   stopTransport / setRecordMode / armTrack. No production APIs are added just for
+//   the test. Controlled time is achieved with short real wall-clock intervals
+//   (tempo=300 → 200 ms/beat; meter=1 → 200 ms/bar), so the nearest bar boundary
+//   arrives in ~200 ms — the tests are fast and do not hang.
+//   Cleanup is done via `t.after`.
 // ---------------------------------------------------------------------------
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +15,7 @@ import { DAWEngine } from '../daw.js';
 import { MIDIRouterWorker } from '../worker-midi.js';
 
 // ---------------------------------------------------------------------------
-// Helper — создаёт минимального worker-обёртку без реального Worker thread.
+// Helper — creates a minimal worker wrapper without a real Worker thread.
 // ---------------------------------------------------------------------------
 function makeWorker(tempo = 120) {
     const worker = Object.create(MIDIRouterWorker.prototype);
@@ -36,12 +36,12 @@ function makeWorker(tempo = 120) {
 }
 
 // ---------------------------------------------------------------------------
-// stopped-transport count-in regression (восстановлен из первоначальной
-// версии файла). Проверяет:
-//   - future startTime = base + 8 * spb (ДВА полных такта от триггера);
-//   - MIDI до начала игнорируется;
-//   - Note On ровно в startTime и Note Off через 250 мс принимаются;
-//   - note.start = 0 (clip-local, beat 0.0), dur = 0.5 (250 ms при tempo 120).
+// Stopped-transport count-in regression (restored from the original version of the file).
+// Checks:
+//   - future startTime = base + 8 * spb (TWO full bars from the trigger);
+//   - MIDI before the start is ignored;
+//   - Note On exactly at startTime and Note Off 250 ms later are accepted;
+//   - note.start = 0 (clip-local, beat 0.0), dur = 0.5 (250 ms at tempo 120).
 // ---------------------------------------------------------------------------
 test('count-in regression: future start boundary, pre-start MIDI ignored, Note On/Off at start', async (t) => {
     const daw = new DAWEngine({ tempo: 120 }); // 500 ms/beat, 4-beat measure
@@ -101,16 +101,16 @@ test('count-in regression: future start boundary, pre-start MIDI ignored, Note O
 });
 
 // ---------------------------------------------------------------------------
-// ПУТЬ 1: pad Stop — повторный trigger того же pad во время записи.
+// PATH 1: pad Stop — a repeated trigger of the same pad during recording.
 //
-// Контракт: stop-запрос до конца такта НЕ финализирует take немедленно —
-// recording остаётся активным, пока не наступит ближайший конец такта (bar
-// boundary). Длительность ноты при этом равна реальному времени от Note On
-// (beat 0.0) до конца такта.
+// Contract: a stop request before the end of the bar does NOT finalize the take immediately —
+// the recording stays active until the nearest end of the bar (bar
+// boundary). The note duration then equals the real time from Note On
+// (beat 0.0) to the end of the bar.
 //
-// Тест использует настоящего MIDIRouterWorker._triggerPad с real wall-clock
-// интервалами (tempo=300, meter=1 → bar = 200 ms). RED падает из-за того,
-// что production немедленно финализирует запись через _stopRecording.
+// The test uses the real MIDIRouterWorker._triggerPad with real wall-clock
+// intervals (tempo=300, meter=1 → bar = 200 ms). RED fails because production
+// finalizes the recording immediately through _stopRecording.
 // ---------------------------------------------------------------------------
 test('PATH 1: pad trigger stop defers take finalization to nearest bar end (RED)', async (t) => {
     const worker = makeWorker(300); // 200 ms/beat
@@ -147,7 +147,7 @@ test('PATH 1: pad trigger stop defers take finalization to nearest bar end (RED)
     const stopAt = recordingStartTime + msPerBeat / 2; // stop mid-bar
     await new Promise(resolve => setTimeout(resolve, Math.max(0, stopAt - performance.now())));
 
-    // --- Pad Stop: повторный trigger того же pad -> stop-запрос. ---
+    // --- Pad Stop: a repeated trigger of the same pad -> stop request. ---
     const stopTime = performance.now();
     const transportBeat = ((stopTime - daw._playAnchorTime) / 1000) / daw._secondsPerBeat();
     const nextBar = Math.ceil(transportBeat / daw._metronomeBeatsPerMeasure)
@@ -155,15 +155,15 @@ test('PATH 1: pad trigger stop defers take finalization to nearest bar end (RED)
     const boundaryTime = daw._playAnchorTime + nextBar * msPerBeat;
     worker._triggerPad(0, 0, stopTime);
 
-    // Контракт: после stop-request recording остаётся активным (deferred).
+    // Contract: after the stop request the recording stays active (deferred).
     assert.ok(daw.recording !== null, 'recording remains active after pad stop (deferred to bar end)');
 
-    // Дождаться настоящей границы транспорта; ограничить ожидание одной мерой.
+    // Wait for the real transport boundary; limit the wait to one bar.
     const waitMs = boundaryTime - performance.now() + 5;
     assert.ok(waitMs > 0 && waitMs <= msPerBeat + 10, 'next bar boundary is within one measure');
     await new Promise(resolve => setTimeout(resolve, waitMs));
 
-    // На bar boundary take должен быть финализирован.
+    // At the bar boundary the take must be finalized.
     assert.equal(daw.recording, null, 'recording finalized at nearest bar boundary');
     const clip = daw.tracks[0].clips[0];
     assert.equal(clip.notes.length, 1, 'held note belongs to the take');
@@ -177,10 +177,10 @@ test('PATH 1: pad trigger stop defers take finalization to nearest bar end (RED)
 });
 
 // ---------------------------------------------------------------------------
-// ПУТЬ 2: global Stop — handleDawControl({type:'daw_stop_transport'}).
-// Контракт: `daw_stop_transport` должен остановить транспорт И финализировать
-// take по ближайшему концу такта, а не немедленно. Запись должна остаться
-// активной сразу после stop-request и завершиться на bar boundary.
+// PATH 2: global Stop — handleDawControl({type:'daw_stop_transport'}).
+// Contract: `daw_stop_transport` must stop the transport AND finalize the
+// take at the nearest end of the bar, not immediately. The recording must stay
+// active right after the stop request and finish at the bar boundary.
 // ---------------------------------------------------------------------------
 test('PATH 2: daw_stop_transport defers take finalization to nearest bar end (RED)', async (t) => {
     const worker = makeWorker(300); // 200 ms/beat
@@ -217,7 +217,7 @@ test('PATH 2: daw_stop_transport defers take finalization to nearest bar end (RE
     const stopAt = recordingStartTime + msPerBeat / 2; // stop mid-bar
     await new Promise(resolve => setTimeout(resolve, Math.max(0, stopAt - performance.now())));
 
-    // --- Global Stop через handleDawControl. ---
+    // --- Global Stop through handleDawControl. ---
     const stopTime = performance.now();
     const transportBeat = ((stopTime - daw._playAnchorTime) / 1000) / daw._secondsPerBeat();
     const nextBar = Math.ceil(transportBeat / daw._metronomeBeatsPerMeasure)
@@ -225,17 +225,17 @@ test('PATH 2: daw_stop_transport defers take finalization to nearest bar end (RE
     const boundaryTime = daw._playAnchorTime + nextBar * msPerBeat;
     worker.handleDawControl({ type: 'daw_stop_transport' });
 
-    // Контракт: после stop-request recording остаётся активным (deferred).
-    // Транспорт останавливается по boundary, а не мгновенно.
+    // Contract: after the stop request the recording stays active (deferred).
+    // The transport stops at the boundary, not instantly.
     assert.ok(daw.recording !== null, 'recording remains active after global stop (deferred to bar end)');
     assert.equal(daw.playing, true, 'transport remains active after global stop (deferred to bar end)');
 
-    // Дождаться настоящей границы транспорта; ограничить ожидание одной мерой.
+    // Wait for the real transport boundary; limit the wait to one bar.
     const waitMs = boundaryTime - performance.now() + 5;
     assert.ok(waitMs > 0 && waitMs <= msPerBeat + 10, 'next bar boundary is within one measure');
     await new Promise(resolve => setTimeout(resolve, waitMs));
 
-    // На bar boundary take должен быть финализирован, транспорт остановлен.
+    // At the bar boundary the take must be finalized and the transport stopped.
     assert.equal(daw.recording, null, 'recording finalized at nearest bar boundary');
     assert.equal(daw.playing, false, 'transport stopped at bar boundary');
     const clip = daw.tracks[0].clips[0];
@@ -320,10 +320,10 @@ test('count-in: controller Play stops transport immediately, cancels pending cou
 // ---------------------------------------------------------------------------
 // Play-before-pad two-bar count-in.
 //
-// Сценарий: транспорт уже запущен (Play / daw_start_transport). Нажатие пустого
-// пэда во время работающего транспорта должно запустить двухтактовый отсчёт, а
-// запись начнётся ровно через два такта. За это время MIDI не захватывается;
-// после истечения таймера — записывается.
+// Scenario: the transport is already running (Play / daw_start_transport). Pressing an empty
+// pad while the transport runs must start a two-bar count-in, and the
+// recording starts exactly after two bars. During that time MIDI is not captured;
+// after the timer expires — it is recorded.
 // ---------------------------------------------------------------------------
 test('play-before-pad: two-bar count-in before recording begins', async (t) => {
     const worker = makeWorker(300);  // tempo=300 → 200 ms/beat; meter=1 → bar=1 beat ≈ 200 ms

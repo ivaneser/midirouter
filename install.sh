@@ -1,33 +1,33 @@
 #!/bin/bash
-# === Install Script для Raspberry Pi 4 — MIDI Router ===
-# Минимальная задержка роутинга (<2мс) через Worker Thread + ALSA
-# Запуск: chmod +x install.sh && sudo ./install.sh
+# === Install script for Raspberry Pi 4 — MIDI Router ===
+# Minimal routing latency (<2 ms) via Worker Thread + ALSA
+# Run: chmod +x install.sh && sudo ./install.sh
 
 set -e
 
 echo "=========================================="
-echo "  MIDI Router — Установка на Raspberry Pi"
-echo "  Цель: минимальная задержка роутинга"
+echo "  MIDI Router — Installation on Raspberry Pi"
+echo "  Goal: minimal routing latency"
 echo "=========================================="
 
-# Проверка что это Raspberry Pi
+# Check that this is a Raspberry Pi
 if [ ! -f /proc/device-tree/model ]; then
-    echo "❌ Этот скрипт предназначен только для Raspberry Pi"
+    echo "❌ This script is intended only for Raspberry Pi"
     exit 1
 fi
 
-echo "✅ Обнаружен: $(cat /proc/device-tree/model)"
+echo "✅ Detected: $(cat /proc/device-tree/model)"
 uname -r
 
-# Обновляем систему (минимально)
+# Update the system (minimal)
 echo ""
-echo "📦 Обновление пакетов..."
+echo "📦 Updating packages..."
 apt-get update -y --quiet
 apt-get upgrade -y --quiet
 
-# Устанавливаем зависимости для ALSA и Node.js
+# Install dependencies for ALSA and Node.js
 echo ""
-echo "🔧 Установка зависимостей..."
+echo "🔧 Installing dependencies..."
 apt-get install -y \
     libasound2-dev \
     alsa-utils \
@@ -37,66 +37,66 @@ apt-get install -y \
     jq \
     supervisor
 
-# Создаём пользователя midi (если не существует)
+# Create user midi (if it does not exist)
 if ! id -u midi >/dev/null 2>&1; then
-    echo "👤 Создание пользователя 'midi'..."
+    echo "👤 Creating user 'midi'..."
     addgroup --system midi
     adduser --system --ingroup midi midi
 fi
 
-# Устанавливаем Node.js если нет
+# Install Node.js if it is missing
 if ! command -v node &> /dev/null; then
-    echo "📦 Установка Node.js 20 LTS..."
+    echo "📦 Installing Node.js 20 LTS..."
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
 fi
 
 echo "✅ Node.js: $(node --version)"
 
-# Клонирование проекта (или обновление если уже есть)
+# Clone the project (or update it if it already exists)
 PROJECT_DIR="/home/midi/myprojects/midirouter"
 if [ ! -d "$PROJECT_DIR/.git" ]; then
     echo ""
-    echo "📂 Клонирование проекта..."
+    echo "📂 Cloning the project..."
     mkdir -p /home/midi/myprojects
     git clone https://github.com/ivaneser/midirouter.git "$PROJECT_DIR"
 else
-    echo "✅ Проект уже есть, обновляем..."
+    echo "✅ Project already present, updating..."
     cd "$PROJECT_DIR" && git pull || true
 fi
 
-# Установка npm зависимостей
+# Install npm dependencies
 echo ""
 echo "📦 npm install..."
 cd "$PROJECT_DIR"
 npm install --production --quiet
 
 # ==========================================
-# PREEMPT_RT ЯДРО — для минимальной задержки
+# PREEMPT_RT KERNEL — for minimal latency
 # ==========================================
 echo ""
-echo "⚙️ Настройка REAL-TIME ядра..."
+echo "⚙️ Configuring the REAL-TIME kernel..."
 
 RT_KERNEL_PKG="linux-image-rt-rpi"
 
-# Проверяем поддерживаемую версию ядра
+# Check the supported kernel version
 if dpkg -l | grep -q linux-image-6.1; then
     RT_KERNEL_PKG="linux-image-rt-rpi-6.1"
 elif dpkg -l | grep -q linux-image-6.6; then
     RT_KERNEL_PKG="linux-image-rt-rpi-6.6"
 fi
 
-# Пытаемся установить PREEMPT_RT ядро
+# Try to install the PREEMPT_RT kernel
 if apt-cache search "$RT_KERNEL_PKG" | grep -q "$RT_KERNEL_PKG"; then
-    echo "🔧 Установка PREEMPT_RT ядра: $RT_KERNEL_PKG"
+    echo "🔧 Installing PREEMPT_RT kernel: $RT_KERNEL_PKG"
     apt-get install -y --allow-change-held-packages "$RT_KERNEL_PKG" || {
-        echo "⚠️ PREEMPT_RT недоступен для текущего ядра, продолжаем с обычным..."
+        echo "⚠️ PREEMPT_RT is not available for the current kernel, continuing with the standard one..."
     }
 else
-    echo "ℹ️  PREEMPT_RT не найден — используем стандартное ядро"
+    echo "ℹ️  PREEMPT_RT not found — using the standard kernel"
 fi
 
-# Настройка sysctl для realtime планирования
+# sysctl settings for realtime scheduling
 cat > /etc/sysctl.d/99-midi-rt.conf << 'EOF'
 # Real-time scheduling limits for MIDI worker
 kernel.sched_rt_runtime_us=950000
@@ -116,29 +116,29 @@ EOF
 sysctl -p /etc/sysctl.d/99-midi-rt.conf 2>/dev/null || true
 
 # ==========================================
-# Приоритет процесса и права доступа
+# Process priority and access rights
 # ==========================================
 echo ""
-echo "⚙️ Настройка прав ALSA..."
+echo "⚙️ Configuring ALSA permissions..."
 
-# UDEV правила для MIDI устройств
+# UDEV rules for MIDI devices
 cat > /etc/udev/rules.d/99-midi.rules << 'EOF'
-# Доступ к ALSA устройствам для группы midi
+# Access to ALSA devices for group midi
 SUBSYSTEM=="snd", GROUP="midi", MODE="0660"
 KERNEL=="seq", GROUP="midi", MODE="0660"
 KERNEL=="timer", GROUP="midi", MODE="0660"
 
-# USB MIDI устройства — мгновенное назначение прав
+# USB MIDI devices — apply permissions immediately
 ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="*", ATTR{idProduct}=="*", GROUP="midi"
 EOF
 
 udevadm control --reload-rules 2>/dev/null || true
 
 # ==========================================
-# Supervisor — автозапуск worker + server
+# Supervisor — autostart for worker + server
 # ==========================================
 echo ""
-echo "🔄 Настройка автозапуска..."
+echo "🔄 Configuring autostart..."
 
 cat > /etc/supervisor/conf.d/midirouter.conf << 'EOF'
 [program:midirouter-worker]
@@ -161,7 +161,7 @@ stderr_logfile=/var/log/midirouter-server.err.log
 stdout_logfile=/var/log/midarouter-server.out.log
 environment=NODE_ENV="production"
 
-# Ждём готовности воркера перед запуском сервера
+# Wait for the worker to be ready before starting the server
 [program:midirouter]
 command=node /home/midi/myprojects/midirouter/server.js
 directory=/home/midi/myprojects/midirouter
@@ -174,39 +174,39 @@ environment=NODE_ENV="production"
 EOF
 
 # ==========================================
-# Запуск сервисов
+# Start the services
 # ==========================================
 echo ""
-echo "🚀 Запуск MIDI Router..."
+echo "🚀 Starting MIDI Router..."
 
 supervisorctl reread 2>/dev/null || true
 supervisorctl update 2>/dev/null || true
 
-# Пробуем запустить напрямую если supervisor не работает
+# Try to start directly if the supervisor does not work
 if ! supervisorctl status midirouter-worker &>/dev/null; then
-    echo "⚠️ Supervisor недоступен, запускаем вручную..."
+    echo "⚠️ Supervisor unavailable, starting manually..."
     cd "$PROJECT_DIR" && node server.js &
 else
     sleep 3
 fi
 
-# Проверка
+# Check
 sleep 2
 echo ""
 echo "=========================================="
 if supervisorctl status midirouter-worker &>/dev/null || pgrep -f "midirouter" >/dev/null; then
-    echo "✅ MIDI Router запущен!"
+    echo "✅ MIDI Router is running!"
     echo ""
-    echo "🌐 Веб-интерфейс: http://<IP_RASPBERRY_PI>:3000"
-    echo "📋 Логи воркера:   sudo tail -f /var/log/midarouter-worker.out.log"
-    echo "📋 Логи сервера:    sudo tail -f /var/log/midirouter-server.out.log"
+    echo "🌐 Web interface: http://<IP_RASPBERRY_PI>:3000"
+    echo "📋 Worker logs:   sudo tail -f /var/log/midarouter-worker.out.log"
+    echo "📋 Server logs:    sudo tail -f /var/log/midirouter-server.out.log"
     echo ""
-    echo "⚡ Архитектура:"
-    echo "   Worker Thread → ALSA callback (<2мс роутинг)"
-    echo "   WebSocket     → UI управление"
+    echo "⚡ Architecture:"
+    echo "   Worker Thread → ALSA callback (<2 ms routing)"
+    echo "   WebSocket     → UI control"
     echo "=========================================="
 else
-    echo "❌ Ошибка запуска! Проверьте логи:"
+    echo "❌ Startup error! Check the logs:"
     echo "   sudo tail -10 /var/log/midirouter-worker.err.log"
     echo "   sudo tail -10 /var/log/midarouter-server.err.log"
 fi

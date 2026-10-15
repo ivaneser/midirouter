@@ -1,5 +1,5 @@
-// Контракт "Mode": что делает клип ПОСЛЕ окончания записи и как ведёт себя
-// повторное нажатие. Пустой клип всегда начинает запись независимо от Mode.
+// The "Mode" contract: what a clip does AFTER recording ends, and how it behaves on
+// a repeated press. An empty clip always starts recording regardless of Mode.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DAWEngine } from '../daw.js';
@@ -64,7 +64,7 @@ test('Replace mode: stop after take -> stopped; next press overwrites the take',
 
 test('pressing a new empty clip on the same track stops the current clip', () => {
     const daw = new DAWEngine();
-    // Записали и включили воспроизведение в слоте 0 (Play-режим)
+    // Recorded and started playback in slot 0 (Play mode)
     recordAndStop(daw, 0, 0, 1000, 'none');
 
     const worker = Object.create(MIDIRouterWorker.prototype);
@@ -80,10 +80,10 @@ test('pressing a new empty clip on the same track stops the current clip', () =>
     worker._stopTrackPlayback = () => { stopped += 1; };
     worker._startTrackPlayback = () => {};
     worker._sendFeedback = () => {};
-    // Слот 0 "играет"
+    // Slot 0 "is playing"
     daw.clipState[0] = 0;
 
-    // Нажатие на пустой слот 1 той же группы: запись начинается, текущий клип гаснет
+    // Press on the empty slot 1 of the same group: recording starts, the current clip goes off
     const result = worker._triggerPad(0, 1, 2000);
     assert.equal(result.action, 'record', 'empty slot must start recording');
     assert.equal(daw.recording.track, 0);
@@ -91,12 +91,47 @@ test('pressing a new empty clip on the same track stops the current clip', () =>
     assert.equal(stopped, 1, 'the previous clip on this track must be stopped');
     assert.equal(daw.clipState[0], -1);
 
-    // Запись в новом клипе корректно завершается (Play → воспроизведение)
+    // The recording in the new clip finishes correctly (Play → playback).
+    // The transport is running, so the stop is deferred to the next bar boundary.
     daw.recordEvent(0x90, 64, 90, 2000);
     daw.recordEvent(0x80, 64, 0, 2400);
     const stopResult = worker._triggerPad(0, 1, 2500);
-    assert.equal(stopResult.action, 'record-stop');
-    assert.equal(daw.clipState[0], 1, 'new take must start playing');
+    assert.equal(stopResult.action, 'record-stop-pending');
+    assert.ok(daw.recording, 'take stays open until the bar boundary');
+    daw.stopTransport();
+    daw.setMetronome(false);
+});
+
+test('a take stopped by a pad press finishes at the bar boundary and starts playing', async (t) => {
+    const daw = new DAWEngine({ tempo: 300 }); // 200 ms per beat
+    daw.setMetronomeBeatsPerMeasure(1);         // one-beat bar = 200 ms
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = daw;
+    worker.outputs = new Map();
+    worker.controllerEngine = { padMappings: () => [], feedbackMessagesFor: () => [] };
+    worker._trackPlayTimers = new Map();
+    worker._ledGlow = new Map();
+    worker._padLedSent = new Map();
+    worker._broadcastState = () => {};
+    worker._emitVisualEvent = () => {};
+    worker._sendFeedback = () => {};
+    worker._startTrackPlayback = () => {};
+    worker._stopTrackPlayback = () => {};
+    t.after(() => {
+        worker._recordingStopTimer && clearTimeout(worker._recordingStopTimer);
+        daw.stopTransport();
+        daw.setMetronome(false);
+    });
+
+    // First press on an empty project: two-bar count-in (400 ms), then recording.
+    worker._triggerPad(0, 0, performance.now());
+    await new Promise((r) => setTimeout(r, 450));
+    daw.recordEvent(0x90, 64, 90, performance.now());
+    daw.recordEvent(0x80, 64, 0, performance.now() + 60);
+    assert.equal(worker._triggerPad(0, 0, performance.now()).action, 'record-stop-pending');
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal(daw.recording, null, 'take is finalized at the bar boundary');
+    assert.equal(daw.tracks[0].clips[0].notes.length, 1, 'the take keeps its note');
 });
 
 test('empty clip in any mode starts recording on first press', () => {

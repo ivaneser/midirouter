@@ -97,7 +97,7 @@ connectBtn.addEventListener('click', () => {
     }
 });
 
-// === Сообщения сервера ===
+// === Server messages ===
 
 function handleMessage(msg) {
     switch (msg.type) {

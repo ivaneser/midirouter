@@ -1,43 +1,43 @@
 # DEBUGGING & KNOWN ISSUES
 
-## Типичные ошибки и решения
+## Common errors and fixes
 
 ### 1. `open /dev/snd/seq failed: Permission denied`
-**Причина:** Пользователь не в группе `audio` или `plugdev`.  
-**Решение:**
+**Cause:** the user is not in the `audio` or `plugdev` group.
+**Fix:**
 ```bash
 sudo usermod -aG audio $USER
 sudo usermod -aG plugdev $USER
-# Перезайти в систему! (logout/login)
+# Log out and back in! (logout/login)
 ```
 
-### 2. ALSA UMP Mode — порты не видны через `aconnect`
-**Признак:** `aconnect -o` показывает только `Midi Through`, хотя модули загружены.  
-**Причина:** ALSA 1.2+ работает в режиме Universal MIDI Ports, legacy endpoints скрыты.  
-**Решение:**
+### 2. ALSA UMP Mode — ports are not visible through `aconnect`
+**Symptom:** `aconnect -o` shows only `Midi Through`, even though the modules are loaded.
+**Cause:** ALSA 1.2+ runs in Universal MIDI Ports mode; legacy endpoints are hidden.
+**Fix:**
 ```bash
-# Создать конфиг отключения UMP:
+# Create the UMP-disable config:
 sudo bash -c 'echo "options snd-seq enable_ump=0" > /etc/modprobe.d/snd-seq-ump.conf'
-# Перезагрузка системы обязательна!
+# A system reboot is required!
 ```
 
 ### 3. `ERR_MODULE_NOT_FOUND: Cannot find package 'ws'`
-**Причина:** `node_modules` исключён из git, не установлен локально.  
-**Решение:**
+**Cause:** `node_modules` is excluded from git and is not installed locally.
+**Fix:**
 ```bash
 npm install
 ```
 
-### 4. Сервер не останавливается по Ctrl-C
-**Причина:** Воркер блокирует exit или WebSocket соединения не закрыты.  
-**Диагностика:** Многократное нажатие `ctrl-c` до остановки.  
-**Решение:** В `server.js` метод `cleanup()` должен корректно завершать воркер:
+### 4. The server does not stop on Ctrl-C
+**Cause:** the worker blocks exit, or the WebSocket connections are not closed.
+**Diagnosis:** pressing `ctrl-c` several times before it stops.
+**Fix:** in `server.js` the `cleanup()` method must shut the worker down correctly:
 ```js
 process.on('SIGINT', async () => {
     console.log('[SERVER] Shutting down...');
     if (worker) {
         worker.postMessage({ type: 'shutdown' });
-        // Проверка: если воркер не вышел за 3 сек — terminate
+        // Check: if the worker has not exited within 3 s — terminate
         await new Promise(resolve => setTimeout(resolve, 3000));
         if (!worker.exited) {
             console.log('[SERVER] Worker did not exit gracefully — terminating');
@@ -50,60 +50,60 @@ process.on('SIGINT', async () => {
 ```
 
 ### 5. `Cannot create route: invalid outputId undefined`
-**Причина:** `_createRoute()` проверял `this.routes.has(outputId)` вместо `this.outputs.has(outputId)`.  
-**Решение:** Заменить проверку на валидацию наличия порта в outputs.
+**Cause:** `_createRoute()` checked `this.routes.has(outputId)` instead of `this.outputs.has(outputId)`.
+**Fix:** replace the check with validation that the port exists in outputs.
 
-### 6. Дублирование UI карточек устройств
-**Причина:** `loadDevices()` загружал ВСЕ JSON файлы из `data/devices/`, а `renderDynamicControls()` не очищал контейнер перед рендерингом.  
-**Решение:**
-- Удалить загрузчик JSON из controller-ui.js
-- Переписать `_updateDeviceList()` для фильтрации реальных устройств
-- Очистка `devices-container.innerHTML = ''` перед рендерингом
+### 6. Duplicate UI cards for devices
+**Cause:** `loadDevices()` loaded ALL JSON files from `data/devices/`, and `renderDynamicControls()` did not clear the container before rendering.
+**Fix:**
+- Remove the JSON loader from controller-ui.js
+- Rewrite `_updateDeviceList()` to filter real devices
+- Clear `devices-container.innerHTML = ''` before rendering
 
-### 7. Дублирование обработчиков MIDI событий (handler duplication)
-**Причина:** Watchdog вызывал `_enumeratePorts()` каждые 5 секунд, добавляя новые `midiIn.on('message', ...)` без очистки старых.  
-**Решение:** Полностью убрать watchdog из основного цикла. Обработчики навешиваются один раз при открытии порта.
+### 7. Duplicate MIDI event handlers (handler duplication)
+**Cause:** the watchdog called `_enumeratePorts()` every 5 seconds, adding new `midiIn.on('message', ...)` handlers without removing the old ones.
+**Fix:** remove the watchdog from the main loop entirely. Handlers are attached once, when the port is opened.
 
-### 8. Ложные маршруты от CC knobs синтезаторов
-**Причина:** Во время auto-connect сервер ловил любое MIDI сообщение, включая CC (0xBx) от поворота knobs на синтезаторах.  
-**Решение:** Фильтр `(statusByte & 0xF0) === 0x90` — принимать только note ON.
+### 8. False routes from synthesizer CC knobs
+**Cause:** during auto-connect the server caught any MIDI message, including CC (0xBx) from turning the knobs on the synthesizers.
+**Fix:** filter `(statusByte & 0xF0) === 0x90` — accept only note ON.
 
-### 9. Авто-подключение запускается дважды
-**Причина:** Автоматический запуск по событию `ready` И ручная кнопка во фронтенде.  
-**Решение:** Удалить кнопку «Авто-соединение» из UI, оставить только автоматический запуск.
+### 9. Auto-connect runs twice
+**Cause:** an automatic start on the `ready` event AND a manual button in the frontend.
+**Fix:** remove the "Auto-connect" button from the UI and keep only the automatic start.
 
-## Диагностика MIDI устройств
+## MIDI device diagnostics
 
-### Проверка загрузки модулей ALSA
+### Checking that the ALSA modules are loaded
 ```bash
 lsmod | grep snd_seq
-# Должно показать: snd_seq_dummy, snd_seq_virmidi, snd_seq_midi, ...
+# Should show: snd_seq_dummy, snd_seq_virmidi, snd_seq_midi, ...
 ```
 
-### Проверка портов
+### Checking ports
 ```bash
-aconnect -o          # Output порты
-aconnect -i          # Input порты  
-aconnect -l          # Все подключения
+aconnect -o          # Output ports
+aconnect -i          # Input ports
+aconnect -l          # All connections
 ```
 
-### Проверка через RtMidi (Node.js)
-Скрипт `test-midi-detection.js`:
+### Checking through RtMidi (Node.js)
+The script `test-midi-detection.js`:
 ```bash
 node test-midi-detection.js
-# Показывает все порты, видимые через @julusian/midi
+# Shows all ports visible through @julusian/midi
 ```
 
-### Просмотр устройств sequencer
+### Viewing sequencer devices
 ```bash
 cat /proc/asound/seq/devices
 ```
 
-## Режимы отладки сервера
+## Server debug modes
 ```bash
-# С логированием:
+# With logging:
 node server.js 2>&1 | tee midirouter.log
 
-# Автоперезагрузка при изменениях:
+# Auto-reload on changes:
 node --watch server.js
 ```

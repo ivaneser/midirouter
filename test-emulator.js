@@ -1,6 +1,6 @@
 /* === USB-MIDI Device Emulator (ALSA-based) === */
-// Эмулирует контроллер и синтезатор используя существующие MIDI порты ALSA seq
-// Работает через WebSocket подключение к серверу роутера
+// Emulates a controller and a synthesizer using the existing ALSA seq MIDI ports
+// Works through a WebSocket connection to the router server
 
 import { WebSocket } from 'ws';
 import { spawn } from 'child_process';
@@ -14,11 +14,11 @@ class MidiEmulator {
         this.connected = false;
         this.testResults = [];
         
-        // Эмуляция контроллера (отправляет CC/NoteOn)
+        // Controller emulation (sends CC/NoteOn)
         this.controllerPortIndex = 0;
         this.controllerDeviceName = 'Emulated Controller';
         
-        // Эмуляция синтезатора (принимает MIDI)
+        // Synthesizer emulation (receives MIDI)
         this.synthPortIndex = 1;
         this.synthDeviceName = 'Emulated Synth';
     }
@@ -26,7 +26,7 @@ class MidiEmulator {
     async start() {
         console.log('[EMULATOR] Starting USB-MIDI device emulator...\n');
         
-        // Проверяем что сервер запущен
+        // Check that the server is running
         await this.checkServer();
         
         if (!this.connected) {
@@ -66,7 +66,7 @@ class MidiEmulator {
             stdio: 'pipe'
         });
         
-        // Логируем вывод сервера
+        // Log the server output
         this.serverProcess.stdout.on('data', (data) => {
             console.log(`[SERVER] ${data.toString().trim()}`);
         });
@@ -80,9 +80,9 @@ class MidiEmulator {
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 reject(new Error('Server startup timeout'));
-            }, 30000); // 30 секунд на запуск
+            }, 30000); // 30 seconds to start
             
-            // Периодически проверяем подключение
+            // Periodically check the connection
             const checkInterval = setInterval(async () => {
                 try {
                     await this.checkServer();
@@ -92,7 +92,7 @@ class MidiEmulator {
                         resolve(true);
                     }
                 } catch (e) {
-                    // Продолжаем ждать
+                    // Keep waiting
                 }
             }, 1000);
         });
@@ -105,7 +105,7 @@ class MidiEmulator {
             console.log('[EMULATOR] Connected to router server\n');
             this.connected = true;
             
-            // Подписываемся на события сервера
+            // Subscribe to server events
             this.wsClient.send(JSON.stringify({
                 type: 'subscribe',
                 events: ['ports-enumerated', 'midi-routed', 'route-updated']
@@ -127,7 +127,7 @@ class MidiEmulator {
             case 'ports-enumerated':
                 console.log(`[EMULATOR] Found ${msg.inputs.length} inputs, ${msg.outputs.length} outputs`);
                 
-                // Находим порты для эмуляции
+                // Find the ports for emulation
                 if (msg.inputs.length > 0 && msg.outputs.length > 0) {
                     this.controllerPortIndex = parseInt(msg.inputs[0].id.split('_')[1]);
                     this.synthPortIndex = parseInt(msg.outputs[0].id.split('_')[1]);
@@ -135,7 +135,7 @@ class MidiEmulator {
                     console.log(`[EMULATOR] Controller: ${msg.inputs[0].name} (index: ${this.controllerPortIndex})`);
                     console.log(`[EMULATOR] Synth: ${msg.outputs[0].name} (index: ${this.synthPortIndex})\n`);
                     
-                    // Начинаем тестирование маршрутизации
+                    // Start the routing tests
                     this.startRoutingTest(msg);
                 } else {
                     console.log('[EMULATOR] No ports available for emulation');
@@ -151,7 +151,7 @@ class MidiEmulator {
                     message: msg.message
                 });
                 
-                // Проверяем результат тестирования
+                // Check the test result
                 if (this.testResults.length >= 3) {
                     this.reportResults();
                 }
@@ -165,7 +165,7 @@ class MidiEmulator {
                     outputId: msg.outputId
                 });
                 
-                // Проверяем результат тестирования
+                // Check the test result
                 if (this.testResults.length >= 3) {
                     this.reportResults();
                 }
@@ -176,23 +176,23 @@ class MidiEmulator {
     startRoutingTest(portsData) {
         console.log('[EMULATOR] Starting routing test sequence...\n');
         
-        // Тест 1: Отправляем CC от контроллера (эмуляция нажатия кнопки)
+        // Test 1: send CC from the controller (emulates a button press)
         setTimeout(() => {
             this.sendCCFromController(0, 1, 64);
             console.log('[TEST] Sent CC from controller to router\n');
             
-            // Ждём маршрутизации
+            // Wait for routing
             setTimeout(() => {
-                // Тест 2: Отправляем NoteOn от контроллера
+                // Test 2: send NoteOn from the controller
                 this.sendNoteOnFromController(0, 60, 127);
                 console.log('[TEST] Sent NoteOn from controller to router\n');
                 
                 setTimeout(() => {
-                    // Тест 3: Отправляем CC от синтезатора (эмуляция обратной связи)
+                    // Test 3: send CC from the synthesizer (emulates feedback)
                     this.sendCCFromSynth(0, 2, 127);
                     console.log('[TEST] Sent CC from synth to router\n');
                     
-                    // Ждём завершения тестирования
+                    // Wait for the tests to finish
                     setTimeout(() => {
                         this.reportResults();
                     }, 3000);
@@ -202,7 +202,7 @@ class MidiEmulator {
     }
     
     sendCCFromController(channel, controller, value) {
-        // Эмуляция контроллера отправляет CC сообщение через WebSocket
+        // Controller emulation sends a CC message through WebSocket
         if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN) {
             this.wsClient.send(JSON.stringify({
                 type: 'send-midi',
@@ -213,7 +213,7 @@ class MidiEmulator {
     }
     
     sendNoteOnFromController(channel, note, velocity) {
-        // Эмуляция контроллера отправляет NoteOn сообщение через WebSocket
+        // Controller emulation sends a NoteOn message through WebSocket
         if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN) {
             this.wsClient.send(JSON.stringify({
                 type: 'send-midi',
@@ -224,7 +224,7 @@ class MidiEmulator {
     }
     
     sendCCFromSynth(channel, controller, value) {
-        // Эмуляция синтезатора отправляет CC сообщение через WebSocket
+        // Synthesizer emulation sends a CC message through WebSocket
         if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN) {
             this.wsClient.send(JSON.stringify({
                 type: 'send-midi',
@@ -273,7 +273,7 @@ class MidiEmulator {
     }
 }
 
-// Запуск эмулятора
+// Start the emulator
 const emulator = new MidiEmulator();
 
 emulator.start().catch(err => {

@@ -2,23 +2,23 @@
 # =============================================================================
 # midirouter — plug & play first-boot setup for Raspberry Pi
 # -----------------------------------------------------------------------------
-# Делает всё один раз и включает автозапуск сервера. Запусти один раз по SSH:
+# Does everything once and enables server autostart. Run it once over SSH:
 #     sudo bash bootstrap.sh
-# Скрипт ипотентен — его можно гонять повторно, он ничего не сломает.
-# В конце применяет фикс ALSA/UMP (нужна перезагрузка) и перезагружает Pi.
+# The script is idempotent — it can be re-run safely, it will not break anything.
+# At the end it applies the ALSA/UMP fix (needs a reboot) and reboots the Pi.
 # =============================================================================
 
 set -uo pipefail
 
-# ---- Настройки (измени под себя) -------------------------------------------
-USER_NAME="${MIDIR_USER:-pi}"                 # юзер, от которого работает сервер
-# резолвим домашнюю директорию юзера из БД passwd (не из $ROOT_HOME при sudo)
+# ---- Settings (change for your setup) -------------------------------------------
+USER_NAME="${MIDIR_USER:-pi}"                 # user the server runs as
+# resolve the user's home directory from the passwd database (not from $ROOT_HOME under sudo)
 TARGET_HOME=$(getent passwd "$USER_NAME" | cut -d: -f6)
 [ -z "$TARGET_HOME" ] && TARGET_HOME="$HOME"
 REPO_DIR="${MIDIR_REPO:-$TARGET_HOME/myprojects/midirouter}"
-WIFI_SSID="master"                              # имя сети
-WIFI_PASS="SergeIvanenko"                       # пароль сети
-WIFI_COUNTRY="GB"                               # country code для wpa_supplicant
+WIFI_SSID="master"                              # network name
+WIFI_PASS="SergeIvanenko"                       # network password
+WIFI_COUNTRY="GB"                               # country code for wpa_supplicant
 
 RED=$'\033[0;31m'; GRN=$'\033[0;32m'; YEL=$'\033[1;33m'; NC=$'\033[0m'
 log()  { echo -e "${GRN}[midirouter]${NC} $*"; }
@@ -32,7 +32,7 @@ SUDO="sudo"
 log "Bootstrap starts for user '${USER_NAME}' on host $(hostname)"
 
 # -----------------------------------------------------------------------------
-# 1. WiFi (headless, через /etc/wpa_supplicant/wpa_supplicant.conf)
+# 1. WiFi (headless, via /etc/wpa_supplicant/wpa_supplicant.conf)
 # -----------------------------------------------------------------------------
 if [ -d /etc/wpa_supplicant ]; then
     $SUDO bash -c "cat > /etc/wpa_supplicant/wpa_supplicant.conf <<'EOF'
@@ -52,7 +52,7 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# 2. Системные зависимости
+# 2. System dependencies
 # -----------------------------------------------------------------------------
 $SUDO apt-get update -y
 $SUDO apt-get install -y --no-install-recommends \
@@ -64,7 +64,7 @@ fi
 log "node $(node --version) installed at $(command -v node)"
 
 # -----------------------------------------------------------------------------
-# 3. Права доступа к /dev/snd (группа audio)
+# 3. Access rights for /dev/snd (group audio)
 # -----------------------------------------------------------------------------
 for grp in audio plugdev; do
     id -nG "$USER_NAME" | grep -qw "$grp" || $SUDO usermod -aG "$grp" "$USER_NAME"
@@ -72,8 +72,8 @@ done
 log "User '$USER_NAME' added to groups: audio, plugdev"
 
 # -----------------------------------------------------------------------------
-# 4. Фикс ALSA UMP-режима (нужна перезагрузка для применения)
-#    enable_ump=1 скрывает legacy-порты от aconnect — убираем его навсегда.
+# 4. ALSA UMP mode fix (a reboot is needed to apply it)
+#    enable_ump=1 hides the legacy ports from aconnect — remove it permanently.
 # -----------------------------------------------------------------------------
 if [ -r /sys/module/snd_seq/parameters/enable_ump ]; then
     CUR=$(cat /sys/module/snd_seq/parameters/enable_ump 2>/dev/null || echo "1")
@@ -86,7 +86,7 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# 5. Репозиторий + зависимости проекта
+# 5. Repository + project dependencies
 # -----------------------------------------------------------------------------
 if [ ! -d "$REPO_DIR" ]; then
     mkdir -p "$(dirname "$REPO_DIR")"
@@ -97,7 +97,7 @@ cd "$REPO_DIR" || { err "cannot cd to $REPO_DIR"; exit 1; }
 $SUDO -u "$USER_NAME" npm install --omit=dev
 
 # -----------------------------------------------------------------------------
-# 6. Автозапуск через systemd (сервер стартует при включении Pi)
+# 6. Autostart via systemd (the server starts when the Pi boots)
 # -----------------------------------------------------------------------------
 $SUDO cp "${REPO_DIR}/midirouter.service" /etc/systemd/system/midirouter.service
 # The router worker owns the audio metronome process. Retire the old standalone
@@ -113,7 +113,7 @@ $SUDO systemctl enable --now midirouter.service
 log "midirouter.service enabled and started"
 
 # -----------------------------------------------------------------------------
-# 7. Проверка и перезагрузка (чтобы применился фикс UMP)
+# 7. Check and reboot (so that the UMP fix takes effect)
 # -----------------------------------------------------------------------------
 sleep 2
 if $SUDO systemctl is-active --quiet midirouter; then

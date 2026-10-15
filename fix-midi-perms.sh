@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# fix-midi-perms.sh — починить доступ к ALSA (/dev/snd) для midirouter.service
+# fix-midi-perms.sh — fix ALSA access (/dev/snd) for midirouter.service
 # -----------------------------------------------------------------------------
-# Проблема: worker падает с "open /dev/snd/seq failed: Operation not permitted",
-# из-за чего HTTP/WS-сервер не стартует. Скрипт применяет юнит и автоматически
-# подбирает рабочий режим: сначала non-root с CAP_SYS_RAWIO, а если всё ещё
-# EPERM — переключается на запуск от root (надёжно для выделенного устройства).
+# Problem: the worker crashes with "open /dev/snd/seq failed: Operation not permitted",
+# so the HTTP/WS server does not start. The script applies the unit and automatically
+# picks a working mode: first non-root with CAP_SYS_RAWIO, and if still
+# EPERM — it switches to running as root (reliable for a dedicated device).
 #
 #     sudo bash fix-midi-perms.sh
-# Скрипт ипотентен, можно гонять повторно.
+# The script is idempotent, it can be re-run safely.
 # =============================================================================
 
 set -uo pipefail
@@ -24,13 +24,13 @@ warn() { echo -e "${YEL}[warning]${NC} $*"; }
 err()  { echo -e "${RED}[error]${NC} $*"; }
 
 if [ "$(id -u)" -ne 0 ]; then
-    err "Нужен sudo:  sudo bash fix-midi-perms.sh"
+    err "Requires sudo:  sudo bash fix-midi-perms.sh"
     exit 1
 fi
 SUDO=""
 
 write_unit() {
-    # $1 = User= значение ("" -> юзер ${USER_NAME}, "root" -> root)
+    # $1 = User= value ("" -> user ${USER_NAME}, "root" -> root)
     local user_arg="$1"
     local cap_line=""
     [ "$user_arg" = "${USER_NAME}" ] && cap_line="AmbientCapabilities=CAP_SYS_RAWIO"
@@ -62,29 +62,29 @@ EOF
     $SUDO systemctl restart midirouter.service
 }
 
-log "Применяю юнит для юзера '${USER_NAME}', репо: ${REPO_DIR}"
+log "Applying the unit for user '${USER_NAME}', repo: ${REPO_DIR}"
 
-# 1) Попытка non-root с CAP_SYS_RAWIO
+# 1) Try non-root with CAP_SYS_RAWIO
 write_unit "${USER_NAME}"
 sleep 6
 if $SUDO systemctl is-active --quiet midirouter && grep -q "Worker is ready" <($SUDO journalctl -u midirouter.service --since "+7s ago" --no-pager 2>/dev/null); then
-    log "non-root с CAP_SYS_RAWIO работает"
+    log "non-root with CAP_SYS_RAWIO works"
 else
-    warn "non-root не запустился — переключаюсь на запуск от root (надёжно для /dev/snd)"
+    warn "non-root did not start — switching to running as root (reliable for /dev/snd)"
     write_unit "root"
 fi
 
-# 2) Проверка результата
+# 2) Check the result
 if grep -q "Worker is ready" <($SUDO journalctl -u midirouter.service --since "+8s ago" --no-pager 2>/dev/null); then
-    log "✅ Worker дошёл до 'Worker is ready'"
+    log "✅ Worker reached 'Worker is ready'"
 else
-    warn "worker не дошёл до готовности — смотри логи:"
+    warn "worker did not reach readiness — see the logs:"
 fi
 
 echo
 if $SUDO systemctl is-active --quiet midirouter && curl -fsS http://localhost:3000 >/dev/null 2>&1; then
-    log "✅ OK — веб-сервер отвечает на http://localhost:3000"
+    log "✅ OK — the web server responds at http://localhost:3000"
 else
-    warn "curl не ответил. Последние 40 строк логов:"
+    warn "curl got no response. Last 40 lines of the logs:"
     $SUDO journalctl -u midirouter.service -n 40 --no-pager
 fi
