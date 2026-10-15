@@ -102,8 +102,8 @@ export class MetronomeController {
 
             this._pid = this._process.pid;
             console.log(`[METRONOME] Started Python metronome (PID: ${this._pid})`);
-            if (this._clickLatencyMs != null) {
-                this._process.stdin.write(`latency ${this._clickLatencyMs}\n`);
+            if (this._clickOffsetMs != null) {
+                this._process.stdin.write(`offset ${this._clickOffsetMs}\n`);
             }
 
             let stdoutReady = false;
@@ -254,13 +254,13 @@ export class MetronomeController {
      * Set the click latency compensation (ms). Applied immediately and on every start.
      * @param {number} ms
      */
-    setClickLatency(ms) {
-        this._clickLatencyMs = Math.max(0, Math.min(400, Math.round(ms)));
+    setClickOffset(ms) {
+        this._clickOffsetMs = Math.max(-200, Math.min(200, Math.round(ms)));
         if (this._process && this._pid && this._running) {
             try {
-                this._process.stdin.write(`latency ${this._clickLatencyMs}\n`);
+                this._process.stdin.write(`offset ${this._clickOffsetMs}\n`);
             } catch (e) {
-                console.warn(`[METRONOME] Failed to set click latency: ${e.message}`);
+                console.warn(`[METRONOME] Failed to set click offset: ${e.message}`);
             }
         }
     }

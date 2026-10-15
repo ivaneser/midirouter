@@ -418,13 +418,13 @@ function startServer() {
                         break;
 
                     // Audio latency offset (ms) for clip playback.
-                    case 'daw-audio-latency':
-                        router.worker.postMessage({ type: 'daw_audio_latency', ms: message.ms });
+                    case 'daw-audio-offset':
+                        router.worker.postMessage({ type: 'daw_audio_offset', ms: message.ms });
                         break;
 
                     // Click latency compensation (ms) for the audio metronome.
-                    case 'daw-click-latency':
-                        router.worker.postMessage({ type: 'daw_click_latency', ms: message.ms });
+                    case 'daw-click-offset':
+                        router.worker.postMessage({ type: 'daw_click_offset', ms: message.ms });
                         break;
 
                     // Quantization grid (beats) for recorded notes.

@@ -166,9 +166,10 @@ class MIDIRouterWorker {
         // Audio latency offset (ms) applied to clip note-on scheduling in the
         // non-external-clock path so notes fire earlier, compensating for audio
         // output latency. Clamped to 0..300 on set.
-        this.audioLatencyMs = 30;
+        // Calibration offsets (ms), tuned by ear: negative = earlier, positive = later.
+        this.audioOffsetMs = -30;  // clip notes
         // Click latency compensation (ms) for the audio metronome, tuned by ear.
-        this.clickLatencyMs = 139;
+        this.clickOffsetMs = 0;    // metronome clicks
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
         // one of the five allowed values, default 0.125 (1/32 note).
@@ -210,10 +211,10 @@ class MIDIRouterWorker {
         try {
             if (!fs.existsSync(this._settingsPath())) return;
             const s = JSON.parse(fs.readFileSync(this._settingsPath(), 'utf8'));
-            const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(300, Math.round(+v))) : d);
-            this.audioLatencyMs = clamp(s.audioLatencyMs, this.audioLatencyMs);
-            this.clickLatencyMs = clamp(s.clickLatencyMs, this.clickLatencyMs);
-            console.log(`[WORKER] Calibration loaded: audio ${this.audioLatencyMs} ms, click ${this.clickLatencyMs} ms`);
+            const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(-200, Math.min(200, Math.round(+v))) : d);
+            this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
+            this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
+            console.log(`[WORKER] Calibration loaded: audio ${this.audioOffsetMs} ms, click ${this.clickOffsetMs} ms`);
         } catch (e) {
             console.error('[WORKER] Settings load failed:', e.message);
         }
@@ -222,8 +223,8 @@ class MIDIRouterWorker {
     _saveSettings() {
         try {
             fs.writeFileSync(this._settingsPath(), JSON.stringify({
-                audioLatencyMs: this.audioLatencyMs,
-                clickLatencyMs: this.clickLatencyMs,
+                audioOffsetMs: this.audioOffsetMs,
+                clickOffsetMs: this.clickOffsetMs,
             }, null, 2) + '\n');
         } catch (e) {
             console.error('[WORKER] Settings save failed:', e.message);
@@ -235,7 +236,7 @@ class MIDIRouterWorker {
             console.log('[WORKER] MIDI initializing...');
             this._loadConfig();
             this._loadSettings();
-            this.metronomeCtrl.setClickLatency(this.clickLatencyMs);
+            this.metronomeCtrl.setClickOffset(this.clickOffsetMs);
             if (NO_HARDWARE) {
                 console.log('[WORKER] MIDIR_NO_HARDWARE=1: skipping port enumeration and hot-plug');
             } else {
@@ -628,7 +629,7 @@ class MIDIRouterWorker {
             const eventOffset = ((note.start % loopBeats) + loopBeats) % loopBeats;
             // Fire note-ons earlier by the audio latency offset (non-external path).
             // Note-off stays relative to its note-on, so duration is unchanged.
-            let nextAt = now + barDelay + eventOffset * msPerBeat - this.audioLatencyMs;
+            let nextAt = now + barDelay + eventOffset * msPerBeat + (this.audioOffsetMs || 0);
             const channel = Math.max(1, note.channel || 1);
             const key = `${channel}:${note.note}`;
             const fire = () => {
@@ -742,9 +743,9 @@ class MIDIRouterWorker {
             // (24 PPQN: 1 beat = 24 ticks). Note-offs are scheduled relative to
             // when their note-on fired, so duration is unchanged.
             const msPerBeat = this.daw._secondsPerBeat() * 1000;
-            const latencyTicks = Math.round((this.audioLatencyMs || 0) / msPerBeat * 24);
+            const offsetTicks = Math.round((this.audioOffsetMs || 0) / msPerBeat * 24);
             for (const event of playback.noteEvents) {
-                const onTick = (event.startTick - latencyTicks + playback.loopTicks) % playback.loopTicks;
+                const onTick = ((event.startTick + offsetTicks) % playback.loopTicks + playback.loopTicks) % playback.loopTicks;
                 if (onTick !== localTick) continue;
                 const channel = Math.max(1, event.channel || 1);
                 const key = `${channel}:${event.note}`;
@@ -1810,19 +1811,19 @@ class MIDIRouterWorker {
                 if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
                 this._broadcastState();
                 break;
-            // Audio latency offset: clamp to 0..300 and store.
-            case 'daw_audio_latency': {
+            // Audio offset (ms): negative = clip notes earlier, positive = later.
+            case 'daw_audio_offset': {
                 const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
-                this.audioLatencyMs = Math.max(0, Math.min(300, ms));
+                this.audioOffsetMs = Math.max(-200, Math.min(200, ms));
                 this._saveSettings();
                 this._broadcastState();
                 break;
             }
-            // Click latency compensation (ms): tuned by ear against the synth.
-            case 'daw_click_latency': {
+            // Click offset (ms): negative = clicks earlier, positive = later.
+            case 'daw_click_offset': {
                 const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
-                this.clickLatencyMs = Math.max(0, Math.min(400, ms));
-                this.metronomeCtrl?.setClickLatency(this.clickLatencyMs);
+                this.clickOffsetMs = Math.max(-200, Math.min(200, ms));
+                this.metronomeCtrl?.setClickOffset(this.clickOffsetMs);
                 this._saveSettings();
                 this._broadcastState();
                 break;
@@ -1953,8 +1954,8 @@ class MIDIRouterWorker {
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
-        state.audioLatencyMs = this.audioLatencyMs;
-        state.clickLatencyMs = this.clickLatencyMs;
+        state.audioOffsetMs = this.audioOffsetMs;
+        state.clickOffsetMs = this.clickOffsetMs;
         state.quantizeGrid = this.quantizeGrid;
         parentPort?.postMessage({ type: 'daw_state', state });
     }

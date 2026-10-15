@@ -123,15 +123,15 @@
                             <option value="internal">Internal DAW Clock</option>
                         </select>
                     </label>
-                    <label class="transport-label" title="Clip note timing: notes fire this much earlier, to match what you hear">
-                        Audio latency:
-                        <input type="range" id="audio-latency" min="0" max="300" step="1" value="30">
-                        <span id="audio-latency-label">30 ms</span>
+                    <label class="transport-label" title="Clip note timing. Negative = notes earlier, positive = later. Tune to match what you hear.">
+                        Audio offset:
+                        <input type="range" id="audio-latency" min="-200" max="200" step="1" value="-30">
+                        <span id="audio-latency-label">-30 ms</span>
                     </label>
-                    <label class="transport-label" title="Metronome click timing: clicks are sent this much earlier, to land on the beat">
-                        Click latency:
-                        <input type="range" id="click-latency" min="0" max="300" step="1" value="139">
-                        <span id="click-latency-label">139 ms</span>
+                    <label class="transport-label" title="Metronome click timing. Negative = clicks earlier, positive = later. Tune to land on the beat.">
+                        Click offset:
+                        <input type="range" id="click-latency" min="-200" max="200" step="1" value="0">
+                        <span id="click-latency-label">0 ms</span>
                     </label>
                 </div>
 

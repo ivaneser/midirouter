@@ -28,7 +28,7 @@ test('internal-clock pad launch waits for the next bar boundary and starts at be
     worker._ledGlow = new Map();
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
-    worker.audioLatencyMs = 0;
+    worker.audioOffsetMs = 0;
     t.after(() => {
         worker._stopTrackPlayback(0);
         worker.daw.stopTransport();
@@ -85,7 +85,7 @@ test('pad launch at exact downbeat fires beat-0 Note On immediately', async (t) 
     worker._ledGlow = new Map();
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
-    worker.audioLatencyMs = 0;
+    worker.audioOffsetMs = 0;
     t.after(() => {
         worker._stopTrackPlayback(0);
         worker.daw.stopTransport();
@@ -121,7 +121,7 @@ test('Launchkey Play toggles: stops running playback, starts when stopped', () =
     worker._ledGlow = new Map();
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
-    worker.audioLatencyMs = 0;
+    worker.audioOffsetMs = 0;
     worker._transportPlaying = false;
 
     // Phase 1: transport stopped -> Play press starts it.
@@ -145,7 +145,7 @@ test('Launchkey Play toggles: stops running playback, starts when stopped', () =
     worker.daw.stopTransport();
 });
 
-// Audio latency offset: with audioLatencyMs set to 50, the beat-0 Note On
+// Audio latency offset: with audioOffsetMs set to -50 (earlier), the beat-0 Note On
 // is scheduled ~50 ms earlier than the nominal downbeat.
 test('audio latency offset shifts note-on scheduling earlier', async (t) => {
     const sent = [];
@@ -168,7 +168,7 @@ test('audio latency offset shifts note-on scheduling earlier', async (t) => {
     worker._sendFeedback = () => {};
     worker._broadcastState = () => {};
     // Set the audio latency offset to 50 ms.
-    worker.audioLatencyMs = 50;
+    worker.audioOffsetMs = -50;
     t.after(() => {
         worker._stopTrackPlayback(0);
         worker.daw.stopTransport();

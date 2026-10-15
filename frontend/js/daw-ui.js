@@ -155,7 +155,7 @@ export class DAWUI {
             updateLabel();
             audioLatencyInput.addEventListener('input', () => {
                 const ms = parseInt(audioLatencyInput.value, 10);
-                if (!Number.isNaN(ms)) this._send({ type: 'daw-audio-latency', ms });
+                if (!Number.isNaN(ms)) this._send({ type: 'daw-audio-offset', ms });
                 updateLabel();
             });
         }
@@ -170,7 +170,7 @@ export class DAWUI {
             updateLabel();
             clickLatencyInput.addEventListener('input', () => {
                 const ms = parseInt(clickLatencyInput.value, 10);
-                if (!Number.isNaN(ms)) this._send({ type: 'daw-click-latency', ms });
+                if (!Number.isNaN(ms)) this._send({ type: 'daw-click-offset', ms });
                 updateLabel();
             });
         }
@@ -299,18 +299,18 @@ export class DAWUI {
 
         // Click latency slider: sync from state.
         const clickLatencyInput = document.getElementById('click-latency');
-        if (clickLatencyInput && this.dawState?.clickLatencyMs != null) {
-            clickLatencyInput.value = String(this.dawState.clickLatencyMs);
+        if (clickLatencyInput && this.dawState?.clickOffsetMs != null) {
+            clickLatencyInput.value = String(this.dawState.clickOffsetMs);
             const label = document.getElementById('click-latency-label');
-            if (label) label.textContent = `${this.dawState.clickLatencyMs} ms`;
+            if (label) label.textContent = `${this.dawState.clickOffsetMs} ms`;
         }
 
         // Audio latency offset slider: sync from state.
         const audioLatencyInput = document.getElementById('audio-latency');
-        if (audioLatencyInput && this.dawState?.audioLatencyMs != null) {
-            audioLatencyInput.value = String(this.dawState.audioLatencyMs);
+        if (audioLatencyInput && this.dawState?.audioOffsetMs != null) {
+            audioLatencyInput.value = String(this.dawState.audioOffsetMs);
             const label = document.getElementById('audio-latency-label');
-            if (label) label.textContent = `${this.dawState.audioLatencyMs} ms`;
+            if (label) label.textContent = `${this.dawState.audioOffsetMs} ms`;
         }
 
         // Quantization grid selector: sync from state.

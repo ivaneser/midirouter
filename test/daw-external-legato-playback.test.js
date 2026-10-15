@@ -28,7 +28,7 @@ test('external-clock pad launch waits for the clip start phase and loops on the 
     worker._broadcastState = () => {};
     worker._clearStaleRecordingFeedback = () => {};
     worker._externalClockActive = true;
-    worker.audioLatencyMs = 0; // exact-tick timing; latency has its own test
+    worker.audioOffsetMs = 0; // exact-tick timing; latency has its own test
     worker._externalMidiClock = { tickCount: 36 };
     const ons = () => sent.filter((bytes) => (bytes[0] & 0xf0) === 0x90).map((bytes) => bytes[1]);
 
@@ -70,7 +70,7 @@ test('skipped F8 ticks must not leave pending note-offs hanging forever', () => 
     worker._broadcastState = () => {};
     worker._clearStaleRecordingFeedback = () => {};
     worker._externalClockActive = true;
-    worker.audioLatencyMs = 0; // exact-tick timing; latency has its own test
+    worker.audioOffsetMs = 0; // exact-tick timing; latency has its own test
     worker._externalMidiClock = { tickCount: 0 };
 
     // Start playback at tick 0 so the clip is anchored to the shared cycle.
@@ -132,7 +132,7 @@ test('audio latency offset shifts external-clock note-ons earlier by the same am
     worker._broadcastState = () => {};
     worker._clearStaleRecordingFeedback = () => {};
     worker._externalClockActive = true;
-    worker.audioLatencyMs = 60; // 60 ms = 2.88 ticks -> 3 ticks earlier
+    worker.audioOffsetMs = -60; // 60 ms = 2.88 ticks -> 3 ticks earlier
     worker._externalMidiClock = { tickCount: 0 };
 
     worker._startTrackPlayback(0, 0, performance.now());

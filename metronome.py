@@ -56,6 +56,8 @@ MAX_ACTIVE_CLICKS = 8
 CLICK_LATENCY_MS = float(os.environ.get(
     "MIDIR_CLICK_LATENCY_MS",
     (BUFFER_FRAMES + PIPE_BYTES // 2) * 1000.0 / SAMPLE_RATE))
+# Tuned by ear from the UI: negative = click earlier, positive = later.
+CLICK_OFFSET_MS = 0.0
 
 
 def _default_alsa_device():
@@ -224,7 +226,7 @@ class Metronome:
         The router predicts the next beat from the external MIDI clock and asks for
         the click ahead of time; the latency here makes it sound on that beat.
         """
-        lead_s = (delay_ms - CLICK_LATENCY_MS) / 1000.0
+        lead_s = (delay_ms - CLICK_LATENCY_MS - CLICK_OFFSET_MS) / 1000.0
         if lead_s <= 0.0:
             self._emit_click(is_accent)
             return
@@ -337,11 +339,11 @@ def read_commands(metronome: Metronome):
                 metronome.start()
             elif cmd == "stop":
                 metronome.stop()
-            elif cmd == "latency" and len(parts) >= 2:
+            elif cmd == "offset" and len(parts) >= 2:
                 try:
-                    set_click_latency(float(parts[1]))
+                    set_click_offset(float(parts[1]))
                 except ValueError:
-                    print(f"[metronome] Invalid latency: {parts}", flush=True)
+                    print(f"[metronome] Invalid offset: {parts}", flush=True)
             elif cmd == "clickin" and len(parts) >= 3:
                 # clickin <delay_ms> <accent 0|1>: a click due delay_ms from now.
                 try:
@@ -374,11 +376,11 @@ def read_commands(metronome: Metronome):
         pass
 
 
-def set_click_latency(ms: float):
-    """Set how far ahead of the beat the click is written (audio output latency)."""
-    global CLICK_LATENCY_MS
-    CLICK_LATENCY_MS = max(0.0, min(400.0, float(ms)))
-    print(f"[metronome] Click latency -> {CLICK_LATENCY_MS:.0f} ms", flush=True)
+def set_click_offset(ms: float):
+    """Shift every click: negative = earlier, positive = later (tuned by ear)."""
+    global CLICK_OFFSET_MS
+    CLICK_OFFSET_MS = max(-200.0, min(200.0, float(ms)))
+    print(f"[metronome] Click offset -> {CLICK_OFFSET_MS:.0f} ms", flush=True)
 
 
 def _handle_sigusr1(signum, frame):
