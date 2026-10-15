@@ -26,6 +26,16 @@
 const INTERNAL_SOURCE = { kind: 'internal', masterPortName: null };
 
 /**
+ * Port name without its ALSA address. "NTS-1 digital kit:NTS-1 digital kit _ SOUND 20:0"
+ * becomes "NTS-1 digital kit:NTS-1 digital kit _ SOUND". The client number changes
+ * when a device is re-plugged, so the stable part is what identifies the device.
+ * @param {string|null|undefined} name
+ */
+export function stablePortKey(name) {
+    return String(name ?? '').replace(/\s+\d+:\d+$/, '').trim();
+}
+
+/**
  * @param {{ outputs?: Array<{name:string, send?: (bytes:number[])=>void}>, explicitExclusions?: string[] }} [opts]
  */
 export class ClockMaster {

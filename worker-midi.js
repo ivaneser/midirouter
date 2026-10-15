@@ -8,7 +8,7 @@ import { CCMapper } from './cc-mapper.js';
 import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine, matches } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
-import { ClockMaster, clockOutputsFor } from './clock-master.js';
+import { ClockMaster, clockOutputsFor, stablePortKey } from './clock-master.js';
 import { MetronomeController } from './metronome-controller.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -267,6 +267,25 @@ class MIDIRouterWorker {
         this._clockMaster.selectExternal(portName);
         this.daw.setMidiClock(false); // the external master does not tick by itself
         console.log(`[WORKER] Default clock source: external (${portName})`);
+    }
+
+    /**
+     * Keep the external clock master bound to its device across re-plugs.
+     * The master is matched by stable name (no ALSA address).
+     */
+    _rebindClockMaster() {
+        const source = this._clockMaster.source;
+        if (source.kind !== 'external' || !source.masterPortName) return;
+        if (this.inputs.has(source.masterPortName)) return;
+        const key = stablePortKey(source.masterPortName);
+        const match = [...this.inputs.keys()].find((name) => stablePortKey(name) === key);
+        if (!match) {
+            console.log(`[WORKER] Clock master ${source.masterPortName} not connected; waiting for it`);
+            return;
+        }
+        this._clockMaster.selectExternal(match);
+        console.log(`[WORKER] Clock master re-bound: ${match}`);
+        this._broadcastState();
     }
 
     _startHotplugDetection() {
@@ -1427,6 +1446,9 @@ class MIDIRouterWorker {
             for (const [name, input] of openedInputs) {
                 this.inputs.set(name, input);
             }
+            // A re-plugged device gets a new ALSA address, so its full name changes.
+            // Re-bind the clock master to the device's new name instead of losing it.
+            this._rebindClockMaster();
             for (const [name, output] of openedOutputs) {
                 this.outputs.set(name, output);
                 this._initializeControllerOutput(name, output);
