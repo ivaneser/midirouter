@@ -201,10 +201,41 @@ class MIDIRouterWorker {
         this._autoRouteOnHotplug = true;
     }
 
+    // ---- Calibration settings (saved between sessions; settings.json) ----
+    _settingsPath() {
+        return path.join(__dirname, 'settings.json');
+    }
+
+    _loadSettings() {
+        try {
+            if (!fs.existsSync(this._settingsPath())) return;
+            const s = JSON.parse(fs.readFileSync(this._settingsPath(), 'utf8'));
+            const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(0, Math.min(300, Math.round(+v))) : d);
+            this.audioLatencyMs = clamp(s.audioLatencyMs, this.audioLatencyMs);
+            this.clickLatencyMs = clamp(s.clickLatencyMs, this.clickLatencyMs);
+            console.log(`[WORKER] Calibration loaded: audio ${this.audioLatencyMs} ms, click ${this.clickLatencyMs} ms`);
+        } catch (e) {
+            console.error('[WORKER] Settings load failed:', e.message);
+        }
+    }
+
+    _saveSettings() {
+        try {
+            fs.writeFileSync(this._settingsPath(), JSON.stringify({
+                audioLatencyMs: this.audioLatencyMs,
+                clickLatencyMs: this.clickLatencyMs,
+            }, null, 2) + '\n');
+        } catch (e) {
+            console.error('[WORKER] Settings save failed:', e.message);
+        }
+    }
+
     init() {
         try {
             console.log('[WORKER] MIDI initializing...');
             this._loadConfig();
+            this._loadSettings();
+            this.metronomeCtrl.setClickLatency(this.clickLatencyMs);
             if (NO_HARDWARE) {
                 console.log('[WORKER] MIDIR_NO_HARDWARE=1: skipping port enumeration and hot-plug');
             } else {
@@ -1783,6 +1814,7 @@ class MIDIRouterWorker {
             case 'daw_audio_latency': {
                 const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
                 this.audioLatencyMs = Math.max(0, Math.min(300, ms));
+                this._saveSettings();
                 this._broadcastState();
                 break;
             }
@@ -1791,6 +1823,7 @@ class MIDIRouterWorker {
                 const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
                 this.clickLatencyMs = Math.max(0, Math.min(400, ms));
                 this.metronomeCtrl?.setClickLatency(this.clickLatencyMs);
+                this._saveSettings();
                 this._broadcastState();
                 break;
             }

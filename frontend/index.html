@@ -61,18 +61,6 @@
                     </label>
 
                     <label class="transport-label">
-                        Latency:
-                        <input type="range" id="audio-latency" min="0" max="300" step="1" value="30">
-                        <span id="audio-latency-label">30 ms</span>
-                    </label>
-
-                    <label class="transport-label">
-                        Click:
-                        <input type="range" id="click-latency" min="0" max="300" step="1" value="139">
-                        <span id="click-latency-label">139 ms</span>
-                    </label>
-
-                    <label class="transport-label">
                         Quantize:
                         <select id="quantize-grid">
                             <option value="0.125" selected>1/32</option>
@@ -134,6 +122,16 @@
                         <select id="clock-source-select">
                             <option value="internal">Internal DAW Clock</option>
                         </select>
+                    </label>
+                    <label class="transport-label" title="Clip note timing: notes fire this much earlier, to match what you hear">
+                        Audio latency:
+                        <input type="range" id="audio-latency" min="0" max="300" step="1" value="30">
+                        <span id="audio-latency-label">30 ms</span>
+                    </label>
+                    <label class="transport-label" title="Metronome click timing: clicks are sent this much earlier, to land on the beat">
+                        Click latency:
+                        <input type="range" id="click-latency" min="0" max="300" step="1" value="139">
+                        <span id="click-latency-label">139 ms</span>
                     </label>
                 </div>
 
