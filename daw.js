@@ -114,6 +114,10 @@ class DAWEngine {
         this._countInTimer = null;          // pending setTimeout — canceled on stop
         this._countInGeneration = 0;
         this._onCountInComplete = () => {};
+        // True when the transport was started by a Record button (Launchkey Record
+        // or web Rec). The first empty-clip take then starts at the next bar line
+        // instead of after a two-bar count-in.
+        this._recStartedTransport = false;
     }
 
     _makeClips() {
@@ -603,9 +607,12 @@ class DAWEngine {
             if (options.countIn) {
                 this._countInRunning = true;
                 this._countInGeneration++;
-                // First pad on empty project → two full bars of count-in.
+                // First pad on empty project → two full bars of count-in, unless the
+                // transport was just started by a Record button → next bar boundary.
                 // Subsequent pad on non-empty project → snap to next bar boundary.
-                if (!projectWasEmptyBeforeArm) {
+                const recStarted = this._recStartedTransport;
+                this._recStartedTransport = false;
+                if (!projectWasEmptyBeforeArm || recStarted) {
                     const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
                     const nextBar = Math.ceil(curBeat / bar) * bar;
                     let delayMs = (nextBar - curBeat) * spb * 1000;
@@ -1033,6 +1040,7 @@ class DAWEngine {
         // separately via triggerPad or _stopRecording.
 
         this._countInRunning = false;
+        this._recStartedTransport = false;
         this._onProgress(0, 0, {
             playing: false,
             barStart: false,

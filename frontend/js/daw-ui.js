@@ -83,8 +83,8 @@ export class DAWUI {
             updateText();
             stopBtn.addEventListener('click', () => {
                 // Toggle based on button text: if it says 'Stop', stop the
-                // active master loop (play + record); otherwise start a
-                // two-bar count-in, after which the master loop runs.
+                // active master loop (play + record); otherwise start
+                // the transport (no count-in); the master loop runs from there.
                 if (stopBtn.textContent === 'Stop') {
                     this._send({ type: 'daw-stop' });
                 } else {

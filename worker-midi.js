@@ -1904,6 +1904,7 @@ class MIDIRouterWorker {
                     daw.sessionRecording = true;
                     daw.setMetronome(true);
                     if (!daw.playing) {
+                        daw._recStartedTransport = true;
                         daw.startTransport();
                         this._transportPlaying = true;
                     }
@@ -2015,13 +2016,10 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             case 'daw_start_with_countin':
-                // "Rec" from stopped state: flag a two-bar count-in BEFORE
-                // starting transport so the metronome counts in and the
-                // master loop runs after it. With no active recording the
-                // count-in completion is a no-op; pressing a pad during the
-                // loop starts actual recording.
+                // "Rec" from stopped state: start transport immediately (no
+                // count-in). Pressing a pad then starts the take at the next bar.
                 if (!this._transportPlaying) {
-                    daw._countInRunning = true;
+                    daw._recStartedTransport = true;
                     daw.startTransport();
                     this._transportPlaying = true;
                 }
