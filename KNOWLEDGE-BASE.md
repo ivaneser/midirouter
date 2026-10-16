@@ -429,6 +429,27 @@ Clock master set to the NTS-1 in the UI; the device sent clock (~100 BPM) but th
 
 ---
 
+## 🔁 Overdub Keeps the Loop Playing
+
+### Behavior
+- Overdub on a playing clip: the existing layers keep looping; each finished note is added to the live loop and sounds from the next pass onward.
+- Overdub on a stopped non-empty clip: the clip starts looping from the next cycle start while the new take records.
+- Ending the overdub (pressing the recording pad again) still stops the clip (`record-stop-stopped`, asserted in `test/mode-clip-lifecycle.test.js`).
+
+### Implementation
+- `daw.js` `recordEvent()`: after a note is finalized in overdub mode, calls `_onNoteRecorded(track, slot, note)`.
+- `worker-midi.js`:
+  - `_triggerPad` record/overdub branch: keeps playback for `overdub` when the clip is already playing; `record` still clears it.
+  - `_startOverdubPlayback()`: starts a stopped clip from the next cycle start.
+  - `_scheduleOverdubNote()`: adds the note to the live playback. Non-external path schedules a repeating note-on/off from the next occurrence after now; external-clock path pushes into `noteEvents`.
+  - `_startTrackPlayback()`: stores `originMs`, `loopBeats`, `msPerBeat` on the playback so new notes align to the loop grid.
+
+### Open
+- Not verified on hardware; no unit test covers the live-add path yet.
+- Decide whether ending an overdub should keep the clip looping (would change the tested stop behavior).
+
+---
+
 ## 📊 MIDI Port Statistics (Last 10 min, 2025-09-23)
 
 | Metric | Count |

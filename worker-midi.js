@@ -116,6 +116,8 @@ class MIDIRouterWorker {
         // Keep the click audible through the full two-bar count-in. Individual
         // click note-offs are managed by DAWEngine.
         this.daw._onRecordingStarted = () => {};
+        // Overdub: each finished note is added to the clip's live loop (see _scheduleOverdubNote).
+        this.daw._onNoteRecorded = (trackIdx, slot, note) => this._scheduleOverdubNote(trackIdx, slot, note);
 
         // Two-bar count-in: after transport starts on first empty-clip trigger,
         // start actual recording once the count-in completes. The recording state
@@ -695,6 +697,9 @@ class MIDIRouterWorker {
         // upcoming transport cycle start, then plays every event from its own beat 0.
         // Immediate start (take just recorded) or next cycle start (manual launch).
         const barDelay = immediate ? 0 : this.daw.msUntilPhase(0, now);
+        playback.originMs = now + barDelay;   // time of beat 0 of this loop
+        playback.loopBeats = loopBeats;
+        playback.msPerBeat = msPerBeat;
 
         for (const note of clip.notes) {
             // Each event is stored relative to the clip's own beat 0, repeats every clip.length.
@@ -723,6 +728,59 @@ class MIDIRouterWorker {
         }
 
         this._trackPlayTimers.set(trackIdx, playback);
+    }
+
+    // Overdub: the existing layers keep looping while the new take is recorded.
+    // Starts the clip (from the next cycle start) when it was not already playing.
+    _startOverdubPlayback(trackIdx, slot, now) {
+        const clip = this.daw.tracks[trackIdx]?.clips[slot];
+        if (!clip || clip.notes.length === 0) return;
+        this.daw.clipState[trackIdx] = slot;
+        const delayMs = this.daw.playing ? this.daw.msUntilPhase(0, now) : 0;
+        if (delayMs > 5) this._schedulePendingStart(trackIdx, slot, now + delayMs, delayMs);
+        else this._startTrackPlayback(trackIdx, slot, now, { immediate: true });
+    }
+
+    // Overdub: a note finished while the clip is looping. Add it to the live playback
+    // so it sounds from the next loop pass onward; the other layers keep playing.
+    _scheduleOverdubNote(trackIdx, slot, note) {
+        const playback = this._trackPlayTimers.get(trackIdx);
+        if (!playback || this.daw.clipState[trackIdx] !== slot) return;
+        if (playback.externalClock) {
+            const loopTicks = playback.loopTicks;
+            playback.noteEvents.push({
+                ...note,
+                startTick: ((Math.round(note.start * 24) % loopTicks) + loopTicks) % loopTicks,
+                durationTicks: Math.max(1, Math.round((note.dur || 0.25) * 24)),
+            });
+            return;
+        }
+        if (playback.originMs == null) return;
+        const { originMs, loopBeats, msPerBeat } = playback;
+        const offset = ((note.start % loopBeats) + loopBeats) % loopBeats;
+        const elapsedBeats = (performance.now() - originMs) / msPerBeat;
+        // First occurrence strictly after now; the pass that just happened is skipped.
+        const k = Math.max(0, Math.floor((elapsedBeats - offset) / loopBeats) + 1);
+        const channel = Math.max(1, note.channel || 1);
+        const key = `${channel}:${note.note}`;
+        let nextAt = originMs + (offset + k * loopBeats) * msPerBeat + (this.audioOffsetMs || 0);
+        const schedule = (fn, delay) => {
+            const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, Math.max(0, delay));
+            playback.timeouts.add(timer);
+        };
+        const fire = () => {
+            this._sendToSynthOutputs(noteOn(channel - 1, note.note, note.velocity > 0 ? note.velocity : 80));
+            playback.active.set(key, (playback.active.get(key) || 0) + 1);
+            schedule(() => {
+                this._sendToSynthOutputs(noteOff(channel - 1, note.note));
+                const count = playback.active.get(key) || 0;
+                if (count <= 1) playback.active.delete(key);
+                else playback.active.set(key, count - 1);
+            }, (note.dur || 0.25) * msPerBeat);
+            nextAt += loopBeats * msPerBeat;
+            schedule(fire, nextAt - performance.now());
+        };
+        schedule(fire, nextAt - performance.now());
     }
 
     // A clip launched mid-bar waits for the next cycle start. The wait is kept
@@ -1213,10 +1271,12 @@ class MIDIRouterWorker {
             this._stopTrackPlayback(trackIdx);
             this.daw.clipState[trackIdx] = -1;
         } else if (result.action === 'record' || result.action === 'overdub') {
-            // Clear playback state before stopping so _stopTrackPlayback refreshes
-            // the old clip as idle (pulse), not as still playing.
-            this.daw.clipState[trackIdx] = -1;
-            this._stopTrackPlayback(trackIdx);
+            // Overdub keeps the clip looping under the new layer. A plain record clears
+            // playback first so _stopTrackPlayback refreshes the old clip as idle (pulse).
+            if (!(result.action === 'overdub' && this.daw.clipState[trackIdx] === slot)) {
+                this.daw.clipState[trackIdx] = -1;
+                this._stopTrackPlayback(trackIdx);
+            }
             // Requirement 1: the first clip in an empty project starts the global
             // cycle (transport + MIDI clock) exactly at the press —
             // the recording is already anchored to beat 0 of this cycle.
@@ -1244,6 +1304,9 @@ class MIDIRouterWorker {
             // with the transport beat grid (otherwise the stop boundary is off by that gap).
             const anchorDrift = this.daw._playAnchorTime - now;
             if (this.daw.recording && anchorDrift > 0) this.daw.recording.startTime += anchorDrift;
+            if (result.action === 'overdub' && this.daw.clipState[trackIdx] !== slot) {
+                this._startOverdubPlayback(trackIdx, slot, now);
+            }
             this._armLed(trackIdx, slot);
         } else if (result.action === 'invalid') {
             console.warn(`[DAW] Invalid pad target track ${trackIdx}, slot ${slot}`);

@@ -782,7 +782,7 @@ class DAWEngine {
             if (q && q.length > 0) {
                 const start = q.shift();
                 if (q.length === 0) this.recording.noteStarts.delete(key);
-                this.recording.notes.push({
+                const recorded = {
                     channel, note: data1, velocity: start.velocity,
                     // The minimum duration is applied BEFORE rounding:
                     // 0.125 (minimum) -> 0.13; exact time -> nearest hundredth.
@@ -790,7 +790,14 @@ class DAWEngine {
                     // playback always starts at beat 0 regardless of which beat of the
                     // global cycle the recording started on.
                     start: roundBeats(start.beat - this.recording.originBeat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
-                });
+                };
+                this.recording.notes.push(recorded);
+                // Overdub: the clip keeps looping while we layer on top. Notify so
+                // the newly completed note is scheduled into the live playback and
+                // is heard on the next loop (current notes keep playing meanwhile).
+                if (this.recording.mode === 'overdub') {
+                    this._onNoteRecorded?.(this.recording.track, this.recording.slot, recorded);
+                }
             }
             return true;
         }
