@@ -457,12 +457,11 @@ export class DAWUI {
                     cls += ' has-content';
                 }
                 // Determine additional state classes based on DAW state and record mode
-                const recordMode = this.dawState?.recordMode;
                 const isRecording = this.dawState?.recording?.track === t && this.dawState?.recording?.slot === s;
                 // Count-in pending: blink red until recording actually starts.
                 const isPending = isRecording && !!this.dawState?.countInPending;
-                // Overdub mode while actively recording -> orange.
-                const isOverdubActive = isRecording && recordMode === 'overdub';
+                // A new overdub layer being recorded -> orange (the initial take stays red).
+                const isOverdubActive = isRecording && this.dawState?.recording?.mode === 'overdub';
                 const isActive = ch.playing && s === ch.activeSlot;
                 if (isPending) {
                     cls += ' pending';

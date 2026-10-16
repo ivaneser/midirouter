@@ -657,7 +657,11 @@ class DAWEngine {
         this.recording = {
             track: trackIdx,
             slot,
-            mode: this.recordMode,
+            // What is being recorded: 'take' (initial take of an empty clip) or
+            // 'overdub' (a new layer on a clip that already has notes). The
+            // Post-record selector is not the recording status; it only decides
+            // what happens when a take stops.
+            mode: existing.notes.length > 0 && this.recordMode === 'overdub' ? 'overdub' : 'take',
             startTime,              // recording start time (aligned to a bar)
             startBeat: Math.round(startBeat * 100) / 100,
             // Phase origin of the clip: the transport cycle start that contains the
@@ -1082,7 +1086,7 @@ class DAWEngine {
             recordMode: this.recordMode,
             // Top-level transport state (per-track `playing` is clip playback).
             playing: this.playing,
-            recording: this.recording ? { track: this.recording.track, slot: this.recording.slot } : null,
+            recording: this.recording ? { track: this.recording.track, slot: this.recording.slot, mode: this.recording.mode } : null,
             // True while a pad-triggered count-in is pending (recording not
             // started yet) so the UI can blink the armed slot red.
             countInPending: !!(this._countInRunning && this.recording != null),

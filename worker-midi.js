@@ -1190,7 +1190,9 @@ class MIDIRouterWorker {
             // Overdub: the initial take ends at the bar line and the clip enters the
             // overdub status (keeps looping and records a new layer). A layer ends
             // at the bar line and the clip moves to Play.
-            const enterOverdub = !stopTransport && mode === 'overdub' && recording.clipWasEmpty && clip?.notes.length > 0;
+            // Post-record Overdub (selected at stop time): the finished take keeps
+            // looping and the next press starts a layer.
+            const enterOverdub = !stopTransport && this.daw.recordMode === 'overdub' && recording.clipWasEmpty && clip?.notes.length > 0;
             this.daw._stopRecording(endBeat, true);
             this.daw.quantizeClip(track, slot, this.quantizeGrid ?? 0.125);
 
@@ -1206,11 +1208,11 @@ class MIDIRouterWorker {
                 this._lastActivated = { trackIdx: track, slot };
                 this._startTrackPlayback(track, slot, boundaryTime, { immediate: true });
                 this.daw.beginOverdubLayer(track, slot, boundaryTime, endBeat);
-            } else if ((mode === 'none' || mode === 'overdub') && clip?.notes.length) {
+            } else if (clip?.notes.length) {
                 // Play, or the end of an overdub layer: the clip loops from its beat 0.
                 this.daw.clipState[track] = slot;
                 this._lastActivated = { trackIdx: track, slot };
-                if (!this._trackPlayTimers.has(track) || mode === 'none') {
+                if (mode !== 'overdub' || !this._trackPlayTimers.has(track)) {
                     this._startTrackPlayback(track, slot, boundaryTime, { immediate: true });
                 }
             } else {

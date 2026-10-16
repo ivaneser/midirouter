@@ -73,3 +73,11 @@ test('Overdub: take ends at bar line -> overdub status (recording layer, clip lo
         assert.ok(daw.tracks[0].clips[0].length >= 1);
         assert.equal(worker.stops.length, stopsBefore, 'playback must not be stopped');
     });
+
+test('Post-record mode is not the recording status: an initial take is a take in any mode', () => {
+    const daw = new DAWEngine();
+    daw.setRecordMode('overdub');
+    daw.triggerPad(0, 0, 1000);
+    assert.equal(daw.recording.mode, 'take', 'the initial take must not be tagged as an overdub layer');
+    assert.equal(daw.getState().recording.mode, 'take', 'the UI state must report the take as a take');
+});
