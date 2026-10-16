@@ -410,6 +410,25 @@ The `autoAssign` feature (line ~1042) incorrectly applies to DAW Port notes beca
 
 ---
 
+## 🔌 External Clock Master Silent After Replug (2026-10-16)
+
+### Problem
+Clock master set to the NTS-1 in the UI; the device sent clock (~100 BPM) but the router tempo stayed at 120 and clips ignored the master.
+
+### Root Cause
+`aconnect -l` showed no subscription from the NTS-1 to any router input. The router's input for the device was still open in the worker, so nothing looked wrong in the state. The ALSA subscription had been dropped on replug, and the hot-plug code only reopens an input when its port index changes.
+
+### Fix
+- `_verifyInputConnections()` (worker-midi.js): input-side counterpart of `_verifyOutputConnections()`; reopens the clock master and controller inputs that lost their subscription.
+- `alsa-subscriptions.js`: pure `aconnect -l` parser.
+- Verified live: dropping `aconnect -d 20:0 130:0` was recovered by the watchdog within one probe, tempo kept following the NTS-1.
+
+### Open
+- Clock-master selection is not persisted across service restarts (resets to Internal).
+- Pads in Play mode were not reproduced as "not playing" in simulation; Overdub/Replace stop by design, and Overdub has no way to play a stored clip except switching Mode to Play.
+
+---
+
 ## 📊 MIDI Port Statistics (Last 10 min, 2025-09-23)
 
 | Metric | Count |

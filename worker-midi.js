@@ -10,6 +10,7 @@ import { ControllerEngine, matches } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
 import { ClockMaster, clockOutputsFor, stablePortKey } from './clock-master.js';
 import { MetronomeController } from './metronome-controller.js';
+import { aconnectPortDisplayName, isInputSubscribed } from './alsa-subscriptions.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFile } from 'node:child_process';
@@ -298,6 +299,7 @@ class MIDIRouterWorker {
     _hotplugCheckLoop() {
         this._checkHotplug().then(async (success) => {
             try { await this._verifyOutputConnections(); } catch (_) {}
+            try { await this._verifyInputConnections(); } catch (_) {}
             if (success) {
                 // Healthy: back off to 5s quickly
                 this._consecutiveHotplugFailures = 0;
@@ -324,6 +326,57 @@ class MIDIRouterWorker {
     // and the device receives nothing ("routing is broken" while the log
     // shows the TX). Every hotplug tick we re-check all open outputs and
     // reopen any that lost the subscription.
+    // Input-side twin of _verifyOutputConnections. When a device is re-plugged the
+    // kernel drops the subscription from its port to our RtMidi input, and the
+    // input then receives nothing (the clock master goes silent). Only the clock
+    // master and controller inputs are checked: those are the ones the user relies on.
+    _verifyInputConnections() {
+        if (!this.inputs || this.inputs.size === 0) return Promise.resolve();
+        if (this._aconnectInputProbeInFlight) return this._aconnectInputProbeInFlight;
+
+        const probe = new Promise((resolve) => {
+            execFile('aconnect', ['-l'], { encoding: 'utf8', timeout: 5000 }, (error, stdout) => {
+                if (error) { resolve(); return; }
+                const listing = String(stdout ?? '');
+                const master = this._clockMaster?.masterPortName;
+                for (const [name, input] of this.inputs) {
+                    if (name !== master && !this.controllerInputs.has(name)) continue;
+                    if (isInputSubscribed(listing, aconnectPortDisplayName(name)) !== false) continue;
+                    if (input._index == null) continue;
+                    console.warn(`[WORKER] Input lost ALSA subscription: ${name} — reopening`);
+                    this._reopenInput(name, input._index);
+                }
+                resolve();
+            });
+        }).finally(() => { this._aconnectInputProbeInFlight = null; });
+
+        this._aconnectInputProbeInFlight = probe;
+        return probe;
+    }
+
+    // Open a fresh RtMidi input on the same port (RtMidi subscribes only at openPort)
+    // and swap it in for the stale one, keeping the same message handler semantics.
+    _reopenInput(name, index) {
+        try {
+            const fresh = new midi.Input();
+            fresh.openPort(index, 'midirouter-in');
+            fresh.ignoreTypes(false, false, true);
+            const handler = (deltaTime, message) => this._onIncomingMessage(name, deltaTime, Array.from(message));
+            fresh.on('message', handler);
+            fresh._handler = handler;
+            fresh._index = index;
+            const stale = this.inputs.get(name);
+            if (stale) {
+                if (stale._handler) stale.off('message', stale._handler);
+                try { stale.closePort(); } catch (_) {}
+            }
+            this.inputs.set(name, fresh);
+            console.log(`[WORKER] Input reopened: ${name} (index: ${index})`);
+        } catch (error) {
+            console.error(`[WORKER] Failed to reopen input ${name}:`, error.message);
+        }
+    }
+
     _verifyOutputConnections() {
         if (!this.outputs || this.outputs.size === 0) return Promise.resolve();
         if (this._aconnectProbeInFlight) return this._aconnectProbeInFlight;

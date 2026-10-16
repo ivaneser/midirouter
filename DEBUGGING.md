@@ -72,6 +72,18 @@ process.on('SIGINT', async () => {
 **Cause:** an automatic start on the `ready` event AND a manual button in the frontend.
 **Fix:** remove the "Auto-connect" button from the UI and keep only the automatic start.
 
+### 10. External clock master silent after a device replug
+**Symptom:** the clock master is selected in the UI (e.g. NTS-1), the device sends clock, but the router tempo stays at the internal value (e.g. 120 BPM) and clips do not follow the master.
+**Cause:** the router's RtMidi input for the device stays "open", but the kernel dropped its ALSA subscription when the device was unplugged. RtMidi subscribes only in `openPort()`, so nothing receives the clock. Before the fix only *outputs* had a subscription watchdog.
+**Diagnosis:**
+```bash
+aseqdump -p "NTS-1"        # does the device send Clock? (~24 per beat)
+aconnect -l                # device port must show "Connecting To: <RtMidi Input client>"
+```
+If the device has no `Connecting To:` into an `RtMidi Input Client`, the input is dead.
+**Fix:** `_verifyInputConnections()` in `worker-midi.js` checks the clock master and controller inputs in the hot-plug loop and reopens stale inputs (logs `Input lost ALSA subscription`). Parsing lives in `alsa-subscriptions.js`; tests in `test/input-subscription.test.js`.
+**Workaround before the fix:** `systemctl --user restart midirouter.service`, then re-select the master in the UI (the selection is not persisted across restarts).
+
 ## MIDI device diagnostics
 
 ### Checking that the ALSA modules are loaded
