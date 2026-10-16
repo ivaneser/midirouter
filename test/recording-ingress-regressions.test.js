@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { DAWEngine } from '../daw.js';
 import { MIDIRouterWorker } from '../worker-midi.js';
 
-test('replace-arm count-in uses project contents from before clearing the target clip', (t) => {
+test('overdub-arm count-in uses project contents from before arming the target clip', (t) => {
     const daw = new DAWEngine({ tempo: 300 });
     daw.setMetronomeBeatsPerMeasure(1);
-    daw.setRecordMode('replace');
+    daw.setRecordMode('overdub');
     daw.tracks[0].clips[0].notes.push({ channel: 1, note: 60, velocity: 90, start: 0, dur: 1 });
     daw.playing = true;
     const now = performance.now();
@@ -17,13 +17,13 @@ test('replace-arm count-in uses project contents from before clearing the target
     daw.triggerPad(0, 0, now, { countIn: true });
 
     assert.ok(daw.recording.startTime <= now + 120,
-        'replace-mode clearing must not turn a previously nonempty project into a two-bar count-in');
+        'arming a layer on a nonempty project must not turn it into a two-bar count-in');
     assert.equal(daw.recording.startBeat, 0);
 });
 
 test('mapped pad Note On/Off messages reach the active recording path', (t) => {
     const daw = new DAWEngine({ tempo: 120 });
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
     daw.triggerPad(0, 0, performance.now());
     assert.ok(daw.recording);

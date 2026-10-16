@@ -32,7 +32,7 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
 
     // ---- Phase 1: first sparse take (no transport) locks a 4-beat cycle ----
     // triggerPad with recordMode === 'replace' arms recording into (0, 0).
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     const armResult = daw.triggerPad(0, 0, base);
     assert.equal(armResult.action, 'record', 'triggerPad must start a replace recording');
     assert.ok(daw.recording, 'a replace recording must be active in slot (0,0)');
@@ -46,7 +46,7 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
 
     // Finalize via triggerPad again at clip-relative beat ~3 (= base + 1500 ms).
     const stopResult = daw.triggerPad(0, 0, base + 3 * msPerBeat);
-    assert.equal(stopResult.action, 'record-stop-stopped', 'Replace mode: take finalizes and the clip stays stopped');
+    assert.equal(stopResult.action, 'record-stop', 'Replace mode: take finalizes and the clip stays stopped');
 
     const firstClip = daw.tracks[0].clips[0];
     assert.ok(firstClip.notes.length > 0, 'the first take must contain the recorded note');
@@ -60,7 +60,7 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
     assert.equal(firstClip.length, 4, 'clip.length must follow the locked global cycle');
 
     // ---- Phase 2: start transport; capture a later pad-triggered Replace take into (0,1) ----
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     const beforeAnchor = daw._playAnchorTime;
     daw.startTransport();
 
@@ -97,7 +97,7 @@ test('pad-triggered Replace take locks a 4-beat cycle, then another slot capture
 
     // Finalize the take via triggerPad (stops transport as part of cleanup).
     const finalizeResult = daw.triggerPad(0, 1, tArm + 3.5 * msPerBeat);
-    assert.equal(finalizeResult.action, 'record-stop-stopped', 'Replace mode: take finalizes and the clip stays stopped');
+    assert.equal(finalizeResult.action, 'record-stop', 'Replace mode: take finalizes and the clip stays stopped');
 
     const newClip = daw.tracks[0].clips[1];
 
@@ -160,7 +160,7 @@ test('sparse first-cycle recording (note beat 2, stop beat 3) locks a 4-beat glo
     const base = performance.now();
     const msPerBeat = 500; // 120 BPM
 
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.triggerPad(0, 0, base);                       // start recording at clip beat 0
     assert.ok(daw.recording, 'triggerPad must have started a replace recording');
 
@@ -174,7 +174,7 @@ test('sparse first-cycle recording (note beat 2, stop beat 3) locks a 4-beat glo
     // Stop the take by calling triggerPad again around clip-relative beat 3.
     await new Promise(r => setTimeout(r, 250)); // 0.5 beat = 250 ms -> beat ~3.0
     const stopResult = daw.triggerPad(0, 0, performance.now());
-    assert.equal(stopResult.action, 'record-stop-stopped', 'Replace mode: take finalizes and the clip stays stopped');
+    assert.equal(stopResult.action, 'record-stop', 'Replace mode: take finalizes and the clip stays stopped');
 
     const clip = daw.tracks[0].clips[0];
 

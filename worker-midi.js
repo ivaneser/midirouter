@@ -1186,7 +1186,12 @@ class MIDIRouterWorker {
 
             const { track, slot, mode } = recording;
             const clip = this.daw.tracks[track]?.clips[slot];
-            this.daw._stopRecording(this.daw._beatAt(boundaryTime), true);
+            const endBeat = this.daw._beatAt(boundaryTime);
+            // Overdub: the initial take ends at the bar line and the clip enters the
+            // overdub status (keeps looping and records a new layer). A layer ends
+            // at the bar line and the clip moves to Play.
+            const enterOverdub = !stopTransport && mode === 'overdub' && recording.clipWasEmpty && clip?.notes.length > 0;
+            this.daw._stopRecording(endBeat, true);
             this.daw.quantizeClip(track, slot, this.quantizeGrid ?? 0.125);
 
             if (stopTransport) {
@@ -1196,10 +1201,18 @@ class MIDIRouterWorker {
                 this.daw.clipState.fill(-1);
                 // Panic: mute everything on all outputs.
                 this.sendPanicNoteOff();
-            } else if (mode === 'none' && clip?.notes.length) {
+            } else if (enterOverdub) {
                 this.daw.clipState[track] = slot;
                 this._lastActivated = { trackIdx: track, slot };
                 this._startTrackPlayback(track, slot, boundaryTime, { immediate: true });
+                this.daw.beginOverdubLayer(track, slot, boundaryTime, endBeat);
+            } else if ((mode === 'none' || mode === 'overdub') && clip?.notes.length) {
+                // Play, or the end of an overdub layer: the clip loops from its beat 0.
+                this.daw.clipState[track] = slot;
+                this._lastActivated = { trackIdx: track, slot };
+                if (!this._trackPlayTimers.has(track) || mode === 'none') {
+                    this._startTrackPlayback(track, slot, boundaryTime, { immediate: true });
+                }
             } else {
                 this.daw.clipState[track] = -1;
                 this._stopTrackPlayback(track);
@@ -1266,8 +1279,8 @@ class MIDIRouterWorker {
                     this._startTrackPlayback(trackIdx, slot, now, { immediate });
                 }
             }
-        } else if (result.action === 'stop' || result.action === 'record-stop-stopped') {
-            // stop (Play mode) or replace-stop: the clip stays stopped
+        } else if (result.action === 'stop') {
+            // Play mode: the playing clip stops
             this._stopTrackPlayback(trackIdx);
             this.daw.clipState[trackIdx] = -1;
         } else if (result.action === 'record' || result.action === 'overdub') {

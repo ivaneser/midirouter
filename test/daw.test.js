@@ -72,17 +72,17 @@ test('invalid controller profiles fail validation', () => {
 test('a held note records quarter-note timing, velocity and MIDI channel', () => {
     const daw = new DAWEngine();
     assert.equal(daw.slotsPerTrack, 2);
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     assert.equal(daw.triggerPad(0, 1, 1000).action, 'record');
     daw.recordEvent(0x90, 60, 103, 1000);
     daw.recordEvent(0x80, 60, 0, 1500);
-    // Replace mode: after stopping, the clip stays stopped (take kept)
-    assert.equal(daw.triggerPad(0, 1, 1500).action, 'record-stop-stopped');
+    // Play post-record: after stopping, the take loops
+    assert.equal(daw.triggerPad(0, 1, 1500).action, 'record-stop');
     const note = daw.tracks[0].clips[1].notes[0];
     assert.deepEqual(note, { channel: 1, note: 60, velocity: 103, start: 0, dur: 1 });
     assert.deepEqual(noteOn(note.channel - 1, note.note, note.velocity), [0x90, 60, 103]);
     assert.deepEqual(noteOff(note.channel - 1, note.note), [0x80, 60, 0]);
-    assert.equal(daw.clipState[0], -1);
+    assert.equal(daw.clipState[0], 1, 'the take must be looping on its slot');
 });
 
 test('empty pad always starts recording (any Mode); out-of-range is invalid', () => {
@@ -95,7 +95,7 @@ test('empty pad always starts recording (any Mode); out-of-range is invalid', ()
 
 test('finalizing a held note preserves a sounding velocity', () => {
     const daw = new DAWEngine();
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.triggerPad(0, 0, 1000);
     daw.recordEvent(0x90, 64, 90, 1000);
     daw.triggerPad(0, 0, 1100);
@@ -111,7 +111,7 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
 
     // Record real notes into two different tracks/slots so the reset has
     // something to clear.
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.triggerPad(0, 0, 1000); // track 0 / slot 0 — empty pad starts recording
     daw.recordEvent(0x90, 60, 100, 1000);
     daw.recordEvent(0x80, 60, 0, 1500);
@@ -144,8 +144,8 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     }
 
     // After a reset, triggering an empty pad must report 'record' again (armed
-    // replace mode), i.e. the engine is ready for a brand-new take.
-    daw.setRecordMode('replace');
+    // Play mode), i.e. the engine is ready for a brand-new take.
+    daw.setRecordMode('none');
     assert.equal(daw.triggerPad(0, 0, 4000).action, 'record');
     daw.triggerPad(0, 0, 4100); // stop the fresh recording so state stays clean
     // reset starts the pre-record metronome timer; stop it so the test process can exit
@@ -249,7 +249,7 @@ test('daw_stop_transport finalizes an in-flight recording before clearing transp
     worker._syncPadClock = () => {};
     worker._broadcastState = () => {};
     const t0 = performance.now();
-    worker.daw.setRecordMode('replace');
+    worker.daw.setRecordMode('none');
     worker.daw.triggerPad(0, 0, t0); // start recording on track 0 / slot 0
     assert.ok(worker.daw.recording, 'precondition: an in-flight recording is active');
     worker.daw.recordEvent(0x90, 60, 90, t0 + 100); // hold a note open
@@ -273,7 +273,7 @@ test('daw_stop_transport finalizes an in-flight recording before clearing transp
 // channel starts should produce separate recorded notes (not overwrite).
 test('overlapping same-channel same-pitch Note Ons are paired FIFO', () => {
     const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
 
     // Stub _beatAt so musical offsets are deterministic and independent of
@@ -337,7 +337,7 @@ test('overlapping same-channel same-pitch Note Ons are paired FIFO', () => {
 // Note Off closes a note during recording — including non-exact timestamps.
 test('note off rounds stored start and duration to two decimal places', () => {
     const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.triggerPad(0, 0, 1000);
     // Note On at +123 ms -> start = 0.246; Note Off at +877 ms -> raw dur = (1.754 - 0.246) = 1.508
     daw.recordEvent(0x90, 60, 100, 1123);
@@ -350,7 +350,7 @@ test('note off rounds stored start and duration to two decimal places', () => {
 // exactly the 0.125-beat floor rounds up to 0.13 (nearest hundredth).
 test('minimum note duration is enforced before hundredth rounding', () => {
     const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.triggerPad(0, 0, 1000);
     daw.recordEvent(0x90, 64, 80, 1000);   // start = 0.00
     daw.recordEvent(0x80, 64, 0, 1050);    // raw dur = 0.1 -> floored to 0.125

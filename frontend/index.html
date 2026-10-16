@@ -30,10 +30,9 @@
                 <!-- Settings group (left side) -->
                 <div class="transport-settings-group">
                     <label class="transport-label">
-                        Mode:
-                        <select id="record-mode">
+                        Post-record:
+                        <select id="record-mode" title="What happens when the initial recording stops">
                             <option value="none">Play</option>
-                            <option value="replace">Replace</option>
                             <option value="overdub">Overdub</option>
                         </select>
                     </label>
@@ -99,8 +98,8 @@
             <div id="track-controls" class="track-controls"></div>
 
             <p class="daw-hint">
-                🎹 Empty pad = record; press again to stop. Mode decides what happens after stop:
-                Play → loop the take · Overdub → keep layering · Replace → stop, next press re-records.<br>
+                🎹 Empty pad = record; press again to stop. Post-record decides what happens after stop:
+                Play → loop the take · Overdub → keep playing and recording layers. Next press: Play stops, Overdub switches to Play.<br>
                 Click track buttons: 🔇 Mute, 🔊 Solo · 💾 Save/Load ask for the session name; list below = load/delete.
             </p>
             </div>
@@ -192,12 +191,11 @@
                     <li><strong>Launchkey buttons:</strong> Play (CC115, toggle), Stop (CC116), Reset (CC117, full reset), Loop (CC118).</li>
                 </ul>
 
-                <h4>📝 Mode (what happens when you stop a take)</h4>
+                <h4>📝 Post-record (what happens when the initial recording stops)</h4>
                 <ul>
-                    <li><strong>Play</strong> — the take starts looping right away. Next presses toggle play/stop.</li>
-                    <li><strong>Overdub</strong> — the clip stops but keeps all layers; press it again to add another layer on top.</li>
-                    <li><strong>Replace</strong> — the clip stops; press it again to record a fresh take that overwrites the old one.</li>
-                    <li>Empty clips always record on first press, in any Mode.</li>
+                    <li><strong>Play</strong> — the take starts looping right away. Next press stops the clip; the press after that plays it again.</li>
+                    <li><strong>Overdub</strong> — the clip keeps looping and records a new layer on top; the next press switches it to Play.</li>
+                    <li>Empty clips always record on first press, whatever the Post-record setting.</li>
                 </ul>
 
                 <h4>💾 Sessions (save/load recordings)</h4>

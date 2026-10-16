@@ -22,7 +22,7 @@ test('3/4 meter: first replace take spanning 6 beats locks a 6-beat global cycle
 
     // Set the meter to 3/4 before any recording.
     daw.setMetronomeBeatsPerMeasure(3);
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
 
     // Start a replace recording into slot (0, 0).
     const armResult = daw.triggerPad(0, 0, base);
@@ -38,7 +38,7 @@ test('3/4 meter: first replace take spanning 6 beats locks a 6-beat global cycle
 
     // Finalize the take via triggerPad at clip-relative beat 6 (= base + 3000 ms).
     const stopResult = daw.triggerPad(0, 0, base + 6 * msPerBeat);
-    assert.equal(stopResult.action, 'record-stop-stopped', 'Replace mode: take finalizes and the clip stays stopped');
+    assert.equal(stopResult.action, 'record-stop', 'Replace mode: take finalizes and the clip stays stopped');
 
     const clip = daw.tracks[0].clips[0];
     assert.ok(clip.notes.length > 0, 'the clip must contain the recorded note');

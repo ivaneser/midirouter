@@ -26,40 +26,33 @@ test('Play mode: stop after take -> playback; press toggles playback', () => {
     assert.equal(daw.clipState[0], 0);
 });
 
-test('Overdub mode: stop after take -> stopped with layers kept; next press adds a layer', () => {
+test('Overdub mode: take -> clip loops; next press adds a layer; press again -> Play', () => {
     const daw = new DAWEngine();
     const stopResult = recordAndStop(daw, 0, 0, 1000, 'overdub');
-    assert.equal(stopResult.action, 'record-stop-stopped', 'Overdub stop must leave the clip stopped');
-    assert.equal(daw.clipState[0], -1);
+    assert.equal(stopResult.action, 'record-stop', 'Overdub take must leave the clip looping (Play)');
+    assert.equal(daw.clipState[0], 0, 'clip must be playing after the take');
     assert.equal(daw.tracks[0].clips[0].notes.length, 1, 'the take must be kept');
 
     const again = daw.triggerPad(0, 0, 2000);
     assert.equal(again.action, 'overdub', 'next press on an overdub clip must start a layer');
     daw.recordEvent(0x90, 62, 90, 2000);
     daw.recordEvent(0x80, 62, 0, 2400);
-    assert.equal(daw.triggerPad(0, 0, 2500).action, 'record-stop-stopped');
+    assert.equal(daw.triggerPad(0, 0, 2500).action, 'record-stop', 'ending the layer moves the clip to Play');
+    assert.equal(daw.clipState[0], 0, 'the loop keeps playing after the layer');
     const notes = daw.tracks[0].clips[0].notes;
     assert.equal(notes.length, 2, 'overdub must keep the old layer and add the new one');
     const pitchSet = new Set(notes.map((n) => n.note));
     assert.ok(pitchSet.has(60) && pitchSet.has(62), 'both layers must be present');
 });
 
-test('Replace mode: stop after take -> stopped; next press overwrites the take', () => {
+test('Overdub mode: pressing a stopped clip starts an overdub layer; pressing a recording layer -> Play', () => {
     const daw = new DAWEngine();
-    const stopResult = recordAndStop(daw, 0, 0, 1000, 'replace');
-    assert.equal(stopResult.action, 'record-stop-stopped', 'Replace stop must leave the clip stopped');
-    assert.equal(daw.clipState[0], -1);
-    assert.equal(daw.tracks[0].clips[0].notes.length, 1, 'the take must be kept after stop');
-
-    const again = daw.triggerPad(0, 0, 2000);
-    assert.equal(again.action, 'record', 'next press on a replace clip must start a fresh take');
-    assert.equal(daw.tracks[0].clips[0].notes.length, 0, 'replace must wipe the previous take');
-    daw.recordEvent(0x90, 72, 90, 2000);
-    daw.recordEvent(0x80, 72, 0, 2400);
-    assert.equal(daw.triggerPad(0, 0, 2500).action, 'record-stop-stopped');
-    const notes = daw.tracks[0].clips[0].notes;
-    assert.equal(notes.length, 1, 'only the new take must remain');
-    assert.equal(notes[0].note, 72);
+    recordAndStop(daw, 0, 0, 1000, 'none');
+    assert.equal(daw.triggerPad(0, 0, 2000).action, 'stop', 'Play mode: press stops the playing clip');
+    daw.setRecordMode('overdub');
+    assert.equal(daw.triggerPad(0, 0, 3000).action, 'overdub', 'Overdub mode: press on a stopped clip starts a layer');
+    assert.equal(daw.triggerPad(0, 0, 3500).action, 'record-stop', 'press during the layer -> Play');
+    assert.equal(daw.clipState[0], 0, 'the clip loops in Play after the layer');
 });
 
 test('pressing a new empty clip on the same track stops the current clip', () => {
@@ -135,7 +128,7 @@ test('a take stopped by a pad press finishes at the bar boundary and starts play
 });
 
 test('empty clip in any mode starts recording on first press', () => {
-    for (const mode of ['none', 'replace', 'overdub']) {
+    for (const mode of ['none', 'overdub']) {
         const daw = new DAWEngine();
         daw.setSlotsPerTrack(4);
         daw.setRecordMode(mode);

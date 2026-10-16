@@ -3,7 +3,8 @@
  *  - Track  = MIDI channel (1..8)
  *  - Clip   = recorded pattern on a channel (set of note-on/off events with timestamps in beats)
  *  - Pad    = clip trigger: press starts/stops playback (loop <-> stop)
- *  - Record modes: 'none' (play), 'replace', 'overdub'
+ *  - Post-record mode (what happens when the initial take stops): 'none' (Play),
+ *    'overdub' (Overdub)
  *
  * The engine does NOT work with ALSA directly. It only holds state, accepts
  * incoming MIDI events for recording and emits playNote/playOff events for
@@ -33,7 +34,7 @@ class DAWEngine {
     constructor(opts = {}) {
         this.tempo = opts.tempo || 120;          // BPM
         this.slotsPerTrack = opts.slotsPerTrack || DEFAULT_SLOTS_PER_TRACK;
-        this.recordMode = opts.recordMode || 'none'; // 'none' | 'replace' | 'overdub'
+        this.recordMode = opts.recordMode || 'none'; // Post-record: 'none' (Play) | 'overdub' (Overdub)
         this.loopLenBeats = 16;             // quarter-note beats in four bars
         // Quantization grid (beats, quarter note = 1) for quantizeClip;
         // default 0.125 (1/32 note). The worker syncs it on daw_quantize_grid.
@@ -442,14 +443,12 @@ class DAWEngine {
         }
     }
 
-    // Mode decides what a clip becomes AFTER recording ends:
-    //   none (Play)   → start playback of the recording
-    //   overdub       → keep recording on top of the take (layers)
-    //   replace       → stay stopped (take kept; the next press starts a new
-    //                   recording on top of the old one)
-    // An empty clip always starts recording, regardless of Mode.
+    // Post-record mode decides what a clip becomes when its initial take stops:
+    //   none (Play)   → the take loops
+    //   overdub       → the take loops and new notes are recorded on top (layers)
+    // An empty clip always starts recording, regardless of the mode.
     setRecordMode(mode) {
-        if (['none', 'replace', 'overdub'].includes(mode)) {
+        if (['none', 'overdub'].includes(mode)) {
             this.recordMode = mode;
         }
         // Clear count-in on any mode change to avoid stale state.
@@ -565,17 +564,13 @@ class DAWEngine {
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) return;
         this._stopRecording();
 
-        // Snapshot project state before replace mode clears this clip; count-in
-        // selection must reflect the project state at the user's trigger.
+        // Snapshot project state before arming; count-in selection must reflect
+        // the project state at the user's trigger.
         const projectWasEmptyBeforeArm = this.isEmptyProject();
 
-        // Replace: erases the old clip. Overdub: if already recorded, continue (add).
+        // An existing take is kept: a recording on it adds layers (overdub).
         // Length is recomputed when recording ends (from the actual span).
-        if (this.recordMode === 'replace') {
-            existing.notes = [];
-            existing.length = this._snapToBars(0);
-        } else if (existing.notes.length === 0) {
-            // Overdub on empty clip: initialize but don't clear (preserve track identity)
+        if (existing.notes.length === 0) {
             existing.length = this._snapToBars(0);
         }
 
@@ -706,6 +701,29 @@ class DAWEngine {
         }
     }
 
+    // Overdub status after the initial take: a new layer starts at the cycle
+    // position where the take ended (atBeat == clip beat 0 modulo clip length),
+    // so notes are stored relative to the loop start of the same clip.
+    beginOverdubLayer(trackIdx, slot, startTime, atBeat) {
+        const clip = this.tracks[trackIdx].clips[slot];
+        this.recording = {
+            track: trackIdx,
+            slot,
+            mode: 'overdub',
+            startTime,
+            startBeat: Math.round(atBeat * 100) / 100,
+            originBeat: Math.round(atBeat * 100) / 100,
+            phase: 0,
+            clipWasEmpty: false,
+            liveBaseBeat: (this._externalClock && this._playAnchorTime > 0)
+                ? ((startTime - this._playAnchorTime) / 1000) / this._secondsPerBeat()
+                : null,
+            notes: clip.notes,
+            noteStarts: new Map(),
+        };
+        this._onRecordingStarted(this);
+    }
+
     _stopRecording(endBeat, closeHeldNotesAtEnd = false) {
         if (!this.recording) return;
         const r = this.recording;
@@ -746,7 +764,11 @@ class DAWEngine {
                 // selected cycle, regardless of note density.
                 this.tracks[r.track].clips[r.slot].length = this.loopLenBeats;
             } else {
-                this.tracks[r.track].clips[r.slot].length = this._snapToBars(Math.max(maxEnd, span));
+                const clip = this.tracks[r.track].clips[r.slot];
+                const snapped = this._snapToBars(Math.max(maxEnd, span));
+                // A layer added on top of a looping clip keeps the clip's loop length.
+                const isLayer = r.mode === 'overdub' && !r.clipWasEmpty;
+                clip.length = isLayer ? Math.max(clip.length, snapped) : snapped;
                 if (r.clipWasEmpty) this.tracks[r.track].clips[r.slot].phase = r.phase;
             }
         }
@@ -840,23 +862,17 @@ class DAWEngine {
     }
 
     // ---- Pad trigger: record / play-stop toggle depending on the selected Mode ----
-    // returns { action:'play'|'stop'|'record'|'overdub'|'record-stop'|'record-stop-stopped', track, slot }
+    // returns { action:'play'|'stop'|'record'|'overdub'|'record-stop', track, slot }
     // Scenarios:
-    //   1) The recording slot itself is pressed → recording ends, and the clip
-    //      moves to the state of the selected Mode:
-    //        none(Play) → 'record-stop' (starts playback),
-    //        overdub    → 'record-stop-stopped' (stops; layers are
-    //                     kept, the next press adds a layer),
-    //        replace    → 'record-stop-stopped' (stops; take is
-    //                     kept, the next press records again).
+    //   1) The recording slot itself is pressed → recording ends and the clip
+    //      loops ('record-stop'). With a running transport the initial take of an
+    //      Overdub clip continues into the overdub status instead
+    //      (see worker-midi.js _scheduleRecordingStop).
     //   2) Empty clip (no notes) → ALWAYS recording ('record'), regardless of
-    //      Mode. Any active clip on the same track is stopped
+    //      the mode. Any active clip on the same track is stopped
     //      (the worker closes track playback on action 'record'/'overdub').
-    //   3) Playing clip → 'stop' (in Play mode) or a new recording on top
-    //      (in Replace/Overdub).
-    //   4) Stopped non-empty clip → 'play' in Play mode; in
-    //      Replace/Overdub — a new recording (replace erases the old take,
-    //      overdub adds on top).
+    //   3) Playing clip → 'stop' in Play; a new overdub layer in Overdub.
+    //   4) Stopped non-empty clip → 'play' in Play; an overdub layer in Overdub.
     triggerPad(trackIdx, slot, now, options = {}) {
         const clip = this.tracks[trackIdx]?.clips[slot];
         if (!clip) return { action: 'invalid', track: trackIdx, slot };
@@ -867,15 +883,9 @@ class DAWEngine {
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
             this._stopRecording(this._beatAt(now));
             this.quantizeClip(trackIdx, slot, this.quantizeGrid ?? 0.125);
-            if (mode === 'none') {
-                // Play: start playing back the take that was just recorded
-                this.clipState[trackIdx] = clip.notes.length ? slot : -1;
-                return { action: 'record-stop', track: trackIdx, slot };
-            }
-            // Overdub/Replace: the clip stops (layers/take are kept).
-            // The next press in Overdub adds a layer; in Replace it records a new take.
-            this.clipState[trackIdx] = -1;
-            return { action: 'record-stop-stopped', track: trackIdx, slot };
+            // Play, or the end of an overdub layer: the clip loops from its beat 0.
+            this.clipState[trackIdx] = clip.notes.length ? slot : -1;
+            return { action: 'record-stop', track: trackIdx, slot };
         }
 
         // (2) Empty clip — always recording (default), any Mode.
@@ -884,7 +894,7 @@ class DAWEngine {
             return { action: 'record', track: trackIdx, slot };
         }
 
-        // (3) Playing clip — stop in Play; record again / on top in Replace/Overdub.
+        // (3) Playing clip — stop in Play; a new overdub layer in Overdub.
         if (wasPlaying) {
             if (mode === 'none') {
                 this.clipState[trackIdx] = -1;
@@ -1137,7 +1147,7 @@ class DAWEngine {
         this._stopRecording();
         this._stopMetronome(true);
         this.setTempo(Number.isFinite(data.tempo) ? data.tempo : this.tempo);
-        this.recordMode = ['none', 'replace', 'overdub'].includes(data.recordMode)
+        this.recordMode = ['none', 'overdub'].includes(data.recordMode)
             ? data.recordMode : 'none';
         if (Number.isInteger(data.slotsPerTrack)) this.setSlotsPerTrack(data.slotsPerTrack);
         if (Number.isFinite(data.loopLenBeats) && data.loopLenBeats >= 1) {

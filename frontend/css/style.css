@@ -1270,11 +1270,6 @@ body {
     background: #145b43;
     border-color: #43d99a;
 }
-#record-mode.mode-replace {
-    color: #fff4df;
-    background: #75410f;
-    border-color: #ffb547;
-}
 #record-mode.mode-overdub {
     color: #f0e5ff;
     background: #503078;

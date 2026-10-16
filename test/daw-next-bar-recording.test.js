@@ -56,7 +56,7 @@ test('count-in regression: future start boundary, pre-start MIDI ignored, Note O
     assert.equal(daw.playing, false, 'transport starts stopped');
 
     // Arm track 0 and start recording on empty pad.
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
     const r1 = daw.triggerPad(0, 0, base);
     assert.equal(r1.action, 'record', 'armed empty pad starts recording');
@@ -125,7 +125,7 @@ test('PATH 1: pad trigger stop defers take finalization to nearest bar end (RED)
     // Arm track 0, trigger empty pad -> recording with next-bar start.
     // Start via the real worker entrypoint so the empty-project worker path
     // starts transport immediately.
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
     const r1 = worker._triggerPad(0, 0, performance.now());
     assert.equal(r1.action, 'record', 'empty pad starts recording');
@@ -195,7 +195,7 @@ test('PATH 2: daw_stop_transport defers take finalization to nearest bar end (RE
     // Arm track 0, trigger empty pad -> recording with next-bar start.
     // Start via the real worker entrypoint so the empty-project worker path
     // starts transport immediately (no explicit daw_start_transport needed).
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
     const r1 = worker._triggerPad(0, 0, performance.now());
     assert.equal(r1.action, 'record', 'empty pad starts recording');
@@ -269,7 +269,7 @@ test('count-in: controller Play stops transport immediately, cancels pending cou
     });
 
     // --- Start a recording on an empty pad with count-in. ---
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
 
     // Intercept metronome / count-in callbacks so we can assert they fire.
     let completionFired = false;
@@ -371,7 +371,7 @@ test('play-before-pad: two-bar count-in before recording begins', async (t) => {
     };
 
     // Arm track 0 and trigger pad with countIn=true while transport is playing.
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
     const result = worker._triggerPad(0, 0, baseTime, { countIn: true });
     assert.equal(result.action, 'record', 'empty pad starts recording action');
@@ -471,7 +471,7 @@ test('subsequent pad: snap to nearest bar boundary while count-in pending (RED)'
 
     // --- Step 1: Create content in the project so it's no longer empty. ---
     const baseTime = performance.now();
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     daw.armTrack(0);
     const r1 = worker._triggerPad(0, 0, baseTime);
     assert.equal(r1.action, 'record', 'first pad starts recording on empty clip');

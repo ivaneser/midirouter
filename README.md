@@ -16,12 +16,12 @@ Turns the router into a mini DAW: each **MIDI channel = track**, a recorded patt
 | Track (channel) | MIDI channel 1–8 (8 tracks) |
 | Clip slot | a recorded pattern on a channel |
 | Empty pad → record, press again → stop | toggle; releasing the pad does nothing |
-| Mode: Play / Overdub / Replace | defines what happens after recording stops: loop / layers / overwrite |
+| Post-record: Play / Overdub | defines what happens when the initial recording stops: loop / keep playing and record layers |
 | Clip length | its own whole number of bars (snapped up) |
 | Recorded notes | tied to the tempo and quantized to the grid |
 | Sessions | save/load recordings to disk (`sessions/*.json`) |
 
-**How to play.** An empty clip always starts recording when its pad is pressed (any Mode). Pressing the same pad again stops the recording, and the clip moves to the state of the selected **Mode**: **Play** — the take starts looping (further presses = toggle play/stop); **Overdub** — the clip stops, layers are kept, the next press adds a layer; **Replace** — the clip stops, the next press erases the old take and records a new one. Pressing a new empty clip in the same group (track) stops the current clip and starts recording into the new one.
+**How to play.** An empty clip always starts recording when its pad is pressed (any Post-record mode). Pressing the same pad again stops the recording at the bar line, and the clip moves to the selected **Post-record** mode: **Play** — the take starts looping (the next press stops it, the press after that plays it again); **Overdub** — the clip keeps looping and records a new layer on top; the next press switches it to Play. Pressing a new empty clip in the same group (track) stops the current clip and starts recording into the new one.
 
 **Controller profiles:** input ports, pads, transport buttons and LED responses are defined by JSON files in `controller_profiles/`. The Launchkey Mini MK3 profile is enabled; an example for nanoPAD2 is in `controller_profiles/examples/` and needs to be checked against the device settings. Regular keys stay on the MIDI route to the synthesizers. For a new controller see [CONTROLLERS.md](CONTROLLERS.md).
 
@@ -72,7 +72,7 @@ Requirements: Raspberry Pi 4 (or 3B+), a USB-MIDI controller/synthesizer, ALSA (
 - To force a choice, set `MIDIR_METRONOME_DEVICE`, for example `hw:0,0`, in the service environment.
 
 ## Controls
-- **Mode (behaviour after recording ends):** Play / Replace / Overdub (in the web UI).
+- **Post-record (behaviour when the initial recording stops):** Play / Overdub (in the web UI).
 - **BPM + Tap Tempo.**
 - **Slots per track:** 1 / 2 / 4 / 8.
 - **Auto-assign pads:** turns the automatic key mapping on/off.
@@ -81,10 +81,9 @@ Requirements: Raspberry Pi 4 (or 3B+), a USB-MIDI controller/synthesizer, ALSA (
 
 ### How to play (LaunchKey or any MIDI controller)
 1. Empty pad = **record**: press it — recording starts; press the same pad again — recording stops.
-2. After stopping, the clip moves to the state of the selected **Mode**:
+2. After stopping, the clip moves to the state of the selected **Post-record** mode:
    - **Play** — the take starts looping; press = stop, another press = play again.
-   - **Overdub** — the clip stops with all its layers; the next press adds a new layer.
-   - **Replace** — the clip stops; the next press erases the take and records a new one.
+   - **Overdub** — the take ends at the bar line and the clip enters the overdub status: it keeps looping and records new notes as a layer; the next press ends the overdub at the bar line and the clip moves to Play. On a stopped clip, a press starts a new overdub layer.
 3. Pressing a **new empty clip in the same group** stops the current clip and starts recording into the new one.
 4. **Launchkey transport buttons:** Play (CC115) — toggles the transport (MIDI Clock + metronome + active clips), Stop (CC116) — stops everything, Record (CC117) — turns Session Record on/off without deleting clips. When switched on, the transport and metronome start; press an empty pad to choose the clip to record. If the transport was stopped, recording starts after an audible two-bar count-in. Pressing Record again finishes the take at the nearest bar boundary. Loop (CC118) switches the length of the global cycle.
 

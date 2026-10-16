@@ -20,7 +20,7 @@ test('locked-cycle recording ignores MIDI until the next bar and loops for the m
     const now = performance.now();
     daw._playAnchorTime = now - 500; // transport is at beat 1 of bar 1
 
-    daw.setRecordMode('replace');
+    daw.setRecordMode('none');
     const result = daw.triggerPad(0, 0, now);
     assert.equal(result.action, 'record');
     assert.equal(daw.recording.startBeat, 4);

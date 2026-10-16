@@ -269,10 +269,9 @@ export class DAWUI {
         
         if (modeSelect) {
             modeSelect.value = this.dawState.recordMode;
-            modeSelect.classList.remove('mode-play', 'mode-replace', 'mode-overdub');
+            modeSelect.classList.remove('mode-play', 'mode-overdub');
             const modeClass = {
                 none: 'mode-play',
-                replace: 'mode-replace',
                 overdub: 'mode-overdub',
             }[this.dawState.recordMode];
             if (modeClass) modeSelect.classList.add(modeClass);
