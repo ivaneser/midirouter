@@ -368,7 +368,7 @@ test('quantizeClip normalizes stored note start and duration', () => {
         { channel: 1, note: 60, velocity: 90, start: 0.337, dur: 0.456 },
         { channel: 1, note: 62, velocity: 90, start: 1.872, dur: 0.05 } // below floor -> 0.13
     );
-    daw.quantizeClip(0, 0); // default gridSize = 0.125
+    daw.quantizeClip(0, 0, 0.125);
     assert.deepEqual(daw.tracks[0].clips[0].notes.map(n => ({ start: n.start, dur: n.dur })), [
         { start: 0.38, dur: 0.46 },
         { start: 1.88, dur: 0.13 },

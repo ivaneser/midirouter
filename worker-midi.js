@@ -175,8 +175,8 @@ class MIDIRouterWorker {
         this.clickOffsetMs = 0;    // metronome clicks
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
-        // one of the five allowed values, default 0.125 (1/32 note).
-        this.quantizeGrid = 0.125;
+        // one of the allowed values (0 = Off), default 0.5 (1/8 note).
+        this.quantizeGrid = 0.5;
 
         // Hot-plug back-off state (exponential back-off on ALSA failures)
         this._hotplugBackoffMs = 5000;   // default interval between checks
@@ -1194,7 +1194,7 @@ class MIDIRouterWorker {
             // looping and the next press starts a layer.
             const enterOverdub = !stopTransport && this.daw.recordMode === 'overdub' && recording.clipWasEmpty && clip?.notes.length > 0;
             this.daw._stopRecording(endBeat, true);
-            this.daw.quantizeClip(track, slot, this.quantizeGrid ?? 0.125);
+            this.daw.quantizeClip(track, slot, this.quantizeGrid ?? 0.5);
 
             if (stopTransport) {
                 this.daw.stopTransport();
@@ -1869,7 +1869,7 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             case 'daw_reset_arm_record': {
-                // Reset: all clips to zero + ready for a new recording.
+                // Reset: all clips to zero, default track/clip counts + ready for a new recording.
                 // First stop playback (note-offs) and the transport,
                 // then erase the clips; the default Mode is Play ('none').
                 this._stopAllClipPlayback();
@@ -1880,6 +1880,8 @@ class MIDIRouterWorker {
                 // resetAllClips itself starts the metronome for exactly two bars
                 // (requirement 4): before the first recording or until the end of the bar.
                 daw.resetAllClips();
+                // Reset also restores the default track count and clips per track.
+                daw.resetLayoutToDefaults();
                 daw.setRecordMode('none');
                 this._clearStaleRecordingFeedback();
                 this._refreshPadLeds();
@@ -1909,7 +1911,7 @@ class MIDIRouterWorker {
                     } else if (daw.recording) {
                         const recording = daw.recording;
                         daw._stopRecording(daw._beatAt(performance.now()), true);
-                        daw.quantizeClip(recording.track, recording.slot, this.quantizeGrid ?? 0.125);
+                        daw.quantizeClip(recording.track, recording.slot, this.quantizeGrid ?? 0.5);
                         this._clearStaleRecordingFeedback();
                         this._refreshPadLeds();
                     }
@@ -1995,10 +1997,10 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
-            // Quantization grid (beats): accept only the five allowed values.
+            // Quantization grid (beats): accept only the allowed values; 0 = Off.
             case 'daw_quantize_grid': {
                 const beats = +msg.beats;
-                if ([0.125, 0.25, 0.5, 1, 2].includes(beats)) {
+                if ([0, 0.125, 0.25, 0.5, 1, 2].includes(beats)) {
                     this.quantizeGrid = beats;
                     // DAW keeps its own copy: quantizeClip is called with it as gridSize.
                     this.daw.quantizeGrid = beats;

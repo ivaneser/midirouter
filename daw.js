@@ -39,8 +39,8 @@ class DAWEngine {
         this.recordMode = opts.recordMode || 'none'; // Post-record: 'none' (Play) | 'overdub' (Overdub)
         this.loopLenBeats = 16;             // quarter-note beats in four bars
         // Quantization grid (beats, quarter note = 1) for quantizeClip;
-        // default 0.125 (1/32 note). The worker syncs it on daw_quantize_grid.
-        this.quantizeGrid = 0.125;
+        // default 0.5 (1/8 note); 0 = Off (no snapping). The worker syncs it on daw_quantize_grid.
+        this.quantizeGrid = 0.5;
 
         // tracks[i] -> { channel: i+1, clips: [ {notes:[], length:beats} ] }
         // Track count and per-track clip count are user-adjustable ("+" buttons).
@@ -565,6 +565,13 @@ class DAWEngine {
         return this.tracks.length - 1;
     }
 
+    // Restore the default layout: DEFAULT_TRACK_COUNT tracks, each with
+    // DEFAULT_SLOTS_PER_TRACK clips. Used by the Reset button.
+    resetLayoutToDefaults() {
+        this.setSlotsPerTrack(DEFAULT_SLOTS_PER_TRACK);
+        this._setTrackCount(DEFAULT_TRACK_COUNT);
+    }
+
     // Grow or shrink the track list to exactly `count` tracks.
     _setTrackCount(count) {
         const target = Math.max(1, Math.min(MAX_TRACKS, count));
@@ -911,12 +918,14 @@ class DAWEngine {
         return 60 / this.tempo; // one quarter-note beat
     }
 
-    // Quantize: move start times to the grid (divide by gridSize, round)
-    quantizeClip(trackIdx, slot, gridSize = 0.125) {
+    // Quantize: move start times to the grid (divide by gridSize, round).
+    // gridSize 0 (or any non-positive value) = Off: starts are not snapped.
+    quantizeClip(trackIdx, slot, gridSize = 0.5) {
         const clip = this.tracks[trackIdx].clips[slot];
+        const snap = gridSize > 0;
         for (const n of clip.notes) {
-            // snap to grid, then round stored start to nearest hundredth beat.
-            n.start = roundBeats(Math.round(n.start / gridSize) * gridSize);
+            // snap to grid (if on), then round stored start to nearest hundredth beat.
+            n.start = roundBeats(snap ? Math.round(n.start / gridSize) * gridSize : n.start);
             // start/dur are stored to the nearest hundredth of a beat.
             n.dur = roundBeats(Math.max(0.125, n.dur || 0.25));
         }

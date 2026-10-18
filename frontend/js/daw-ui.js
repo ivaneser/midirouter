@@ -143,7 +143,7 @@ export class DAWUI {
             // active while transport plays OR a recording is in progress.
             const updateText = () => {
                 const isActive = !!(this.dawState?.playing || this.dawState?.recording != null);
-                stopBtn.textContent = isActive ? 'Stop' : 'Rec';
+                stopBtn.textContent = isActive ? 'Stop' : '● Rec';
             };
             updateText();
             stopBtn.addEventListener('click', () => {
@@ -156,7 +156,7 @@ export class DAWUI {
                     this._send({ type: 'daw-start-with-countin' });
                 }
                 // Immediately toggle the button text for instant feedback
-                stopBtn.textContent = stopBtn.textContent === 'Stop' ? 'Rec' : 'Stop';
+                stopBtn.textContent = stopBtn.textContent === 'Stop' ? '● Rec' : 'Stop';
             });
         }
         
@@ -394,7 +394,7 @@ export class DAWUI {
         const stopBtn = document.getElementById('btn-stop');
         if (stopBtn) {
             const isActive = !!(this.dawState?.playing || this.dawState?.recording != null);
-            stopBtn.textContent = isActive ? 'Stop' : 'Rec';
+            stopBtn.textContent = isActive ? 'Stop' : '● Rec';
         }
     }
 

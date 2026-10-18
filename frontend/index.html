@@ -39,14 +39,6 @@
                 <!-- Settings group (left side) -->
                 <div class="transport-settings-group">
                     <label class="transport-label">
-                        Post-record:
-                        <select id="record-mode" title="What happens when the initial recording stops">
-                            <option value="none">Play</option>
-                            <option value="overdub">Overdub</option>
-                        </select>
-                    </label>
-                    
-                    <label class="transport-label">
                         BPM:
                         <input type="number" id="tempo" min="20" max="300" step="1" value="120">
                         <button id="tap-tempo" class="btn btn-sm">Tap</button>
@@ -71,9 +63,10 @@
                     <label class="transport-label">
                         Quantize:
                         <select id="quantize-grid">
-                            <option value="0.125" selected>1/32</option>
+                            <option value="0">Off</option>
+                            <option value="0.125">1/32</option>
                             <option value="0.25">1/16</option>
-                            <option value="0.5">1/8</option>
+                            <option value="0.5" selected>1/8</option>
                             <option value="1">1/4</option>
                             <option value="2">1/2</option>
                         </select>
@@ -86,7 +79,14 @@
                 <div class="transport-buttons-group">
                     <button id="btn-play" class="btn btn-green">▶ Play</button>
                     <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
-                    <button id="btn-record-arm" class="btn btn-orange">● Reset</button>
+                    <button id="btn-record-arm" class="btn btn-orange">Reset</button>
+                    <label class="transport-label">
+                        Post-record:
+                        <select id="record-mode" title="What happens when the initial recording stops">
+                            <option value="none">Play</option>
+                            <option value="overdub">Overdub</option>
+                        </select>
+                    </label>
                     <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
                     <p id="session-status" class="session-status"></p>
                 </div>
@@ -188,7 +188,7 @@
                 <ul>
                     <li><strong>▶ Play</strong> — starts the transport (MIDI clock + metronome + active clips). Press again to stop it (toggle).</li>
                     <li><strong>⏹ Stop</strong> — stops all playback.</li>
-                    <li><strong>● Reset</strong> — resets ALL clips to zero (wipe everything), clears track MIDI channel assignments, and sets Mode back to Play for a fresh session.</li>
+                    <li><strong>Reset</strong> — resets ALL clips to zero (wipe everything), clears track MIDI channel assignments, restores the default number of tracks and clips per track, and sets Mode back to Play for a fresh session.</li>
                     <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown. <strong>⏱ MTC</strong> — toggle MIDI Clock output for external gear.</li>
                     <li><strong>Tap</strong> — tap tempo for BPM.</li>
                     <li><strong>Launchkey buttons:</strong> Play (CC115, toggle), Stop (CC116), Reset (CC117, full reset), Loop (CC118).</li>
