@@ -170,60 +170,42 @@
                 ❓ How to Play
             </summary>
             <div class="help-content">
-                <h4>🎹 Using the Pads</h4>
+                <h4>🎹 Clips (pads)</h4>
                 <ul>
-                    <li><strong>Empty pad press = record.</strong> Press any empty clip to start recording; your notes go into that clip. No arming step needed.</li>
-                    <li><strong>Press the same pad again = stop the take</strong> — then the Mode decides what happens next (see below).</li>
-                    <li><strong>Playing pad</strong> — press stops it; press again starts it (Play mode).</li>
-                    <li><strong>Press a new empty clip</strong> on the same track — stops the current clip and records into the new one.</li>
-                    <li>Pads toggle on press; releasing a pad never stops a clip or a take.</li>
+                    <li><strong>Empty clip</strong> — press to record; press again to end the take. Recording on a track stops that track's playing clip.</li>
+                    <li><strong>Stopped clip</strong> — press to play it (Play mode), or to record a new layer on top (Overdub mode).</li>
+                    <li><strong>Playing clip</strong> — Play mode: press to stop it. Overdub mode: press to record a new layer; press again to end the layer and keep looping.</li>
+                    <li><strong>Long-press (≈600 ms)</strong> a recorded clip — clears it.</li>
+                    <li>Pads act on press only; releasing a pad never stops a clip or a take.</li>
                 </ul>
 
-                <h4>🧱 Clips & Tracks</h4>
+                <h4>🧱 Tracks & Clips</h4>
                 <ul>
                     <li><strong>+ under a track</strong> — adds an empty clip to that track.</li>
-                    <li><strong>- under a track</strong> — removes that track's last clip. On a track's only clip, it removes the whole track (the last remaining track is kept).</li>
-                    <li><strong>+ after the last track</strong> — adds a new track.</li>
-                    <li><strong>Long-press (≈600 ms)</strong> a recorded clip — clears its notes.</li>
+                    <li><strong>- under a track</strong> — removes the track's last clip. On its only clip, removes the whole track. The last remaining track is kept.</li>
+                    <li><strong>+ after the last track</strong> — adds a track. Limits: 16 tracks, 16 clips per track.</li>
                 </ul>
 
-                <h4>🎛️ Transport & Buttons</h4>
+                <h4>🎛️ Transport</h4>
                 <ul>
-                    <li><strong>▶ Play</strong> — starts the transport (MIDI clock + metronome + active clips). Press again to stop it (toggle).</li>
+                    <li><strong>▶ Play</strong> — starts the transport: MIDI clock, metronome and playing clips. Press again to stop.</li>
                     <li><strong>⏹ Stop</strong> — stops all playback.</li>
-                    <li><strong>Reset</strong> — resets ALL clips to zero (wipe everything), clears track MIDI channel assignments, restores the default number of tracks and clips per track, and sets Mode back to Play for a fresh session.</li>
-                    <li><strong>Metro</strong> — toggle metronome click. Choose beats with the dropdown. <strong>⏱ MTC</strong> — toggle MIDI Clock output for external gear.</li>
-                    <li><strong>Tap</strong> — tap tempo for BPM.</li>
-                    <li><strong>Launchkey buttons:</strong> Play (CC115, toggle), Stop (CC116), Reset (CC117, full reset), Loop (CC118).</li>
+                    <li><strong>Post-record</strong> — what a take does when it stops. <em>Play</em>: loops. <em>Overdub</em>: loops and each press records a new layer.</li>
+                    <li><strong>Metro</strong> — toggles the click; the dropdown sets beats per bar. <strong>Tap</strong> — tap tempo.</li>
+                    <li><strong>Reset</strong> — clears all clips, clears track channel assignments, restores the default tracks and clips per track, and sets Post-record to Play.</li>
                 </ul>
 
-                <h4>📝 Post-record (what happens when the initial recording stops)</h4>
+                <h4>💾 Sessions</h4>
                 <ul>
-                    <li><strong>Play</strong> — the take starts looping right away. Next press stops the clip; the press after that plays it again.</li>
-                    <li><strong>Overdub</strong> — the clip keeps looping and records a new layer on top; the next press switches it to Play.</li>
-                    <li>Empty clips always record on first press, whatever the Post-record setting.</li>
-                </ul>
-
-                <h4>💾 Sessions (save/load recordings)</h4>
-                <ul>
-                    <li><strong>💾 Save</strong> (header, left of the connection status) — ask for a name, saves the whole recording (all clips, notes, BPM, mode) to <code>sessions/&lt;name&gt;.json</code>.</li>
-                    <li><strong>⏬ Load</strong> (header) — opens a list of saved sessions; click one to load it into the DAW.</li>
-                    <li>Header quick-load: the last 3 saved sessions are shown left of 💾 Save; the currently loaded project is green.</li>
-                    <li>Separate from router presets (⚙️ MIDI Routing → Save/Load), which store routing/port configuration.</li>
+                    <li><strong>💾 Save</strong> — saves all clips, notes, BPM and mode to <code>sessions/&lt;name&gt;.json</code>.</li>
+                    <li><strong>⏬ Load</strong> — lists saved sessions to load or delete. The header shows the last 3 sessions for quick load; the loaded one is green.</li>
+                    <li>Routing presets (⚙️ MIDI Routing → 💾 Save / 📂 Load) store routing only and are separate from sessions.</li>
                 </ul>
 
                 <h4>🔌 MIDI Routing</h4>
                 <ul>
-                    <li>All connected MIDI devices are auto-linked (all-to-all routing); hot-plug works.</li>
-                    <li>🔊 MIDI Devices shows every connected port. Add custom routes in ⚙️ MIDI Routing to route specific inputs to outputs.</li>
-                </ul>
-
-                <h4>💡 Pad LEDs (Launchkey Mini MK3)</h4>
-                <ul>
-                    <li><strong>Flashing cyan</strong> — the last activated clip, playing.</li>
-                    <li><strong>Steady cyan</strong> — another clip that is playing.</li>
-                    <li><strong>Pulsing cyan</strong> — clip has a recording but is stopped.</li>
-                    <li><strong>Flashing red</strong> — recording in progress. <strong>Off</strong> — empty clip.</li>
+                    <li>All connected MIDI devices are routed to each other automatically; hot-plug is supported.</li>
+                    <li>Custom routes: ⚙️ MIDI Routing → <strong>+ Add Route</strong>. 🔊 MIDI Devices lists every connected port.</li>
                 </ul>
             </div>
         </details>
