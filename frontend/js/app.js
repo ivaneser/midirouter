@@ -63,6 +63,8 @@ function connect() {
         send({ type: 'get-config' });
         // Request DAW state (clips, grid) — must be AFTER WS connection
         send({ type: 'daw-get' });
+        // Saved sessions list (for the Load picker)
+        send({ type: 'daw-list-sessions' });
     };
 
     ws.onclose = () => {
@@ -114,6 +116,8 @@ function handleMessage(msg) {
         case 'daw_event':
         case 'daw_progress':
         case 'daw_visual_event':
+        case 'daw_session_list':
+        case 'daw_session_error':
             dawUI.handleMessage(msg);
             break;
 
