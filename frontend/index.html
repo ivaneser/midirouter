@@ -46,7 +46,7 @@
                     
                     <label class="transport-label">
                         <button id="metronome-toggle" class="btn btn-sm" title="Toggle metronome">♪ Metro</button>
-                        <button id="midi-clock-toggle" class="btn btn-sm" title="Toggle MIDI clock (MTC) for external gear">⏱ MTC</button>
+                        <button id="midi-clock-toggle" class="btn btn-sm" style="display:none" title="MIDI clock (MTC) for external gear is always on">⏱ MTC</button>
                         Beats:
                         <select id="metro-beats">
                             <option value="1">1</option>
@@ -77,6 +77,7 @@
                 
                 <!-- Transport buttons (right side) -->
                 <div class="transport-buttons-group">
+                    <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
                     <button id="btn-play" class="btn btn-green">▶ Play</button>
                     <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
                     <button id="btn-record-arm" class="btn btn-orange">Reset</button>
@@ -87,7 +88,6 @@
                             <option value="overdub">Overdub</option>
                         </select>
                     </label>
-                    <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
                     <p id="session-status" class="session-status"></p>
                 </div>
             </div>

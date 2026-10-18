@@ -491,15 +491,6 @@ class DAWEngine {
             track.channelAssigned = false;
         });
         this.clipState.fill(-1);
-        if (!this.playing) {
-            // Restart: if the pre-record metronome was already ticking, reset its timer
-            // and anchor — the new count runs for exactly two bars.
-            this._stopMetronome();
-            this._metronomeEnabled = true;
-            this._preRecordTwoBarRemainingBeats = Math.max(2, 2 * this._metronomeBeatsPerMeasure);
-            this._metronomeAnchorTime = performance.now();
-            this._startMetronome();
-        }
     }
 
     // Clear a single clip (long-press on a pad): drop its notes and reset its

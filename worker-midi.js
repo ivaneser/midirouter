@@ -268,7 +268,7 @@ class MIDIRouterWorker {
         }
         if (!portName) return;
         this._clockMaster.selectExternal(portName);
-        this.daw.setMidiClock(false); // the external master does not tick by itself
+        this.daw.setMidiClock(true); // MTC on by default: clock goes out to all gear
         console.log(`[WORKER] Default clock source: external (${portName})`);
     }
 
