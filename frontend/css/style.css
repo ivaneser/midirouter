@@ -36,6 +36,46 @@ body {
     margin-left: 12px;
 }
 
+/* Save/Load session buttons in the header, left of the connection indicator */
+.session-header-controls {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    margin-right: 4px;
+}
+.session-header-controls .btn { margin-left: 0; }
+.session-load-wrap { position: relative; }
+.session-picker {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 1000;
+    min-width: 220px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 8px;
+    background: #16213e;
+    border: 1px solid #0f3460;
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.session-picker[hidden] { display: none; }
+.session-picker-title {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.session-picker-empty {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #888;
+}
+.session-picker .session-item { justify-content: space-between; }
+
 /* === Connect Panel (removed — button in header) === */
 
 .connect-panel input {

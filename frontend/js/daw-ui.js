@@ -12,54 +12,104 @@ export class DAWUI {
     }
 
     // Sessions: save/load recordings (DAW clips) to/from disk.
-    // The name is asked in a prompt after the button is pressed (there is no field in the UI).
+    // Save asks for a name; Load opens a dropdown listing the saved sessions.
     _initSessions() {
-        if (!document.getElementById('btn-save-session') && !document.getElementById('session-list')) return;
         const saveBtn = document.getElementById('btn-save-session');
+        const loadBtn = document.getElementById('btn-load-session');
+        if (!saveBtn && !loadBtn && !document.getElementById('session-list')) return;
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
                 const name = prompt('Save session as:');
                 if (name && name.trim()) this._send({ type: 'daw-save-session', name: name.trim() });
             });
         }
-        const loadBtn = document.getElementById('btn-load-session');
         if (loadBtn) {
-            loadBtn.addEventListener('click', () => {
-                const list = this._sessions && this._sessions.length
-                    ? `Available sessions:\n${this._sessions.join('\n')}\n` : '';
-                const name = prompt(`${list}Load session:`, '');
-                if (name && name.trim()) this._send({ type: 'daw-load-session', name: name.trim() });
+            loadBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._toggleSessionPicker();
             });
         }
+        // Close the picker on outside click or Escape
+        document.addEventListener('click', (e) => {
+            const wrap = document.querySelector('.session-load-wrap');
+            if (wrap && !wrap.contains(e.target)) this._setSessionPicker(false);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this._setSessionPicker(false);
+        });
         this._send({ type: 'daw-list-sessions' });
     }
 
+    _toggleSessionPicker() {
+        const open = document.getElementById('session-picker')?.hidden !== false;
+        this._setSessionPicker(open);
+        if (open) this._send({ type: 'daw-list-sessions' }); // refresh list when opening
+    }
+
+    _setSessionPicker(open) {
+        const picker = document.getElementById('session-picker');
+        const loadBtn = document.getElementById('btn-load-session');
+        if (!picker) return;
+        picker.hidden = !open;
+        loadBtn?.setAttribute('aria-expanded', String(open));
+        if (open) this._renderSessionPicker();
+    }
+
+    _renderSessionPicker() {
+        const picker = document.getElementById('session-picker');
+        if (!picker || picker.hidden) return;
+        picker.innerHTML = '';
+        const title = document.createElement('div');
+        title.className = 'session-picker-title';
+        title.textContent = 'Saved sessions';
+        picker.appendChild(title);
+        if (!this._sessions.length) {
+            const empty = document.createElement('p');
+            empty.className = 'session-picker-empty';
+            empty.textContent = 'No saved sessions yet.';
+            picker.appendChild(empty);
+            return;
+        }
+        for (const name of this._sessions) {
+            picker.appendChild(this._sessionRow(name, () => {
+                this._setSessionPicker(false);
+                this._send({ type: 'daw-load-session', name });
+            }));
+        }
+    }
+
+    // One session entry: clickable name + delete button
+    _sessionRow(name, onLoad) {
+        const row = document.createElement('div');
+        row.className = 'session-item';
+
+        const label = document.createElement('span');
+        label.className = 'session-name-label';
+        label.textContent = name;
+        label.title = `Load "${name}"`;
+        label.addEventListener('click', onLoad);
+
+        const del = document.createElement('button');
+        del.className = 'session-delete';
+        del.textContent = '✕';
+        del.title = `Delete "${name}"`;
+        del.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._send({ type: 'daw-delete-session', name });
+        });
+
+        row.appendChild(label);
+        row.appendChild(del);
+        return row;
+    }
+
     _renderSessions() {
+        this._renderSessionPicker();
         const list = document.getElementById('session-list');
         if (!list) return;
         list.innerHTML = '';
         for (const name of this._sessions) {
-            const row = document.createElement('div');
-            row.className = 'session-item';
-
-            const label = document.createElement('span');
-            label.className = 'session-name-label';
-            label.textContent = name;
-            label.title = `Load "${name}"`;
-            label.addEventListener('click', () => this._send({ type: 'daw-load-session', name }));
-
-            const del = document.createElement('button');
-            del.className = 'session-delete';
-            del.textContent = '✕';
-            del.title = `Delete "${name}"`;
-            del.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this._send({ type: 'daw-delete-session', name });
-            });
-
-            row.appendChild(label);
-            row.appendChild(del);
-            list.appendChild(row);
+            list.appendChild(this._sessionRow(name, () => this._send({ type: 'daw-load-session', name })));
         }
         const empty = document.createElement('p');
         empty.className = 'daw-hint';
