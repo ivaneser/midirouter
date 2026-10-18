@@ -415,11 +415,14 @@ body {
     color: #eee;
     font-size: 0.85rem;
 }
+#master-loop-bars {
+    width: 4em; /* fits the "Auto" placeholder */
+}
 .transport-separator {
     width: 1px;
     height: 30px;
     background: #334;
-    margin: 0 4px;
+    margin: 0 -6.5px; /* sits inside the 12px gap so spacing matches other controls */
 }
 .btn-green { background: #0a7c2e; color: white; }
 .btn-red { background: #8b0000; color: white; }
@@ -1243,7 +1246,7 @@ body {
     .transport-separator {
         width: 1px;
         height: 30px;
-        margin: 0 4px;
+        margin: 0 -4.5px; /* gap is 8px here */
     }
 
     /* Session grid — wider track blocks */
@@ -1322,7 +1325,7 @@ body {
     .transport-separator {
         width: 1px;
         height: 32px;
-        margin: 0 6px;
+        margin: 0 -6.5px; /* gap is 12px here */
     }
 
     /* Session grid — more tracks visible */

@@ -47,6 +47,23 @@
                     <label class="transport-label">
                         <button id="metronome-toggle" class="btn btn-sm" title="Toggle metronome">♪ Metro</button>
                         <button id="midi-clock-toggle" class="btn btn-sm" style="display:none" title="MIDI clock (MTC) for external gear is always on">⏱ MTC</button>
+                        Quantize:
+                        <select id="quantize-grid">
+                            <option value="0">Off</option>
+                            <option value="0.125">1/32</option>
+                            <option value="0.25">1/16</option>
+                            <option value="0.5" selected>1/8</option>
+                            <option value="1">1/4</option>
+                            <option value="2">1/2</option>
+                        </select>
+                    </label>
+
+                    <label class="transport-label">
+                        Bars:
+                        <input type="number" id="master-loop-bars" min="1" max="64" step="1" placeholder="Auto" title="Default length of the global transport cycle in bars (blank = auto)">
+                    </label>
+
+                    <label class="transport-label">
                         Beats:
                         <select id="metro-beats">
                             <option value="1">1</option>
@@ -57,18 +74,6 @@
                             <option value="6">6</option>
                             <option value="7">7</option>
                             <option value="8">8</option>
-                        </select>
-                    </label>
-
-                    <label class="transport-label">
-                        Quantize:
-                        <select id="quantize-grid">
-                            <option value="0">Off</option>
-                            <option value="0.125">1/32</option>
-                            <option value="0.25">1/16</option>
-                            <option value="0.5" selected>1/8</option>
-                            <option value="1">1/4</option>
-                            <option value="2">1/2</option>
                         </select>
                     </label>
                 </div>

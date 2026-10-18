@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-10-17T17:30:52.393Z",
+  "savedAt": "2026-10-18T07:45:56.236Z",
   "tempo": 99.04868425978819,
   "recordMode": "none",
   "slotsPerTrack": 2,
@@ -205,44 +205,6 @@
     },
     {
       "channel": 6,
-      "channelAssigned": false,
-      "armed": false,
-      "muted": false,
-      "soloed": false,
-      "clips": [
-        {
-          "length": 4,
-          "phase": 0,
-          "notes": []
-        },
-        {
-          "length": 4,
-          "phase": 0,
-          "notes": []
-        }
-      ]
-    },
-    {
-      "channel": 7,
-      "channelAssigned": false,
-      "armed": false,
-      "muted": false,
-      "soloed": false,
-      "clips": [
-        {
-          "length": 4,
-          "phase": 0,
-          "notes": []
-        },
-        {
-          "length": 4,
-          "phase": 0,
-          "notes": []
-        }
-      ]
-    },
-    {
-      "channel": 8,
       "channelAssigned": false,
       "armed": false,
       "muted": false,

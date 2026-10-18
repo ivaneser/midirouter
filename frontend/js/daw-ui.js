@@ -342,8 +342,9 @@ export class DAWUI {
             modeSelect.dataset.recordMode = this.dawState.recordMode;
         }
         if (tempoInput) tempoInput.value = Math.round(this.dawState.tempo);
-        if (masterLoopBars && this.dawState.masterLoopBars != null) {
-            masterLoopBars.value = String(this.dawState.masterLoopBars);
+        if (masterLoopBars) {
+            masterLoopBars.value = this.dawState.masterLoopBars != null
+                ? String(this.dawState.masterLoopBars) : '';
         }
         
         // Metronome
