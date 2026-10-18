@@ -583,6 +583,20 @@ export class DAWUI {
                 this._send({ type: 'daw-add-clip', trackIdx: t });
             });
             addRow.appendChild(addClipBtn);
+
+            // "-" next to "+": remove the last clip; on a track's only clip, remove the whole track
+            const removeClipBtn = document.createElement('button');
+            removeClipBtn.className = 'btn-remove-clip';
+            removeClipBtn.textContent = '-';
+            const onlyTrack = this.dawState.tracks.length <= 1;
+            removeClipBtn.disabled = clipCount <= 1 && onlyTrack;
+            removeClipBtn.title = clipCount > 1
+                ? `Track ${t + 1} - Remove last clip`
+                : (onlyTrack ? 'Keep at least one track' : `Track ${t + 1} - Remove track`);
+            removeClipBtn.addEventListener('click', () => {
+                this._send({ type: 'daw-remove-clip', trackIdx: t });
+            });
+            addRow.appendChild(removeClipBtn);
             block.appendChild(addRow);
 
             grid.appendChild(block);

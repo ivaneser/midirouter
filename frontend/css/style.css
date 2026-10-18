@@ -547,6 +547,7 @@ body {
 
 /* Per-track column: header + vertical clips + control buttons below */
 .track-block {
+    --slot-w: 64px;   /* clip button width; the +/- row matches it */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -560,9 +561,10 @@ body {
     align-items: center;
     gap: 4px;
     margin-top: 4px;
+    width: var(--slot-w);
 }
 /* "+" buttons: add a clip under a track, or a track after the last one */
-.btn-add-clip, .btn-add-track {
+.btn-add-clip, .btn-remove-clip, .btn-add-track {
     border: 1px dashed #0f3460;
     background: #1a1a2e;
     color: #e94560;
@@ -570,8 +572,31 @@ body {
     cursor: pointer;
     transition: all 0.15s;
 }
+.btn-remove-clip {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 24px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1;
+    border: 1px dashed #0f3460;
+    background: #1a1a2e;
+    color: #e94560;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-remove-clip:hover:not(:disabled) {
+    border-color: #e94560;
+    background: #0f3460;
+}
+.btn-remove-clip:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
 .btn-add-clip {
-    width: 64px;
+    flex: 1 1 0;
+    min-width: 0;
     height: 24px;
     border-radius: 4px;
     font-size: 0.9rem;
@@ -598,7 +623,6 @@ body {
     padding-top: 0;
 }
 
-.daw-hint { font-size: 0.75rem; color: #888; margin-top: 8px; }
 
 /* === Clock source indicator & BPM display === */
 .clock-source-indicator {
@@ -953,7 +977,7 @@ body {
     font-weight: bold;
 }
 .session-slot {
-    width: 64px;
+    width: var(--slot-w);
     height: 40px;
     border-radius: 4px;
     border: 2px solid #0f3460;
@@ -1104,8 +1128,11 @@ body {
         font-size: 0.65rem;
     }
 
+    .track-block {
+        --slot-w: 52px;
+    }
     .session-slot {
-        width: 52px;
+        width: var(--slot-w);
         height: 32px;
         font-size: 0.6rem;
     }
@@ -1141,8 +1168,11 @@ body {
         font-size: 0.6rem;
     }
 
+    .track-block {
+        --slot-w: 44px;
+    }
     .session-slot {
-        width: 44px;
+        width: var(--slot-w);
         height: 28px;
         font-size: 0.55rem;
     }
@@ -1230,8 +1260,11 @@ body {
         font-size: 0.7rem;
     }
 
+    .track-block {
+        --slot-w: 56px;
+    }
     .session-slot {
-        width: 56px;
+        width: var(--slot-w);
         height: 34px;
         font-size: 0.65rem;
     }
@@ -1306,8 +1339,11 @@ body {
         font-size: 0.75rem;
     }
 
+    .track-block {
+        --slot-w: 62px;
+    }
     .session-slot {
-        width: 62px;
+        width: var(--slot-w);
         height: 38px;
         font-size: 0.7rem;
     }

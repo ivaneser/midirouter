@@ -74,7 +74,7 @@ Requirements: Raspberry Pi 4 (or 3B+), a USB-MIDI controller/synthesizer, ALSA (
 ## Controls
 - **Post-record (behaviour when the initial recording stops):** Play / Overdub (in the web UI).
 - **BPM + Tap Tempo.**
-- **Clips per track:** 3 by default; "+" under a track adds an empty clip (max 16). Long-press (≈600 ms) a recorded clip to clear it.
+- **Clips per track:** 2 by default; "+" under a track adds an empty clip (max 16); "-" removes its last clip, and on a track's only clip removes the whole track. Long-press (≈600 ms) a recorded clip to clear it.
 - **Auto-assign pads:** turns the automatic key mapping on/off.
 - **Sessions:** 💾 Save / ⏬ Load — save/load recordings (all clips) to disk in `sessions/*.json`; a dialog asks for the name after the button is pressed.
 - **Configuration presets:** save/load routing settings (`device_maps/daw_*.json`, tab ⚙️ MIDI Routing).

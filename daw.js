@@ -14,7 +14,7 @@
 import { MidiClock } from './midi-clock.js';
 
 const PPQ = 192;                 // pulses per quarter note (timing)
-const DEFAULT_SLOTS_PER_TRACK = 3;  // 3 clips per track by default
+const DEFAULT_SLOTS_PER_TRACK = 2;  // 2 clips per track by default
 const DEFAULT_TRACK_COUNT = 6;      // 6 tracks by default (MIDI channels 1..6)
 const MAX_TRACKS = 16;              // one track per MIDI channel
 const MAX_SLOTS_PER_TRACK = 16;
@@ -545,6 +545,34 @@ class DAWEngine {
         if (!track || track.clips.length >= MAX_SLOTS_PER_TRACK) return -1;
         track.clips.push({ notes: [], length: this.loopLenBeats });
         return track.clips.length - 1;
+    }
+
+    // "-" next to "+" under a track: drop the track's last clip. Returns the removed
+    // slot index, or -1 when the track is missing or has only one clip (the caller
+    // then removes the whole track with removeTrack()).
+    removeLastClip(trackIdx) {
+        const track = this.tracks[trackIdx];
+        if (!track || track.clips.length <= 1) return -1;
+        const slot = track.clips.length - 1;
+        if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
+            this._stopRecording();
+        }
+        if (this.clipState[trackIdx] === slot) this.clipState[trackIdx] = -1;
+        track.clips.pop();
+        return slot;
+    }
+
+    // Remove a whole track (and its clips). Later tracks shift down by one.
+    // At least one track always remains. Returns true when the track was removed.
+    removeTrack(trackIdx) {
+        if (this.tracks.length <= 1 || !this.tracks[trackIdx]) return false;
+        if (this.recording) {
+            if (this.recording.track === trackIdx) this._stopRecording();
+            else if (this.recording.track > trackIdx) this.recording.track -= 1;
+        }
+        this.tracks.splice(trackIdx, 1);
+        this.clipState.splice(trackIdx, 1);
+        return true;
     }
 
     // "+" after the last track: append one empty track on the next MIDI channel.

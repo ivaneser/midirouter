@@ -555,6 +555,10 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_add_track' });
                         break;
 
+                    case 'daw-remove-clip':
+                        router.worker.postMessage({ type: 'daw_remove_clip', trackIdx: message.trackIdx });
+                        break;
+
                     case 'midi-send':
                         // Send a raw MIDI message to the specified output
                         if (message.data && message.target) {

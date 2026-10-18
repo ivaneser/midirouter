@@ -2120,9 +2120,54 @@ class MIDIRouterWorker {
                 daw.addTrack();
                 this._broadcastState();
                 break;
+            case 'daw_remove_clip':
+                if (Number.isInteger(msg.trackIdx)) {
+                    this._removeLastClipOrTrack(msg.trackIdx);
+                    this._broadcastState();
+                }
+                break;
 
 
         }
+    }
+
+    // "-" under a track: remove its last clip; when that is the only clip,
+    // remove the whole track instead.
+    _removeLastClipOrTrack(trackIdx) {
+        const daw = this.daw;
+        const track = daw.tracks[trackIdx];
+        if (!track) return;
+        if (track.clips.length > 1) {
+            const slot = track.clips.length - 1;
+            this._stopTrackPlayback(trackIdx);
+            this._ledGlow.delete(trackIdx);
+            daw.removeLastClip(trackIdx);
+            this._padLedSent?.delete(`${trackIdx}:${slot}`);
+            this._refreshPadLeds(trackIdx, slot);
+            return;
+        }
+        if (daw.tracks.length <= 1) return;   // keep at least one track
+        // Stop playback of this track and every later one (their indexes shift).
+        // Tracks that were playing after the removed one are restarted at their new index.
+        const restart = [];
+        for (let t = trackIdx; t < daw.tracks.length; t++) {
+            const slot = daw.clipState[t];
+            if (this._trackPlayTimers.has(t) && slot >= 0) restart.push({ from: t, slot });
+            this._stopTrackPlayback(t);
+            this._ledGlow.delete(t);
+        }
+        this._padLedSent?.clear();
+        if (!daw.removeTrack(trackIdx)) return;
+        for (const { from, slot } of restart) {
+            if (from === trackIdx) continue;
+            const to = from - 1;
+            if (daw.clipState[to] === slot) this._startTrackPlayback(to, slot);
+        }
+        // A take still in progress on a shifted track keeps its recording glow.
+        if (daw.recording && daw.recording.track >= trackIdx) {
+            this._armLed(daw.recording.track, daw.recording.slot);
+        }
+        this._refreshPadLeds();
     }
 
     _broadcastState() {

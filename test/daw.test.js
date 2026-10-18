@@ -71,7 +71,7 @@ test('invalid controller profiles fail validation', () => {
 
 test('a held note records quarter-note timing, velocity and MIDI channel', () => {
     const daw = new DAWEngine();
-    assert.equal(daw.slotsPerTrack, 3);
+    assert.equal(daw.slotsPerTrack, 2);
     daw.setRecordMode('none');
     assert.equal(daw.triggerPad(0, 1, 1000).action, 'record');
     daw.recordEvent(0x90, 60, 103, 1000);

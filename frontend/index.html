@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=16">
+    <link rel="stylesheet" href="/css/style.css?v=17">
 </head>
 <body>
     <div id="app">
@@ -100,11 +100,6 @@
             <!-- Track Controls -->
             <div id="track-controls" class="track-controls"></div>
 
-            <p class="daw-hint">
-                🎹 Empty pad = record; press again to stop. Post-record decides what happens after stop:
-                Play → loop the take · Overdub → keep playing and recording layers. Next press: Play stops, Overdub switches to Play.<br>
-                "+" under a track adds an empty clip to it · "+" after the last track adds a track · 💾 Save (header) asks for a name; ⏬ Load (header) lists saved sessions; header ⏬ Load lists saved sessions (load/delete).
-            </p>
             </div>
         </details>
 
@@ -182,6 +177,14 @@
                     <li><strong>Playing pad</strong> — press stops it; press again starts it (Play mode).</li>
                     <li><strong>Press a new empty clip</strong> on the same track — stops the current clip and records into the new one.</li>
                     <li>Pads toggle on press; releasing a pad never stops a clip or a take.</li>
+                </ul>
+
+                <h4>🧱 Clips & Tracks</h4>
+                <ul>
+                    <li><strong>+ under a track</strong> — adds an empty clip to that track.</li>
+                    <li><strong>- under a track</strong> — removes that track's last clip. On a track's only clip, it removes the whole track (the last remaining track is kept).</li>
+                    <li><strong>+ after the last track</strong> — adds a new track.</li>
+                    <li><strong>Long-press (≈600 ms)</strong> a recorded clip — clears its notes.</li>
                 </ul>
 
                 <h4>🎛️ Transport & Buttons</h4>
