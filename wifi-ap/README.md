@@ -8,7 +8,7 @@ This directory contains the configuration and scripts to turn your Raspberry Pi 
 - **Password:** `midirouter`
 - **Captive Portal:** Connected clients are automatically redirected to the midirouter web interface (no manual URL entry required)
 - **DHCP & DNS:** Clients receive IP settings automatically via dnsmasq
-- **Internet Sharing (NAT):** Connected clients can also access the internet through the Pi's Ethernet connection
+- **Standalone:** No internet sharing or routing. Clients can only reach the Pi (UI, DHCP, DNS); nothing is forwarded to `eth0`
 
 ## Quick Start
 
@@ -72,7 +72,7 @@ This stops the AP and restores the WiFi interface to managed mode so it can reco
 |-----------|---------|
 | **hostapd** | Turns the WiFi adapter into an access point with WPA2 security |
 | **dnsmasq** | Provides DHCP (IP assignment) and DNS resolution for connected clients |
-| **iptables** | Sets up NAT (internet sharing) and redirects web traffic to port 3000 (captive portal) |
+| **iptables** | Redirects web traffic to port 3000 (captive portal) and blocks forwarding between the AP and other networks |
 | **server.js** | The midirouter Node.js web server that serves the UI over WebSocket |
 
 ### Captive Portal
@@ -136,9 +136,7 @@ If you don't see `AP` in the supported interface modes, your WiFi adapter may no
 
 ### Clients can connect but no internet
 
-This is expected — clients only have access to the local midirouter UI unless internet sharing is needed. If you want internet access for clients:
-1. Make sure `eth0` has an active internet connection
-2. Check that iptables MASQUERADE rule is set: `iptables -t nat -L POSTROUTING -n`
+This is expected — the AP is standalone. Clients only reach the midirouter UI on the Pi (`10.0.0.1:3000`).
 
 ### hostapd fails to start
 
@@ -185,7 +183,7 @@ sudo systemctl disable midirouter-ap.service
 - The AP uses WPA2-Personal (PSK) with TKIP/CCMP encryption
 - The default password `midirouter` should be changed for production use
 - Clients on the AP subnet are isolated from your main network (they only reach the Pi itself)
-- Internet sharing via NAT is enabled by default — disable it in `start-ap.sh` if not needed
+- Standalone: IP forwarding is off and the AP subnet is blocked from forwarding, so clients cannot reach other networks or the internet through the Pi
 
 ## License
 

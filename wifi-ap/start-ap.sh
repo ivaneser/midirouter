@@ -83,11 +83,17 @@ if ! ip link show "${AP_INTERFACE}" | grep -q "UP"; then
     exit 1
 fi
 
-# ---- Configure iptables for NAT and captive portal redirect ----
+# ---- Configure iptables for captive portal redirect (no internet sharing) ----
 echo "[AP] Setting up iptables rules..."
 
-# Enable IP forwarding
-echo 1 > /proc/sys/net/ipv4/ip_forward
+# Standalone mode: no routing between the AP and the Pi's other networks.
+# IP forwarding stays off, and any leftover NAT rule from older runs is removed.
+echo 0 > /proc/sys/net/ipv4/ip_forward
+iptables -t nat -D POSTROUTING -s 10.0.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
+iptables -D FORWARD -i wlan0 -j DROP 2>/dev/null || true
+iptables -D FORWARD -o wlan0 -j DROP 2>/dev/null || true
+iptables -I FORWARD 1 -i wlan0 -j DROP
+iptables -I FORWARD 1 -o wlan0 -j DROP
 
 # Flush existing rules for our chains
 iptables -t nat -F MIDIRouter 2>/dev/null || true
@@ -95,8 +101,6 @@ iptables -t nat -N MIDIRouter 2>/dev/null || true
 iptables -t filter -F MIDIRouter 2>/dev/null || true
 iptables -t filter -N MIDIRouter 2>/dev/null || true
 
-# NAT: Masquerade traffic from the AP subnet to the internet (via eth0)
-iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
 
 # Redirect plain HTTP traffic to the web server on port 3000 so HTTP captive-portal
 # checks can reach the UI. Never redirect HTTPS: TLS cannot be served by this HTTP port.
