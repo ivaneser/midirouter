@@ -29,8 +29,14 @@ variation, only the average.
 - Audio latency offset: the UI slider sets a value in ms (0 to 300,
   default 30). The worker shifts clip note-on times earlier by this
   amount in the non-external-clock playback path. Note-off keeps its
-  duration relative to its note-on. The DAW beat grid and recording are
-  not changed.
+  duration relative to its note-on. The DAW beat grid is not changed.
+- Recording follows the same offset. Clip notes are sent `audioOffsetMs`
+  after their grid time, so a key pressed in time with what the performer
+  hears is stored at `press - audioOffsetMs` on the grid. This applies to
+  pad/keyboard presses, the bar-line start and stop of a take, and the
+  count-in. The wall clock is converted to grid time once at each entry
+  point (`DAWEngine._pressTime`, `_gridToWall`). The click offset is not
+  used for recording.
 
 ## Status
 

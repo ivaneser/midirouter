@@ -111,6 +111,9 @@ class DAWEngine {
         this._countInTimer = null;          // pending setTimeout — canceled on stop
         this._countInGeneration = 0;
         this._onCountInComplete = () => {};
+        // Clip playback audio offset (ms, negative = notes sent earlier). Supplied
+        // by the worker; 0 when the DAW runs standalone (tests, no worker).
+        this.getAudioOffsetMs = () => 0;
         // True when the transport was started by a Record button (Launchkey Record
         // or web Rec). The first empty-clip take then starts at the next bar line
         // instead of after a two-bar count-in.
@@ -179,9 +182,10 @@ class DAWEngine {
         if (!this._isPreRecordMetronomeMode() || !this._metronomeAnchorTime) return false;
         const spbMs = this._secondsPerBeatMs();
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
-        const sinceAnchor = (now - this._metronomeAnchorTime) / spbMs;
+        const gridNow = this._pressTime(now);
+        const sinceAnchor = (gridNow - this._metronomeAnchorTime) / spbMs;
         let nextBar = Math.ceil(sinceAnchor / bar) * bar;
-        if ((this._metronomeAnchorTime + nextBar * spbMs) - now < 5) nextBar += bar;
+        if ((this._metronomeAnchorTime + nextBar * spbMs) - gridNow < 5) nextBar += bar;
         const countInEnd = this._metronomeAnchorTime + (nextBar + 2 * bar) * spbMs;
         this._preRecordTwoBarRemainingBeats = null;
         this.playing = true;
@@ -197,7 +201,7 @@ class DAWEngine {
             this._countInTimer = null;
             this._countInRunning = false;
             this._onCountInComplete();
-        }, Math.max(0, countInEnd - now));
+        }, Math.max(0, this._gridToWall(countInEnd) - now));
         return true;
     }
 
@@ -404,7 +408,7 @@ class DAWEngine {
     _isPreRecordMetronomeMode() {
         if (this._countInRunning) return true;  // explicit flag wins
         // Recording was created with a future startTime — still in count-in delay.
-        if (this.recording && this.recording.startTime > performance.now()) return true;
+        if (this.recording && this.recording.startTime > this._pressTime(performance.now())) return true;
         // While transport is stopped, pre-record mode stays active as long as
         // every clip is empty (the in-flight recording's notes are not committed
         // to the clip until _stopRecording finishes).  This keeps the metronome
@@ -646,7 +650,8 @@ class DAWEngine {
 
     // ---- Recording ----
     // armed: if a recording is already running on this track/slot (overdub), the new button adds a layer
-    armRecording(trackIdx, slot, now, options = {}) {
+    armRecording(trackIdx, slot, wallNow, options = {}) {
+        const now = this._pressTime(wallNow); // grid time of the press
         const existing = this.tracks[trackIdx].clips[slot];
 
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) return;
@@ -872,8 +877,9 @@ class DAWEngine {
     }
 
     // Incoming MIDI event during recording
-    recordEvent(statusByte, data1, data2, now) {
+    recordEvent(statusByte, data1, data2, wallNow) {
         if (!this.recording) return false;
+        const now = this._pressTime(wallNow); // grid time of the press
         if (now < this.recording.startTime) return false;
         const inputChannel = (statusByte & 0x0f) + 1;
         const track = this.tracks[this.recording.track];
@@ -937,6 +943,19 @@ class DAWEngine {
         return 60 / this.tempo; // one quarter-note beat
     }
 
+    // ---- Audio offset: wall clock <-> beat grid ----
+    // Clip note-ons are sent audioOffsetMs after their grid time (negative =
+    // earlier), so the performer hears grid position g at wall time g + offset.
+    // A key pressed in time with what is heard therefore belongs to grid time
+    // (press - offset). Recording works in grid time; the wall clock is only
+    // used for presses and for timers.
+    _audioOffsetMs() {
+        const v = Number(this.getAudioOffsetMs?.());
+        return Number.isFinite(v) ? v : 0;
+    }
+    _pressTime(wallNow) { return wallNow - this._audioOffsetMs(); }
+    _gridToWall(gridTime) { return gridTime + this._audioOffsetMs(); }
+
     // Quantize: move start times to the grid (divide by gridSize, round).
     // gridSize 0 (or any non-positive value) = Off: starts are not snapped.
     quantizeClip(trackIdx, slot, gridSize = 0.5) {
@@ -978,7 +997,7 @@ class DAWEngine {
 
         // (1) This slot is being recorded now — finish it and follow the Mode.
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
-            this._stopRecording(this._beatAt(now));
+            this._stopRecording(this._beatAt(this._pressTime(now)));
             this.quantizeClip(trackIdx, slot, this.quantizeGrid ?? 0.125);
             // Play, or the end of an overdub layer: the clip loops from its beat 0.
             this.clipState[trackIdx] = clip.notes.length ? slot : -1;

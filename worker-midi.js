@@ -118,6 +118,9 @@ class MIDIRouterWorker {
         this.daw._onRecordingStarted = () => {};
         // Overdub: each finished note is added to the clip's live loop (see _scheduleOverdubNote).
         this.daw._onNoteRecorded = (trackIdx, slot, note) => this._scheduleOverdubNote(trackIdx, slot, note);
+        // Recording compensates the audio offset: a key pressed in time with the
+        // clip the performer hears is stored at the grid position that played it.
+        this.daw.getAudioOffsetMs = () => this.audioOffsetMs;
 
         // Two-bar count-in: after transport starts on first empty-clip trigger,
         // start actual recording once the count-in completes. The recording state
@@ -1171,13 +1174,15 @@ class MIDIRouterWorker {
 
         const bar = Math.max(1, this.daw._metronomeBeatsPerMeasure || 4);
         const spb = this.daw._secondsPerBeat();
-        let boundaryTime = now + bar * spb * 1000;
+        // Bar line in beat-grid time; the performer hears it audioOffsetMs later.
+        const gridNow = this.daw._pressTime(now);
+        let boundaryTime = gridNow + bar * spb * 1000;
         if (this.daw.playing) {
-            const currentBeat = Math.max(0, ((now - this.daw._playAnchorTime) / 1000) / spb);
+            const currentBeat = Math.max(0, ((gridNow - this.daw._playAnchorTime) / 1000) / spb);
             const nextBar = Math.ceil(currentBeat / bar) * bar;
             let delayMs = (nextBar - currentBeat) * spb * 1000;
             if (delayMs <= 5) delayMs = 0;
-            boundaryTime = now + delayMs;
+            boundaryTime = gridNow + delayMs;
         }
 
         this._recordingStopTimer = setTimeout(() => {
@@ -1224,7 +1229,7 @@ class MIDIRouterWorker {
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
             this._broadcastState();
-        }, Math.max(0, boundaryTime - performance.now()));
+        }, Math.max(0, this.daw._gridToWall(boundaryTime) - performance.now()));
         return true;
     }
 
@@ -1246,6 +1251,9 @@ class MIDIRouterWorker {
         // very moment (the transport starts below).
         const wasEmptyProject = this.daw.isEmptyProject();
         const result = this.daw.triggerPad(trackIdx, slot, now, { countIn });
+        // Playback and the transport anchor live on the beat grid; the press is
+        // a wall-clock time. Convert it once for everything scheduled below.
+        const gridNow = this.daw._pressTime(now);
         let visualEvent = null;
         if (['play', 'record-stop', 'record', 'overdub'].includes(result.action)) {
             visualEvent = {
@@ -1273,12 +1281,12 @@ class MIDIRouterWorker {
                 // A take that was just recorded plays at once from its own beat 0.
                 // A manual launch of a stored clip waits for the next cycle start.
                 const immediate = result.action === 'record-stop';
-                const delayMs = immediate || !this.daw.playing ? 0 : this.daw.msUntilPhase(0, now);
+                const delayMs = immediate || !this.daw.playing ? 0 : this.daw.msUntilPhase(0, gridNow);
                 this._lastActivated = { trackIdx, slot };
                 if (delayMs > 5) {
-                    this._schedulePendingStart(trackIdx, slot, now + delayMs, delayMs);
+                    this._schedulePendingStart(trackIdx, slot, gridNow + delayMs, delayMs);
                 } else {
-                    this._startTrackPlayback(trackIdx, slot, now, { immediate });
+                    this._startTrackPlayback(trackIdx, slot, gridNow, { immediate });
                 }
             }
         } else if (result.action === 'stop') {
@@ -1317,10 +1325,10 @@ class MIDIRouterWorker {
             // The recording was armed before the transport anchor was set, a few ms
             // later. Shift its start by the same amount so beat 0 of the take lines up
             // with the transport beat grid (otherwise the stop boundary is off by that gap).
-            const anchorDrift = this.daw._playAnchorTime - now;
+            const anchorDrift = this.daw._playAnchorTime - gridNow;
             if (this.daw.recording && anchorDrift > 0) this.daw.recording.startTime += anchorDrift;
             if (result.action === 'overdub' && this.daw.clipState[trackIdx] !== slot) {
-                this._startOverdubPlayback(trackIdx, slot, now);
+                this._startOverdubPlayback(trackIdx, slot, gridNow);
             }
             this._armLed(trackIdx, slot);
         } else if (result.action === 'invalid') {

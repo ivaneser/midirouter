@@ -88,6 +88,7 @@ test('clip-start feedback is emitted after the state redraw message', () => {
         recordMode: 'none',
         isEmptyProject: () => false,
         triggerPad: () => ({ action: 'play' }),
+        _pressTime: (t) => t,
     };
     worker._ledGlow = new Map();
     worker._clearStaleRecordingFeedback = () => {};
