@@ -14,8 +14,10 @@
 import { MidiClock } from './midi-clock.js';
 
 const PPQ = 192;                 // pulses per quarter note (timing)
-const DEFAULT_SLOTS_PER_TRACK = 2;
-const TRACK_COUNT = 8;           // 8 tracks (MIDI channels 1..8)
+const DEFAULT_SLOTS_PER_TRACK = 3;  // 3 clips per track by default
+const DEFAULT_TRACK_COUNT = 6;      // 6 tracks by default (MIDI channels 1..6)
+const MAX_TRACKS = 16;              // one track per MIDI channel
+const MAX_SLOTS_PER_TRACK = 16;
 
 // Round note start/duration to the nearest hundredth of a beat.
 function roundBeats(x) {
@@ -40,21 +42,16 @@ class DAWEngine {
         // default 0.125 (1/32 note). The worker syncs it on daw_quantize_grid.
         this.quantizeGrid = 0.125;
 
-        // tracks[channel(1..8)] -> { channel, clips: [ {notes:[], length:beats} ] }
+        // tracks[i] -> { channel: i+1, clips: [ {notes:[], length:beats} ] }
+        // Track count and per-track clip count are user-adjustable ("+" buttons).
         this.tracks = [];
-        for (let c = 1; c <= TRACK_COUNT; c++) {
-            this.tracks.push({ 
-                channel: c, 
-                channelAssigned: false,
-                clips: this._makeClips(),
-                armed: false,
-                muted: false,
-                soloed: false
-            });
+        const trackCount = Math.max(1, Math.min(MAX_TRACKS, Math.trunc(opts.trackCount) || DEFAULT_TRACK_COUNT));
+        for (let c = 1; c <= trackCount; c++) {
+            this.tracks.push(this._makeTrack(c));
         }
 
-        // currently playing state per clip: trackIdx -> slotIdx | -1 stopped
-        this.clipState = new Array(TRACK_COUNT).fill(-1);
+        // currently playing state per track: trackIdx -> slotIdx | -1 stopped
+        this.clipState = new Array(this.tracks.length).fill(-1);
 
         // recording session state
         // noteStarts: Map<key, NoteStart[]> — FIFO queue of starts per key.
@@ -120,9 +117,20 @@ class DAWEngine {
         this._recStartedTransport = false;
     }
 
-    _makeClips() {
+    _makeTrack(channel) {
+        return {
+            channel,
+            channelAssigned: false,
+            clips: this._makeClips(),
+            armed: false,
+            muted: false,
+            soloed: false
+        };
+    }
+
+    _makeClips(count = this.slotsPerTrack) {
         const clips = [];
-        for (let s = 0; s < this.slotsPerTrack; s++) {
+        for (let s = 0; s < count; s++) {
             clips.push({ notes: [], length: this.loopLenBeats });
         }
         return clips;
@@ -494,6 +502,23 @@ class DAWEngine {
         }
     }
 
+    // Clear a single clip (long-press on a pad): drop its notes and reset its
+    // length to the minimum, stopping it if it is playing or being recorded.
+    // Returns true when the clip existed.
+    clearClip(trackIdx, slot) {
+        const track = this.tracks[trackIdx];
+        const clip = track?.clips[slot];
+        if (!clip) return false;
+        if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) {
+            this._stopRecording();
+        }
+        if (this.clipState[trackIdx] === slot) this.clipState[trackIdx] = -1;
+        clip.notes = [];
+        clip.length = this._snapToBars(0);
+        return true;
+    }
+
+    // Sets the clip count of every track (and the default for new tracks).
     setSlotsPerTrack(n) {
         // Reject non-number input (null, strings, booleans, objects...) and
         // non-finite numbers before any state mutation.
@@ -501,7 +526,7 @@ class DAWEngine {
             return;
         }
         const slots = Math.trunc(n);
-        this.slotsPerTrack = Math.max(1, Math.min(16, slots));
+        this.slotsPerTrack = Math.max(1, Math.min(MAX_SLOTS_PER_TRACK, slots));
         for (const track of this.tracks) {
             const base = track.clips.slice(0, this.slotsPerTrack);
             while (base.length < this.slotsPerTrack) {
@@ -509,11 +534,44 @@ class DAWEngine {
             }
             track.clips = base;
         }
-        // Reset clipState for tracks that no longer have the active slot
+        this._resetStaleClipState();
+    }
+
+    // Clear playing state for clips that no longer exist.
+    _resetStaleClipState() {
         for (let i = 0; i < this.clipState.length; i++) {
-            if (this.clipState[i] >= this.slotsPerTrack) {
+            const track = this.tracks[i];
+            if (!track || this.clipState[i] >= track.clips.length) {
                 this.clipState[i] = -1;
             }
+        }
+    }
+
+    // "+" under a track: append one empty clip to that track.
+    // Returns the new slot index, or -1 when the track is missing or full.
+    addClip(trackIdx) {
+        const track = this.tracks[trackIdx];
+        if (!track || track.clips.length >= MAX_SLOTS_PER_TRACK) return -1;
+        track.clips.push({ notes: [], length: this.loopLenBeats });
+        return track.clips.length - 1;
+    }
+
+    // "+" after the last track: append one empty track on the next MIDI channel.
+    // Returns the new track index, or -1 when the maximum is reached.
+    addTrack() {
+        if (this.tracks.length >= MAX_TRACKS) return -1;
+        this.tracks.push(this._makeTrack(this.tracks.length + 1));
+        this.clipState.push(-1);
+        return this.tracks.length - 1;
+    }
+
+    // Grow or shrink the track list to exactly `count` tracks.
+    _setTrackCount(count) {
+        const target = Math.max(1, Math.min(MAX_TRACKS, count));
+        while (this.tracks.length < target) this.addTrack();
+        if (this.tracks.length > target) {
+            this.tracks.length = target;
+            this.clipState.length = target;
         }
     }
 
@@ -1081,7 +1139,7 @@ class DAWEngine {
         const tracks = this.tracks.map((t, i) => ({
             channel: t.channel,
             channelAssigned: t.channelAssigned,
-            slotCount: this.slotsPerTrack,
+            slotCount: t.clips.length,
             clips: t.clips.map(c => ({ notes: c.notes.length, length: c.length })),
             playing: this.clipState[i] >= 0,
             activeSlot: this.clipState[i],
@@ -1106,6 +1164,8 @@ class DAWEngine {
             midiClockEnabled: this._midiClockEnabled,
             clockSource: this.getClockSource(),
             midiClockOutputActive: this.isMidiClockOutputActive(),
+            maxTracks: MAX_TRACKS,
+            maxSlotsPerTrack: MAX_SLOTS_PER_TRACK,
             tracks,
         };
     }
@@ -1161,7 +1221,12 @@ class DAWEngine {
         this.setTempo(Number.isFinite(data.tempo) ? data.tempo : this.tempo);
         this.recordMode = ['none', 'overdub'].includes(data.recordMode)
             ? data.recordMode : 'none';
-        if (Number.isInteger(data.slotsPerTrack)) this.setSlotsPerTrack(data.slotsPerTrack);
+        // Default clip count for new tracks; each saved track sets its own count below.
+        if (Number.isInteger(data.slotsPerTrack)) {
+            this.slotsPerTrack = Math.max(1, Math.min(MAX_SLOTS_PER_TRACK, data.slotsPerTrack));
+        }
+        // The saved session defines the track list (one entry per track).
+        this._setTrackCount(data.tracks.length);
         if (Number.isFinite(data.loopLenBeats) && data.loopLenBeats >= 1) {
             this.loopLenBeats = Math.ceil(data.loopLenBeats);
         }
@@ -1183,6 +1248,8 @@ class DAWEngine {
             track.armed = !!td.armed;
             track.muted = !!td.muted;
             track.soloed = !!td.soloed;
+            // The saved track defines its own clip count.
+            track.clips = this._makeClips(Math.max(1, Math.min(MAX_SLOTS_PER_TRACK, td.clips.length)));
             const savedChannel = Number.isInteger(td.channel) && td.channel >= 1 && td.channel <= 16
                 ? td.channel : track.channel;
             td.clips.forEach((cd, s) => {

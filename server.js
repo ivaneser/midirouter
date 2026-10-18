@@ -130,6 +130,7 @@ class MIDIRouterWorker {
                 this._broadcast({
                     type: msg.type,
                     sessions: msg.sessions,
+                    recent: msg.recent,
                     name: msg.name,
                     error: msg.error,
                 });
@@ -529,6 +530,11 @@ function startServer() {
                         break;
 
                     // Track controls
+                    case 'daw-clear-clip':
+                        // long-press on a recorded pad: erase that clip only
+                        router.worker.postMessage({ type: 'daw_clear_clip', trackIdx: message.trackIdx, slot: message.slot });
+                        break;
+
                     case 'daw-track-arm':
                         router.worker.postMessage({ type: 'daw_arm_track', trackIdx: message.trackIdx });
                         break;
@@ -539,6 +545,14 @@ function startServer() {
 
                     case 'daw-track-solo':
                         router.worker.postMessage({ type: 'daw_solo_track', trackIdx: message.trackIdx });
+                        break;
+
+                    case 'daw-add-clip':
+                        router.worker.postMessage({ type: 'daw_add_clip', trackIdx: message.trackIdx });
+                        break;
+
+                    case 'daw-add-track':
+                        router.worker.postMessage({ type: 'daw_add_track' });
                         break;
 
                     case 'midi-send':

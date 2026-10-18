@@ -18,7 +18,8 @@ import assert from 'node:assert/strict';
 import { DAWEngine } from '../daw.js';
 
 test('setSlotsPerTrack with a non-numeric string leaves slots and existing clips intact', () => {
-    const daw = new DAWEngine({ tempo: 120 }); // default slotsPerTrack = 2
+    const daw = new DAWEngine({ tempo: 120 });
+    const slotsBefore = daw.slotsPerTrack;
 
     // Seed one real note into clip (track 0, slot 0) so there is content to lose.
     const seedNote = { channel: 1, note: 60, velocity: 90, start: 0, dur: 0.5 };
@@ -32,7 +33,7 @@ test('setSlotsPerTrack with a non-numeric string leaves slots and existing clips
     // slotsPerTrack must remain a valid positive integer, not NaN.
     assert.ok(Number.isInteger(daw.slotsPerTrack),
         `slotsPerTrack must stay an integer after invalid input, got: ${daw.slotsPerTrack}`);
-    assert.equal(daw.slotsPerTrack, 2,
+    assert.equal(daw.slotsPerTrack, slotsBefore,
         'slotsPerTrack must be unchanged by invalid input');
 
     // Every clip array keeps its original length...

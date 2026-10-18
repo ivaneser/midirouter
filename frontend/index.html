@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=15">
+    <link rel="stylesheet" href="/css/style.css?v=16">
 </head>
 <body>
     <div id="app">
@@ -14,6 +14,7 @@
             <div class="status-bar">
                 <!-- Sessions: save/load recordings to/from disk -->
                 <div class="session-header-controls">
+                    <div id="session-recent" class="session-recent" aria-label="Last saved sessions"></div>
                     <button id="btn-save-session" class="btn btn-sm" title="Save current recording to disk">💾 Save</button>
                     <div class="session-load-wrap">
                         <button id="btn-load-session" class="btn btn-sm" title="Load a saved recording" aria-haspopup="true" aria-expanded="false">⏬ Load</button>
@@ -89,7 +90,6 @@
                     <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
                     <p id="session-status" class="session-status"></p>
                 </div>
-                <div id="session-list" class="session-list"></div>
             </div>
 
             <!-- Session Grid -->
@@ -103,7 +103,7 @@
             <p class="daw-hint">
                 🎹 Empty pad = record; press again to stop. Post-record decides what happens after stop:
                 Play → loop the take · Overdub → keep playing and recording layers. Next press: Play stops, Overdub switches to Play.<br>
-                Click track buttons: 🔇 Mute, 🔊 Solo · 💾 Save (header) asks for a name; ⏬ Load (header) lists saved sessions; list below = load/delete.
+                "+" under a track adds an empty clip to it · "+" after the last track adds a track · 💾 Save (header) asks for a name; ⏬ Load (header) lists saved sessions; header ⏬ Load lists saved sessions (load/delete).
             </p>
             </div>
         </details>
@@ -205,7 +205,7 @@
                 <ul>
                     <li><strong>💾 Save</strong> (header, left of the connection status) — ask for a name, saves the whole recording (all clips, notes, BPM, mode) to <code>sessions/&lt;name&gt;.json</code>.</li>
                     <li><strong>⏬ Load</strong> (header) — opens a list of saved sessions; click one to load it into the DAW.</li>
-                    <li>The session list below the transport: <strong>click a name to load it, ✕ to delete it</strong>.</li>
+                    <li>Header quick-load: the last 3 saved sessions are shown left of 💾 Save; the currently loaded project is green.</li>
                     <li>Separate from router presets (⚙️ MIDI Routing → Save/Load), which store routing/port configuration.</li>
                 </ul>
 

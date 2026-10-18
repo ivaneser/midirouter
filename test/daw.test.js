@@ -71,7 +71,7 @@ test('invalid controller profiles fail validation', () => {
 
 test('a held note records quarter-note timing, velocity and MIDI channel', () => {
     const daw = new DAWEngine();
-    assert.equal(daw.slotsPerTrack, 2);
+    assert.equal(daw.slotsPerTrack, 3);
     daw.setRecordMode('none');
     assert.equal(daw.triggerPad(0, 1, 1000).action, 'record');
     daw.recordEvent(0x90, 60, 103, 1000);
@@ -89,7 +89,8 @@ test('empty pad always starts recording (any Mode); out-of-range is invalid', ()
     const daw = new DAWEngine();
     // An empty clip in Play mode — also a recording (default)
     assert.equal(daw.triggerPad(0, 0, 0).action, 'record');
-    assert.equal(daw.triggerPad(0, 2, 0).action, 'invalid');
+    assert.equal(daw.triggerPad(0, daw.slotsPerTrack, 0).action, 'invalid');
+    assert.equal(daw.triggerPad(daw.tracks.length, 0, 0).action, 'invalid');
     assert.equal(daw.clipState[0], -1, 'recording never puts the clip into playing state');
 });
 
@@ -134,7 +135,7 @@ test('resetAllClips wipes every clip and recording state to zero', () => {
     daw.resetAllClips();
 
     assert.equal(daw.recording, null, 'reset must stop any in-flight recording');
-    for (let t = 0; t < 8; t++) {
+    for (let t = 0; t < daw.tracks.length; t++) {
         for (let s = 0; s < 2; s++) {
             const clip = daw.tracks[t].clips[s];
             assert.deepEqual(clip.notes, [], `clip (${t},${s}) must have no notes`);

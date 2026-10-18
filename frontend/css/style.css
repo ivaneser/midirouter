@@ -44,6 +44,9 @@ body {
     margin-right: 4px;
 }
 .session-header-controls .btn { margin-left: 0; }
+.session-recent { display: inline-flex; gap: 4px; align-items: center; }
+.session-recent:empty { display: none; }
+.session-recent-item { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-load-wrap { position: relative; }
 .session-picker {
     position: absolute;
@@ -558,6 +561,42 @@ body {
     gap: 4px;
     margin-top: 4px;
 }
+/* "+" buttons: add a clip under a track, or a track after the last one */
+.btn-add-clip, .btn-add-track {
+    border: 1px dashed #0f3460;
+    background: #1a1a2e;
+    color: #e94560;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-add-clip {
+    width: 64px;
+    height: 24px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+.btn-add-track {
+    width: 36px;
+    height: 40px;
+    border-radius: 4px;
+    font-size: 1.2rem;
+    line-height: 1;
+}
+.btn-add-clip:hover:not(:disabled), .btn-add-track:hover:not(:disabled) {
+    border-color: #e94560;
+    background: #0f3460;
+}
+.btn-add-clip:disabled, .btn-add-track:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+.track-block.track-block-add {
+    width: auto;
+    justify-content: flex-start;
+    padding-top: 0;
+}
 
 .daw-hint { font-size: 0.75rem; color: #888; margin-top: 8px; }
 
@@ -928,6 +967,9 @@ body {
     justify-content: center;
     white-space: nowrap;
     overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 .session-slot:hover {
     border-color: #e94560;

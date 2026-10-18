@@ -78,7 +78,7 @@ A web app + server based on a Raspberry Pi 4 that:
 | L6 | Stop/Reset | Stop with an immediate reset or a graceful finish |
 | L7 | Quantization | Automatic alignment to the grid (1/4, 1/8, 1/16) |
 
-**Implementation status:** the DAW mode is implemented in `daw.js` + `worker-midi.js`. Clips = recorded patterns on a MIDI channel; playback in a loop; Overdub (layering), Replace (overwrite) and Record are supported (`daw-set-record-mode`); quantization to the grid by tempo; up to 8 slots per track (`daw-set-slots`). A clip is triggered by pressing the LaunchKey pads — automatic mapping.
+**Implementation status:** the DAW mode is implemented in `daw.js` + `worker-midi.js`. Clips = recorded patterns on a MIDI channel; playback in a loop; Overdub (layering), Replace (overwrite) and Record are supported (`daw-set-record-mode`); quantization to the grid by tempo; up to 16 clips per track (`daw-set-slots`; "+" in the UI adds clips and tracks). A clip is triggered by pressing the LaunchKey pads — automatic mapping.
 
 ### 4.3 Virtual controllers in the web interface
 

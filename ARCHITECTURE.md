@@ -104,7 +104,7 @@ Before the sweep starts, the worker normalizes the port names by removing the fu
 ## Implementation status (done)
 - ✅ **All-to-all MIDI router** — automatic port detection, everything connected to everything.
 - ✅ **Hot-plug** — devices connect/disconnect without restarting; ports are reopened automatically.
-- ✅ **DAW / clip mode** (`daw.js` + `worker-midi.js`): 8 tracks = MIDI channels 1..8, clips with recorded notes, tempo/tap-tempo, grid quantization, Mode behaviour after recording (play/overdub/replace), play/stop in a loop. Recording sessions: `toData()`/`loadData()` serialize all clips to disk (`sessions/*.json`).
+- ✅ **DAW / clip mode** (`daw.js` + `worker-midi.js`): tracks = MIDI channels 1..N (6 by default, up to 16; "+" adds tracks/clips), clips with recorded notes, tempo/tap-tempo, grid quantization, Mode behaviour after recording (play/overdub/replace), play/stop in a loop. Recording sessions: `toData()`/`loadData()` serialize all clips to disk (`sessions/*.json`).
 - ✅ **Automatic pad mapping from ANY controller port** — any key pressed on any controller input is automatically assigned to the next free (track, slot). Pad trigger works from any MIDI port, not only the DAW Port.
 - ✅ **Transport control from the controller** — the Play/Stop/Record/Low buttons on the Launchkey Mini MK3 control the transport and switch the recording mode.
 - ✅ **DAW WS API** (`server.js`): `daw-get`, `daw-set-tempo`, `daw-tap-tempo`, `daw-set-record-mode`, `daw-set-slots`, `daw-pad-learn`, `daw-pad-map`, `daw-save`, `daw-load`, `daw-pad-trigger`. Presets in `device_maps/daw_*.json`.

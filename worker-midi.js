@@ -1888,6 +1888,19 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            case 'daw_clear_clip': {
+                const { trackIdx, slot } = msg;
+                if (trackIdx == null || slot == null) break;
+                if (daw.clipState[trackIdx] === slot) this._stopTrackPlayback(trackIdx);
+                if (daw.clearClip(trackIdx, slot)) {
+                    this._clearStaleRecordingFeedback();
+                    // Refresh this pad explicitly (idle -> off) so its controller LED goes dark,
+                    // including learned pads that the profile-wide refresh does not cover.
+                    this._refreshPadLeds(trackIdx, slot);
+                    this._broadcastState();
+                }
+                break;
+            }
             case 'daw_toggle_session_record': {
                 if (daw.sessionRecording || daw.recording) {
                     daw.sessionRecording = false;
@@ -2095,6 +2108,16 @@ class MIDIRouterWorker {
                     this._broadcastState();
                 }
                 break;
+            case 'daw_add_clip':
+                if (Number.isInteger(msg.trackIdx)) {
+                    daw.addClip(msg.trackIdx);
+                    this._broadcastState();
+                }
+                break;
+            case 'daw_add_track':
+                daw.addTrack();
+                this._broadcastState();
+                break;
 
 
         }
@@ -2210,13 +2233,19 @@ class MIDIRouterWorker {
 
     _listSessions() {
         let names = [];
+        let recent = [];
         try {
-            names = fs.readdirSync(this._sessionsDir())
-                .filter((f) => f.endsWith('.json'))
-                .map((f) => f.slice(0, -5))
-                .sort();
+            const dir = this._sessionsDir();
+            const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
+            names = files.map((f) => f.slice(0, -5)).sort();
+            // Most recently saved first (by file modification time), top 3 for the header
+            recent = files
+                .map((f) => ({ name: f.slice(0, -5), mtime: fs.statSync(path.join(dir, f)).mtimeMs }))
+                .sort((a, b) => b.mtime - a.mtime)
+                .slice(0, 3)
+                .map((e) => e.name);
         } catch (_) {}
-        if (parentPort) parentPort?.postMessage({ type: 'daw_session_list', sessions: names });
+        if (parentPort) parentPort?.postMessage({ type: 'daw_session_list', sessions: names, recent });
     }
 
     _saveSession(rawName) {

@@ -86,7 +86,7 @@ test('enabling metronome while all clips empty and transport stopped starts pre-
         assert.equal(daw.recording, null);
 
         // Precondition: every clip empty.
-        for (let t = 0; t < 8; t++) {
+        for (let t = 0; t < daw.tracks.length; t++) {
             for (let s = 0; s < daw.slotsPerTrack; s++) {
                 assert.deepEqual(daw.tracks[t].clips[s].notes, []);
             }
@@ -363,7 +363,7 @@ test('resetAllClips empties all clips but metronome resumes emitting beats', asy
         daw.resetAllClips();
 
         // All clips must be empty after Rec Arm.
-        for (let t = 0; t < 8; t++) {
+        for (let t = 0; t < daw.tracks.length; t++) {
             for (let s = 0; s < daw.slotsPerTrack; s++) {
                 assert.deepEqual(daw.tracks[t].clips[s].notes, [], `clip (${t},${s}) must be empty after resetAllClips`);
             }

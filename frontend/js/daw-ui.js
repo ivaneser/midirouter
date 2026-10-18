@@ -7,6 +7,8 @@ export class DAWUI {
         this.padNotes = {}; // `trackIdx-slot` -> controller labels
         this._cueTimers = new Map();
         this._sessions = [];
+        this._recent = [];
+        this._activeSession = null; // name of the project currently loaded (shown green in header)
         this._initControls();
         this._initSessions();
     }
@@ -16,7 +18,7 @@ export class DAWUI {
     _initSessions() {
         const saveBtn = document.getElementById('btn-save-session');
         const loadBtn = document.getElementById('btn-load-session');
-        if (!saveBtn && !loadBtn && !document.getElementById('session-list')) return;
+        if (!saveBtn && !loadBtn) return;
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
                 const name = prompt('Save session as:');
@@ -73,7 +75,7 @@ export class DAWUI {
         for (const name of this._sessions) {
             picker.appendChild(this._sessionRow(name, () => {
                 this._setSessionPicker(false);
-                this._send({ type: 'daw-load-session', name });
+                this._loadSession(name);
             }));
         }
     }
@@ -103,18 +105,31 @@ export class DAWUI {
         return row;
     }
 
+    // Header: quick-load buttons for the last 3 saved sessions (left of Save)
+    _renderRecentSessions() {
+        const box = document.getElementById('session-recent');
+        if (!box) return;
+        box.innerHTML = '';
+        for (const name of this._recent) {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-sm session-recent-item';
+            if (name === this._activeSession) btn.classList.add('btn-green');
+            btn.textContent = name;
+            btn.title = `Load "${name}"`;
+            btn.addEventListener('click', () => this._loadSession(name));
+            box.appendChild(btn);
+        }
+    }
+
+    // Load a project and mark it as the active one (green button in header)
+    _loadSession(name) {
+        this._activeSession = name;
+        this._renderRecentSessions();
+        this._send({ type: 'daw-load-session', name });
+    }
+
     _renderSessions() {
         this._renderSessionPicker();
-        const list = document.getElementById('session-list');
-        if (!list) return;
-        list.innerHTML = '';
-        for (const name of this._sessions) {
-            list.appendChild(this._sessionRow(name, () => this._send({ type: 'daw-load-session', name })));
-        }
-        const empty = document.createElement('p');
-        empty.className = 'daw-hint';
-        empty.textContent = this._sessions.length ? '' : 'No saved sessions yet.';
-        list.appendChild(empty);
     }
 
     _initControls() {
@@ -290,22 +305,21 @@ export class DAWUI {
             this._flashPad(msg.event);
         } else if (msg.type === 'daw_session_list') {
             this._sessions = Array.isArray(msg.sessions) ? msg.sessions : [];
+            this._recent = Array.isArray(msg.recent) ? msg.recent : [];
             this._renderSessions();
+            this._renderRecentSessions();
         } else if (msg.type === 'daw_session_error') {
+            if (msg.name && msg.name === this._activeSession) {
+                this._activeSession = null;
+                this._renderRecentSessions();
+            }
             this._flashSessionStatus(msg.error || 'Session error', true);
         }
     }
 
     _flashSessionStatus(text, isError = false) {
-        const list = document.getElementById('session-list');
-        if (!list) return;
-        let el = document.getElementById('session-status');
-        if (!el) {
-            el = document.createElement('p');
-            el.id = 'session-status';
-            el.className = 'daw-hint';
-            list.appendChild(el);
-        }
+        const el = document.getElementById('session-status');
+        if (!el) return;
         el.textContent = text;
         el.classList.toggle('error', isError);
         clearTimeout(this._sessionStatusTimer);
@@ -479,7 +493,7 @@ export class DAWUI {
         grid.innerHTML = '';
         if (sceneNamesDiv) sceneNamesDiv.innerHTML = '';
 
-        // Render track columns — each track gets a column: header + vertical clips + buttons below
+        // Render track columns — each track gets a column: header + vertical clips + "+" (add clip) below
         for (let t = 0; t < this.dawState.tracks.length; t++) {
             const ch = this.dawState.tracks[t];
             if (!ch) continue;
@@ -494,7 +508,8 @@ export class DAWUI {
             block.appendChild(label);
 
             // Clip slots (vertical column under the track label)
-            for (let s = 0; s < this.dawState.slotsPerTrack; s++) {
+            const clipCount = Array.isArray(ch.clips) ? ch.clips.length : this.dawState.slotsPerTrack;
+            for (let s = 0; s < clipCount; s++) {
                 const clip = ch.clips[s];
                 const slot = document.createElement('button');
                 const key = `${t}-${s}`;
@@ -529,54 +544,64 @@ export class DAWUI {
                 slot.dataset.track = t;
                 slot.dataset.slot = s;
                 slot.title = note?.length ? `Pads: ${note.join(', ')}` : 'unmapped';
-                slot.textContent = clip && clip.notes > 0 ? `${clip.notes}n` : '';
 
-                // Click to trigger clip
+                // Click to trigger clip; long-press (≈600 ms) on a recorded clip clears it.
+                let pressTimer = null;
+                let longPressFired = false;
+                const cancelPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
+                slot.addEventListener('pointerdown', (e) => {
+                    if (e.button !== undefined && e.button !== 0) return;
+                    longPressFired = false;
+                    cancelPress();
+                    if (!clip || !(clip.notes > 0)) return;
+                    pressTimer = setTimeout(() => {
+                        pressTimer = null;
+                        longPressFired = true;
+                        this._send({ type: 'daw-clear-clip', trackIdx: t, slot: s });
+                    }, 600);
+                });
+                ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => slot.addEventListener(ev, cancelPress));
+                slot.addEventListener('contextmenu', (e) => { if (pressTimer || longPressFired) e.preventDefault(); });
                 slot.addEventListener('click', () => {
+                    if (longPressFired) { longPressFired = false; return; }
                     this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
                 });
                 
                 block.appendChild(slot);
             }
 
-            // Control buttons (arm/mute/solo) below the clip column
-            const controlsRow = document.createElement('div');
-            controlsRow.className = 'track-controls-row';
-            
-            // Arm button
-            const armBtn = document.createElement('button');
-            armBtn.className = `btn-track-arm ${ch.armed ? 'active' : ''}`;
-            armBtn.textContent = '●';
-            armBtn.title = `Track ${t + 1} - Arm for recording`;
-            armBtn.addEventListener('click', () => {
-                this._send({ type: 'daw-track-arm', trackIdx: t });
+            // "+" below the clip column: append one more empty clip to this track
+            const addRow = document.createElement('div');
+            addRow.className = 'track-controls-row';
+            const addClipBtn = document.createElement('button');
+            addClipBtn.className = 'btn-add-clip';
+            addClipBtn.textContent = '+';
+            const maxSlots = this.dawState.maxSlotsPerTrack;
+            addClipBtn.disabled = maxSlots != null && clipCount >= maxSlots;
+            addClipBtn.title = `Track ${t + 1} - Add empty clip`;
+            addClipBtn.addEventListener('click', () => {
+                this._send({ type: 'daw-add-clip', trackIdx: t });
             });
-            
-            // Mute button
-            const muteBtn = document.createElement('button');
-            muteBtn.className = `btn-track-mute ${ch.muted ? 'muted' : ''}`;
-            muteBtn.textContent = 'M';
-            muteBtn.title = `Track ${t + 1} - Mute`;
-            muteBtn.addEventListener('click', () => {
-                this._send({ type: 'daw-track-mute', trackIdx: t });
-            });
-            
-            // Solo button
-            const soloBtn = document.createElement('button');
-            soloBtn.className = `btn-track-solo ${ch.soloed ? 'soloed' : ''}`;
-            soloBtn.textContent = 'S';
-            soloBtn.title = `Track ${t + 1} - Solo`;
-            soloBtn.addEventListener('click', () => {
-                this._send({ type: 'daw-track-solo', trackIdx: t });
-            });
-            
-            controlsRow.appendChild(armBtn);
-            controlsRow.appendChild(muteBtn);
-            controlsRow.appendChild(soloBtn);
-            block.appendChild(controlsRow);
-            
+            addRow.appendChild(addClipBtn);
+            block.appendChild(addRow);
+
             grid.appendChild(block);
         }
+
+        // "+" after the last track: append one more empty track
+        const maxTracks = this.dawState.maxTracks;
+        const addTrackBlock = document.createElement('div');
+        addTrackBlock.className = 'track-block track-block-add';
+        const addTrackBtn = document.createElement('button');
+        addTrackBtn.className = 'btn-add-track';
+        addTrackBtn.textContent = '+';
+        addTrackBtn.disabled = maxTracks != null && this.dawState.tracks.length >= maxTracks;
+        addTrackBtn.title = 'Add track';
+        addTrackBtn.addEventListener('click', () => {
+            this._send({ type: 'daw-add-track' });
+        });
+        addTrackBlock.appendChild(addTrackBtn);
+        grid.appendChild(addTrackBlock);
     }
 
     _renderTrackControls() {
