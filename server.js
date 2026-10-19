@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
 import { Worker } from 'worker_threads';
+import { execFile } from 'child_process';
 import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -606,6 +607,22 @@ function startServer() {
                         }
                         break;
 
+                    case 'shut-down':
+                        // UI requested a graceful server shutdown.
+                        if (typeof performShutdown === 'function') {
+                            if (isShuttingDown) {
+                                try { ws.send(JSON.stringify({ type: 'shutdown_status', status: 'already_shutting_down' })); } catch (_) {}
+                                break;
+                            }
+                            console.log('[SERVER] Shutdown request received from web UI');
+                            try { ws.send(JSON.stringify({ type: 'shutdown_status', status: 'shutting_down' })); } catch (_) {}
+                            performShutdown().catch((err) => {
+                                console.error('[SERVER] Error during shutdown:', err.message);
+                                process.exit(1);
+                            });
+                        }
+                        break;
+
                     default:
                         console.warn('[SERVER] Unknown message:', message.type);
                 }
@@ -669,7 +686,8 @@ function startServer() {
         });
     }
 
-    process.on('SIGINT', async () => {
+    /** Perform a graceful server shutdown (used by both SIGINT and UI shutdown button). */
+    async function performShutdown() {
         if (isShuttingDown) return;
         isShuttingDown = true;
         console.log('\n[SERVER] Shutting down...');
@@ -693,9 +711,43 @@ function startServer() {
                 server.close();
             }
         }
+
+        // Power off the Raspberry Pi via systemd shutdown.
+        console.log('[SERVER] Initiating Raspberry Pi power-off...');
+        const SHUTDOWN_EXEC_TIMEOUT_MS = 4000;
+        await new Promise((resolve) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                console.error('[SERVER] Shutdown command timed out — exiting without power-off.');
+                resolve();
+            }, SHUTDOWN_EXEC_TIMEOUT_MS);
+
+            execFile('sudo', ['/sbin/shutdown', '-h', 'now'], (err) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (err) {
+                    console.error('[SERVER] Failed to initiate shutdown:', err.message);
+                    console.error('[SERVER] Make sure the pi user can run shutdown via sudo:');
+                    console.error('[SERVER]   echo \'pi ALL=(ALL) NOPASSWD: /sbin/shutdown, /usr/sbin/shutdown, /usr/bin/systemctl poweroff\' | sudo tee /etc/sudoers.d/midirouter');
+                    console.error('[SERVER]   sudo visudo -c');
+                } else {
+                    console.log('[SERVER] System shutdown initiated — powering off.');
+                }
+                resolve();
+            });
+        });
+
+        // Give systemd a moment to pick up the shutdown request, then exit.
+        await new Promise(resolve => setTimeout(resolve, 1500));
         console.log('[SERVER] Exiting.');
         process.exit(0);
-    });
+    }
+
+    // Wire up SIGINT to use the same shutdown path as the UI button.
+    process.on('SIGINT', () => { performShutdown(); });
 }
 
 async function main() {

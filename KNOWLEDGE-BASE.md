@@ -123,6 +123,39 @@ if (isSysRealTime) {
 - Autostarts Python metronome on boot
 - Supports signal-based control (SIGUSR1/SIGUSR2)
 
+### 6. Web UI Shutdown Button — Full Pi Power-Off
+**Feature:** Added a ⏻ **Shutdown** button to the web UI that fully powers off the Raspberry Pi.
+
+**How it works:**
+```
+Web UI (⏻ Shutdown button)
+    ↓ WebSocket { type: 'shut-down' }
+server.js — case 'shut-down':
+    ↓ performShutdown() (shared with SIGINT handler)
+    1. router.cleanup()          — stops all MIDI routing
+    2. closeClients()            — closes WS clients gracefully (code 1001)
+    3. server.close()            — stops HTTP server socket
+    4. sudo /sbin/shutdown -h now — powers off the Raspberry Pi
+```
+
+**Files modified:**
+- `frontend/index.html` — added `<button id="btn-shutdown" class="btn btn-danger">⏻ Shutdown</button>` in header
+- `frontend/js/app.js` — click handler with confirmation dialog; sends `{ type: 'shut-down' }` via WS
+- `server.js` — extracted `performShutdown()` function (used by both SIGINT and UI button); added `'shut-down'` message case; imports `execFile` from `child_process`
+
+**Prerequisite — passwordless sudo for shutdown:**
+The `pi` user needs a sudoers rule to run shutdown without a password prompt (which would hang, since the server has no TTY):
+```bash
+echo 'pi ALL=(ALL) NOPASSWD: /sbin/shutdown, /usr/sbin/shutdown, /usr/bin/systemctl poweroff' | sudo tee /etc/sudoers.d/midirouter
+sudo visudo -c
+```
+Without this rule, the server logs a helpful hint about how to configure it and still exits cleanly (app stops but Pi does not power off).
+
+**Safety:**
+- Confirmation dialog: *"Shut down the MIDI Router server? All clips and sessions will be lost."*
+- `isShuttingDown` guard prevents double-shutdown from rapid clicks or SIGINT + UI race.
+- 4 s timeout on the `sudo shutdown` command — if it hangs, the app exits anyway (Pi won't power off but nothing hangs).
+
 ---
 
 ## 🎛️ Control Flow
@@ -478,6 +511,7 @@ This preserved all previous commits and allowed manual inspection of the merge r
 
 | Commit | Message |
 |--------|---------|
+| `<new>` | feat(ui): add ⏻ Shutdown button to web UI — powers off Raspberry Pi via `sudo shutdown -h now` |
 | `5a2afea` | config.json: empty mappings committed |
 | `bad516a` | frontend: side-by-side input/output device lists, collapsed by default |
 | `12901ce` | fix(worker): only apply padMap capture to DAW Port notes, never intercept MIDI Port keybed |

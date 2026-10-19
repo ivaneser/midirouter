@@ -99,6 +99,19 @@ connectBtn.addEventListener('click', () => {
     }
 });
 
+// === Shutdown ===
+const shutdownBtn = document.getElementById('btn-shutdown');
+if (shutdownBtn) {
+    shutdownBtn.addEventListener('click', () => {
+        if (!confirm('Shut down the MIDI Router server? All clips and sessions will be lost.')) return;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'shut-down' }));
+            log('Shutdown command sent — closing connection...');
+            ws.close();
+        }
+    });
+}
+
 // === Server messages ===
 
 function handleMessage(msg) {
