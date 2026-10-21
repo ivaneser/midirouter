@@ -1,1451 +1,231 @@
-/* === MIDI Router — auto-connect everything to everything === */
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1a1a2e;
-    color: #eee;
-    min-height: 100vh;
+/* MIDI Router · adaptive performance workspace */
+:root {
+    color-scheme: dark;
+    --canvas: #101418; --panel: #181e24; --surface: #202830;
+    --line: #303a44; --text: #e8edf1; --muted: #98a6b4;
+    --accent: #b4e480; --green: #a8df86; --red: #ff8e91; --amber: #eac282;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px;
 }
-
-/* === Header === */
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background: #16213e;
-    border-bottom: 2px solid #0f3460;
-}
-
-.header h1 { font-size: 1.4rem; color: #e94560; }
-
-.status-bar { display: flex; align-items: center; gap: 8px; }
-
-.status-indicator {
-    padding: 4px 12px;
-    border-radius: 12px;
-    background: #333;
-    font-size: 0.85rem;
-}
-
-.status-indicator.connected { background: #0a7c2e; }
-.status-indicator.disconnected { background: #8b0000; }
-.status-bar .btn {
-    margin-left: 12px;
-}
-
-/* Save/Load session buttons in the header, left of the connection indicator */
-.session-header-controls {
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-    margin-right: 4px;
-}
-.session-header-controls .btn { margin-left: 0; }
-.session-recent { display: inline-flex; gap: 4px; align-items: center; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--canvas); color: var(--text); min-height: 100vh; min-height: 100dvh; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+#app { max-width: 1440px; margin: auto; padding: max(20px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+button, input, select { font: inherit; }
+button { touch-action: manipulation; cursor: pointer; }
+button:disabled { opacity: .35; cursor: default; }
+button, input, select, summary { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+[hidden] { display: none !important; }
+button, input, select { min-height: 44px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); }
+button { padding: 10px 15px; font-size: .875rem; font-weight: 600; }
+input, select { width: 100%; min-width: 0; padding: 9px 12px; font-size: 16px; }
+input[type="range"] { accent-color: var(--accent); padding: 0; border: 0; background: transparent; }
+input[type="checkbox"] { width: 24px; min-height: 24px; accent-color: var(--accent); }
+@media (hover: hover) { button:not(:disabled):hover { border-color: #6f8292; background: #2a353f; } }
+.btn { display: inline-flex; justify-content: center; align-items: center; gap: 6px; white-space: nowrap; transition: background .15s, border-color .15s; }
+.btn-sm { font-size: .8125rem; padding: 8px 12px; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #172412; }
+.btn-green { background: var(--accent); border-color: var(--accent); color: #172412; }
+.btn-danger, .btn-red { background: #35272b; border-color: #634149; color: #ffb7ba; }
+.btn-orange { background: transparent; color: var(--muted); }
+.header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 4px 0 24px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { display: grid; place-items: center; background: var(--accent); color: #24301c; width: 40px; height: 40px; border-radius: 10px; font-size: 28px; }
+.header h1 { font-size: 1.125rem; font-weight: 650; letter-spacing: -.03em; }
+.brand p { color: var(--muted); font-size: .75rem; }
+.status-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.status-indicator { font-size: .75rem; white-space: nowrap; padding: 6px 10px; border-radius: 20px; background: #222a32; color: var(--muted); }
+.status-indicator.connected { color: var(--green); background: #233326; }
+.status-indicator.disconnected { color: #d5afb1; }
+.session-header-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.session-recent { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .session-recent:empty { display: none; }
-.session-recent-item { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-recent-item { max-width: 125px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-load-wrap { position: relative; }
-.session-picker {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 1000;
-    min-width: 220px;
-    max-height: 320px;
-    overflow-y: auto;
-    padding: 8px;
-    background: #16213e;
-    border: 1px solid #0f3460;
-    border-radius: 6px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.session-picker[hidden] { display: none; }
-.session-picker-title {
-    font-size: 0.75rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.session-picker-empty {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #888;
-}
-.session-picker .session-item { justify-content: space-between; }
-
-/* === Connect Panel (removed — button in header) === */
-
-.connect-panel input {
-    flex: 1;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    background: #1a1a2e;
-    color: #eee;
-}
-
-/* === Buttons === */
-.btn {
-    padding: 6px 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: opacity 0.2s;
-    white-space: nowrap;
-}
-.btn:hover { opacity: 0.85; }
-.btn-primary { background: #e94560; color: white; }
-.btn-danger { background: #8b0000; color: white; }
-.btn-sm { padding: 4px 10px; font-size: 0.8rem; }
-
-/* === Collapsible Panels === */
-.collapsible-panel {
-    margin: 20px;
-    border-radius: 8px;
-    background: #16213e;
-}
-
-.collapsible-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
-    background: #0f3460;
-    border-radius: 6px;
-    color: #e94560;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    list-style: none;
-    transition: background 0.2s;
-    user-select: none;
-}
-
-.collapsible-header:hover {
-    background: #1a4a7a;
-}
-
-.collapsible-header::-webkit-details-marker {
-    display: none;
-}
-
-.collapsible-header .arrow {
-    font-size: 0.8rem;
-    transition: transform 0.2s;
-}
-
-.collapsible-panel[open] .collapsible-header .arrow {
-    transform: rotate(90deg);
-}
-
-.collapsible-panel .daw-panel-content,
-.collapsible-panel .config-panel-content {
-    padding: 20px;
-}
-
-/* Help panel specific */
-.help-header {
-    color: #4ec9d4;
-}
-
-.help-header:hover {
-    background: #1a4a5a;
-}
-
-.collapsible-panel[open] .help-header {
-    background: #0f4a5a;
-}
-
-.help-content {
-    padding: 20px;
-    color: #ddd;
-}
-
-.help-content h4 {
-    color: #4ec9d4;
-    font-size: 0.9rem;
-    margin: 16px 0 8px 0;
-}
-
-.help-content h4:first-child {
-    margin-top: 0;
-}
-
-.help-content ul {
-    margin: 0 0 12px 0;
-    padding-left: 20px;
-}
-
-.help-content li {
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: #ccc;
-    margin-bottom: 4px;
-}
-
-.help-content strong {
-    color: #eee;
-}
-
-/* === Port Section (two columns) === */
-.port-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    padding: 20px;
-}
-
-.port-column h2 {
-    font-size: 0.95rem;
-    color: #e94560;
-    margin-bottom: 12px;
-    padding: 8px;
-    background: #0f3460;
-    border-radius: 6px;
-}
-
-.device-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-/* === Device Items (all connected automatically) === */
-.device-item {
-    padding: 10px 14px;
-    background: #1a1a2e;
-    border: 2px solid #0f3460;
-    border-radius: 8px;
-    font-size: 0.9rem;
-}
-
-.device-item.connected {
-    border-color: #0a7c2e;
-    background: #16213e;
-}
-
-.device-item.disabled {
-    opacity: 0.4;
-}
-
-.device-item-name {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.device-item-name::before {
-    content: "\25B8"; /* ▸ collapsed */
-    color: #4ec9d4;
-    font-size: 0.8rem;
-    transition: transform 0.15s ease;
-}
-
-.device-item-name[aria-expanded="true"]::before {
-    content: "\25BE"; /* ▾ expanded */
-}
-
-/* === Synth Cards (Slice 1: synth-control-panels) === */
-.synth-card-list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-}
-.synth-card {
-    padding: 12px 14px;
-    background: #1a1a2e;
-    border: 2px solid #0f3460;
-    border-radius: 8px;
-    cursor: default;
-    transition: border-color 0.2s;
-}
-.synth-card.supported {
-    border-color: #0a7c2e;
-    background: #16213e;
-}
-.synth-card:hover {
-    border-color: #4ec9d4;
-}
-.synth-card-name {
-    font-size: 0.9rem;
-    color: #eee;
-    font-weight: 600;
-}
-.synth-card-status {
-    font-size: 0.75rem;
-    color: #888;
-    margin-top: 4px;
-}
-.synth-card.supported .synth-card-status {
-    color: #3ddc84;
-}
-/* Synth controller panels */
-.synth-card-toggle {
-    margin-top: 8px;
-    padding: 5px 9px;
-    border: 1px solid #345;
-    border-radius: 5px;
-    background: #202b45;
-    color: #ddd;
-    cursor: pointer;
-}
-.synth-controls {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 8px 12px;
-    max-height: 360px;
-    overflow-y: auto;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #344;
-}
-.synth-control {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-    color: #ddd;
-    font-size: 0.8rem;
-}
-.synth-control input[type="range"],
-.synth-control select {
-    width: 100%;
-}
-.synth-control input[type="checkbox"] {
-    align-self: flex-start;
-}
-.synth-controls-message {
-    grid-column: 1 / -1;
-    color: #aaa;
-    font-size: 0.8rem;
-}
-.synth-controls-message.error {
-    color: #ff8a80;
-}
-
-/* === Debug Panel === */
-.debug-panel {
-    margin: 20px;
-    background: #16213e;
-    border-radius: 8px;
-}
-
-.debug-panel summary {
-    padding: 10px 16px;
-    cursor: pointer;
-    color: #888;
-}
-
-#logs {
-    max-height: 200px;
-    overflow-y: auto;
-    padding: 10px 16px;
-    font-family: monospace;
-    font-size: 0.7rem;
-    color: #555;
-}
-
-#logs div { padding: 2px 0; }
-
-/* === DAW Panel (Session View) === */
-.daw-panel {
-    padding: 20px;
-    background: #16213e;
-    border-radius: 8px;
-    margin: 20px;
-}
-.daw-panel h2 {
-    font-size: 0.95rem;
-    color: #e94560;
-    margin-bottom: 12px;
-    padding: 8px;
-    background: #0f3460;
-    border-radius: 6px;
-}
-
-/* Transport Controls */
-.transport-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    padding: 12px;
-    background: #0f3460;
-    border-radius: 8px;
-}
-.transport-settings-group {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.transport-buttons-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.transport-label {
-    font-size: 0.85rem;
-    color: #ccc;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-.transport-controls select, .transport-controls input[type="number"] {
-    padding: 6px 8px;
-    border: none;
-    border-radius: 4px;
-    background: #1a1a2e;
-    color: #eee;
-    font-size: 0.85rem;
-}
-#master-loop-bars {
-    width: 4em; /* fits the "Auto" placeholder */
-}
-.transport-separator {
-    width: 1px;
-    height: 30px;
-    background: #334;
-    margin: 0 -6.5px; /* sits inside the 12px gap so spacing matches other controls */
-}
-.btn-green { background: #0a7c2e; color: white; }
-.btn-red { background: #8b0000; color: white; }
-.btn-orange { background: #cc6600; color: white; }
-
-/* Session Grid Container */
-.sessions-section {
-    margin-bottom: 14px;
-    padding: 10px 12px;
-    background: #16213e;
-    border: 1px solid #0f3460;
-    border-radius: 8px;
-}
-.sessions-controls {
-    display: inline-flex;
-    gap: 6px;
-    align-items: center;
-    margin-left: 8px;
-}
-.session-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-.session-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 6px 4px 8px;
-    background: #1a1a2e;
-    border: 1px solid #0f3460;
-    border-radius: 4px;
-}
-.session-name-label {
-    color: #eee;
-    cursor: pointer;
-    font-size: 0.85rem;
-}
-.session-name-label:hover {
-    color: #4ec9d4;
-}
-.session-delete {
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    font-size: 0.8rem;
-    padding: 0 2px;
-}
-.session-delete:hover {
-    color: #e94560;
-}
-.session-status {
-    flex-basis: 100%;
-    margin: 2px 0 0 0;
-    font-size: 0.8rem;
-    min-height: 1em;
-}
-.session-status.error {
-    color: #e94560;
-}
-.session-container {
-    overflow-x: auto;
-    margin-bottom: 12px;
-}
-
-/* Session Grid (Ableton-style) */
-/* Track Controls — now rendered per-track inside session grid; strip kept for compat */
-.track-controls {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    overflow-x: auto;
-    padding: 8px 0;
-}
-.track-controls:empty {
-    display: none;
-}
-.track-control-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: #0f3460;
-    border-radius: 6px;
-    padding: 6px 10px;
-}
-.track-control-label {
-    font-size: 0.7rem;
-    color: #888;
-    margin-right: 4px;
-}
-.btn-track-arm, .btn-track-mute, .btn-track-solo {
-    width: 28px;
-    height: 24px;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.btn-track-arm {
-    background: #333;
-    color: #666;
-}
-.btn-track-arm.active {
-    background: #cc3333;
-    color: white;
-}
-.btn-track-mute {
-    background: #333;
-    color: #666;
-}
-.btn-track-mute.muted {
-    background: #888;
-    color: white;
-}
-.btn-track-solo {
-    background: #333;
-    color: #666;
-}
-.btn-track-solo.soloed {
-    background: #ffaa00;
-    color: #1a1a2e;
-}
-
-/* Per-track column: header + vertical clips + control buttons below */
-.track-block {
-    --slot-w: 64px;   /* clip button width; the +/- row matches it */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    flex: 0 0 auto;
-    width: 160px;
-}
-/* Row of control buttons centered under the clip column */
-.track-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 4px;
-    width: var(--slot-w);
-}
-/* "+" buttons: add a clip under a track, or a track after the last one */
-.btn-add-clip, .btn-remove-clip, .btn-add-track {
-    border: 1px dashed #0f3460;
-    background: #1a1a2e;
-    color: #e94560;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.btn-remove-clip {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 24px;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    line-height: 1;
-    border: 1px dashed #0f3460;
-    background: #1a1a2e;
-    color: #e94560;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.btn-remove-clip:hover:not(:disabled) {
-    border-color: #e94560;
-    background: #0f3460;
-}
-.btn-remove-clip:disabled {
-    opacity: 0.35;
-    cursor: default;
-}
-.btn-add-clip {
-    flex: 1 1 0;
-    min-width: 0;
-    height: 24px;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    line-height: 1;
-}
-.btn-add-track {
-    width: 36px;
-    height: 40px;
-    border-radius: 4px;
-    font-size: 1.2rem;
-    line-height: 1;
-}
-.btn-add-clip:hover:not(:disabled), .btn-add-track:hover:not(:disabled) {
-    border-color: #e94560;
-    background: #0f3460;
-}
-.btn-add-clip:disabled, .btn-add-track:disabled {
-    opacity: 0.35;
-    cursor: default;
-}
-.track-block.track-block-add {
-    width: auto;
-    justify-content: flex-start;
-    padding-top: 0;
-}
-
-
-/* === Clock source indicator & BPM display === */
-.clock-source-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    color: #ccc;
-    padding: 4px 10px;
-    background: #1a1a2e;
-    border-radius: 4px;
-    border: 1px solid #0f3460;
-}
-
-.clock-source-indicator .source-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #666;
-    transition: background 0.2s;
-}
-
-.clock-source-indicator.source-internal .source-dot {
-    background: #3ddc84;
-    box-shadow: 0 0 6px #3ddc84;
-}
-
-.clock-source-indicator.source-external .source-dot {
-    background: #ffaa00;
-    box-shadow: 0 0 6px #ffaa00;
-}
-
-.bpm-display {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-}
-
-.bpm-label {
-    color: #888;
-    text-transform: uppercase;
-    font-size: 0.7rem;
-    letter-spacing: 0.5px;
-}
-
-.bpm-value {
-    font-family: monospace;
-    font-size: 0.95rem;
-    color: #e94560;
-    font-weight: bold;
-    min-width: 70px;
-    text-align: right;
-}
-
-/* Metronome controls */
-.metronome-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-}
-.metro-beats {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.8rem;
-}
-.metro-beats select {
-    width: 50px;
-    padding: 4px 6px;
-}
-#metronome-toggle.active {
-    background: #3ddc84;
-    color: #1a1a2e;
-    font-weight: bold;
-}
-
-/* === Configuration Panel === */
-.config-panel {
-    padding: 20px;
-    background: #16213e;
-    border-radius: 8px;
-    margin: 20px;
-}
-.config-panel h2 {
-    font-size: 0.95rem;
-    color: #e94560;
-    margin-bottom: 12px;
-    padding: 8px;
-    background: #0f3460;
-    border-radius: 6px;
-}
-
-/* Tabs */
-.config-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-}
-}
-.tab-btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 6px;
-    background: #1a1a2e;
-    color: #ccc;
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.2s;
-}
-.tab-btn:hover { background: #0f3460; }
-.tab-btn.active {
-    background: #e94560;
-    color: white;
-}
-
-.tab-content {
-    display: none;
-}
-.tab-content.active {
-    display: block;
-}
-
-/* Config sections (no tabs) */
-.config-section {
-    margin-bottom: 24px;
-    padding: 16px;
-    background: #1a1a2e;
-    border-radius: 8px;
-}
-
-/* Mapping Editor — 2 per row on desktop, 1 on mobile */
-.mapping-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-@media (max-width: 800px) {
-    .mapping-list {
-        grid-template-columns: 1fr;
-    }
-}
-.mapping-editor {
-    background: #1a1a2e;
-    border: 2px solid #0f3460;
-    border-radius: 8px;
-    padding: 16px;
-    break-inside: avoid;
-}
-.mapping-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-.mapping-name {
-    flex: 1;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 6px;
-    background: #0f3460;
-    color: #eee;
-    font-size: 0.9rem;
-    margin-right: 8px;
-}
-
-
-.mapping-section {
-    margin-bottom: 12px;
-}
-.mapping-section h4 {
-    font-size: 0.85rem;
-    color: #ccc;
-    margin-bottom: 8px;
-}
-.mapping-select {
-    width: 100%;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 6px;
-    background: #0f3460;
-    color: #eee;
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-/* Side by side layout for input/output */
-.mapping-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+.session-picker { position: absolute; top: calc(100% + 8px); right: 0; z-index: 100; width: min(290px, calc(100vw - 48px)); max-height: 50dvh; overflow: auto; padding: 12px; background: #242d36; border: 1px solid #475764; border-radius: 12px; box-shadow: 0 16px 40px #0008; display: grid; gap: 8px; }
+.session-picker-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.session-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.session-name-label { display: flex; align-items: center; flex: 1; min-height: 44px; color: var(--text); overflow-wrap: anywhere; cursor: pointer; }
+.session-delete { min-width: 44px; color: var(--red); }
+.collapsible-panel, .debug-panel { min-width: 0; margin: 0 0 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.collapsible-header, .debug-panel > summary { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 15px 20px; cursor: pointer; list-style: none; font-size: .875rem; font-weight: 600; user-select: none; }
+summary::-webkit-details-marker { display: none; }
+.collapsible-header .arrow { font-size: 9px; color: var(--muted); transition: transform .15s; }
+.collapsible-panel[open] > summary .arrow { transform: rotate(90deg); }
+.collapsible-panel[open] > summary { border-bottom: 1px solid var(--line); }
+.daw-details > summary::after { content: "CLIP LAUNCHER"; margin-left: auto; font-size: 10px; letter-spacing: .14em; color: var(--muted); font-weight: 500; }
+.daw-panel-content, .config-panel-content, .help-content { padding: 24px; min-width: 0; }
+.workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.eyebrow { font-size: 10px; letter-spacing: .16em; font-weight: 650; color: var(--accent); margin-bottom: 5px; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 1.2; font-weight: 600; }
+.workspace-caption { color: var(--muted); font-size: .8125rem; }
+.transport-controls { display: grid; gap: 18px; margin-bottom: 26px; }
+.transport-buttons-group { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.transport-actions { display: flex; gap: 8px; }
+.transport-actions .btn { min-width: 80px; }
+.daw-beat-indicator { display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 9px; background: #11181d; color: #d3e9ba; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.post-record { margin-left: auto; }
+.transport-label { display: flex; flex-direction: column; gap: 6px; min-width: 0; color: var(--muted); font-size: .75rem; }
+.post-record { flex-direction: row; align-items: center; }
+.post-record select { width: 120px; }
+.transport-settings-group { display: grid; grid-template-columns: minmax(155px, 1.4fr) repeat(3, minmax(80px, 1fr)) minmax(130px, 1fr); align-items: end; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: #141b21; }
+.tempo-control label { display: flex; justify-content: space-between; }
+.unit { font-size: .65rem; letter-spacing: .08em; color: #6f8191; }
+.tempo-input { display: flex; gap: 6px; }
+.tempo-input input { min-width: 0; font-variant-numeric: tabular-nums; }
+#tempo { font-weight: 650; }
+#master-loop-bars { width: 100%; }
+.metronome-button { min-height: 44px; }
+#metronome-toggle.active { background: #2f4329; border-color: #85ae64; color: #d4f7b5; }
+#record-mode.mode-play { border-color: #4a6640; color: #c9e6b6; }
+#record-mode.mode-overdub { border-color: #84624a; color: #efc89a; }
+.session-status { width: 100%; font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
+.session-status:empty { display: none; }
+.session-status.error, .synth-controls-message.error { color: var(--red); }
+.grid-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.grid-heading h3 { font-size: .875rem; font-weight: 600; }
+.clip-legend { display: flex; gap: 14px; color: var(--muted); font-size: .6875rem; }
+.clip-legend span { display: flex; align-items: center; gap: 5px; }
+.clip-legend span::before { content: ""; height: 5px; width: 5px; border-radius: 50%; background: #829ab1; }
+.clip-legend .legend-play::before { background: var(--green); }
+.clip-legend .legend-record::before { background: var(--red); }
+.session-container { min-width: 0; }
+.session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 10px; align-items: start; }
+.track-block { min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #141b21; border: 1px solid #29333c; border-radius: 11px; }
+.session-track-label { color: #aab9c7; font-size: .6875rem; font-weight: 650; letter-spacing: .04em; padding: 3px 0 7px; }
+.session-slot { width: 100%; min-height: 72px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px; padding: 10px; border-radius: 8px; background: #1e2730; border: 1px solid #36434e; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.clip-number { font-family: ui-monospace, SFMono-Regular, monospace; font-size: .875rem; font-weight: 500; }
+.clip-status { font-size: .625rem; font-weight: 500; color: inherit; opacity: .8; }
+.session-slot.empty { border-style: dashed; background: #192128; color: #7c8c9a; }
+.session-slot.has-content, .session-slot.idle { background: #253544; border-color: #435c71; color: #ccdfef; }
+.session-slot.playing { background: #314b29; border-color: #8dbd6b; color: #d8f4be; box-shadow: inset 3px 0 #b4e480; }
+.session-slot.recording, .session-slot.record-start { background: #542d35; border-color: #de8189; color: #ffe0e3; }
+.session-slot.pending { background: #493d27; border-color: #c5a56b; color: #fae4ba; animation: pulse-record 1s infinite; }
+.session-slot.overdub { background: #4d392b; border-color: #cb9467; color: #ffe0c0; }
+.session-slot.armed { border-color: var(--red); }
+.session-slot.clip-start, .session-slot.flash { border-color: #b4e480; filter: brightness(1.2); }
+.track-controls-row { display: flex; gap: 6px; }
+.track-controls-row button { flex: 1; min-width: 0; min-height: 44px; padding: 6px; border-style: dashed; background: transparent; color: #a9bac8; font-size: 1.1rem; font-weight: 400; }
+.track-block-add { align-self: stretch; min-height: 220px; justify-content: center; align-items: center; background: transparent; border-style: dashed; }
+.btn-add-track { width: 44px; background: transparent; color: var(--muted); font-size: 1.4rem; padding: 4px; }
+.track-block-add::after { content: "Add track"; font-size: .625rem; color: var(--muted); }
+.track-controls:empty { display: none; }
+.track-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.track-control-group { display: flex; gap: 6px; align-items: center; }
+.track-control-label { font-size: .75rem; }
+.btn-track-arm.active { background: #542d35; }
+.btn-track-mute.muted { background: #4e5b63; }
+.btn-track-solo.soloed { background: #76603b; }
+.tab-hint { color: var(--muted); font-size: .8125rem; margin-bottom: 18px; }
+.clock-master-section { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 18px; padding: 20px; border: 1px solid var(--line); background: #141b21; border-radius: 12px; margin-bottom: 20px; }
+.clock-master-section h4 { grid-column: 1 / -1; font-size: .8125rem; font-weight: 600; }
+.clock-master-section .transport-label { gap: 8px; }
+.clock-master-section select { width: 100%; min-width: 0; }
+#audio-latency-label, #click-latency-label { font-family: ui-monospace, monospace; color: var(--accent); font-size: .8rem; }
+.port-section { display: block; min-width: 0; }
+.device-list, .synth-card-list { display: grid; gap: 10px; }
+.device-item, .synth-card { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #1b232b; min-width: 0; }
+.device-item-name { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 0; font-size: .8125rem; overflow-wrap: anywhere; }
+.device-item-name::before { content: "▸"; color: var(--accent); }
+.device-item-name[aria-expanded="true"]::before { content: "▾"; }
+.device-item.disabled { opacity: .4; }
+.synth-card-name { font-weight: 600; }
+.synth-card-status { color: var(--muted); font-size: .75rem; }
+.synth-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 14px; padding-top: 16px; margin-top: 12px; border-top: 1px solid var(--line); }
+.synth-control { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: .75rem; color: var(--muted); }
+.synth-controls-message { color: var(--muted); font-size: .8125rem; }
+.config-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.config-section h3 { font-size: 1rem; margin-bottom: 8px; }
+.mapping-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 14px; margin-bottom: 16px; }
+.mapping-editor { min-width: 0; padding: 16px; background: #141b21; border: 1px solid var(--line); border-radius: 12px; }
+.mapping-header, .route-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.route-name { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: .875rem; color: #d3e6bf; }
+.mapping-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mapping-section { min-width: 0; margin-bottom: 12px; }
+.mapping-section h4 { font-size: .75rem; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+.filters-section { border-top: 1px solid var(--line); padding-top: 14px; }
+.channel-buttons { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 5px; }
+.channel-btn { min-width: 0; padding: 5px 0; font-size: .8125rem; }
+.channel-btn.active, .tab-btn.active { border-color: var(--accent); background: #304229; color: #dcf3c8; }
+.filter-group, .velocity-inputs, .config-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-input { flex: 1; min-width: 80px; }
+.route-summary { padding: 12px; font-size: .8125rem; color: var(--muted); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.empty-state { grid-column: 1 / -1; text-align: center; padding: 40px 16px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: .8125rem; }
+.help-content { color: var(--muted); font-size: .875rem; line-height: 1.7; }
+.help-content h4 { color: var(--text); margin: 20px 0 8px; }
+.help-content h4:first-child { margin-top: 0; }
+.help-content ul { padding-left: 20px; }
+.help-content li { margin-bottom: 8px; }
+.help-content strong { color: var(--text); }
+.help-content code { overflow-wrap: anywhere; }
+.debug-panel > summary { color: var(--muted); font-size: .8125rem; }
+#logs { max-height: 240px; overflow: auto; padding: 0 20px 16px; color: #a1b3c2; font-family: ui-monospace, monospace; font-size: .6875rem; overflow-wrap: anywhere; }
+.daw-beat-indicator.bar-start { border-color: #baa16c; color: #efd59b; }
+.daw-beat-indicator.cycle-start { border-color: #a4cc7c; color: #dcf3c8; }
+.daw-beat-indicator.beat-pulse, .session-slot.clip-start, .session-slot.record-start { animation: daw-start-pulse 220ms ease-out; }
+@keyframes daw-start-pulse { 0%, 100% { filter: brightness(1); } 35% { filter: brightness(1.3); } }
+@keyframes pulse-record { 0%, 100% { opacity: 1; } 50% { opacity: .65; } }
+@keyframes slideIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideOut { from { opacity: 1; } to { opacity: 0; } }
+@media (min-width: 1100px) { .session-grid { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); } }
+@media (max-width: 1024px) {
+    #app { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+    .header { align-items: flex-start; }
+    .status-bar { justify-content: flex-end; flex: 1; }
+    .session-header-controls { justify-content: flex-end; }
+    .session-recent { width: 100%; justify-content: flex-end; }
+    .post-record { margin-left: 0; }
+    .transport-settings-group { grid-template-columns: minmax(140px, 1.4fr) repeat(3, minmax(65px, 1fr)); }
+    .metronome-button { grid-column: 1 / -1; justify-self: start; }
+    .clock-master-section { grid-template-columns: 1fr 1fr; }
+    .clock-master-section > label:first-of-type { grid-column: 1 / -1; }
 }
 @media (max-width: 600px) {
-    .mapping-row {
-        grid-template-columns: 1fr;
-    }
+    #app { padding: max(16px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+    .header { display: grid; grid-template-columns: 1fr; gap: 14px; padding-bottom: 16px; }
+    .brand-mark { width: 36px; height: 36px; }
+    .status-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
+    .session-header-controls { grid-column: 1 / -1; justify-content: flex-start; order: 2; padding-top: 6px; border-top: 1px solid var(--line); }
+    .session-recent { justify-content: flex-start; order: 2; }
+    .session-header-controls > .btn, .session-load-wrap, .session-load-wrap > .btn { flex: 1; }
+    .session-load-wrap > .btn { width: 100%; }
+    .status-indicator { justify-self: start; padding: 4px 6px; font-size: .6875rem; }
+    .status-bar > .btn { padding: 8px 10px; font-size: .75rem; }
+    .session-picker { left: auto; right: 0; width: min(290px, calc(100vw - 48px)); }
+    .collapsible-panel, .debug-panel { border-radius: 12px; margin-bottom: 10px; }
+    .collapsible-header { padding: 13px 14px; min-height: 48px; }
+    .daw-details > summary::after { font-size: 8px; }
+    .daw-panel-content, .config-panel-content, .help-content { padding: 16px 12px; }
+    .workspace-heading { margin-bottom: 20px; }
+    .workspace-caption { display: none; }
+    .transport-buttons-group { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .daw-beat-indicator { justify-content: flex-start; }
+    .transport-actions { display: grid; grid-template-columns: 1fr 1fr .8fr; gap: 6px; }
+    .transport-actions .btn { min-width: 0; min-height: 48px; padding: 8px; }
+    .post-record { justify-content: space-between; }
+    .post-record select { flex: 1; max-width: 55%; }
+    .transport-settings-group { grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
+    .metronome-button { width: 100%; justify-self: stretch; }
+    .transport-controls { margin-bottom: 22px; gap: 14px; }
+    .session-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .track-block { padding: 7px; gap: 7px; border-radius: 9px; }
+    .session-slot { padding: 8px; min-height: 72px; }
+    .track-controls-row { gap: 3px; }
+    .track-controls-row button { min-height: 44px; font-size: 1rem; }
+    .track-block-add { min-height: 220px; }
+    .clip-legend { gap: 9px; font-size: .625rem; }
+    .clock-master-section { grid-template-columns: 1fr; padding: 14px; gap: 16px; }
+    .mapping-row { grid-template-columns: 1fr; gap: 0; }
+    .channel-buttons { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .mapping-editor { padding: 12px; }
 }
-
-/* Filters */
-.filter-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.filter-select {
-    padding: 6px 8px;
-    border: none;
-    border-radius: 6px;
-    background: #0f3460;
-    color: #eee;
-    font-size: 0.85rem;
-}
-.filter-input {
-    padding: 6px 8px;
-    border: none;
-    border-radius: 6px;
-    background: #0f3460;
-    color: #eee;
-    font-size: 0.85rem;
-    flex: 1;
-    min-width: 100px;
-}
-.velocity-inputs {
-    display: flex;
-    gap: 8px;
-}
-
-/* Config Actions */
-.config-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-}
-
-/* Empty state */
-.empty-state {
-    text-align: center;
-    padding: 20px;
-    color: #888;
-    font-size: 0.9rem;
-}
-
-/* Notification slide animations */
-@keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-}
-
-/* Route summary */
-.route-summary {
-    padding: 8px 12px;
-    background: #0f3460;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    font-size: 0.9rem;
-    color: #aaa;
-}
-.route-summary strong {
-    color: #4ade80;
-}
-
-/* Auto-generated route name */
-.route-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-.route-name {
-    padding: 6px 12px;
-    background: #0f3460;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    color: #4ade80;
-    font-weight: bold;
-    flex: 1;
-    margin-right: 8px;
-}
-
-/* Tab hint */
-.tab-hint {
-    padding: 8px 12px;
-    color: #888;
-    font-size: 0.85rem;
-    margin-bottom: 12px;
-    font-style: italic;
-}
-
-/* Filters section (collapsed by default) */
-.filters-section {
-    border-top: 1px solid #0f3460;
-    padding-top: 12px;
-    margin-top: 12px;
-}
-
-/* Channel buttons */
-.channel-buttons {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 6px;
-}
-.channel-btn {
-    padding: 8px 0;
-    border: 2px solid #0f3460;
-    border-radius: 6px;
-    background: #1a1a2e;
-    color: #888;
-    font-size: 0.9rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.channel-btn:hover {
-    border-color: #e94560;
-    color: #eee;
-}
-.channel-btn.active {
-    background: #e94560;
-    border-color: #e94560;
-    color: white;
-}
-
-/* === Session Grid (Ableton-style) === */
-.session-grid {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-}
-.session-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: fit-content;
-}
-.session-track-label {
-    width: 48px;
-    font-size: 0.7rem;
-    color: #e94560;
-    text-align: right;
-    flex-shrink: 0;
-    font-weight: bold;
-}
-.session-slot {
-    width: var(--slot-w);
-    height: 40px;
-    border-radius: 4px;
-    border: 2px solid #0f3460;
-    background: #1a1a2e;
-    color: #666;
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.1s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    overflow: hidden;
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-}
-.session-slot:hover {
-    border-color: #e94560;
-    color: #ccc;
-}
-.session-slot:active {
-    transform: scale(0.95);
-}
-.session-slot.has-content {
-    color: #ccc;
-    background: #163a5e;
-    border-color: #0a7c2e;
-}
-.session-slot.playing {
-    background: #0a7c2e;
-    border-color: #3ddc84;
-    color: #fff;
-    box-shadow: 0 0 8px #3ddc84;
-}
-.session-slot.recording {
-    background: #8b0000;
-    border-color: #e94560;
-    color: #fff;
-}
-/* Count-in pending: blinks red until recording actually starts. */
-.session-slot.pending {
-    background: #8b0000;
-    border-color: #e94560;
-    color: #fff;
-    animation: pulse-record 1s infinite;
-}
-/* Overdub mode while actively recording: orange. */
-.session-slot.overdub {
-    background: #b35900;
-    border-color: #ff8c42;
-    color: #fff;
-    box-shadow: 0 0 8px #ff8c42;
-}
-.session-slot.armed {
-    border-color: #e94560;
-    background: #3a1a1a;
-    color: #e94560;
-}
-.session-slot.flash {
-    background: #e94560;
-}
-@keyframes pulse-record {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-.session-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-}
-.session-mode-label {
-    font-size: 0.8rem;
-    color: #ccc;
-}
-#session-record-mode {
-    padding: 4px 8px;
-    border: none;
-    border-radius: 4px;
-    background: #1a1a2e;
-    color: #eee;
-    font-size: 0.8rem;
-}
-
-/* === Mobile / Narrow Screen Responsive === */
-@media (max-width: 768px) {
-    .collapsible-panel {
-        margin: 12px;
-    }
-
-    .collapsible-header {
-        font-size: 0.85rem;
-        padding: 6px 12px;
-    }
-
-    .daw-panel-content,
-    .config-panel-content {
-        padding: 12px;
-    }
-
-    .transport-controls {
-        flex-direction: column;
-        gap: 8px;
-        padding: 10px;
-    }
-
-    .transport-settings-group,
-    .transport-buttons-group {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        width: 100%;
-    }
-
-    .transport-settings-group {
-        justify-content: flex-start;
-    }
-
-    .transport-buttons-group {
-        justify-content: flex-start;
-    }
-
-    .transport-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        width: auto;
-    }
-
-    .transport-separator {
-        width: 100%;
-        height: 1px;
-        margin: 3px 0;
-    }
-
-    .session-grid {
-        gap: 6px;
-    }
-
-    .track-block {
-        width: 130px;
-    }
-
-    .session-track-label {
-        width: 40px;
-        font-size: 0.65rem;
-    }
-
-    .track-block {
-        --slot-w: 52px;
-    }
-    .session-slot {
-        width: var(--slot-w);
-        height: 32px;
-        font-size: 0.6rem;
-    }
-
-    .track-controls-row {
-        gap: 2px;
-    }
-
-    .track-controls-row button {
-        padding: 4px 8px;
-        font-size: 0.7rem;
-    }
-
-
-}
-
-@media (max-width: 480px) {
-    .collapsible-panel {
-        margin: 8px;
-    }
-
-    .daw-panel-content,
-    .config-panel-content {
-        padding: 10px;
-    }
-
-    .track-block {
-        width: 110px;
-    }
-
-    .session-track-label {
-        width: 36px;
-        font-size: 0.6rem;
-    }
-
-    .track-block {
-        --slot-w: 44px;
-    }
-    .session-slot {
-        width: var(--slot-w);
-        height: 28px;
-        font-size: 0.55rem;
-    }
-
-    .track-controls-row button {
-        padding: 3px 6px;
-        font-size: 0.65rem;
-    }
-
-    .btn {
-        padding: 5px 12px;
-        font-size: 0.8rem;
-    }
-
-    .btn-sm {
-        padding: 3px 8px;
-        font-size: 0.7rem;
-    }
-}
-
-/* === Mobile Landscape / Horizontal (481px - 896px) === */
-@media (min-width: 481px) and (max-width: 896px) {
-    .collapsible-panel {
-        margin: 12px;
-    }
-
-    .collapsible-header {
-        font-size: 0.85rem;
-        padding: 7px 14px;
-    }
-
-    .daw-panel-content,
-    .config-panel-content {
-        padding: 14px;
-    }
-
-    /* Transport controls — settings left, buttons right */
-    .transport-controls {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        padding: 12px;
-    }
-
-    .transport-settings-group {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex: 1;
-        min-width: 240px;
-    }
-
-    .transport-buttons-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-shrink: 0;
-    }
-
-    .transport-label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-    }
-
-    .transport-separator {
-        width: 1px;
-        height: 30px;
-        margin: 0 -4.5px; /* gap is 8px here */
-    }
-
-    /* Session grid — wider track blocks */
-    .session-grid {
-        gap: 8px;
-    }
-
-    .track-block {
-        width: 140px;
-    }
-
-    .session-track-label {
-        width: 44px;
-        font-size: 0.7rem;
-    }
-
-    .track-block {
-        --slot-w: 56px;
-    }
-    .session-slot {
-        width: var(--slot-w);
-        height: 34px;
-        font-size: 0.65rem;
-    }
-
-    .track-controls-row button {
-        padding: 4px 8px;
-        font-size: 0.7rem;
-    }
-
-
-}
-
-/* === iPad Portrait (769px - 1024px) === */
-@media (min-width: 769px) and (max-width: 1024px) {
-    .collapsible-panel {
-        margin: 16px;
-    }
-
-    .daw-panel-content,
-    .config-panel-content {
-        padding: 16px;
-    }
-
-    /* Transport controls — settings left, buttons right */
-    .transport-controls {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: center;
-        gap: 12px;
-        padding: 12px;
-    }
-
-    .transport-settings-group {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        flex: 1;
-        min-width: 300px;
-    }
-
-    .transport-buttons-group {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-shrink: 0;
-    }
-
-    .transport-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        white-space: nowrap;
-    }
-
-    .transport-separator {
-        width: 1px;
-        height: 32px;
-        margin: 0 -6.5px; /* gap is 12px here */
-    }
-
-    /* Session grid — more tracks visible */
-    .session-grid {
-        gap: 10px;
-    }
-
-    .track-block {
-        width: 170px;
-    }
-
-    .session-track-label {
-        width: 50px;
-        font-size: 0.75rem;
-    }
-
-    .track-block {
-        --slot-w: 62px;
-    }
-    .session-slot {
-        width: var(--slot-w);
-        height: 38px;
-        font-size: 0.7rem;
-    }
-
-    .track-controls-row button {
-        padding: 5px 10px;
-        font-size: 0.75rem;
-    }
-
-
-}
-
-/* Clock master selector */
-.clock-master-section {
-    background: #1a1a2e;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-}
-
-.clock-master-section h4 {
-    margin: 0 0 8px 0;
-    color: #e0e0e0;
-    font-size: 0.9rem;
-}
-
-.clock-master-section .transport-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-
-.clock-master-section select {
-    min-width: 200px;
-}
-
-/* DAW mode and transport boundary cues */
-#record-mode.mode-play {
-    color: #d7fff0;
-    background: #145b43;
-    border-color: #43d99a;
-}
-#record-mode.mode-overdub {
-    color: #f0e5ff;
-    background: #503078;
-    border-color: #bb86fc;
-}
-
-.daw-beat-indicator {
-    display: inline-flex;
-    align-items: center;
-    min-height: 32px;
-    padding: 0 10px;
-    border: 1px solid #465268;
-    border-radius: 5px;
-    background: #20283a;
-    color: #c6d4e8;
-    font-size: 0.8rem;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-.daw-beat-indicator.bar-start {
-    border-color: #ffb547;
-    background: #75410f;
-    color: #fff4df;
-}
-.daw-beat-indicator.cycle-start {
-    border-color: #43d99a;
-    background: #145b43;
-    color: #e6fff4;
-}
-.daw-beat-indicator.beat-pulse,
-.session-slot.clip-start,
-.session-slot.record-start {
-    animation: daw-start-pulse 220ms ease-out;
-}
-.session-slot.clip-start {
-    background: #087e8b;
-    border-color: #59e5ef;
-    color: #fff;
-    box-shadow: 0 0 12px #59e5ef;
-}
-.session-slot.record-start {
-    background: #8b0000;
-    border-color: #ffb547;
-    color: #fff;
-    box-shadow: 0 0 12px #ff7452;
-}
-@keyframes daw-start-pulse {
-    0% { transform: scale(1); filter: brightness(1); }
-    35% { transform: scale(1.07); filter: brightness(1.45); }
-    100% { transform: scale(1); filter: brightness(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-    .daw-beat-indicator.beat-pulse,
-    .session-slot.clip-start,
-    .session-slot.record-start {
-        animation-duration: 1ms;
-    }
-}
+@media (max-width: 399px) { .session-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
+.timing-details > summary { min-height: 44px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; list-style: none; padding: 10px 0; cursor: pointer; font-size: .75rem; color: var(--text); }
+.timing-details > summary span { color: var(--muted); font-size: .6875rem; }
+.timing-details > summary::after { content: "+"; color: var(--accent); }
+.timing-details[open] > summary::after { content: "−"; }
+@media (max-width: 600px) { .session-recent { display: none; } }

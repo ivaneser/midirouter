@@ -2,28 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIDI Router</title>
-    <link rel="stylesheet" href="/css/style.css?v=17">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#101418">
+    <meta name="color-scheme" content="dark">
+    <title>MIDI Router · Session</title>
+    <link rel="stylesheet" href="/css/style.css?v=18">
 </head>
 <body>
     <div id="app">
         <!-- Header -->
         <header class="header">
-            <h1>🎹 MIDI Router</h1>
+            <div class="brand"><span class="brand-mark" aria-hidden="true">▥</span><div><h1>MIDI Router</h1><p>Performance workspace</p></div></div>
             <div class="status-bar">
                 <!-- Sessions: save/load recordings to/from disk -->
                 <div class="session-header-controls">
                     <div id="session-recent" class="session-recent" aria-label="Last saved sessions"></div>
-                    <button id="btn-save-session" class="btn btn-sm" title="Save current recording to disk">💾 Save</button>
+                    <button id="btn-save-session" class="btn btn-sm" title="Save current recording to disk">Save</button>
                     <div class="session-load-wrap">
-                        <button id="btn-load-session" class="btn btn-sm" title="Load a saved recording" aria-haspopup="true" aria-expanded="false">⏬ Load</button>
+                        <button id="btn-load-session" class="btn btn-sm" title="Load a saved recording" aria-haspopup="true" aria-expanded="false">Load</button>
                         <div id="session-picker" class="session-picker" hidden></div>
                     </div>
                 </div>
                 <span id="connection-status" class="status-indicator disconnected">● Disconnected</span>
                 <button id="btn-connect" class="btn btn-primary">Connect</button>
-                <button id="btn-shutdown" class="btn btn-danger" title="Shut down the router server">⏻ Shutdown</button>
+                <button id="btn-shutdown" class="btn btn-danger" title="Power off the Raspberry Pi">Power off</button>
             </div>
         </header>
 
@@ -31,76 +33,36 @@
         <details class="collapsible-panel daw-details" open>
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                🎵 Session View
+                Session
             </summary>
             <div class="daw-panel-content">
 
-            <!-- Transport Controls -->
+            <div class="workspace-heading"><div><p class="eyebrow">LIVE WORKSPACE</p><h2>Session view</h2></div><span class="workspace-caption">Record. Layer. Perform.</span></div>
             <div class="transport-controls">
-                <!-- Settings group (left side) -->
-                <div class="transport-settings-group">
-                    <label class="transport-label">
-                        BPM:
-                        <input type="number" id="tempo" min="20" max="300" step="1" value="120">
-                        <button id="tap-tempo" class="btn btn-sm">Tap</button>
-                    </label>
-                    
-                    <label class="transport-label">
-                        <button id="metronome-toggle" class="btn btn-sm" title="Toggle metronome">♪ Metro</button>
-                        <button id="midi-clock-toggle" class="btn btn-sm" style="display:none" title="MIDI clock (MTC) for external gear is always on">⏱ MTC</button>
-                        Quantize:
-                        <select id="quantize-grid">
-                            <option value="0">Off</option>
-                            <option value="0.125">1/32</option>
-                            <option value="0.25">1/16</option>
-                            <option value="0.5" selected>1/8</option>
-                            <option value="1">1/4</option>
-                            <option value="2">1/2</option>
-                        </select>
-                    </label>
-
-                    <label class="transport-label">
-                        Bars:
-                        <input type="number" id="master-loop-bars" min="1" max="64" step="1" placeholder="Auto" title="Default length of the global transport cycle in bars (blank = auto)">
-                    </label>
-
-                    <label class="transport-label">
-                        Beats:
-                        <select id="metro-beats">
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4" selected>4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
-                            <option value="7">7</option>
-                            <option value="8">8</option>
-                        </select>
-                    </label>
-                </div>
-                
-                <div class="transport-separator"></div>
-                
-                <!-- Transport buttons (right side) -->
-                <div class="transport-buttons-group">
+                <div class="transport-buttons-group" aria-label="Transport">
                     <output id="daw-beat-indicator" class="daw-beat-indicator" aria-label="Transport beat">Bar 1 · Beat 1</output>
-                    <button id="btn-play" class="btn btn-green">▶ Play</button>
-                    <button id="btn-stop" class="btn btn-red">⏹ Stop</button>
-                    <button id="btn-record-arm" class="btn btn-orange">Reset</button>
-                    <label class="transport-label">
-                        Post-record:
-                        <select id="record-mode" title="What happens when the initial recording stops">
-                            <option value="none">Play</option>
-                            <option value="overdub">Overdub</option>
-                        </select>
-                    </label>
-                    <p id="session-status" class="session-status"></p>
+                    <div class="transport-actions">
+                        <button id="btn-play" class="btn btn-green">▶ Play</button>
+                        <button id="btn-stop" class="btn btn-red">■ Stop</button>
+                        <button id="btn-record-arm" class="btn btn-orange">Reset</button>
+                    </div>
+                    <label class="transport-label post-record"><span>After recording</span><select id="record-mode" title="What happens when the initial recording stops"><option value="none">Play</option><option value="overdub">Overdub</option></select></label>
+                    <p id="session-status" class="session-status" role="status"></p>
                 </div>
+                <details class="timing-details" open><summary>Timing settings <span>Tempo · Quantize · Metronome</span></summary>
+                <div class="transport-settings-group" aria-label="Timing settings">
+                    <div class="transport-label tempo-control"><label for="tempo">Tempo <span class="unit">BPM</span></label><div class="tempo-input"><input type="number" id="tempo" aria-label="Tempo in BPM" inputmode="numeric" min="20" max="300" step="1" value="120"><button id="tap-tempo" class="btn btn-sm">Tap</button></div></div>
+                    <div class="transport-label"><label for="quantize-grid">Quantize</label><select id="quantize-grid"><option value="0">Off</option><option value="0.125">1/32</option><option value="0.25">1/16</option><option value="0.5" selected>1/8</option><option value="1">1/4</option><option value="2">1/2</option></select></div>
+                    <div class="transport-label"><label for="master-loop-bars">Loop bars</label><input type="number" id="master-loop-bars" inputmode="numeric" min="1" max="64" step="1" placeholder="Auto" title="Global cycle length in bars; blank sets it automatically"></div>
+                    <div class="transport-label"><label for="metro-beats">Beats / bar</label><select id="metro-beats"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></div>
+                    <button id="metronome-toggle" class="btn metronome-button" title="Toggle metronome">♪ Metronome</button>
+                    <button id="midi-clock-toggle" class="btn" hidden style="display:none" title="MIDI clock output">MIDI Clock</button>
+                </div></details>
             </div>
-
+            <div class="grid-heading"><h3>Clips</h3><div class="clip-legend" aria-label="Clip states"><span class="legend-ready">Ready</span><span class="legend-play">Playing</span><span class="legend-record">Recording</span></div></div>
             <!-- Session Grid -->
             <div class="session-container">
-                <div id="session-grid" class="session-grid"></div>
+                <div id="session-grid" class="session-grid" aria-label="Session tracks"><p class="empty-state">Connect to your router to see tracks and clips.</p></div>
             </div>
             
             <!-- Track Controls -->
@@ -113,13 +75,13 @@
         <details class="collapsible-panel devices-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                🔊 MIDI Devices
+                Devices &amp; sync
             </summary>
             <div class="config-panel-content">
-                <p class="tab-hint">Discovered automatically via ALSA. Plug/unplug appear live.</p>
+                <p class="tab-hint">Your connected instruments and timing settings. Devices update automatically.</p>
                 <!-- Clock Master selection -->
                 <div class="clock-master-section">
-                    <h4>⏱ Clock Master</h4>
+                    <h4>Clock &amp; calibration</h4>
                     <label class="transport-label">
                         Source:
                         <select id="clock-source-select">
@@ -148,13 +110,13 @@
         <details class="collapsible-panel config-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                ⚙️ MIDI Routing
+                Routing
             </summary>
             <div class="config-panel-content">
 
             <!-- Save/Load buttons -->
             <div class="config-actions" style="margin-bottom: 16px;">
-                <button class="btn btn-primary" id="btn-save-config">💾 Save</button>
+                <button class="btn btn-primary" id="btn-save-config">Save</button>
                 <button class="btn" id="btn-load-config">📂 Load</button>
             </div>
 
@@ -173,7 +135,7 @@
         <details class="collapsible-panel help-details">
             <summary class="collapsible-header help-header">
                 <span class="arrow">▶</span>
-                ❓ How to Play
+                Quick guide
             </summary>
             <div class="help-content">
                 <h4>🎹 Clips (pads)</h4>
@@ -203,15 +165,15 @@
 
                 <h4>💾 Sessions</h4>
                 <ul>
-                    <li><strong>💾 Save</strong> — saves all clips, notes, BPM and mode to <code>sessions/&lt;name&gt;.json</code>.</li>
-                    <li><strong>⏬ Load</strong> — lists saved sessions to load or delete. The header shows the last 3 sessions for quick load; the loaded one is green.</li>
-                    <li>Routing presets (⚙️ MIDI Routing → 💾 Save / 📂 Load) store routing only and are separate from sessions.</li>
+                    <li><strong>Save</strong> — saves all clips, notes, BPM and mode to <code>sessions/&lt;name&gt;.json</code>.</li>
+                    <li><strong>Load</strong> — lists saved sessions to load or delete. The header shows the last 3 sessions for quick load; the loaded one is green.</li>
+                    <li>Routing presets (Routing → Save / 📂 Load) store routing only and are separate from sessions.</li>
                 </ul>
 
                 <h4>🔌 MIDI Routing</h4>
                 <ul>
                     <li>All connected MIDI devices are routed to each other automatically; hot-plug is supported.</li>
-                    <li>Custom routes: ⚙️ MIDI Routing → <strong>+ Add Route</strong>. 🔊 MIDI Devices lists every connected port.</li>
+                    <li>Custom routes: Routing → <strong>+ Add Route</strong>. Devices &amp; sync lists every connected port.</li>
                 </ul>
             </div>
         </details>
@@ -223,6 +185,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=15"></script>
+    <script type="module" src="/js/app.js?v=19"></script>
 </body>
 </html>

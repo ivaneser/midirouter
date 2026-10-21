@@ -1,7 +1,7 @@
 /* === MIDI Router — auto-connect all to all === */
 
 import { DeviceManager } from './device-manager.js';
-import { DAWUI } from './daw-ui.js';
+import { DAWUI } from './daw-ui.js?v=18';
 import { ConfigEditor } from './config-editor.js';
 
 // Auto-detect WebSocket URL from current page location
@@ -20,6 +20,11 @@ const statusEl = document.getElementById('connection-status');
 const logsDiv = document.getElementById('logs');
 
 let ws = null;
+
+// Keep the clip launcher in reach on phones; timing remains one tap away.
+const timingPanel = document.querySelector('.timing-details');
+if (timingPanel) timingPanel.open = window.matchMedia('(min-width: 700px)').matches;
+
 
 // Initialize managers
 const deviceManager = new DeviceManager();

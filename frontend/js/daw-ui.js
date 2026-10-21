@@ -505,7 +505,7 @@ export class DAWUI {
             // Track label (column header)
             const label = document.createElement('div');
             label.className = 'session-track-label';
-            label.textContent = `Tr${t + 1}`;
+            label.textContent = `Track ${t + 1}`;
             block.appendChild(label);
 
             // Clip slots (vertical column under the track label)
@@ -541,6 +541,17 @@ export class DAWUI {
                     cls += ' idle';
                 }
                 slot.className = cls;
+                const stateLabel = isPending ? 'Count-in' : isOverdubActive ? 'Overdub' : isRecording ? 'Recording' : isActive ? 'Playing' : clip?.notes > 0 ? 'Ready' : 'Empty';
+                const clipNumber = document.createElement('span');
+                clipNumber.className = 'clip-number';
+                clipNumber.textContent = String(s + 1).padStart(2, '0');
+                const clipStatus = document.createElement('span');
+                clipStatus.className = 'clip-status';
+                clipStatus.textContent = stateLabel;
+                slot.appendChild(clipNumber);
+                slot.appendChild(clipStatus);
+                slot.setAttribute('aria-label', `Track ${t + 1}, clip ${s + 1}: ${stateLabel}`);
+
                 
                 slot.dataset.track = t;
                 slot.dataset.slot = s;
