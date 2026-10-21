@@ -229,3 +229,27 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .timing-details > summary::after { content: "+"; color: var(--accent); }
 .timing-details[open] > summary::after { content: "−"; }
 @media (max-width: 600px) { .session-recent { display: none; } }
+
+/* Instrument parameter surface */
+.synth-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); align-items: start; gap: 22px; }
+.synth-controls-hint { grid-column: 1 / -1; color: var(--muted); font-size: .6875rem; line-height: 1.6; }
+.synth-control-section { min-width: 0; }
+.synth-control-section h5 { color: #b8c7d4; font-size: .625rem; font-weight: 650; text-transform: uppercase; letter-spacing: .14em; padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.synth-control-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 10px; }
+.synth-control { position: relative; align-items: center; justify-content: flex-start; gap: 8px; padding: 14px 10px 10px; border: 1px solid #303c46; border-radius: 12px; background: linear-gradient(145deg, #222d36, #192128); color: #c4d1dd; }
+.synth-control-name { min-height: 34px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.35; font-size: .75rem; font-weight: 500; }
+.synth-control-cc { color: #9baebe; font: 10px ui-monospace, monospace; letter-spacing: .04em; }
+.midi-knob { --knob-fill: 0deg; --knob-angle: -135deg; position: relative; display: block; width: 80px; height: 80px; flex: 0 0 80px; border-radius: 50%; background: conic-gradient(from 225deg, var(--accent) 0deg var(--knob-fill), #465461 var(--knob-fill) 270deg, transparent 270deg 360deg); }
+.midi-knob::before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #1b242c; }
+.midi-knob-face { display: block; position: absolute; inset: 10px; border: 1px solid #55636f; border-radius: 50%; background: linear-gradient(145deg, #43515d, #26333d 65%, #1b242b); box-shadow: 0 5px 10px #0006, inset 0 1px 1px #ffffff26; transform: rotate(var(--knob-angle)); }
+.midi-knob-face::after { content: ''; position: absolute; top: 6px; left: calc(50% - 1.5px); width: 3px; height: 14px; border-radius: 2px; background: #d7ecbc; box-shadow: 0 0 5px #b4e48033; }
+.midi-knob input.midi-knob-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ns-resize; touch-action: none; }
+.midi-knob:focus-within { outline: 2px solid var(--accent); outline-offset: 4px; }
+.midi-knob-value { color: #d9edc9; font: 600 .875rem ui-monospace, SFMono-Regular, monospace; font-variant-numeric: tabular-nums; min-width: 38px; text-align: center; }
+.synth-control-select select { width: 100%; margin: auto 0; }
+.synth-control-toggle input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 58px; height: 44px; min-height: 44px; border: 0; background: transparent; position: relative; cursor: pointer; margin: auto 0; }
+.synth-control-toggle input::before { content: ''; position: absolute; inset: 8px 0; border: 1px solid #60717e; border-radius: 20px; background: #111b22; }
+.synth-control-toggle input::after { content: ''; position: absolute; top: 12px; left: 5px; height: 20px; width: 20px; border-radius: 50%; background: #9caebc; transition: transform .15s; }
+.synth-control-toggle input:checked::before { background: #3b562e; border-color: var(--accent); }
+.synth-control-toggle input:checked::after { background: var(--accent); transform: translateX(28px); }
+@media (max-width: 600px) { .synth-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }

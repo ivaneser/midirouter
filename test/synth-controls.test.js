@@ -252,6 +252,7 @@ class TestElement {
         this.tagName = tagName;
         this.children = [];
         this.dataset = {};
+        this.style = { setProperty() {} };
         this.attributes = {};
         this.listeners = {};
         this.parentNode = null;

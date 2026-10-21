@@ -1,4 +1,5 @@
 /* === Device Manager — MIDI device management === */
+import { attachMidiKnob } from './midi-knob.js';
 
 import {
     buildMidiCcBytes,
@@ -104,8 +105,27 @@ export class DeviceManager {
                 throw new Error('Control map is empty or unavailable.');
             }
             panel.replaceChildren();
+            const hint = document.createElement('p');
+            hint.className = 'synth-controls-hint';
+            hint.textContent = 'Drag knobs up or down · Shift for fine adjustment · Keyboard arrows supported';
+            panel.appendChild(hint);
+            const groups = new Map();
             for (const definition of controls) {
-                panel.appendChild(this._createDeviceControl(device, model, definition));
+                const category = definition.category || 'Parameters';
+                if (!groups.has(category)) {
+                    const section = document.createElement('section');
+                    section.className = 'synth-control-section';
+                    const heading = document.createElement('h5');
+                    const categoryLabels = { osc: 'Oscillator', env: 'Envelope', mod: 'Modulation', amp: 'Amplifier', lfo: 'LFO', arp: 'Arpeggiator', fx_mod: 'Modulation effect', fx_delay: 'Delay effect', fx_reverb: 'Reverb effect' };
+                    heading.textContent = categoryLabels[category] || category.replaceAll('_', ' ');
+                    section.appendChild(heading);
+                    const group = document.createElement('div');
+                    group.className = 'synth-control-grid';
+                    section.appendChild(group);
+                    groups.set(category, group);
+                    panel.appendChild(section);
+                }
+                groups.get(category).appendChild(this._createDeviceControl(device, model, definition));
             }
         } catch (error) {
             this._synthControlCache.delete(model);
@@ -150,19 +170,40 @@ export class DeviceManager {
         }
 
         input.dataset.cc = String(definition.cc);
+        input.setAttribute('aria-label', instruction.label.text);
         if (input.type === 'checkbox') {
             input.checked = false;
         }
-        const eventName = input.type === 'range' ? 'input' : 'change';
-        input.addEventListener(eventName, () => {
-            const value = input.type === 'checkbox'
-                ? (input.checked ? 127 : 0)
-                : input.type === 'range'
-                    ? input.value
+        const sendValue = value => this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value));
+        if (input.type === 'range') {
+            row.className += ' synth-control-knob';
+            const dial = document.createElement('span');
+            dial.className = 'midi-knob';
+            const face = document.createElement('span');
+            face.className = 'midi-knob-face';
+            face.setAttribute('aria-hidden', 'true');
+            dial.appendChild(face);
+            input.className = 'midi-knob-input';
+            dial.appendChild(input);
+            row.appendChild(dial);
+            const readout = document.createElement('output');
+            readout.className = 'midi-knob-value';
+            row.appendChild(readout);
+            attachMidiKnob(input, dial, readout, sendValue);
+        } else {
+            row.className += input.type === 'checkbox' ? ' synth-control-toggle' : ' synth-control-select';
+            input.addEventListener('change', () => {
+                const value = input.type === 'checkbox'
+                    ? (input.checked ? 127 : 0)
                     : input.selectedIndex + Number(definition.min || 0);
-            this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value));
-        });
-        row.appendChild(input);
+                sendValue(value);
+            });
+            row.appendChild(input);
+        }
+        const cc = document.createElement('span');
+        cc.className = 'synth-control-cc';
+        cc.textContent = `CC ${definition.cc}`;
+        row.appendChild(cc);
         return row;
     }
 
