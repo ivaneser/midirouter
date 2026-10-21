@@ -81,10 +81,42 @@ aseqdump -p "NTS-1"        # does the device send Clock? (~24 per beat)
 aconnect -l                # device port must show "Connecting To: <RtMidi Input client>"
 ```
 If the device has no `Connecting To:` into an `RtMidi Input Client`, the input is dead.
-**Fix:** `_verifyInputConnections()` in `worker-midi.js` checks the clock master and controller inputs in the hot-plug loop and reopens stale inputs (logs `Input lost ALSA subscription`). Parsing lives in `alsa-subscriptions.js`; tests in `test/input-subscription.test.js`.
+**Fix:** `_verifyInputConnections()` in `worker-midi.js` checks every open input in the hot-plug loop and reopens stale inputs (logs `Input lost ALSA subscription`). Parsing lives in `alsa-subscriptions.js`; tests in `test/input-subscription.test.js`.
 **Workaround before the fix:** `systemctl --user restart midirouter.service`, then re-select the master in the UI (the selection is not persisted across restarts).
 
 ## MIDI device diagnostics
+
+### NTS-1 sends clock but ribbon notes are not recorded
+
+The original NTS-1 supports ribbon-keyboard note transmission over USB MIDI;
+its 3.5 mm MIDI connector is an input. See Korg's
+[MIDI connectivity guide](https://cdn.korg.com/us/support/download/files/40b4cf13fa40a3f9f821559b794dd9f5.pdf)
+and [MIDI implementation chart](https://cdn.korg.com/us/support/download/files/8b4225f3349d609272fcf7ac868212cc.pdf).
+Clock messages alone do not establish that the instrument sends note messages.
+
+On the Raspberry Pi, inspect the instrument directly:
+
+```bash
+aseqdump -l
+aseqdump -p 20:0  # example: replace 20:0 with the NTS-1 source port listed above
+```
+
+Touch and release the ribbon while monitoring. Look for `Note on` and `Note off`
+(or Note On with velocity zero), alongside Clock. If notes are absent here,
+the router has no note events to record; investigate the instrument/USB MIDI
+path. This check does not require changing the clock master.
+
+If notes appear, record an empty pad after its count-in. Incoming performance
+notes from every input now enter the recording path, including the clock
+master and synths with no controller profile. Previously this path required
+membership in `controllerInputs`, so stale registration could accept a synth's
+clock while discarding its notes. The clock-master filter applies only to
+timing and transport messages. Recording still rejects notes before its
+scheduled start; notes from other inputs remain recordable under an NTS-1 clock.
+
+Software regression coverage: `test/synth-master-recording.test.js` exercises
+master and non-master notes, both release encodings, the count-in gate, clock
+continuity, and subscription recovery without controller registration.
 
 ### Checking that the ALSA modules are loaded
 ```bash

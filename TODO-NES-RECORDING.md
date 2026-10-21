@@ -1,5 +1,25 @@
 # TODO: NTS-1 (3rd Device / MIDI Clock Master) Not Being Recorded
 
+## Current status (2026-10-21)
+
+The notes below are historical investigation hypotheses, not a verified
+hardware diagnosis. The selected clock master was already included in the
+input-subscription watchdog, so a missing subscription does not explain
+clock arriving while notes on the same port are discarded.
+
+The recording path did separately require `controllerInputs` membership.
+That gate has been removed for performance notes, and subscription recovery
+now checks every open input. Regression tests cover NTS-1 notes and clock
+with an empty controller-input registry, non-master notes, count-in rejection,
+and both Note Off and zero-velocity Note On releases.
+
+The original NTS-1 supports USB ribbon-keyboard note transmission. Hardware
+receipt is still unverified: use the NTS-1 diagnostic in `DEBUGGING.md` to
+check `aseqdump` for Note On/Off while touching and releasing the ribbon.
+If the instrument emits only Clock, software cannot reconstruct played notes.
+
+---
+
 **Date:** 2025-07-25  
 **Issue:** When the user records and plays Arturia and Craft, they are recorded OK. But when playing NTS-1 (the 3rd device selected as MIDI clock master), its notes are NOT being recorded — as if it's not sending any notes.
 

@@ -333,8 +333,8 @@ class MIDIRouterWorker {
     // reopen any that lost the subscription.
     // Input-side twin of _verifyOutputConnections. When a device is re-plugged the
     // kernel drops the subscription from its port to our RtMidi input, and the
-    // input then receives nothing (the clock master goes silent). Only the clock
-    // master and controller inputs are checked: those are the ones the user relies on.
+    // input then receives nothing (the clock master goes silent). Every open
+    // input can supply notes or clock, independently of controller pad mappings.
     _verifyInputConnections() {
         if (!this.inputs || this.inputs.size === 0) return Promise.resolve();
         if (this._aconnectInputProbeInFlight) return this._aconnectInputProbeInFlight;
@@ -343,9 +343,7 @@ class MIDIRouterWorker {
             execFile('aconnect', ['-l'], { encoding: 'utf8', timeout: 5000 }, (error, stdout) => {
                 if (error) { resolve(); return; }
                 const listing = String(stdout ?? '');
-                const master = this._clockMaster?.masterPortName;
                 for (const [name, input] of this.inputs) {
-                    if (name !== master && !this.controllerInputs.has(name)) continue;
                     if (isInputSubscribed(listing, aconnectPortDisplayName(name)) !== false) continue;
                     if (input._index == null) continue;
                     console.warn(`[WORKER] Input lost ALSA subscription: ${name} — reopening`);
@@ -1802,8 +1800,10 @@ class MIDIRouterWorker {
                 return;
             }
 
-            // Record during active recording
-            if (this.daw.recording && this.controllerInputs.has(deviceName)) {
+            // Every incoming performance note can be recorded, including notes
+            // from a synth selected as clock master. controllerInputs tracks pad
+            // learning; it must not gate recording during port enumeration/rebind.
+            if (this.daw.recording) {
                 const sb = isNoteOff ? (0x80 | ((channel - 1) & 0x0f)) : (0x90 | ((channel - 1) & 0x0f));
                 this.daw.recordEvent(sb, n, vel, performance.now());
             }
