@@ -20,6 +20,7 @@ import { MIDIRouterWorker } from '../worker-midi.js';
 function makeWorker(tempo = 120) {
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = new DAWEngine({ tempo });
+    worker.outputs = new Map();
     worker._trackPlayTimers = new Map();
     worker._ledGlow = new Map();
     worker._padLedSent = new Map();

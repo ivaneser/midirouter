@@ -26,9 +26,10 @@ variation, only the average.
   persistent `aplay -M` stream. Clicks are written into that stream by
   a dedicated daemon audio thread. No temporary WAV file is written per
   click. Stop and quit close the stream with a bounded wait.
-- Audio latency offset: the UI slider sets a value in ms (0 to 300,
-  default 30). The worker shifts clip note-on times earlier by this
-  amount in the non-external-clock playback path. Note-off keeps its
+- Audio latency offset: the UI slider sets a signed value in ms (-200 to 200,
+  default -30). Negative values send clip notes earlier; positive values
+  send them later. Both internal and external MIDI clock playback apply
+  the shift (external timing rounds to the nearest 24-PPQN tick). Note-off keeps its
   duration relative to its note-on. The DAW beat grid is not changed.
 - Recording follows the same offset. Clip notes are sent `audioOffsetMs`
   after their grid time, so a key pressed in time with what the performer
@@ -37,10 +38,16 @@ variation, only the average.
   count-in. The wall clock is converted to grid time once at each entry
   point (`DAWEngine._pressTime`, `_gridToWall`). The click offset is not
   used for recording.
+- A finished take starts looping at its shifted recording-stop boundary,
+  without waiting for another global cycle. The shift is applied once:
+  recording uses wall time minus the offset, and playback uses grid time
+  plus the offset. Opening notes already due at handoff play immediately;
+  later loop passes retain the configured advance or delay. Held notes
+  closed at the end of a take use the same clip origin as released notes.
 
 ## Status
 
-- The default of 30 ms is an estimate. It is not measured on hardware.
+- The default of -30 ms is an estimate. It is not measured on hardware.
 - Tests cover the software behavior only: one persistent stream is
   used, and note-on is scheduled the set amount earlier.
 - Audible sync has not been verified. Tune the slider by ear with a
@@ -51,4 +58,5 @@ variation, only the average.
 
 - Measure the remaining delay once with a loopback recording and compare
   the click with the MIDI note.
-- Persist the chosen value per device if it differs between outputs.
+- Support separate calibration per output device. The current audio and
+  click offsets are saved globally in the router settings.

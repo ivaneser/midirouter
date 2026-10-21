@@ -685,14 +685,23 @@ class MIDIRouterWorker {
             const cycleTicks = Math.max(24, Math.round(this.daw.loopLenBeats * 24));
             const sinceOrigin = currentTick - this.daw._externalCycleOriginTick;
             const untilCycle = immediate ? 0 : ((-sinceOrigin % cycleTicks) + cycleTicks) % cycleTicks;
-            playback.startTick = currentTick + untilCycle;
+            playback.startTick = immediate
+                ? currentTick + Math.round((now - performance.now()) / msPerBeat * 24)
+                : currentTick + untilCycle;
+            const offsetTicks = Math.round((this.audioOffsetMs || 0) / msPerBeat * 24);
             playback.noteEvents = clip.notes.map(note => ({
                 ...note,
                 startTick: ((Math.round(note.start * 24) % playback.loopTicks) + playback.loopTicks) % playback.loopTicks,
                 durationTicks: Math.max(1, Math.round((note.dur || 0.25) * 24)),
+                // Clamp only the first occurrence: a finished take cannot send
+                // its opening note into the past. Later passes keep the shift.
+                nextOnTick: Math.max(currentTick, playback.startTick
+                    + ((Math.round(note.start * 24) % playback.loopTicks) + playback.loopTicks) % playback.loopTicks
+                    + offsetTicks),
             }));
             playback.pendingNoteOffs = new Map();
             this._trackPlayTimers.set(trackIdx, playback);
+            this._tickExternalClipPlayback(currentTick);
             return;
         }
 
@@ -796,8 +805,8 @@ class MIDIRouterWorker {
             this._pendingClipStarts.delete(trackIdx);
             // Start at the boundary we waited for, not at the (possibly late) timer
             // time, so a few ms of timer lateness is not read as a missed cycle.
-            this._startTrackPlayback(trackIdx, slot, startAt);
-        }, Math.max(0, delayMs));
+            this._startTrackPlayback(trackIdx, slot, startAt, { immediate: true });
+        }, Math.max(0, delayMs + Math.min(0, this.audioOffsetMs || 0)));
         this._pendingClipStarts.set(trackIdx, timer);
     }
 
@@ -850,7 +859,7 @@ class MIDIRouterWorker {
 
     _tickExternalClipPlayback(tick) {
         for (const playback of this._trackPlayTimers.values()) {
-            if (!playback.externalClock || tick < playback.startTick) continue;
+            if (!playback.externalClock) continue;
 
             // Release every pending note-off whose scheduled tick is at or
             // before the current tick (handles skipped / late F8 ticks),
@@ -869,17 +878,19 @@ class MIDIRouterWorker {
                 else playback.active.set(key, count - 1);
             }
 
-            const elapsedTicks = tick - playback.startTick;
-            const localTick = elapsedTicks % playback.loopTicks;
-            // Audio latency offset (same compensation as the internal-clock path):
-            // fire note-ons earlier by the latency converted to ticks
-            // (24 PPQN: 1 beat = 24 ticks). Note-offs are scheduled relative to
-            // when their note-on fired, so duration is unchanged.
             const msPerBeat = this.daw._secondsPerBeat() * 1000;
             const offsetTicks = Math.round((this.audioOffsetMs || 0) / msPerBeat * 24);
             for (const event of playback.noteEvents) {
-                const onTick = ((event.startTick + offsetTicks) % playback.loopTicks + playback.loopTicks) % playback.loopTicks;
-                if (onTick !== localTick) continue;
+                // Live overdub notes are added after their first pass. Find the
+                // next shifted occurrence without wrapping an early beat-0 to
+                // the end of the first loop.
+                if (event.nextOnTick == null) {
+                    const first = playback.startTick + event.startTick + offsetTicks;
+                    event.nextOnTick = first + Math.max(0, Math.ceil((tick - first) / playback.loopTicks)) * playback.loopTicks;
+                }
+                if (tick < event.nextOnTick) continue;
+                const first = playback.startTick + event.startTick + offsetTicks;
+                event.nextOnTick = first + (Math.floor((tick - first) / playback.loopTicks) + 1) * playback.loopTicks;
                 const channel = Math.max(1, event.channel || 1);
                 const key = `${channel}:${event.note}`;
                 this._sendToSynthOutputs(noteOn(channel - 1, event.note, event.velocity > 0 ? event.velocity : 80));
@@ -1098,8 +1109,9 @@ class MIDIRouterWorker {
     _handleCountInComplete() {
         if (this.daw.recording == null) return;  // stale: recording was stopped during count-in
         console.log('[DAW] Count-in complete — starting actual recording');
-        const now = performance.now();
-        this.daw.recording.startTime = now;
+        // Keep the scheduled grid boundary. Replacing it with callback wall
+        // time would discard the manual shift and add timer jitter to the take.
+        const now = this.daw.recording.startTime;
         // The first take defines the global cycle: beat 0 of the cycle is the start of
         // the recording (the two-bar count-in is before it). Until a cycle is locked,
         // move the transport anchor here so the take's stop boundary and the cycle use
@@ -1179,7 +1191,7 @@ class MIDIRouterWorker {
         let boundaryTime = gridNow + bar * spb * 1000;
         if (this.daw.playing) {
             const currentBeat = Math.max(0, ((gridNow - this.daw._playAnchorTime) / 1000) / spb);
-            const nextBar = Math.ceil(currentBeat / bar) * bar;
+            const nextBar = Math.ceil((currentBeat - 1e-9) / bar) * bar;
             let delayMs = (nextBar - currentBeat) * spb * 1000;
             if (delayMs <= 5) delayMs = 0;
             boundaryTime = gridNow + delayMs;

@@ -465,6 +465,7 @@ test('_stopRecording derives sustained-note duration from the actual stop beat',
         track: 0,
         slot: 0,
         startBeat: 0,
+        originBeat: 0,
         notes: daw.tracks[0].clips[0].notes,
         noteStarts: new Map([['note:1:60', [{ channel: 1, velocity: 100, beat: 1 }]]]),
     };

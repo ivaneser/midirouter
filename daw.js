@@ -703,7 +703,7 @@ class DAWEngine {
                 this._recStartedTransport = false;
                 if (!projectWasEmptyBeforeArm || recStarted) {
                     const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
-                    const nextBar = Math.ceil(curBeat / bar) * bar;
+                    const nextBar = Math.ceil((curBeat - 1e-9) / bar) * bar;
                     let delayMs = (nextBar - curBeat) * spb * 1000;
                     // If pressed within 5 ms of the boundary, start immediately.
                     if (delayMs <= 5) delayMs = 0;
@@ -722,7 +722,7 @@ class DAWEngine {
                 // cycle — not from absolute transport start.
                 const isTransportStarter = this._globalCycleLocked === false;
                 if (isTransportStarter) {
-                    const nextBar = Math.ceil(curBeat / bar) * bar;
+                    const nextBar = Math.ceil((curBeat - 1e-9) / bar) * bar;
                     let delayMs = (nextBar - curBeat) * spb * 1000;
                     // If the press is within 5 ms of a bar boundary, start exactly at that moment,
                     // without waiting for the next bar.
@@ -737,7 +737,7 @@ class DAWEngine {
                     // snap forward to the next bar boundary so each recording
                     // starts from beat 0 of its bar — all clips stay phase-aligned.
                     const curCycleBeat = curBeat % this.loopLenBeats;
-                    const nextBar = Math.ceil(curCycleBeat / bar) * bar;
+                    const nextBar = Math.ceil((curCycleBeat - 1e-9) / bar) * bar;
                     startBeat = nextBar;
                     let delayMs = (nextBar - curCycleBeat) * spb * 1000;
                     // If pressed within 5 ms of the boundary, start immediately.
@@ -837,7 +837,7 @@ class DAWEngine {
                 } else {
                     duration = 0.25;
                 }
-                r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat), dur: roundBeats(duration) });
+                r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat - r.originBeat), dur: roundBeats(duration) });
             }
         }
         r.noteStarts.clear();
