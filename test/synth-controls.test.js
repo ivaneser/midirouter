@@ -39,6 +39,7 @@ function stubFetch() {
         'korg_nts1.json': readFileSync(
             join(__dirname, MAP_DIR, 'korg_nts1.json'), 'utf-8'
         ),
+        'arturia_microfreak.json': readFileSync(join(__dirname, MAP_DIR, 'arturia_microfreak.json'), 'utf-8'),
     };
 
     globalThis.fetch = async (url) => {
@@ -92,6 +93,17 @@ test('getControlsForModel returns a fresh copy each call (no shared mutation)', 
     const b = await getControlsForModel('craft-synth');
     a.push({ cc: 999 }); // mutate
     assert.equal(b.length, 18, 'second call is not affected by mutating the first');
+});
+
+test('MicroFreak loads its documented 21 CC controls with corrected parameter types', async () => {
+    const controls = await getControlsForModel('arturia-microfreak');
+    assert.equal(controls.length, 21);
+    assert.equal(new Set(controls.map(control => control.cc)).size, 21);
+    assert.equal(controls.find(control => control.cc === 2).type, 'slider');
+    assert.equal(controls.find(control => control.cc === 9).type, 'slider');
+    assert.equal(controls.find(control => control.cc === 93).name, 'LFO Rate (free)');
+    assert.equal(controls.find(control => control.cc === 94).name, 'LFO Rate (sync)');
+    assert.equal(controls.find(control => control.cc === 64).type, 'toggle');
 });
 
 test('getControlsForModel returns undefined for an unknown model (no crash)', async () => {
@@ -215,6 +227,16 @@ test('buildMidiCcBytes for a dropdown uses its option index as the value', () =>
     );
 });
 
+test('bipolar controls start at zero and translate signed values to MIDI CC bytes', () => {
+    const definition = { cc: 11, name: 'Panpot', type: 'slider', min: -64, max: 63, center: 0 };
+    assert.equal(renderControlDefinition(definition).attrs.value, '0');
+    assert.equal(renderControlDefinition({ ...definition, center: undefined }).attrs.value, '0');
+    assert.equal(renderControlDefinition({ ...definition, default: 12 }).attrs.value, '12');
+    assert.deepEqual(buildMidiCcBytes('craft-synth', 11, -64, definition), [0xB0, 11, 0]);
+    assert.deepEqual(buildMidiCcBytes('craft-synth', 11, 0, definition), [0xB0, 11, 64]);
+    assert.deepEqual(buildMidiCcBytes('craft-synth', 11, 63, definition), [0xB0, 11, 127]);
+});
+
 test('getControlsForModel does not send MIDI during fetch/render (integration)', async () => {
     // Verify that simply awaiting getControlsForModel and rendering definitions
     // never emits any [0xB0, cc, value]-shaped MIDI message.
@@ -336,16 +358,17 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
     try {
         const manager = new DeviceManager();
         manager.updatePorts(
-            [{ id: 'launchkey-in', name: 'Launchkey Mini MK3' }],
+            [{ id: 'launchkey-in', name: 'Launchkey Mini MK3' }, { id: 'craft-input-2', name: 'Craft Synth' }],
             [
                 { id: 'launchkey-out', name: 'Launchkey Mini MK3' },
                 { id: 'craft-output-9', name: 'Craft Synth' },
                 { id: 'nts-output-4', name: 'NTS-1 digital kit' },
+                { id: 'microfreak-output', name: 'Arturia MicroFreak' },
             ],
         );
         assert.equal(sent.length, 0, 'rendering the device list must never transmit MIDI');
         // Flat deduped list: 3 devices, each with a clickable name button.
-        assert.equal(deviceList.children.length, 3);
+        assert.equal(deviceList.children.length, 4);
         const craftItem = deviceList.children.find(el => el.children[0]?.textContent === 'Craft Synth');
         const craftName = craftItem.children[0];
         assert.equal(craftName.className, 'device-item-name');
@@ -355,7 +378,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         const panel = craftItem.querySelector('.synth-controls');
         assert.ok(panel, 'clicking the device name must open its control panel');
         assert.equal(sent.length, 0, 'loading controls must not transmit MIDI');
-        const slider = findAll(panel, el => el.type === 'range')[0];
+        const slider = findAll(panel, el => el.type === 'range' && el.dataset.cc === '1')[0];
         assert.ok(slider, 'the panel must contain at least one slider control');
         slider.value = '42';
         slider.listeners.input();
@@ -364,9 +387,32 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         assert.equal(sent[0].target, 'craft-output-9');
         assert.deepEqual(sent[0].data.bytes, [0xB0, 1, 42]);
 
+        const pan = findAll(panel, el => el.type === 'range' && el.dataset.cc === '11')[0];
+        assert.equal(pan.value, '0', 'signed knob starts at neutral without transmitting');
+        assert.equal(sent.length, 1);
+        pan.listeners.input();
+        assert.deepEqual(sent[1].data.bytes, [0xB0, 11, 64], 'displayed zero sends the MIDI midpoint');
+
         // Collapsing removes the panel again.
         await craftName.click();
         assert.equal(craftItem.querySelector('.synth-controls'), null, 'second click must collapse the panel');
+
+        const microItem = deviceList.children.find(el => el.children[0]?.textContent === 'Arturia MicroFreak');
+        const beforeOpen = sent.length;
+        await microItem.children[0].click();
+        const microPanel = microItem.querySelector('.synth-controls');
+        assert.ok(microPanel);
+        assert.equal(sent.length, beforeOpen, 'opening MicroFreak must not modify the synth');
+        assert.equal(findAll(microPanel, el => el.className === 'midi-knob').length, 20);
+        const cutoff = findAll(microPanel, el => el.type === 'range' && el.dataset.cc === '23')[0];
+        cutoff.value = '96';
+        cutoff.listeners.input();
+        assert.equal(sent.at(-1).target, 'microfreak-output');
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 23, 96]);
+        const hold = findAll(microPanel, el => el.type === 'checkbox')[0];
+        hold.checked = true;
+        hold.listeners.change();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 64, 127]);
     } finally {
         globalThis.document = previous.document;
         globalThis.window = previous.window;

@@ -36,7 +36,8 @@ class MIDIRouterWorker {
         this.daw._onProgress = (beat, progress, cues = {}) => {
             if (parentPort) parentPort?.postMessage({
                 type: 'daw_progress',
-                payload: { beat, progress, loopLenBeats: this.daw.loopLenBeats, ...cues },
+                payload: { beat, progress, loopLenBeats: this.daw.loopLenBeats, ...cues,
+                    clipProgress: this._clipPlaybackProgress() },
             });
         };
         this._transportPlaying = false;
@@ -666,7 +667,7 @@ class MIDIRouterWorker {
         // phase-synchronized with the shared transport cycle (tempo + tick grid).
         const loopBeats = Math.max(1, Number(clip.length) || this.daw.loopLenBeats);
         const loopMs = loopBeats * msPerBeat;
-        const playback = { interval: null, timeouts: new Set(), active: new Map() };
+        const playback = { slot, interval: null, timeouts: new Set(), active: new Map() };
         const schedule = (fn, delay) => {
             const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, Math.max(0, delay));
             playback.timeouts.add(timer);
@@ -708,6 +709,7 @@ class MIDIRouterWorker {
         // Immediate start (take just recorded) or next cycle start (manual launch).
         const barDelay = immediate ? 0 : this.daw.msUntilPhase(0, now);
         playback.originMs = now + barDelay;   // time of beat 0 of this loop
+        playback.audioOffsetMs = this.audioOffsetMs || 0;
         playback.loopBeats = loopBeats;
         playback.msPerBeat = msPerBeat;
 
@@ -2190,6 +2192,26 @@ class MIDIRouterWorker {
         this._refreshPadLeds();
     }
 
+    _clipPlaybackProgress(now = performance.now()) {
+        if (!this.daw.playing) return [];
+        const result = [];
+        for (const [trackIdx, playback] of this._trackPlayTimers || []) {
+            if (this.daw.clipState[trackIdx] !== playback.slot) continue;
+            let elapsed, length;
+            if (playback.externalClock) {
+                const offsetTicks = Math.round((this.audioOffsetMs || 0) / this.daw._secondsPerBeatMs() * 24);
+                elapsed = this._externalMidiClock.tickCount - playback.startTick - offsetTicks;
+                length = playback.loopTicks;
+            } else {
+                elapsed = now - playback.originMs - (playback.audioOffsetMs || 0);
+                length = playback.loopBeats * playback.msPerBeat;
+            }
+            if (!Number.isFinite(elapsed) || elapsed < 0 || !(length > 0)) continue;
+            result.push({ trackIdx, slot: playback.slot, progress: (elapsed % length) / length });
+        }
+        return result;
+    }
+
     _broadcastState() {
         const state = this.daw.getState();
         // Include the current clock master selection so UI reflects reality.
@@ -2198,6 +2220,7 @@ class MIDIRouterWorker {
         state.audioOffsetMs = this.audioOffsetMs;
         state.clickOffsetMs = this.clickOffsetMs;
         state.quantizeGrid = this.quantizeGrid;
+        state.clipProgress = this._clipPlaybackProgress();
         parentPort?.postMessage({ type: 'daw_state', state });
     }
 

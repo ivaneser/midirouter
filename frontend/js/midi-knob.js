@@ -5,7 +5,9 @@ export function attachMidiKnob(input, dial, readout, onChange) {
     const max = Number(input.max);
     const refresh = () => {
         const value = Number(input.value);
-        const fraction = max > min ? (value - min) / (max - min) : 0;
+        const fraction = min < 0 && max > 0
+            ? (value < 0 ? 0.5 + value / (-2 * min) : 0.5 + value / (2 * max))
+            : max > min ? (value - min) / (max - min) : 0;
         dial.style.setProperty('--knob-fill', `${fraction * 270}deg`);
         dial.style.setProperty('--knob-angle', `${-135 + fraction * 270}deg`);
         readout.textContent = String(value);

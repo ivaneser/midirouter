@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { attachMidiKnob } from '../frontend/js/midi-knob.js';
 
-function knob(value = 0) {
+function knob(value = 0, min = 0, max = 127) {
     const listeners = {};
     const sent = [];
     const properties = {};
     const input = {
-        min: '0', max: '127', value: String(value),
+        min: String(min), max: String(max), value: String(value),
         addEventListener: (name, fn) => { listeners[name] = fn; },
         setAttribute() {}, focus() {},
         setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {},
@@ -27,6 +27,14 @@ test('rendering a knob never transmits MIDI; native input updates its value and 
     assert.equal(k.readout.textContent, '127');
     assert.equal(k.properties['--knob-fill'], '270deg');
     assert.equal(k.properties['--knob-angle'], '135deg');
+});
+
+test('bipolar zero is visually centered despite asymmetric MIDI endpoints', () => {
+    const k = knob(0, -64, 63);
+    assert.equal(k.readout.textContent, '0');
+    assert.equal(k.properties['--knob-angle'], '0deg');
+    assert.equal(k.properties['--knob-fill'], '135deg');
+    assert.deepEqual(k.sent, []);
 });
 
 test('dragging does not jump on touch and clamps to the MIDI range', () => {

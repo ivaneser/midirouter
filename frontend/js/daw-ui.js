@@ -301,6 +301,9 @@ export class DAWUI {
             this._flashPad(msg.payload);
         } else if (msg.type === 'daw_progress') {
             this._updateTransportCue(msg.payload);
+            const positions = msg.payload?.playing === false ? [] : msg.payload?.clipProgress || [];
+            if (this.dawState) this.dawState.clipProgress = positions;
+            this._updateClipProgress(positions);
         } else if (msg.type === 'daw_visual_event') {
             this._flashPad(msg.event);
         } else if (msg.type === 'daw_session_list') {
@@ -550,6 +553,16 @@ export class DAWUI {
                 clipStatus.textContent = stateLabel;
                 slot.appendChild(clipNumber);
                 slot.appendChild(clipStatus);
+                if (isActive && !isPending) {
+                    const progress = document.createElement('span');
+                    progress.className = 'clip-progress';
+                    progress.setAttribute('aria-hidden', 'true');
+                    progress.hidden = true;
+                    const fill = document.createElement('span');
+                    fill.className = 'clip-progress-fill';
+                    progress.appendChild(fill);
+                    slot.appendChild(progress);
+                }
                 slot.setAttribute('aria-label', `Track ${t + 1}, clip ${s + 1}: ${stateLabel}`);
 
                 
@@ -628,6 +641,7 @@ export class DAWUI {
         });
         addTrackBlock.appendChild(addTrackBtn);
         grid.appendChild(addTrackBlock);
+        this._updateClipProgress(this.dawState.clipProgress);
     }
 
     _renderTrackControls() {
@@ -649,6 +663,24 @@ export class DAWUI {
             this._cueTimers.delete(el);
         }, evt.kind ? 220 : 120);
         this._cueTimers.set(el, timer);
+    }
+
+    _updateClipProgress(positions = []) {
+        const lookup = new Map((Array.isArray(positions) ? positions : [])
+            .map(position => [`${position.trackIdx}:${position.slot}`, position.progress]));
+        for (const track of document.querySelectorAll('.session-slot')) {
+            const bar = track.querySelector('.clip-progress');
+            if (!bar) continue;
+            const progress = lookup.get(`${track.dataset.track}:${track.dataset.slot}`);
+            bar.hidden = !Number.isFinite(progress);
+            if (bar.hidden) continue;
+            const fraction = Math.max(0, Math.min(1, progress));
+            const fill = bar.querySelector('.clip-progress-fill');
+            // A new loop snaps to the left instead of animating backwards.
+            fill.style.transition = fraction < Number(fill.dataset.progress || 0) ? 'none' : '';
+            fill.style.transform = `scaleX(${fraction})`;
+            fill.dataset.progress = String(fraction);
+        }
     }
 
     _updateTransportCue(cue) {

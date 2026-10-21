@@ -1,12 +1,14 @@
 /* === Device Manager — MIDI device management === */
-import { attachMidiKnob } from './midi-knob.js';
+import { attachMidiKnob } from './midi-knob.js?v=22';
+import { connectedDevices, uniquePorts } from './connected-devices.js';
+import { groupSynthControls } from './synth-layout.js?v=24';
 
 import {
     buildMidiCcBytes,
     classifySynthPortName,
     getControlsForModel,
     renderControlDefinition,
-} from './synth-catalog.js';
+} from './synth-catalog.js?v=24';
 
 export class DeviceManager {
     constructor() {
@@ -18,15 +20,15 @@ export class DeviceManager {
 
     /** Refresh the port list */
     updatePorts(inputs, outputs) {
-        this.inputs = inputs || [];
-        this.outputs = outputs || [];
+        this.inputs = uniquePorts(inputs);
+        this.outputs = uniquePorts(outputs);
         this._notifyChange();
         this.render();
     }
 
     /** Get all devices */
     getAllDevices() {
-        return [...this.inputs, ...this.outputs];
+        return connectedDevices(this.inputs, this.outputs);
     }
 
     /** Get a device by ID */
@@ -44,10 +46,7 @@ export class DeviceManager {
         if (!deviceList) return;
 
         deviceList.innerHTML = '';
-        const seen = new Set();
-        for (const dev of [...this.inputs, ...this.outputs]) {
-            if (seen.has(dev.name)) continue;
-            seen.add(dev.name);
+        for (const dev of this.getAllDevices()) {
 
             const el = document.createElement('div');
             el.className = 'device-item connected';
@@ -55,7 +54,8 @@ export class DeviceManager {
             const nameEl = document.createElement('button');
             nameEl.type = 'button';
             nameEl.className = 'device-item-name';
-            nameEl.textContent = dev.name;
+            nameEl.textContent = dev.displayName;
+            nameEl.title = `${dev.name} · ${dev.input && dev.output ? 'Input / Output' : dev.output ? 'Output' : 'Input'}`;
             nameEl.setAttribute('aria-expanded', 'false');
             nameEl.addEventListener('click', () => this._toggleDevicePanel(dev, el, nameEl));
 
@@ -79,10 +79,12 @@ export class DeviceManager {
         itemElement.appendChild(panel);
         nameButton.setAttribute('aria-expanded', 'true');
 
-        if (!model) {
+        if (!model || !device.output) {
             const message = document.createElement('div');
             message.className = 'synth-controls-message';
-            message.textContent = 'No parameter controls available for this device.';
+            message.textContent = !device.output
+                ? 'Input-only port. A MIDI output is needed to control this instrument.'
+                : 'No parameter controls available for this device.';
             panel.appendChild(message);
             return;
         }
@@ -109,23 +111,19 @@ export class DeviceManager {
             hint.className = 'synth-controls-hint';
             hint.textContent = 'Drag knobs up or down · Shift for fine adjustment · Keyboard arrows supported';
             panel.appendChild(hint);
-            const groups = new Map();
-            for (const definition of controls) {
-                const category = definition.category || 'Parameters';
-                if (!groups.has(category)) {
-                    const section = document.createElement('section');
-                    section.className = 'synth-control-section';
-                    const heading = document.createElement('h5');
-                    const categoryLabels = { osc: 'Oscillator', env: 'Envelope', mod: 'Modulation', amp: 'Amplifier', lfo: 'LFO', arp: 'Arpeggiator', fx_mod: 'Modulation effect', fx_delay: 'Delay effect', fx_reverb: 'Reverb effect' };
-                    heading.textContent = categoryLabels[category] || category.replaceAll('_', ' ');
-                    section.appendChild(heading);
-                    const group = document.createElement('div');
-                    group.className = 'synth-control-grid';
-                    section.appendChild(group);
-                    groups.set(category, group);
-                    panel.appendChild(section);
+            for (const { label, controls: sectionControls } of groupSynthControls(controls)) {
+                const section = document.createElement('section');
+                section.className = 'synth-control-section';
+                const heading = document.createElement('h5');
+                heading.textContent = label;
+                section.appendChild(heading);
+                const group = document.createElement('div');
+                group.className = 'synth-control-grid';
+                section.appendChild(group);
+                panel.appendChild(section);
+                for (const definition of sectionControls) {
+                    group.appendChild(this._createDeviceControl(device, model, definition));
                 }
-                groups.get(category).appendChild(this._createDeviceControl(device, model, definition));
             }
         } catch (error) {
             this._synthControlCache.delete(model);
@@ -163,7 +161,7 @@ export class DeviceManager {
             if (input.type === 'range') {
                 input.min = instruction.attrs.min;
                 input.max = instruction.attrs.max;
-                input.value = input.min;
+                input.value = instruction.attrs.value;
             }
         } else {
             return row;
@@ -174,7 +172,7 @@ export class DeviceManager {
         if (input.type === 'checkbox') {
             input.checked = false;
         }
-        const sendValue = value => this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value));
+        const sendValue = value => this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
         if (input.type === 'range') {
             row.className += ' synth-control-knob';
             const dial = document.createElement('span');

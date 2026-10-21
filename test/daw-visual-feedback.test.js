@@ -30,6 +30,7 @@ function useFakeDocument(t) {
     const indicator = makeElement();
     const slot = makeElement();
     globalThis.document = {
+        querySelectorAll() { return []; },
         getElementById(id) {
             if (id === 'record-mode') return mode;
             if (id === 'daw-beat-indicator') return indicator;

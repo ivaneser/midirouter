@@ -1,12 +1,13 @@
 /**
- * Synthesizer catalog for supported Craft Synth and Korg NTS-1 output ports.
+ * Synthesizer catalog for Craft Synth, Korg NTS-1 and Arturia MicroFreak ports.
  * Provides port classification, authoritative control-map loading, and safe MIDI
  * CC payload construction for the expandable synth cards.
  *
  * Classification is case-insensitive against the ALSA device names the server
- * reports in `msg.outputs`. Two supported families are recognised here:
+ * reports in `msg.outputs`. Supported families are recognised here:
  *   - "Craft Synth"      -> model 'craft-synth'
  *   - "NTS-1 digital kit" -> model 'korg-nts-1'  (with or without "Korg" prefix)
+ *   - "MicroFreak"       -> model 'arturia-microfreak'
  *
  * Anything that does not match is marked supported: false / model: null so the
  * UI can render it as an unsupported port instead of silently dropping it.
@@ -24,6 +25,7 @@ const KORG_NTS1_SIG = 'nts-1 digital kit';
 const MAP_FILES = {
     'craft-synth': 'modal_craft_synth_v2',
     'korg-nts-1': 'korg_nts1',
+    'arturia-microfreak': 'arturia_microfreak',
 };
 
 // ---------------------------------------------------------------------------
@@ -51,6 +53,10 @@ export function classifySynthPortName(name) {
 
     if (look.includes(KORG_NTS1_SIG)) {
         return { supported: true, model: 'korg-nts-1' };
+    }
+
+    if (/micro[\s_-]*freak/.test(look)) {
+        return { supported: true, model: 'arturia-microfreak' };
     }
 
     return { supported: false, model: null };
@@ -133,6 +139,10 @@ export function renderControlDefinition(def) {
             attrs.type = 'range';
             attrs.min = String(def.min != null ? def.min : 0);
             attrs.max = String(def.max != null ? def.max : 127);
+            const min = Number(attrs.min);
+            const max = Number(attrs.max);
+            const initial = def.default ?? def.center ?? (min < 0 && max >= 0 ? 0 : min);
+            attrs.value = String(Math.max(min, Math.min(max, Number(initial))));
             if (def.unit) attrs['data-unit'] = def.unit;
             return {
                 tag: 'input',
@@ -186,7 +196,9 @@ export function renderControlDefinition(def) {
  * @param {number} value - Desired controller value (will be clamped 0..127).
  * @returns {[number, number, number]}
  */
-export function buildMidiCcBytes(model, cc, value) {
-    const clamped = Math.max(0, Math.min(127, Number(value) | 0));
+export function buildMidiCcBytes(model, cc, value, definition) {
+    // Signed display ranges such as -64..63 map onto unsigned MIDI 0..127.
+    const offset = Number(definition?.min) < 0 ? -Number(definition.min) : 0;
+    const clamped = Math.max(0, Math.min(127, (Number(value) + offset) | 0));
     return [0xB0, Number(cc) | 0, clamped];
 }
