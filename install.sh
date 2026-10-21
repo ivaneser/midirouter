@@ -35,7 +35,8 @@ apt-get install -y \
     curl \
     git-core \
     jq \
-    supervisor
+    supervisor \
+    sudo
 
 # Create user midi (if it does not exist)
 if ! id -u midi >/dev/null 2>&1; then
@@ -70,6 +71,7 @@ echo ""
 echo "📦 npm install..."
 cd "$PROJECT_DIR"
 npm install --production --quiet
+bash "${PROJECT_DIR}/setup-shutdown-permissions.sh" midi
 
 # ==========================================
 # PREEMPT_RT KERNEL — for minimal latency

@@ -56,7 +56,7 @@ fi
 # -----------------------------------------------------------------------------
 $SUDO apt-get update -y
 $SUDO apt-get install -y --no-install-recommends \
-    nodejs npm alsa-utils libasound2-dev git ca-certificates
+    nodejs npm alsa-utils libasound2-dev git ca-certificates sudo
 
 if ! command -v node >/dev/null 2>&1; then
     err "node not found after install"; exit 1
@@ -99,6 +99,9 @@ $SUDO -u "$USER_NAME" npm install --omit=dev
 # -----------------------------------------------------------------------------
 # 6. Autostart via systemd (the server starts when the Pi boots)
 # -----------------------------------------------------------------------------
+$SUDO bash "${REPO_DIR}/setup-shutdown-permissions.sh" "$USER_NAME" || {
+    err "Cannot install web shutdown permission; stopping setup."; exit 1;
+}
 $SUDO cp "${REPO_DIR}/midirouter.service" /etc/systemd/system/midirouter.service
 # The router worker owns the audio metronome process. Retire the old standalone
 # unit so it cannot compete for the Raspberry Pi ALSA device.

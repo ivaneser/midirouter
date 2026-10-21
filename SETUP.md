@@ -7,6 +7,25 @@ sudo bash bootstrap.sh
 ```
 Everything is done automatically: Wi-Fi `master`, Node.js, the `audio` group, the UMP fix, server autostart. Details — **`BOOT.md`**.
 
+Setup also installs `/etc/sudoers.d/midirouter-shutdown`, granting the server's
+service user password-free permission for exactly `/sbin/shutdown -h now`.
+The rule is checked with `visudo` and installed as root with mode `0440`.
+`bootstrap.sh` uses `MIDIR_USER` (default `pi`), `enable-autostart.sh` uses its
+configured service user, and the legacy `install.sh` uses `midi`.
+
+For an existing installation, install just this permission without restarting
+the server or rebooting (replace `pi` if the service runs as another user):
+
+```bash
+sudo bash setup-shutdown-permissions.sh pi
+```
+
+Check permission as that service user without executing shutdown:
+
+```bash
+sudo -n -l /sbin/shutdown -h now
+```
+
 ## Installation on Ubuntu (Raspberry Pi)
 
 ### System requirements

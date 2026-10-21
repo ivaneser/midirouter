@@ -20,6 +20,7 @@ $REQ_SUDO rm -f /etc/systemd/system/metronome.service
 
 # Optionally patch user / working directory to match where this repo lives
 REPO_USER="${SUDO_USER:-${USER}}"
+$REQ_SUDO bash "${REPO_DIR}/setup-shutdown-permissions.sh" "$REPO_USER"
 $REQ_SUDO sed -i "s|^User=.*|User=${REPO_USER}|" /etc/systemd/system/midirouter.service
 $REQ_SUDO sed -i "s|^WorkingDirectory=.*|WorkingDirectory=${REPO_DIR}|" /etc/systemd/system/midirouter.service
 
