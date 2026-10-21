@@ -8,7 +8,7 @@ This directory contains the configuration and scripts to turn your Raspberry Pi 
 - **Password:** `midirouter`
 - **Captive Portal:** Connected clients are automatically redirected to the midirouter web interface (no manual URL entry required)
 - **DHCP & DNS:** Clients receive IP settings automatically via dnsmasq
-- **Standalone:** No internet sharing or routing. Clients can only reach the Pi (UI, DHCP, DNS); nothing is forwarded to `eth0`
+- **Standalone:** No internet sharing or routing. All client requests are forwarded to the midirouter UI at `10.0.0.1:3000`; nothing reaches `eth0`
 
 ## Quick Start
 
@@ -72,17 +72,19 @@ This stops the AP and restores the WiFi interface to managed mode so it can reco
 |-----------|---------|
 | **hostapd** | Turns the WiFi adapter into an access point with WPA2 security |
 | **dnsmasq** | Provides DHCP (IP assignment) and DNS resolution for connected clients |
-| **iptables** | Redirects web traffic to port 3000 (captive portal) and blocks forwarding between the AP and other networks |
+| **iptables** | Forwards all client requests to `10.0.0.1:3000` (captive portal) and blocks forwarding between the AP and other networks |
 | **server.js** | The midirouter Node.js web server that serves the UI over WebSocket |
 
 ### Captive Portal
 
-The captive portal redirects plain HTTP traffic from Wi-Fi clients to the midirouter web interface. HTTPS traffic is not intercepted: redirecting TLS to the plain-HTTP web server causes the browser connection to fail. For manual access, open `http://10.0.0.1:3000`.
+The captive portal forwards **all** TCP traffic from Wi-Fi clients to the midirouter web interface at `10.0.0.1:3000`. Every request — regardless of which URL or port a client tries — is served by the UI. Only DHCP (UDP port 67) is exempted so clients can still obtain an IP address automatically.
 
-When the operating system performs its HTTP captive-portal check, the web server redirects that request to the UI. This means:
-- Clients don't need to manually enter `http://10.0.0.1:3000`
-- HTTP captive-portal checks open the midirouter UI
-- HTTPS sites are not transparently redirected
+For manual access, open `http://10.0.0.1:3000` directly.
+
+This means:
+- Clients don't need to manually enter any URL — every request goes to the midirouter UI
+- The OS captive-portal check (an HTTP request) reaches the UI automatically
+- There is no internet access for clients; nothing is forwarded to `eth0`
 
 ## Configuration Files
 

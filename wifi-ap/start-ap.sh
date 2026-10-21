@@ -102,20 +102,18 @@ iptables -t filter -F MIDIRouter 2>/dev/null || true
 iptables -t filter -N MIDIRouter 2>/dev/null || true
 
 
-# Redirect plain HTTP traffic to the web server on port 3000 so HTTP captive-portal
-# checks can reach the UI. Never redirect HTTPS: TLS cannot be served by this HTTP port.
-iptables -t nat -A MIDIRouter -p tcp --dport 80 -j REDIRECT --to-port ${WEB_PORT} 2>/dev/null || true
+# Redirect ALL TCP traffic from AP clients to the midirouter web server on
+# port 3000 (10.0.0.1). This makes the captive portal catch every request —
+# no matter which URL or port a client tries — and always serve the UI.
+iptables -t nat -A MIDIRouter -p tcp -j REDIRECT --to-port ${WEB_PORT} 2>/dev/null || true
 
 # Apply the captive portal redirect to traffic from AP clients
 iptables -t nat -A PREROUTING -i wlan0 -s 10.0.0.0/24 -j MIDIRouter 2>/dev/null || true
 
-# Allow DHCP requests and DNS queries from AP clients to services on the Pi
+# Allow DHCP requests (UDP 67) so dnsmasq can still hand out IPs.
+# DNS (port 53) and web traffic (port 3000) are handled by the redirect above,
+# which sends everything to the midirouter UI on port 3000.
 iptables -t filter -A MIDIRouter -i "${AP_INTERFACE}" -p udp --dport 67 -j ACCEPT 2>/dev/null || true
-iptables -t filter -A MIDIRouter -p udp --dport 53 -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
-iptables -t filter -A MIDIRouter -p tcp --dport 53 -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
-
-# Allow traffic to the web server (port 3000) from AP clients
-iptables -t filter -A MIDIRouter -p tcp --dport ${WEB_PORT} -s 10.0.0.0/24 -j ACCEPT 2>/dev/null || true
 
 # The filter table has no PREROUTING chain. Attach our allow-list to INPUT,
 # before any default-deny rules; check first to avoid duplicate jumps on restart.
