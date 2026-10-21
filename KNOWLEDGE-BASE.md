@@ -1,5 +1,11 @@
 # MIDI Router — Project Knowledge Base
 
+> Current behavior is documented in [README.md](README.md),
+> [ARCHITECTURE.md](ARCHITECTURE.md), [DEVICE-MAPPING.md](DEVICE-MAPPING.md),
+> [METRONOME.md](METRONOME.md), and [SETUP.md](SETUP.md).
+> Older dated investigations below describe their historical implementation.
+
+
 ## 📋 Overview
 
 **MIDI Router** is a Raspberry Pi-based MIDI routing and DAW looper application that:
@@ -116,12 +122,10 @@ if (isSysRealTime) {
   - `stopTransport()` → stops Python metronome
   - `setMetronomeBeatsPerMeasure(n)` → calls `metronomeCtrl.setBeats(n)`
 
-### 5. SystemD Service for Metronome
-**Created:** `/home/pi/myprojects/midirouter/metronome.service` — systemd unit that:
-- Runs as `pi` user with `audio` group
-- Has `CAP_SYS_RAWIO` capability for ALSA access
-- Autostarts Python metronome on boot
-- Supports signal-based control (SIGUSR1/SIGUSR2)
+### 5. Metronome service ownership
+The worker starts the Python audio process. The standalone `metronome.service`
+is obsolete and disabled/removed by setup; only `midirouter.service` owns audio
+through its worker. See [METRONOME.md](METRONOME.md).
 
 ### 6. Web UI Shutdown Button — Full Pi Power-Off
 **Feature:** Added a ⏻ **Shutdown** button to the web UI that fully powers off the Raspberry Pi.
@@ -144,10 +148,10 @@ server.js — case 'shut-down':
 - `server.js` — extracted `performShutdown()` function (used by both SIGINT and UI button); added `'shut-down'` message case; imports `execFile` from `child_process`
 
 **Prerequisite — passwordless sudo for shutdown:**
-The `pi` user needs a sudoers rule to run shutdown without a password prompt (which would hang, since the server has no TTY):
+Setup now installs a validated rule for the service user. For an existing installation:
 ```bash
-echo 'pi ALL=(ALL) NOPASSWD: /sbin/shutdown, /usr/sbin/shutdown, /usr/bin/systemctl poweroff' | sudo tee /etc/sudoers.d/midirouter
-sudo visudo -c
+sudo bash setup-shutdown-permissions.sh pi
+# Replace pi with the configured service user.
 ```
 Without this rule, the server logs a helpful hint about how to configure it and still exits cleanly (app stops but Pi does not power off).
 
@@ -305,17 +309,16 @@ The worker might be stuck in a loop:
 ## 🎵 Audio Architecture
 
 ### Python Metronome (`metronome.py`)
-1. Generates `BUFFER_SECS` seconds of audio samples at 44,100 Hz
-2. Places clicks at exact sample positions (1 kHz sine burst)
-3. Writes to temporary WAV file
-4. Plays via `aplay -M` (ALSA mmap mode) — hardware DMA streams at precise sample intervals
-5. Loops: generates next buffer while previous plays
+The worker sends explicit beat events through stdin IPC. The Python process
+mixes generated normal/accent clicks into a persistent raw PCM `aplay -M` stream
+while playing; it does not create temporary WAV files. See [METRONOME.md](METRONOME.md)
+for current timing, buffer and calibration details.
 
 ### Key parameters
 - **BPM:** 20-300 (set via CLI or stdin command)
 - **Beats per measure:** 1-16 (default 4)
 - **Volume:** 0.0-1.0 (default 0.8)
-- **Accent:** Louder first beat by default
+- **Accent:** 2 kHz first-beat click; normal beats use 1 kHz
 
 ---
 

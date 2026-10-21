@@ -60,3 +60,15 @@ variation, only the average.
   the click with the MIDI note.
 - Support separate calibration per output device. The current audio and
   click offsets are saved globally in the router settings.
+
+## Playback visualization
+
+Each playing clip reports its own normalized loop position to the UI. The internal
+path uses the offset captured by that playback scheduler; the external path uses
+MIDI ticks and a tick-rounded offset. Progress wraps to zero at each clip end and
+is absent before launch or after stop. It visualizes MIDI timing, not measured
+sound arriving from hardware.
+
+For audio metronome calibration, see [METRONOME.md](METRONOME.md), including the
+current click-offset sign mismatch in predicted `clickin` scheduling. Clip audio
+offset and click compensation are independent controls.

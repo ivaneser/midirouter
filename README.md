@@ -1,6 +1,6 @@
 # MIDI Router / Looper (midirouter)
 
-Web app + server on a Raspberry Pi 4 for real-time MIDI routing and recording.
+Web app + server on a Raspberry Pi for real-time MIDI routing and clip recording.
 Controlled from a browser/smartphone over WebSocket; works with physical USB-MIDI devices.
 
 ## Features
@@ -28,7 +28,7 @@ Turns the router into a mini DAW: each **MIDI channel = track**, a recorded patt
 ### 3. Audio metronome → Raspberry Pi headphones
 The Python metronome `metronome.py` generates clicks through ALSA `aplay` straight to the Raspberry Pi audio output. The Node.js worker controls it together with the DAW transport, tempo and bar size. Clicks go only to the audio output; synthesizers receive notes and MIDI Clock over MIDI, but never metronome notes.
 
-### 4. MIDI Clock (MTC) — syncing external devices
+### 4. MIDI Clock — syncing external devices
 On Play the MIDI Clock (24 PPQN) starts; on Stop `0xFC` is sent. The clock goes to the MIDI outputs of the synthesizers and to the controllers selected in the profile's `midiClockOutput`. In the Launchkey Mini MK3 profile the DAW port receives the clock to sync the blinking LEDs.
 
 Incoming MIDI Clock also works as an external master: Start/Continue/Stop control the transport, the tempo and clip phase follow the bars, and notes are played on the 24 pulses per beat. A source without Start automatically starts the transport on the first pulse. While an external clock is arriving, the internal generator is paused; after losing the clock for more than 750 ms the router returns to the internal tempo. For the Launchkey, enable MIDI Clock Output in the controller settings.
@@ -39,7 +39,39 @@ The profile defines the MIDI messages for clip states: **playing**, **recorded**
 Launchkey Mini MK3 (DAW port, colours via Note On velocity): **playing** — the last activated playing clip: blinking cyan (ch2, vel 37); **active** — other playing clips: steady cyan (ch1, vel 37); **idle** — stopped but recorded: pulsing cyan (ch3, vel 37); **recording** — blinking red (ch2, vel 5); **off** — note off. LKM3 channels: ch1 — steady colour, ch2 — blinking (period 1 beat), ch3 — pulsing (period 2 beats).
 
 ### 6. MIDI device list
-The «🔊 MIDI Devices» tab shows all connected MIDI ports (inputs and outputs) in one flat list; hot-plug is shown live.
+Open **Devices & sync** to see connected ports and expand instrument parameters.
+Matching input/output entries share one card, and parameter controls target the
+output ID. Repeated ALSA name prefixes are shortened for display; distinct devices
+and DAW/performance ports remain identifiable. Raw port IDs are kept for routing.
+
+Supported instrument panels:
+
+| Instrument | Controls | Map |
+|---|---|---|
+| Modal Craft Synth 2.0 | 18 parameters | `modal_craft_synth_v2.json` |
+| Korg NTS-1 digital kit | 29 parameters | `korg_nts1.json` |
+| Arturia MicroFreak | 21 parameters | `arturia_microfreak.json` |
+
+Continuous parameters use rotary knobs: drag up/down, hold Shift for fine control,
+or use keyboard arrows. Readouts show the UI value; values are not read back from
+the instrument. Selectors and switches are used for discrete parameters. Opening a
+panel sends no MIDI. Bipolar knobs start at zero with the pointer centered; for
+-64..63 controls, displayed zero sends MIDI value 64.
+
+Groups follow sound design: sound/oscillators → filter/amplifier → envelopes
+(including cycling envelope) → effects → modulation → performance controls.
+See [DEVICE-MAPPING.md](DEVICE-MAPPING.md) for map formats and supported parameters.
+
+### 7. Responsive session workspace
+The dark interface adapts to phone, tablet and desktop widths. Controls have touch
+sized targets, safe-area spacing and visible keyboard focus. Timing settings start
+collapsed below 700px and expanded on larger screens; either can be toggled manually.
+Recent-session shortcuts are hidden on phones; saved sessions remain available via Load.
+
+Each **playing clip has a progress bar** that fills left to right over its own loop
+length and restarts at the end. Bars follow the worker playback origin and audio
+shift, or external MIDI ticks. Clips of different lengths progress independently;
+queued clips do not advance before playback begins, and stopped clips show no bar.
 
 ## Quick start
 
@@ -48,7 +80,7 @@ The «🔊 MIDI Devices» tab shows all connected MIDI ports (inputs and outputs
 ssh pi@<ip>
 sudo bash ~/myprojects/midirouter/bootstrap.sh
 # The script installs Node.js and ALSA itself, adds the user to the audio group,
-# enables autostart and reboots the Pi.
+# enables autostart, grants the service user web power-off permission, and reboots the Pi.
 ```
 
 ### Daily start (if autostart is not needed)
@@ -65,7 +97,11 @@ sudo journalctl -u midirouter.service -n 30 # logs
 aconnect -i                                 # list of MIDI ports
 ```
 
-Requirements: Raspberry Pi 4 (or 3B+), a USB-MIDI controller/synthesizer, ALSA (`/dev/snd`), alsa-utils, Python 3. The `midirouter` service user must have access to the `audio` group.
+Requirements: Raspberry Pi running Linux, a USB-MIDI controller/synthesizer, ALSA (`/dev/snd`), alsa-utils, Python 3. The `midirouter` service user must have access to the `audio` group.
+
+The project has been used on Pi 4. Pi 3 models are expected to work, but timing and
+memory use have not been benchmarked on a Pi 3A+. Use a headless OS and open the
+web UI on another device; a powered USB hub can supply multiple instruments.
 
 **ALSA device for headphones:**
 - The metronome automatically looks for `hw:Headphones` or `headphones` through `aplay -L`.
@@ -73,7 +109,11 @@ Requirements: Raspberry Pi 4 (or 3B+), a USB-MIDI controller/synthesizer, ALSA (
 
 ## Controls
 - **Post-record (behaviour when the initial recording stops):** Play / Overdub (in the web UI).
-- **BPM + Tap Tempo.**
+- **Tempo + Tap:** in the expandable Timing settings section.
+- **Devices & sync:** clock master, audio/click offsets, and instrument knobs.
+- **Power off:** asks for confirmation, then requests Raspberry Pi shutdown. Setup
+  installs the required sudoers rule; see [SETUP.md](SETUP.md). Current server
+  SIGINT handling also requests host shutdown. See the limitations in [ARCHITECTURE.md](ARCHITECTURE.md).
 - **Clips per track:** 2 by default; "+" under a track adds an empty clip (max 16); "-" removes its last clip, and on a track's only clip removes the whole track. Long-press (≈600 ms) a recorded clip to clear it.
 - **Auto-assign pads:** turns the automatic key mapping on/off.
 - **Sessions:** 💾 Save / ⏬ Load — save/load recordings (all clips) to disk in `sessions/*.json`; a dialog asks for the name after the button is pressed.
@@ -107,9 +147,10 @@ midirouter/
 ├── daw.js                 # DAW engine (clips, tempo, recording, playback)
 ├── metronome.py           # Audio metronome → Raspberry Pi headphones (ALSA aplay)
 ├── metronome-controller.js # Node.js metronome controller (stdin IPC)
-├── midi-clock.js          # MIDI Time Code (MTC): 24 PPQN + Start/Stop
+├── midi-clock.js          # MIDI Clock: 24 PPQN + Start/Stop
 ├── metronome.service      # obsolete unit; bootstrap removes it
 ├── midirouter.service     # systemd unit for the server itself
+├── setup-shutdown-permissions.sh # Validates and installs the web power-off rule
 ├── bootstrap.sh           # One-time setup: Wi-Fi + Node.js + ALSA + autostart
 ├── frontend/
 │   ├── index.html         # Page with the router and DAW panels
@@ -118,20 +159,20 @@ midirouter/
 │       ├── app.js              # Main UI logic + WS
 │       ├── daw-ui.js           # DAW web UI: pad grid, sessions, transport
 │       ├── device-manager.js   # Device and synthesizer cards
-│       └── synth-catalog.js    # Output classification (Craft/NTS-1) + CC maps
+│       ├── synth-catalog.js    # Output classification + CC map loading
+│       ├── synth-layout.js     # Sound-design group order
+│       ├── midi-knob.js        # Pointer/keyboard rotary controls
+│       └── connected-devices.js # Input/output pairing + display names
 ├── device_maps/           # Configuration presets (daw_*.json) and synthesizer CC maps
 ├── sessions/              # Recording sessions: sessions/<name>.json
-└── docs/*.md              # Documentation (SPEC, ARCHITECTURE, etc.)
+└── *.md                   # Documentation (SPEC, ARCHITECTURE, etc.)
 ```
 
 ## Autostart when the Pi boots
 The service is already set up by `bootstrap.sh`. If you need to do it manually:
 ```bash
-sudo cp midirouter.service /etc/systemd/system/
-sudo systemctl disable --now metronome.service 2>/dev/null || true
-sudo rm -f /etc/systemd/system/metronome.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now midirouter.service
+sudo bash enable-autostart.sh
+# Uses the invoking user and current repository path; also installs power-off permission.
 ```
 
 ## Documentation
@@ -140,6 +181,9 @@ sudo systemctl enable --now midirouter.service
 - `AUTO-CONNECT.md` — automatic port connection
 - `DEVICE-MAPPING.md` — device mapping
 - `DEBUGGING.md` — diagnostics
+- `SETUP.md` — installation and shutdown permissions
+- `METRONOME.md` — audio click and clock configuration
+- `AUDIO-LATENCY.md` — recording/playback offset semantics
 
 ## Dependencies
 - `@julusian/midi` (RtMidi)

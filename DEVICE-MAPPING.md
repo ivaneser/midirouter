@@ -1,113 +1,96 @@
-# Device connection (Device Mapping)
+# Connected devices and instrument controls
 
-## Mapping by device name
-USB-MIDI devices are bound to routes by a **stable name**, not by a temporary port index. This keeps the routes when:
-- Hot-plugging (reconnecting the USB cable)
-- Rebooting the system
-- The order in which devices are connected changes
+## Port identity and display names
 
-### How ALSA/RtMidi works
-| Parameter | Description |
-|----------|----------|
-| **Device name** | Stable, for example "Korg nanoKONTROL2 MIDI 1", "NTS-1 digital kit KBD/KNOB" |
-| **Port index** | Temporary number (0, 1, 2...), changes on hot-plug or restart |
+The worker opens each ALSA/RtMidi port and sends its full name/ID to the server.
+Port indices and ALSA addresses can change after reconnection. Hot-plug handling
+reopens moved ports; clock-master rebinding compares stable names without the
+trailing ALSA address.
 
-### Implementation in the worker
-```js
-// Worker-midi.js — constructor:
-this.nameToPortId = new Map();   // deviceName → portId
-this.portIdToName = new Map();   // portId → deviceName (reverse mapping)
+The frontend keeps input and output inventories for routing and clock selection.
+`connected-devices.js` removes repeated inventory IDs and pairs matching input/output
+names (ignoring case and repeated whitespace) into a single device card. The pair
+uses its **output ID** for parameter messages. It does not merge two distinct IDs
+within the same direction. Same-name instances are paired one-to-one.
 
-// _enumeratePorts() — storing the name→portId link:
-for (const newPort of realInputs) {
-    const deviceName = newPort.name;  // stable device name
-    
-    this.inputs.set(deviceName, midiIn);       // the key is the name, not the index!
-    this.nameToPortId.set(deviceName, deviceName);
-    this.portIdToName.set(deviceName, deviceName);
-    
-    console.log(`[WORKER] Input added: ${deviceName} (index: ${newPort.index})`);
-}
+Cards shorten repeated ALSA prefixes, for example:
 
-// Update on hot-plug (the index changed):
-if (currentIndex !== newPort.index) {
-    // Remove the old handler, close the port
-    existingRtMidiIn.closePort();
-    
-    // Open the new port with the same portId (device name)
-    const midiIn = new midi.Input();
-    midiIn.openPort(newPort.index, 'midirouter-in');
-    
-    this.inputs.set(deviceName, midiIn);  // same key — the name!
-}
-```
+| Raw port name | Display name |
+|---|---|
+| `NTS-1 digital kit:NTS-1 digital kit _ SOUND 20:0` | `NTS-1 digital kit · SOUND` |
+| `Launchkey Mini MK3:Launchkey Mini MK3 DAW 24:1` | `Launchkey Mini MK3 · DAW` |
 
-## Route data structure
-```js
-this.routes = new Map();   // deviceName → [{ outputId, channels }]
-// channels = null (default) → all MIDI channels
-// channels = [1] or [1,3] → filtering by the specified channels
-// Example:
-// "Launchkey Mini MK3 MIDI Port" → [
-//   { outputId: "NTS-1 digital kit SOUND", channels: null },
-//   { outputId: "Craft Synth 2.0", channels: [2] }
-// ]
-```
+When cleaned names collide, an address or ID distinguishes them. Separate DAW and
+performance ports remain separate cards. Raw names/IDs remain unchanged for routing;
+full names and input/output direction are available in the card title.
 
-**Creating routes:**
-- **Auto-connect (discovery):** `channels = null` — all key presses reach the connected synthesizer regardless of the controller's MIDI channel.
-- **Manual UI:** the user selects a channel through the dropdown (`ALL / CH1–CH16`) on the port card; the route gets an array of channels for filtering.
+## Enabled parameter panels
 
-## Hot-plug handling
-When the port index changes:
-1. `_enumeratePorts()` detects the device with the new index
-2. The old handler is removed (`inp.off('message', inp._handler)`)
-3. The port is closed (`inp.closePort()`)
-4. The new port is opened with the same portId (device name)
-5. The handler is attached again
+Open **Devices & sync**, then tap the instrument's name.
 
-## Dynamic device maps
-Devices may have descriptions in JSON format for controlling parameters:
+| Detected instrument | Catalog model | JSON file | Parameters |
+|---|---|---|---|
+| Craft Synth | `craft-synth` | `modal_craft_synth_v2.json` | 18 |
+| NTS-1 digital kit | `korg-nts-1` | `korg_nts1.json` | 29 |
+| Arturia MicroFreak | `arturia-microfreak` | `arturia_microfreak.json` | 21 |
+
+Detection is case-insensitive. MicroFreak also accepts spaced/hyphenated names;
+MiniFreak is a different instrument and is not matched. Unsupported and input-only
+ports show an explanation instead of active parameter controls. Other JSON files
+in `device_maps/` are not automatically enabled in this frontend catalog.
+
+Continuous parameters are knobs with numeric readouts and CC labels. Drag vertically,
+hold Shift for fine adjustment, or focus a knob and use the native range keyboard
+controls (arrows, Home and End). Touch gestures capture the pointer and cancel
+cleanly; the rest of the page remains scrollable outside knobs. Selectors and
+switches represent discrete parameters. Opening a panel sends no MIDI. UI values
+are initialized locally and are not read back from the instrument.
+
+`synth-layout.js` orders groups through sound/oscillators, filter/amplifier,
+envelopes (including cycling envelope), effects, modulation, then performance.
+Unknown categories are retained after known groups. Parameters keep their JSON
+order within each group.
+
+## Control-map schema
 
 ```json
 {
-    "name": "NTS-1",
-    "controls": [
-        {"cc": 20, "label": "PITCH BEND", "min": -8192, "max": 8191},
-        {"cc": 37, "label": "BANK SELECT", "min": 0, "max": 127}
-    ]
+  "manufacturer": "Example",
+  "model": "Example Synth",
+  "controls": [
+    {"cc": 74, "name": "Cutoff", "type": "slider", "min": 0, "max": 127, "category": "filter"},
+    {"cc": 10, "name": "Pan", "type": "slider", "min": -64, "max": 63, "center": 0, "category": "amp"},
+    {"cc": 64, "name": "Hold", "type": "toggle", "category": "keyboard"}
+  ]
 }
 ```
 
-Files are stored in `device_maps/`:
-- `arturia_microfreak.json`
-- `korg_nts1.json`
-- `modal_craft_synth_v2.json`
-- `preenfm2.json`
-- `waldorf_blofeld.json`
+- `slider`: rendered as a rotary knob. `default` overrides `center`; a signed
+  range spanning zero otherwise starts at zero, and a unipolar range starts at its minimum.
+- `dropdown`: renders `options`; the selected index plus `min` is sent as the CC value.
+  Use this only when the instrument's documented CC encoding matches those indices.
+- `toggle`: sends 127 when enabled and 0 when disabled.
+- `category`: selects a labeled group. Missing categories appear as Parameters.
+- `unit`, `primary` and other map metadata do not imply unit conversion or MIDI readback.
 
-### Automatic lookup of mapping schemas
-When there is no local JSON match, the server makes a request to the GitHub API:
-```
-https://api.github.com/search/code?q=...
-```
+Signed ranges are display values. For the -64..63 map, CC encoding adds 64:
+left = 0, displayed neutral zero = 64, right = 127. The bipolar pointer is exactly
+centered at zero despite the asymmetric endpoints. Numeric MIDI bytes are clamped
+to 0..127. The existing panel sender uses MIDI channel 1; configure the receiving
+instrument accordingly. NRPN and SysEx parameters are not supported by this CC panel.
 
-## Device normalization (`_deviceBase()`)
-During auto-connect the worker normalizes port names by removing the function suffixes:
+To enable another instrument, add/verify a map, register its file and detection
+in `synth-catalog.js`, and test classification, map loading and output-target CCs.
+There is no automatic remote schema download in this path. Controller pad/LED
+profiles are separate; see [CONTROLLERS.md](CONTROLLERS.md).
 
-| Full port name | `_deviceBase()` → base name |
-|------------------|-------------------------------|
-| "Launchkey Mini MK3 MIDI Port" | "Launchkey Mini MK3" |
-| "Launchkey Mini MK3 DAW Port" | "Launchkey Mini MK3" |
-| "NTS-1 digital kit KBD/KNOB" | "NTS-1 digital kit" |
-| "NTS-1 digital kit SOUND" | "NTS-1 digital kit" |
-| "Craft Synth 2.0" | "Craft Synth 2.0" |
+## MicroFreak mapping
 
-**Principle:** outputs whose base name matches any input's base are excluded from the discovery targets — this prevents pinging the controller's ports instead of the synthesizers.
+The 21 controls follow Arturia's [MicroFreak manual, Appendix D](https://downloads.arturia.net/products/microfreak/manual/microfreak_Manual_5_0_1_EN.pdf#page=146).
+They cover oscillator type/wave/timbre/shape, filter, envelope, cycling envelope,
+LFO, glide, Spice, arp/sequence rates and keyboard hold. Spice is continuous;
+LFO CC 93 and 94 are free and synced rates. Oscillator Type uses a raw 0..127 knob,
+so the panel does not guess firmware-dependent named engine selections.
 
-## Typical device names
-| Device | Name in the system |
-|------------|---------------|
-| Launchkey Mini MK3 MIDI Port | "Launchkey Mini MK3 MIDI Port" |
-| NTS-1 digital kit KBD/KNOB | "NTS-1 digital kit KBD/KNOB" |
-| Craft Synth 2.0 | "Craft Synth 2.0" |
+Regression tests cover model detection, group order, no MIDI during rendering,
+output selection, bipolar encoding and MicroFreak cutoff/hold messages.

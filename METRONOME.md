@@ -1,163 +1,90 @@
-# Metronome & MIDI Clock (MTC) Guide
+# Audio metronome and MIDI Clock
 
-The midirouter now provides **two synchronized timing sources**:
+## Shared musical timing
 
-1. **Audio metronome** (`metronome.py`) — precise click track through the 3.5mm headphone jack
-2. **MIDI clock** (`midi-clock.js` + DAW engine) — 24 PPQN MTC sent to all connected USB-MIDI devices via the Node.js server
+The DAW transport selects internal MIDI Clock or one external master. MIDI Clock
+uses `0xF8` at 24 pulses per quarter note; it is not MIDI Time Code (MTC).
+Metronome beat events follow the DAW timing. No click notes are sent to MIDI synths.
 
-The audio click is controlled by the DAW tempo, meter, and transport through the Raspberry Pi audio output. Metronome clicks are never sent as MIDI notes; connected synths receive only MIDI Clock and instrument notes.
+Open **Timing settings** to set tempo, quantization, beats per bar and the metronome.
+The section starts collapsed on phones. Choose a clock source in **Devices & sync**.
 
----
+| Message | Byte | Meaning |
+|---|---|---|
+| Start | `0xFA` | Start transport |
+| Continue | `0xFB` | Continue transport |
+| Stop | `0xFC` | Stop transport |
+| Clock | `0xF8` | 24 ticks per quarter note |
 
-## 1. Audio Metronome (Headphone Jack)
+Only the selected external master's clock/transport messages drive synchronization.
+Its clock is forwarded to allowed outputs, excluding the source and configured
+exclusions. Controller profiles select controller clock destinations. Performance
+notes from any input remain recordable independently of clock-master selection.
+A clock-only source can start the transport on its first tick. Loss of external
+clock for more than 750 ms invokes the internal fallback; see [DEBUGGING.md](DEBUGGING.md).
 
-A Python script that generates **sample-accurate** metronome clicks using ALSA `aplay -M` (mmap mode). The sound card's DMA engine plays the pre-computed samples at exact hardware timing — no CPU jitter.
+## Raspberry Pi audio
 
-### Features
-- 20–300 BPM range
-- 1–16 beats per measure
-- Accent on any beat (louder first beat by default)
-- Adjustable volume
-- Crisp 1 kHz sine-burst click sound
+`worker-midi.js` owns `MetronomeController`, which starts `metronome.py` and sends
+beat commands. The Python process feeds PCM into a persistent ALSA `aplay -M`
+stream while playing. It does not create temporary WAV files for each click.
+The feeder waits while stopped instead of busy-spinning.
 
-### Usage
+- Mono PCM at 44,100 Hz, 16-bit samples.
+- Normal click: generated 1 kHz decaying sine burst.
+- Accent: generated 2 kHz click on the bar's first beat.
+- Click duration: 50 ms.
+- ALSA period: 512 frames; buffer: 4096 frames.
+- Custom sound upload is not implemented.
+
+ALSA buffering and the physical audio path introduce latency; sample generation
+does not eliminate scheduling jitter or guarantee perfect audible synchronization.
+Use the calibration controls and verify timing on the actual Pi.
+
+The process automatically looks for the headphone device. Override it in the
+server service environment if needed:
+
+```ini
+Environment="MIDIR_METRONOME_DEVICE=hw:Headphones"
+```
+
+Use `aplay -L` to find the correct device name. `metronome.service` is obsolete;
+setup disables it so it does not compete with the router-owned process.
+
+## Calibration
+
+In **Devices & sync → Clock & calibration**:
+
+- **Audio offset** shifts clip MIDI notes, -200..200 ms, default -30 ms.
+- **Click offset** shifts audio clicks, -200..200 ms, default 0 ms.
+- Audio offset: negative values advance notes; positive values delay them.
+- The click slider is labeled with the same sign convention, but the current
+  Python `clickin` implementation subtracts its click offset from the lead time:
+  positive values advance predicted clicks. Direct `click` commands do not use
+  that offset. This mismatch remains a calibration limitation; verify by ear.
+
+Settings are stored globally in `settings.json`. Recording compensates the audio
+offset once; the separate click offset is not applied to note capture. External
+note offsets round to the nearest MIDI tick. See [AUDIO-LATENCY.md](AUDIO-LATENCY.md).
+
+Playing clips also show a progress bar based on their own playback origin and
+loop length, including the output shift. It resets left at each loop boundary.
+Progress describes MIDI scheduling, not measured sound from a synthesizer.
+
+## Manual audio diagnosis
+
+Normally let the router own the audio process. For standalone diagnosis, stop the
+router service, then run:
 
 ```bash
-# Basic: 120 BPM, 4/4
-python3 metronome.py
-
-# 90 BPM, 6/8 time, accent on beat 1
-python3 metronome.py -B 90 -b 6 -a 1
-
-# Fast 200 BPM, 2-beat feel, lower volume
-python3 metronome.py -B 200 -b 2 -v 0.5
-
-# Force output to specific ALSA device (e.g. headphone jack)
 python3 metronome.py -d hw:Headphones
-
-# Help
-python3 metronome.py --help
 ```
 
-### Controls
-- **Ctrl+C** to stop
+Type `start`, then `click 1` for an accent or `click 0` for a normal click.
+`start` alone does not run a separate beat clock. Other stdin commands include
+`bpm 120`, `beats 4`, `offset 0`, `clickin 500 1`, `status`, `stop` and `quit`.
+The worker normally sends these commands; avoid running two audio owners together.
 
-### How it works
-1. Generates `BUFFER_SECS` seconds of audio samples at 44,100 Hz with clicks placed at exact sample positions
-2. Writes to a temporary WAV file
-3. Plays via `aplay -M` (ALSA mmap mode) — the sound card's hardware DMA streams it to the 3.5mm jack at precise sample intervals
-4. Loops: generates next buffer while previous plays
-
----
-
-## 2. MIDI Clock (MTC) — Sync External Gear
-
-The Node.js midirouter server now sends **MIDI Time Code (MTC)** to all connected USB-MIDI devices when the transport starts. This syncs external synthesizers, drum machines, and sequencers to the same tempo.
-
-### Messages Sent
-| Message | Byte | When |
-|---------|------|------|
-| Start   | `0xFA` | Transport start |
-| Clock tick | `0xF8` | 24 per quarter note (PPQN) |
-| Stop    | `0xFC` | Transport stop |
-
-### How to Use
-
-1. **Start the midirouter server:**
-   ```bash
-   node server.js
-   ```
-
-2. **Open the web UI** at `http://<pi-ip>:3000`
-
-3. **Set the tempo** using the BPM control or tap tempo button
-
-4. **Toggle MIDI Clock** — click the **⏱ MTC** button to enable/disable clock output to all connected devices
-
-5. **Start transport** — click **▶ Play**. The server sends:
-   - `0xFA` (MIDI Start) to all outputs
-   - 24 PPQN clock ticks synced to the tempo
-   - When you stop: `0xFC` (MIDI Stop)
-
-### What gets connected
-All USB-MIDI devices detected by ALSA are automatically opened as outputs, including:
-- **Launchkey Mini MK3** — DAW mode sync
-- **NTS-1 digital kit** — start/stop + clock for loop-based sequences
-- **Craft Synth 2.0** — tempo-synced arps/modulation
-- **nanoPAD2** — (controller, but can receive clock)
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────┐         WebSocket          ┌──────────────────┐
-│  Web UI (browser)           │ ◄─────────────────►       │  server.js        │
-│  - BPM / Tap tempo          │                              │  (HTTP + WS)     │
-│  - Metro toggle             │                              │                  │
-│  - ⏱ MTC toggle             │                              │  ┌────────────┐  │
-│  - Transport Play/Stop      │                              │  │ Worker Thread│  │
-└─────────────────────────────┘                              │  │ (worker-midi)│  │
-                                                              │  │              │  │
-┌─────────────────────────────┐                              │  │  ┌──────────┐  │  │
-│  metronome.py (Python)      │         (same BPM)           │  │  │ DAWEngine│  │  │
-│  - Sample-accurate audio    │ ◄──────── sync source ────── │  │  │          │  │  │
-│  - aplay -M → headphone jack│         (BPM + transport)     │  │  │ midi-clock│  │  │
-└─────────────────────────────┘                              │  │  │ (24 PPQN) │  │  │
-                                                              │  │  └──────────┘  │  │
-                                                              │  │       │        │  │
-                                                              │  │ _sendToAllOutputs()│
-                                                              │  └────────────┘     │
-                                                              └──────────────────┘
-                                                                          │
-                    ┌─────────────────────────────────────────────────────┤
-                    ▼
-         ┌──────────────────────────┐
-         │ ALSA Sequencer (/dev/snd/seq)
-         │  → Launchkey Mini MK3    │
-         │  → NTS-1 digital kit     │
-         │  → Craft Synth 2.0       │
-         │  → nanoPAD2              │
-         └──────────────────────────┘
-```
-
-### Key Files
-| File | Role |
-|------|------|
-| `metronome.py` | Standalone audio metronome (Python + ALSA PCM) |
-| `midi-clock.js` | MTC generator — 24 PPQN clock + Start/Stop messages |
-| `daw.js` | DAW engine — integrates MidiClock into transport lifecycle |
-| `worker-midi.js` | Worker thread — routes MIDI clock to all output ports |
-| `server.js` | Main server — forwards UI toggles to worker |
-| `test-midi-clock.js` | Standalone test script for verifying MIDI clock output |
-
-### Testing
-
-```bash
-# Test the audio metronome (3 seconds)
-python3 metronome.py -B 120 -b 4
-
-# Test MIDI clock output to all connected devices (5 seconds @ 120 BPM)
-node test-midi-clock.js -B 120 -d 5
-```
-
----
-
-## Troubleshooting
-
-**No sound from headphones?**
-- Check the 3.5mm jack is properly inserted
-- Verify volume: `amixer` or use `-v` flag (0.0–1.0)
-- Check ALSA output: `aplay -L` should list your headphone device
-- The script auto-detects Raspberry Pi headphone jack by inspecting `/proc/asound/cards` and `aplay -L`. If it doesn't find one, it falls back to ALSA `default`.
-- Pass `-d <device>` explicitly if auto-detection picks the wrong output (e.g. HDMI).
-
-**MIDI clock not reaching devices?**
-- Make sure the device is connected and shows in `aplaymidi -l`
-- Try the standalone test: `node test-midi-clock.js -d 3`
-- Check the ⏱ MTC button is ON (highlighted) in the web UI
-
-**Timing feels off?**
-- The Python metronome uses hardware DMA — should be precise
-- Node.js MIDI clock uses corrected setInterval — very stable but check CPU load
-- For best results, run both at the same BPM value
+Software tests cover beat events, clock routing, audio feeder behavior and
+calibration math. Actual headphone latency and instrument synchronization require
+hardware validation.

@@ -1,5 +1,27 @@
 # Technical spec: MIDI Router / Looper for Raspberry Pi 4
 
+## Implemented UI and control updates (2026-10-21)
+
+- Responsive session layout with phone/tablet breakpoints, safe-area padding,
+  touch-sized controls and expandable timing settings.
+- Per-clip progress bars derive from active playback origins, individual loop
+  lengths, latency shifts and external clock ticks; each loop resets at the left.
+- Connected input/output pairs share one card, controls target the output ID,
+  and ambiguous display names remain distinguishable without changing routing IDs.
+- Instrument panels: Craft Synth (18 controls), NTS-1 (29), MicroFreak (21).
+  Native-range rotary knobs support pointer/keyboard input and Shift precision.
+  Bipolar -64..63 controls display neutral zero and send MIDI midpoint 64.
+- Parameter groups follow sound/oscillators, shaping, envelopes, effects,
+  modulation and performance. New categories remain available after known groups.
+- Setup provisions the service user's exact shutdown command through a validated
+  sudoers file. Current SIGINT and power-off failure behavior is described in
+  [ARCHITECTURE.md](ARCHITECTURE.md).
+
+For current runtime and map contracts, use [ARCHITECTURE.md](ARCHITECTURE.md),
+[DEVICE-MAPPING.md](DEVICE-MAPPING.md), [METRONOME.md](METRONOME.md), and
+[AUDIO-LATENCY.md](AUDIO-LATENCY.md). The remaining specification includes older
+requirements and design notes; it does not imply every listed integration is enabled.
+
 ## 1. Project overview
 
 A web app + server based on a Raspberry Pi 4 that:

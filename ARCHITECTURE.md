@@ -1,119 +1,99 @@
-# MIDI Router — Project Architecture
+# MIDI Router architecture
 
-## Purpose
-A real-time router and looper for MIDI devices, optimized for the Raspberry Pi. It automatically discovers USB-MIDI controllers and synthesizers and creates routes by pressing a key on the controller.
+## Runtime
 
-## Technology stack
-- **Runtime:** Node.js (ES modules)
-- **MIDI API:** `@julusian/midi` v3.x (wrapper over RtMidi)
-  - Linux: ALSA Sequencer (`/dev/snd/seq`)
-  - macOS: CoreMIDI (native via RtMidi)
-- **WebSockets:** built-in WebSocket server on port `3000`
-- **UI:** Vanilla JS + CSS, SPA
+| Component | Responsibility |
+|---|---|
+| `server.js` | HTTP/static files, WebSocket clients, worker lifecycle, UI command translation, host shutdown |
+| `worker-midi.js` | Opens RtMidi ports, routes MIDI, schedules clip notes, records input, manages clock and LED feedback |
+| `daw.js` | Tracks/clips, recording sessions, quantization, transport and metronome beat events |
+| `clock-master.js` / `external-midi-clock.js` | Selected clock source, fanout, external tempo and phase tracking |
+| `metronome-controller.js` / `metronome.py` | Child-process IPC and local ALSA audio clicks |
+| `frontend/js/app.js` | WebSocket connection and frontend message dispatch |
+| `frontend/js/daw-ui.js` | Session grid, transport, saved sessions and clip progress |
+| `frontend/js/device-manager.js` | Connected device cards and instrument parameter panels |
+| `frontend/js/connected-devices.js` | Input/output pairing, inventory deduplication and display names |
+| `frontend/js/synth-catalog.js` | Model detection, JSON CC definitions, default values and CC encoding |
+| `frontend/js/synth-layout.js` | Parameter group labels and sound-design order |
+| `frontend/js/midi-knob.js` | Native range accessibility with vertical pointer dragging |
 
-## Project structure
-```
-midirouter/
-├── server.js              # Main process: HTTP + WS + worker management
-├── worker-midi.js         # Worker thread: MIDI routing + DAW timing
-├── daw.js                 # DAW engine: clips, tempo, recording, playback
-├── metronome.py           # Audio metronome → headphones (ALSA aplay -M)
-├── metronome-controller.js # Node.js IPC controller for the metronome
-├── midi-clock.js          # MTC generator (24 PPQN + Start/Stop)
-├── cc-mapper.js           # CC translation between the controller and the synthesizers
-├── filters.js             # Channel/velocity filters
-├── port-index.js          # MIDI port index
-├── midirouter.service     # systemd unit for server autostart
-├── bootstrap.sh           # One-shot initial setup script for the Pi
-├── frontend/
-│   ├── index.html         # The only page
-│   ├── css/style.css      # Styles
-│   └── js/
-│       ├── app.js              # Main UI logic
-│       ├── daw-ui.js           # Web UI of the DAW mode (pad grid)
-│       ├── controller-ui.js    # Rendering of device cards
-│       ├── device-manager.js   # Device management
-│       └── port-manager.js     # Port management
-├── device_maps/           # JSON descriptions of MIDI devices + DAW presets
-├── setup-midi-emulator.sh      # MIDI port emulation (dev/testing)
-├── midi-emulator.service       # systemd unit for the emulator
-├── docker/                # Containerization
-│   ├── Dockerfile
-│   └── etc/supervisord.conf
-└── .gitignore
-```
+The Node.js processes use ES modules. MIDI ports use `@julusian/midi` (RtMidi),
+WebSocket transport uses `ws`, and the Pi metronome requires Python 3 and ALSA
+`aplay`. The HTTP server starts before MIDI initialization so its UI remains
+reachable if hardware initialization fails.
 
-## Architectural pattern: worker threads
-The project uses Node.js `worker_threads` to separate responsibilities:
+## Routing and recording
 
-| Process | Tasks |
-|---------|--------|
-| **server.js** (main) | HTTP server, WebSocket clients, UI updates, worker lifecycle management |
-| **worker-midi.js** (worker) | MIDI routing, hot-plug detection, DAW/clip playback, LED feedback, CC mapping, MIDI clock routing, Raspberry Pi audio metronome control |
-| **metronome.py** (Python child) | Generation of audio clicks to the Raspberry Pi headphones through ALSA |
-| **metronome-controller.js** (JS bridge) | Start/stop of `metronome.py`, passing the tempo and bar size through stdin IPC |
+Input callbacks enter `_onIncomingMessage`. Clock and transport messages are
+handled separately from performance notes. Only the selected external master
+supplies timing; notes from other inputs can still be recorded. Note recording
+is independent of the controller pad-learning registry and rejects timestamps
+before the scheduled recording start.
 
-### Why a worker?
-- MIDI processing does not block web requests
-- RtMidi runs in a separate thread without conflicts
-- Graceful shutdown: the worker closes the ports correctly before exiting
+With no custom mappings, messages use all-to-all routing with controller output
+exclusions. Configured mappings use the shared `computeRoutingStep` decision path
+in `route-midi.js`, including route filters and CC mapping. JSON controller
+profiles define pads, transport actions and feedback; see [CONTROLLERS.md](CONTROLLERS.md).
 
-## Application lifecycle
-1. `server.js` starts `worker-midi.js` through `Worker`
-2. The worker calls `_enumeratePorts(true)` → detects the MIDI devices
-3. It sends the `ready` event to the server
-4. The server automatically starts auto-connect (`startAutoConnect`) — **once**
-5. When a MIDI message arrives: the worker routes it or starts discovery
-6. Discovery supports **several controllers at the same time**, each connected to all available synthesizers (controller ports are excluded from the targets by `_deviceBase()`)
+The worker handles hot-plug enumeration and ALSA subscription recovery. Inventory
+contains complete port IDs; frontend display-name cleanup does not rewrite them.
 
-## Event handling
-```
-[Controller] → MIDI message → [Worker] → _routeMessage()
-                                              ├── discovery active?
-                                              │   ├── in discoveryState.controllers?
-                                              │   │   ├── yes: note ON → create a route
-                                              │   │   └── no: ignore (not a controller)
-                                              │   └── fallback: debounce 5 s → default route
-                                              └── route exists? → sendToOutput() to all destinations
-                                                       ↓
-                                               [Synth] ← sendMessage()
-```
+## Clip scheduling and progress
 
-## Auto-connect
-The worker supports **multi-controller discovery**:
+Internal playback stores each active clip's `originMs`, `loopBeats`,
+`msPerBeat` and audio offset. Note callbacks schedule against absolute deadlines.
+External playback stores `startTick`, `loopTicks`, note events and pending note-offs.
+Each clip repeats according to its own length.
 
-| State | Description |
-|-----------|----------|
-| `controllers: Map` | Each unrouted input → {targets, connectedTargets, currentTargetIdx} |
-| `_pingSynth(targetId, controllerId)` | 5 test notes with a 1 s interval to the target synth |
-| `_nextSynthForController(id)` | Move on to the next synth; ends discovery when all targets are connected |
+`_clipPlaybackProgress()` derives normalized progress from those active playback
+records. Internal progress uses the captured playback offset; external progress
+uses the master's tick count and the tick-rounded offset. Queued or stopped clips
+do not report progress. A clip whose slot has changed does not report stale progress.
 
-**Target filtering by device (`_deviceBase()`):**
-Before the sweep starts, the worker normalizes the port names by removing the function suffixes (`MIDI Port`, `DAW Port`, `KBD/KNOB`, `SOUND`). Outputs whose base name matches any input is excluded from the targets — this prevents pinging the controller's ports instead of the synthesizers.
+The worker includes `clipProgress: [{ trackIdx, slot, progress }]` in both
+`daw_progress.payload` and `daw_state.state`. The server forwards progress and
+converts state to the frontend payload. Transport progress normally updates every
+50 ms. The frontend updates fill transforms without rebuilding clip buttons;
+wrapping snaps to the left instead of animating backwards. Clip bars also work
+while an existing clip loops during overdubbing.
 
-**Route channel:** routes created by discovery use `channels = null` (all channels) — pressing a key on any channel reaches all connected synthesizers. Per-channel filtering is available only through the manual channel selector on each port card.
+Recording converts wall time to grid time by subtracting the audio offset.
+Playback adds that offset once. Finished takes start looping at the shifted
+stop boundary. See [AUDIO-LATENCY.md](AUDIO-LATENCY.md).
 
-**Protection against an endless ping:** discovery ends when all controllers are handled (all targets connected or a timeout for each).
+## Instrument controls
 
-## Security and limitations
-- API keys/tokens are never logged — they are replaced with `[REDACTED]`
-- Gateway metadata (Telegram): only data to identify the session, not commands
-- `node_modules` is excluded from git (`npm install` after cloning)
-- The discovery state is kept in the worker; the server syncs it through WebSocket messages
+Supported panels load local JSON maps for Craft Synth, NTS-1 and MicroFreak.
+Groups follow oscillators, tone shaping, envelopes, effects, modulation and
+performance controls. Knobs keep a native range input for keyboard/screen-reader
+support; dragging changes values without a jump on initial touch. Shift enables
+fine adjustment. Rendering never sends MIDI; user changes send to the output ID
+of the paired device card. The existing CC builder emits channel-1 messages.
+Values are local UI settings, not a readback of the hardware patch.
 
-## Implementation status (done)
-- ✅ **All-to-all MIDI router** — automatic port detection, everything connected to everything.
-- ✅ **Hot-plug** — devices connect/disconnect without restarting; ports are reopened automatically.
-- ✅ **DAW / clip mode** (`daw.js` + `worker-midi.js`): tracks = MIDI channels 1..N (6 by default, up to 16; "+" adds tracks/clips), clips with recorded notes, tempo/tap-tempo, grid quantization, Mode behaviour after recording (play/overdub/replace), play/stop in a loop. Recording sessions: `toData()`/`loadData()` serialize all clips to disk (`sessions/*.json`).
-- ✅ **Automatic pad mapping from ANY controller port** — any key pressed on any controller input is automatically assigned to the next free (track, slot). Pad trigger works from any MIDI port, not only the DAW Port.
-- ✅ **Transport control from the controller** — the Play/Stop/Record/Low buttons on the Launchkey Mini MK3 control the transport and switch the recording mode.
-- ✅ **DAW WS API** (`server.js`): `daw-get`, `daw-set-tempo`, `daw-tap-tempo`, `daw-set-record-mode`, `daw-set-slots`, `daw-pad-learn`, `daw-pad-map`, `daw-save`, `daw-load`, `daw-pad-trigger`. Presets in `device_maps/daw_*.json`.
-- ✅ **DAW web UI** (`frontend/js/daw-ui.js` + `style.css`): recording mode, BPM/tap, slots/track, auto-assign, preset saving, live pad grid.
-- ✅ **Launchkey Mini MK3 LED feedback** — velocity-based Note On commands are sent **only** to the Launchkey port. States: playing (flashing cyan, ch2 — the last activated clip), active (steady cyan, ch1 — other playing clips), idle (pulsing cyan, ch3 — recorded but stopped), recording (flashing red), off. Sent only on a state change (anti-flicker deduplication); identical bytes are not repeated.
-- ✅ **MIDI Clock (MTC)** — when the transport starts, Start (`0xFA`) and Clock (`0xF8`, 24 PPQN) are sent to all USB-MIDI outputs; on stop, Stop (`0xFC`). External devices are synchronized.
-- ✅ **Audio metronome** (`metronome.py` + `metronome-controller.js`) — sample-accurate clicks to the Raspberry Pi headphones. Synchronized with the transport Play/Stop. Auto-detects the headphone jack (`hw:Headphones`). Supports `--device` / `-d`.
-- ✅ **CC translation** (`cc-mapper.js`) — controller knobs are automatically mapped to synthesizer parameters by meaning (cutoff, resonance, volume, etc.).
+Map files and their limitations are described in [DEVICE-MAPPING.md](DEVICE-MAPPING.md).
 
-### Notes
-- `daw.js` uses ESM exports (`export { DAWEngine, ... }`) — `package.json` has `"type": "module"`, so CommonJS `module.exports` does not work.
-- Playback timing in the worker: `setTimeout` based on beat × msPerBeat; the loop runs through `setInterval` with length `loopLenBeats`.
+## Persistence and setup
+
+- `sessions/*.json`: recorded session content via `DAWEngine.toData()` / `loadData()`.
+- `settings.json`: global calibration settings, including audio and click offsets.
+- `controller_profiles/*.json`: controller input, transport and feedback definitions.
+- `device_maps/*.json`: instrument CC maps and separate DAW/config presets.
+- `midirouter.service`: server autostart; the worker owns the metronome process.
+- `setup-shutdown-permissions.sh`: validates the service user's exact shutdown rule
+  with `visudo`, then installs it as root with mode `0440`.
+
+## Power-off behavior and current limitations
+
+The web Power off button sends `shut-down`. `performShutdown()` stops the router,
+closes clients and runs `sudo /sbin/shutdown -h now`. Bootstrap, autostart setup and
+the legacy installer provision permission for their configured service user.
+
+SIGINT currently invokes the same host-power-off function. A failed power-off
+request is logged after clients disconnect; the server still exits and the
+`Restart=always` unit can restart it. Permission installation does not change
+this failure behavior. Do not interpret a disconnected UI as proof of host shutdown.
+
+Software tests cover scheduling, CC encoding, device pairing, knob gestures,
+progress rendering and mocked sudoers installation. Physical iOS Safari behavior,
+Pi audio timing and every instrument parameter remain hardware validation tasks.
