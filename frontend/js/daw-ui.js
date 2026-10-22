@@ -506,9 +506,18 @@ export class DAWUI {
             block.className = 'track-block';
 
             // Track label (column header)
-            const label = document.createElement('div');
+            const label = document.createElement('button');
+            label.type = 'button';
             label.className = 'session-track-label';
             label.textContent = `Track ${t + 1}`;
+            label.disabled = !ch.playing || !Number.isInteger(ch.activeSlot) || ch.activeSlot < 0;
+            label.title = label.disabled ? 'No playing clip on this track' : 'Show playing clip in piano roll';
+            label.addEventListener('click', () => {
+                const track = this.dawState?.tracks?.[t];
+                if (track?.playing && Number.isInteger(track.activeSlot) && track.activeSlot >= 0) {
+                    this.onClipSelect?.(t, track.activeSlot);
+                }
+            });
             if (ch.channelAssigned && Number.isInteger(ch.channel) && ch.channel >= 1 && ch.channel <= 16) {
                 const channel = document.createElement('span');
                 channel.className = 'session-track-channel';
