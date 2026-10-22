@@ -1704,6 +1704,21 @@ class MIDIRouterWorker {
         return recorded;
     }
 
+    _handleUiPerformance(msg) {
+        const bytes = msg.bytes;
+        if (!Array.isArray(bytes) || bytes.length !== 3 ||
+            !bytes.every(n => Number.isInteger(n) && n >= 0 && n <= 255) ||
+            ![0x80, 0x90].includes(bytes[0] & 0xF0) || bytes[1] > 127 || bytes[2] > 127) return;
+        // One performance event may have many output destinations, but is recorded once.
+        this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2], performance.now());
+        for (const target of new Set(Array.isArray(msg.targets) ? msg.targets : [])) {
+            const output = this.outputs.get(target);
+            if (!output) continue;
+            try { output.sendMessage(Buffer.from(bytes)); }
+            catch (error) { console.error(`[MIDI] Keyboard send failed: ${target}:`, error.message); }
+        }
+    }
+
     _onIncomingMessage(deviceName, deltaTime, bytes) {
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
@@ -2436,6 +2451,8 @@ if (parentPort) {
         process.exit(0);
     } else if (msg.type.startsWith('daw_')) {
         worker.handleDawControl(msg);
+    } else if (msg.type === 'midi_performance') {
+        worker._handleUiPerformance(msg);
     } else if (msg.type === 'midi_send_to_target') {
         // Send a raw MIDI message to the target output
         const targetName = msg.target;

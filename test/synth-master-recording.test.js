@@ -51,6 +51,35 @@ test('first accepted note publishes the assigned track channel once', t => {
     assert.deepEqual(channels, [16], 'subsequent notes retain the assignment without repeated broadcasts');
 });
 
+test('UI keyboard records once on selected channel while sending to all destinations', t => {
+    const worker = setup(t);
+    const a = [], b = [];
+    worker.outputs = new Map([['a', { sendMessage: bytes => a.push([...bytes]) }], ['b', { sendMessage: bytes => b.push([...bytes]) }]]);
+    const event = bytes => worker._handleUiPerformance({ targets: ['a', 'b', 'a'], bytes });
+    event([0x96, 60, 100]);
+    event([0x86, 60, 0]);
+    const notes = worker.daw.tracks[0].clips[0].notes;
+    assert.equal(notes.length, 1);
+    assert.equal(notes[0].channel, 7);
+    assert.equal(worker.daw.tracks[0].channel, 7);
+    assert.deepEqual(a, [[0x96, 60, 100], [0x86, 60, 0]]);
+    assert.deepEqual(b, a);
+    worker._handleUiPerformance({ targets: ['a'], bytes: [0x90, 200, 100] });
+    assert.equal(a.length, 2);
+});
+
+test('UI keyboard respects count-in recording gate while still monitoring notes', t => {
+    const worker = setup(t);
+    worker.daw.recording.startTime = performance.now() + 1000;
+    const sent = [];
+    worker.outputs = new Map([['a', { sendMessage: bytes => sent.push([...bytes]) }]]);
+    worker._handleUiPerformance({ targets: ['a'], bytes: [0x90, 60, 100] });
+    worker._handleUiPerformance({ targets: ['a'], bytes: [0x80, 60, 0] });
+    assert.equal(sent.length, 2);
+    assert.equal(worker.daw.tracks[0].channelAssigned, false);
+    assert.equal(worker.daw.tracks[0].clips[0].notes.length, 0);
+});
+
 for (const zeroVelocityRelease of [false, true]) {
     test(`clock-master NTS-1 ribbon records without controller registration (zero-velocity release: ${zeroVelocityRelease})`, t => {
         const worker = setup(t);

@@ -77,7 +77,7 @@ export class MidiKeyboard {
         if (!targets.length) return;
         if ([...this.held.values()].some(n => n.target === target && n.channel === channel && n.note === note)) return;
         const velocity = Math.max(1, Math.min(127, Math.round(Number(this.velocity.value) || 100)));
-        for (const output of targets) this.dm.sendMidi(output, [0x90 | channel, note, velocity]);
+        this.dm.sendPerformance(targets, [0x90 | channel, note, velocity]);
         this.held.set(id, { target, targets, channel, note, button });
         button.classList.add('pressed');
     }
@@ -86,7 +86,7 @@ export class MidiKeyboard {
         const held = this.held.get(id);
         if (!held) return;
         this.held.delete(id);
-        for (const output of held.targets) this.dm.sendMidi(output, [0x80 | held.channel, held.note, 0]);
+        this.dm.sendPerformance(held.targets, [0x80 | held.channel, held.note, 0]);
         if (![...this.held.values()].some(n => n.button === held.button)) held.button.classList.remove('pressed');
     }
 
@@ -103,6 +103,7 @@ export class MidiKeyboard {
             button.className = `keyboard-key ${black ? 'black' : 'white'}`;
             button.textContent = noteName(note);
             button.setAttribute('aria-label', `Play ${noteName(note)}`);
+            button.addEventListener('contextmenu', event => event.preventDefault());
             button.disabled = !this.output.value || !this.dm.outputs.length;
             button.addEventListener('pointerdown', event => {
                 if (event.button !== 0) return;

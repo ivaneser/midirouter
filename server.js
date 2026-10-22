@@ -370,6 +370,9 @@ function startServer() {
                 const message = JSON.parse(data.toString());
 
                 switch (message.type) {
+                    case 'midi-performance':
+                        router.worker?.postMessage({ type: 'midi_performance', targets: message.targets, bytes: message.bytes });
+                        break;
                     case 'midi-panic':
                         router.worker?.postMessage({ type: 'panic_note_off', immediate: true });
                         break;

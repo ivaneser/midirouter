@@ -278,6 +278,12 @@ export class DeviceManager {
     }
 
     /** Send a MIDI message */
+    sendPerformance(targets, bytes) {
+        if (window.app?.ws?.readyState === WebSocket.OPEN) {
+            window.app.ws.send(JSON.stringify({ type: 'midi-performance', targets, bytes }));
+        }
+    }
+
     sendMidi(targetId, bytes) {
         const device = this.outputs.find(port => port.id === targetId);
         if (device && (bytes[0] & 0xF0) === 0xB0) {
