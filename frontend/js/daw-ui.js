@@ -21,7 +21,7 @@ export class DAWUI {
         if (!saveBtn && !loadBtn) return;
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
-                const name = prompt('Save session as:');
+                const name = prompt('Save session as:', this._activeSession || '');
                 if (name && name.trim()) this._send({ type: 'daw-save-session', name: name.trim() });
             });
         }
