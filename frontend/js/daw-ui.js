@@ -596,7 +596,8 @@ export class DAWUI {
                 slot.addEventListener('contextmenu', (e) => { if (pressTimer || longPressFired) e.preventDefault(); });
                 slot.addEventListener('click', () => {
                     if (longPressFired) { longPressFired = false; return; }
-                    this.onClipSelect?.(t, s);
+                    const stopping = isRecording || (isActive && this.dawState?.recordMode !== 'overdub');
+                    if (!stopping) this.onClipSelect?.(t, s);
                     this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
                 });
                 
