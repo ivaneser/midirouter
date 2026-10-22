@@ -78,6 +78,9 @@ class MIDIRouterWorker {
 
     _handleWorkerMessage(msg) {
         switch (msg.type) {
+            case 'preset-name':
+                this._broadcast(msg);
+                break;
             case 'ports-enumerated':
                 this.inputs.clear();
                 this.outputs.clear();

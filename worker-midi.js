@@ -5,6 +5,7 @@ import { DAWEngine, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
+import { PresetNames } from './preset-names.js';
 import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine, matches } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
@@ -1720,6 +1721,10 @@ class MIDIRouterWorker {
     }
 
     _onIncomingMessage(deviceName, deltaTime, bytes) {
+        if (bytes[0] === 0xf0 && this._presetNames) {
+            const preset = this._presetNames.receive(deviceName, bytes);
+            if (preset) parentPort?.postMessage({ type: 'preset-name', ...preset });
+        }
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
         const channel = type >= 8 ? (status & 0x0f) + 1 : 1;
@@ -1888,6 +1893,7 @@ class MIDIRouterWorker {
     handleDawControl(msg) {
         const daw = this.daw;
         switch (msg.type) {
+
             case 'daw_request_state':
                 // Send the current DAW state when the frontend requests it
                 this._broadcastState();
@@ -2462,6 +2468,11 @@ if (parentPort) {
             try {
                 output.sendMessage(Buffer.from(bytes));
                 console.log(`[MIDI] [SERVER] -> ${targetName}: ${bytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`);
+                if ((bytes[0] & 0xf0) === 0xc0 && Number.isInteger(bytes[1]) && bytes[1] >= 0 && bytes[1] <= 127) {
+                    worker._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
+                    const request = worker._presetNames.request(targetName, (bytes[0] & 15) + 1, bytes[1]);
+                    if (request) output.sendMessage(Buffer.from(request));
+                }
             } catch (e) {
                 console.error(`[MIDI] [SERVER] Failed to send to ${targetName}:`, e.message);
             }

@@ -131,8 +131,18 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .device-item-name::before { content: "▸"; color: var(--accent); }
 .device-item-name[aria-expanded="true"]::before { content: "▾"; }
 .device-item.disabled { opacity: .4; }
-.device-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
+.device-item { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.device-item > .device-item-name { flex: 1 1 160px; width: auto; }
+.device-item > .synth-controls { flex: 1 1 100%; min-width: 0; }
+.device-header-mixer { display: flex; gap: 8px; }
+.device-header-knob { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: .625rem; }
+.device-header-knob .midi-knob { width: 44px; height: 44px; flex-basis: 44px; }
+.device-header-knob .midi-knob-face { inset: 7px; }
+.device-header-knob .midi-knob-face::after { top: 3px; height: 9px; }
+.device-header-knob .midi-knob-value { font-size: .6875rem; }
 .device-program-controls { display: flex; gap: 4px; }
+.device-program-name { align-self: center; max-width: 110px; min-width: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: .75rem; color: var(--accent); }
+@media (max-width: 480px) { .device-program-name { max-width: 64px; } }
 .piano-roll-toolbar { display: flex; flex-wrap: wrap; gap: 16px; }
 .piano-roll-toolbar label { display: flex; align-items: center; gap: 8px; }
 .piano-roll-view { overflow: auto; max-height: 440px; border-radius: 8px; }

@@ -93,6 +93,27 @@ is open, initially assuming program 0. MIDI has no relative Program Change or
 universal preset readback: changes made on the synth itself are not detected.
 These buttons do not change banks.
 
+### Preset name readback
+
+The display between ‹ / › shows the last requested preset number, then its name
+if a matching SysEx reply arrives. A silent or unsupported device keeps the number.
+Names are not guessed from factory lists. A MIDI input connection from the device
+is required. The initial display is “—” until a preset is selected.
+
+`presetName` in a device map defines a read-only adapter: `match` contains port-name
+substrings, `request` is a byte array with optional `program`, `channel` (zero based)
+and `sequence` tokens, and `reply` defines a byte `prefix` (`null` = wildcard),
+`nameOffset`, `nameLength`, and optional `sequenceOffset` / `programOffset` checks.
+Replies must arrive within two seconds from the matching input port; newer
+requests replace older ones. Only printable ASCII names are displayed.
+
+MicroFreak is the first enabled adapter: bank-zero preset header request, operation
+0x19, reply 0x52 with a 14-byte name. Protocol reference:
+[Elektroid MicroFreak connector](https://github.com/dagargo/elektroid/blob/master/src/connectors/microfreak.c).
+Other models need verified readback definitions in their maps. Merely reporting
+some SysEx data does not identify a preset name. No adapter is enabled for Craft
+Synth 2 or NTS-1 yet. Hardware name readback has not been verified on a connected synth.
+
 To enable another instrument, add/verify a map, register its file and detection
 in `synth-catalog.js`, and test classification, map loading and output-target CCs.
 There is no automatic remote schema download in this path. Controller pad/LED

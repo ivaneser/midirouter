@@ -19,6 +19,25 @@ export class DeviceManager {
         this._synthControlCache = new Map();
         this.channels = {};
         this.programs = new Map();
+        this.presetNames = new Map();
+    }
+
+    updatePresetName({ target, channel, program, name }) {
+        const device = this.outputs.find(d => d.id === target);
+        if (!device || typeof name !== 'string') return;
+        const key = `${deviceChannelKey(device.name)}:${channel}`;
+        if (this.programs.get(key) !== program) return;
+        this.presetNames.set(`${key}:${program}`, name);
+        this.refreshPresetLabels();
+    }
+
+    refreshPresetLabels() {
+        document.querySelectorAll?.('.device-program-name').forEach(label => {
+            const key = `${label.dataset.deviceKey}:${this.channels[label.dataset.deviceKey] || 1}`;
+            const program = this.programs.get(key);
+            label.textContent = program == null ? '—' : this.presetNames.get(`${key}:${program}`) || String(program + 1);
+            label.title = program == null ? 'Select a preset' : `Preset ${program + 1}`;
+        });
     }
 
     updateChannels(channels) {
@@ -26,6 +45,7 @@ export class DeviceManager {
         document.querySelectorAll?.('.device-midi-channel').forEach(select => {
             select.value = String(this.channels[select.dataset.deviceKey] || 1);
         });
+        this.refreshPresetLabels();
     }
 
     channelForDevice(device) {
@@ -78,6 +98,11 @@ export class DeviceManager {
             if (dev.output) {
                 const presets = document.createElement('div');
                 presets.className = 'device-program-controls';
+                const presetLabel = document.createElement('output');
+                presetLabel.className = 'device-program-name';
+                presetLabel.dataset.deviceKey = deviceChannelKey(dev.name);
+                presetLabel.setAttribute('aria-label', `${dev.displayName} preset`);
+                presetLabel.setAttribute('aria-live', 'polite');
                 const programKey = () => `${deviceChannelKey(dev.name)}:${this.channelForDevice(dev)}`;
                 for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
                     const button = document.createElement('button');
@@ -91,11 +116,49 @@ export class DeviceManager {
                         const program = Math.max(0, Math.min(127, (this.programs.get(key) ?? 0) + step));
                         this.sendMidi(dev.id, [0xC0 | (this.channelForDevice(dev) - 1), program]);
                         this.programs.set(key, program);
+                        // Clear cached names until this selection is confirmed by the device.
+                        this.presetNames.delete(`${key}:${program}`);
+                        this.refreshPresetLabels();
                         presets.title = `Last requested preset: ${program + 1}`;
                     });
+                    if (step > 0) presets.appendChild(presetLabel);
                     presets.appendChild(button);
                 }
                 el.appendChild(presets);
+                const mixer = document.createElement('div');
+                mixer.className = 'device-header-mixer';
+                for (const [name, cc, min, max, value] of [['Volume', 7, 0, 127, 100], ['Pan', 10, -64, 63, 0]]) {
+                    const control = document.createElement('label');
+                    control.className = 'device-header-knob';
+                    const caption = document.createElement('span');
+                    caption.textContent = name;
+                    control.appendChild(caption);
+                    const dial = document.createElement('span');
+                    dial.className = 'midi-knob';
+                    const face = document.createElement('span');
+                    face.className = 'midi-knob-face';
+                    face.setAttribute('aria-hidden', 'true');
+                    dial.appendChild(face);
+                    const input = document.createElement('input');
+                    input.type = 'range';
+                    input.className = 'midi-knob-input';
+                    input.min = String(min);
+                    input.max = String(max);
+                    input.value = String(value);
+                    input.dataset.cc = String(cc);
+                    input.setAttribute('aria-label', `${dev.displayName} ${name}`);
+                    input.title = `${name} · CC ${cc} · Uses selected MIDI channel`;
+                    dial.appendChild(input);
+                    control.appendChild(dial);
+                    const readout = document.createElement('output');
+                    readout.className = 'midi-knob-value';
+                    control.appendChild(readout);
+                    attachMidiKnob(input, dial, readout, value => {
+                        this.sendMidi(dev.id, buildMidiCcBytes(null, cc, value, { min }));
+                    });
+                    mixer.appendChild(control);
+                }
+                el.appendChild(mixer);
                 const channel = document.createElement('select');
                 channel.className = 'device-midi-channel';
                 channel.dataset.deviceKey = deviceChannelKey(dev.name);
@@ -113,6 +176,7 @@ export class DeviceManager {
                     if (!validMidiChannel(value)) return;
                     if (window.app?.ws?.readyState === WebSocket.OPEN) {
                         this.channels[deviceChannelKey(dev.name)] = value;
+                        this.refreshPresetLabels();
                         window.app.ws.send(JSON.stringify({ type: 'set-device-channel', target: dev.id, channel: value }));
                     } else {
                         channel.value = String(this.channelForDevice(dev));
@@ -123,6 +187,7 @@ export class DeviceManager {
             }
             deviceList.appendChild(el);
         }
+        this.refreshPresetLabels();
     }
 
     async _toggleDevicePanel(device, itemElement, nameButton) {
