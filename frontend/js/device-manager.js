@@ -125,49 +125,6 @@ export class DeviceManager {
                     presets.appendChild(button);
                 }
                 el.appendChild(presets);
-                const mixer = document.createElement('div');
-                mixer.className = 'device-header-mixer';
-                const volumeSupported = classifySynthPortName(dev.name).model !== 'arturia-microfreak';
-                for (const [name, cc, min, max, value] of (volumeSupported ? [['Volume', 7, 0, 127, 100]] : [])) {
-                    const control = document.createElement('label');
-                    control.className = 'device-header-knob';
-                    const caption = document.createElement('span');
-                    caption.textContent = name;
-                    control.appendChild(caption);
-                    const dial = document.createElement('span');
-                    dial.className = 'midi-knob';
-                    const face = document.createElement('span');
-                    face.className = 'midi-knob-face';
-                    face.setAttribute('aria-hidden', 'true');
-                    dial.appendChild(face);
-                    const input = document.createElement('input');
-                    input.type = 'range';
-                    input.className = 'midi-knob-input';
-                    input.min = String(min);
-                    input.max = String(max);
-                    input.value = String(value);
-                    input.disabled = !volumeSupported;
-                    input.dataset.cc = String(cc);
-                    input.setAttribute('aria-label', `${dev.displayName} ${name}`);
-                    input.title = volumeSupported ? `${name} · CC ${cc} · Uses selected MIDI channel`
-                        : 'MicroFreak has no documented MIDI master-volume CC. Use its hardware volume knob or an audio mixer.';
-                    control.title = input.title;
-                    dial.appendChild(input);
-                    control.appendChild(dial);
-                    const readout = document.createElement('output');
-                    readout.className = 'midi-knob-value';
-                    control.appendChild(readout);
-                    attachMidiKnob(input, dial, readout, value => {
-                        if (!volumeSupported) return;
-                        this.sendMidi(dev.id, buildMidiCcBytes(null, cc, value, { min }));
-                    });
-                    if (!volumeSupported) {
-                        readout.textContent = 'N/A';
-                        control.className += ' unavailable';
-                    }
-                    mixer.appendChild(control);
-                }
-                if (volumeSupported) el.appendChild(mixer);
                 const channel = document.createElement('select');
                 channel.className = 'device-midi-channel';
                 channel.dataset.deviceKey = deviceChannelKey(dev.name);

@@ -16,6 +16,7 @@ export class PianoRoll {
 
     update(state) {
         this.state = state;
+        this.positions = state?.playing === false ? [] : state?.clipProgress || [];
         if (!this.section || !state) return;
         const selected = this.clip.value;
         this.clips = [];
@@ -32,11 +33,15 @@ export class PianoRoll {
 
     render() {
         if (!this.section?.open) return;
+        this.playhead = null;
+        this.noteRects = [];
         const view = document.getElementById('piano-roll-view');
         const status = document.getElementById('piano-roll-status');
         view.replaceChildren();
         const clip = this.clips?.find(c => c.key === this.clip.value);
         status.textContent = clip ? `${clip.notes.length} notes · ${clip.length} beats · Read only` : 'No recorded notes on this channel.';
+        const position = document.getElementById('piano-roll-position');
+        if (position) position.textContent = 'Stopped';
         if (!clip) return;
         const notes = clip.notes.filter(n => Number.isFinite(n.note) && Number.isFinite(n.start) && Number.isFinite(n.dur));
         if (!notes.length) return;
@@ -70,7 +75,32 @@ export class PianoRoll {
             const title = document.createElementNS(NS, 'title');
             title.textContent = `${noteName(note.note)} · Beat ${note.start + 1} · ${note.dur} beats · Velocity ${note.velocity}`;
             rect.appendChild(title);
+            this.noteRects.push({ rect, note });
         }
+        this.playhead = add('line', { x1: left, x2: left, y1: 0, y2: height, stroke: '#ffb967', 'stroke-width': 2, 'pointer-events': 'none', visibility: 'hidden' });
+        this.beatToX = x;
         view.appendChild(svg);
+        this.updateProgress(this.positions || []);
+    }
+
+    updateProgress(positions) {
+        this.positions = positions;
+        if (!this.section?.open || !this.playhead) return;
+        const clip = this.clips?.find(c => c.key === this.clip.value);
+        const progress = positions.find(p => `${p.trackIdx}:${p.slot}` === clip?.key);
+        const active = progress && Number.isFinite(progress.progress);
+        const beat = active ? Math.max(0, Math.min(1, progress.progress)) * clip.length : 0;
+        this.playhead.setAttribute('visibility', active ? 'visible' : 'hidden');
+        if (active) {
+            this.playhead.setAttribute('x1', this.beatToX(beat));
+            this.playhead.setAttribute('x2', this.beatToX(beat));
+        }
+        for (const { rect, note } of this.noteRects) {
+            const sounding = active && beat >= note.start && beat < note.start + note.dur;
+            rect.setAttribute('fill', sounding ? '#ffcf80' : '#a6d477');
+            rect.setAttribute('stroke', sounding ? '#fff1d2' : 'none');
+        }
+        const position = document.getElementById('piano-roll-position');
+        if (position) position.textContent = active ? `${beat.toFixed(2)} / ${clip.length} beats` : 'Stopped';
     }
 }

@@ -424,13 +424,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         channelSelect.value = '16';
         channelSelect.listeners.change();
         assert.deepEqual(sent.at(-1), { type: 'set-device-channel', target: 'microfreak-output', channel: 16 });
-        const headerMixer = microItem.querySelector('.device-header-mixer');
-        assert.equal(headerMixer, null, 'unsupported MicroFreak volume control is hidden');
-        const craftVolume = findAll(craftItem.querySelector('.device-header-mixer'), el => el.dataset.cc === '7')[0];
-        craftVolume.value = '80';
-        craftVolume.listeners.input();
-        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 7, 80]);
-        assert.equal(sent.at(-1).target, 'craft-output-9');
+        assert.equal(microItem.querySelector('.device-header-mixer'), null);
         const presetButtons = microItem.querySelector('.device-program-controls').children.filter(el => el.tagName === 'button');
         presetButtons[1].listeners.click();
         assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 1]);

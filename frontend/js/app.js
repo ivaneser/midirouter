@@ -1,10 +1,10 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=42';
+import { DeviceManager } from './device-manager.js?v=43';
 import { DAWUI } from './daw-ui.js?v=40';
 import { ConfigEditor } from './config-editor.js';
-import { PianoRoll } from './piano-roll.js';
-import { MidiKeyboard } from './midi-keyboard.js?v=37';
+import { PianoRoll } from './piano-roll.js?v=45';
+import { MidiKeyboard } from './midi-keyboard.js?v=44';
 
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {
@@ -135,6 +135,7 @@ if (shutdownBtn) {
 
 function handleMessage(msg) {
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
+    if (msg.type === 'daw_progress') pianoRoll.updateProgress(msg.payload?.playing === false ? [] : msg.payload?.clipProgress || []);
     switch (msg.type) {
         case 'preset-name':
             deviceManager.updatePresetName(msg);

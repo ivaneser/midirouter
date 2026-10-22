@@ -5,6 +5,7 @@ export class MidiKeyboard {
     constructor(deviceManager) {
         this.dm = deviceManager;
         this.held = new Map();
+        this.activePointers = new Set();
         this.section = document.getElementById('midi-keyboard-section');
         if (!this.section) return;
         this.output = document.getElementById('keyboard-output');
@@ -90,7 +91,10 @@ export class MidiKeyboard {
         if (![...this.held.values()].some(n => n.button === held.button)) held.button.classList.remove('pressed');
     }
 
-    releaseAll() { for (const id of [...this.held.keys()]) this.release(id); }
+    releaseAll() {
+        this.activePointers.clear();
+        for (const id of [...this.held.keys()]) this.release(id);
+    }
 
     render() {
         this.keys.replaceChildren();
@@ -101,6 +105,7 @@ export class MidiKeyboard {
             button.type = 'button';
             const black = [1, 3, 6, 8, 10].includes(note % 12);
             button.className = `keyboard-key ${black ? 'black' : 'white'}`;
+            button.dataset.note = String(note);
             button.textContent = noteName(note);
             button.setAttribute('aria-label', `Play ${noteName(note)}`);
             button.addEventListener('contextmenu', event => event.preventDefault());
@@ -110,10 +115,22 @@ export class MidiKeyboard {
                 event.preventDefault();
                 button.focus({ preventScroll: true });
                 button.setPointerCapture(event.pointerId);
+                this.activePointers.add(event.pointerId);
                 this.press(event.pointerId, note, button);
             });
+            button.addEventListener('pointermove', event => {
+                if (!this.activePointers.has(event.pointerId)) return;
+                const key = document.elementFromPoint(event.clientX, event.clientY)?.closest('.keyboard-key');
+                const next = key && this.keys.contains(key) && !key.disabled ? key : null;
+                if (this.held.get(event.pointerId)?.button === next) return;
+                this.release(event.pointerId);
+                if (next) this.press(event.pointerId, Number(next.dataset.note), next);
+            });
             for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-                button.addEventListener(type, event => this.release(event.pointerId));
+                button.addEventListener(type, event => {
+                    this.activePointers.delete(event.pointerId);
+                    this.release(event.pointerId);
+                });
             }
             button.addEventListener('keydown', event => {
                 if (![' ', 'Enter'].includes(event.key)) return;
