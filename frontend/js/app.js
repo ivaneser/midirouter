@@ -1,7 +1,7 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=26';
-import { DAWUI } from './daw-ui.js?v=25';
+import { DeviceManager } from './device-manager.js?v=28';
+import { DAWUI } from './daw-ui.js?v=27';
 import { ConfigEditor } from './config-editor.js';
 
 // Auto-detect WebSocket URL from current page location

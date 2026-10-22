@@ -37,6 +37,20 @@ function setup(t) {
     return worker;
 }
 
+test('first accepted note publishes the assigned track channel once', t => {
+    const worker = setup(t);
+    const channels = [];
+    worker._broadcastState = () => channels.push(worker.daw.getState().tracks[0].channel);
+    worker.daw.recording.startTime = performance.now() + 1000;
+    worker._onIncomingMessage(NTS, 0, [0x9f, 60, 90]);
+    assert.deepEqual(channels, [], 'count-in notes must not assign a channel');
+    worker.daw.recording.startTime = performance.now() - 1000;
+    worker._onIncomingMessage(NTS, 0, [0x9f, 60, 90]);
+    worker._onIncomingMessage(NTS, 0, [0x8f, 60, 0]);
+    worker._onIncomingMessage(NTS, 0, [0x91, 62, 90]);
+    assert.deepEqual(channels, [16], 'subsequent notes retain the assignment without repeated broadcasts');
+});
+
 for (const zeroVelocityRelease of [false, true]) {
     test(`clock-master NTS-1 ribbon records without controller registration (zero-velocity release: ${zeroVelocityRelease})`, t => {
         const worker = setup(t);

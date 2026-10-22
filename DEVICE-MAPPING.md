@@ -86,6 +86,13 @@ numbers have separate settings. This setting changes UI CC messages only, not
 recorded notes or routed controller messages. It does not change the synth's own
 receive channel. NRPN and SysEx parameters are not supported by this CC panel.
 
+The ‹ / › buttons beside the channel selector send Program Change −1 / +1 on
+the selected channel, within programs 0–127 (usually displayed as presets 1–128).
+The router tracks the last requested program per device/channel while the page
+is open, initially assuming program 0. MIDI has no relative Program Change or
+universal preset readback: changes made on the synth itself are not detected.
+These buttons do not change banks.
+
 To enable another instrument, add/verify a map, register its file and detection
 in `synth-catalog.js`, and test classification, map loading and output-target CCs.
 There is no automatic remote schema download in this path. Controller pad/LED

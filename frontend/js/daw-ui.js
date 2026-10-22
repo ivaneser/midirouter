@@ -509,6 +509,13 @@ export class DAWUI {
             const label = document.createElement('div');
             label.className = 'session-track-label';
             label.textContent = `Track ${t + 1}`;
+            if (ch.channelAssigned && Number.isInteger(ch.channel) && ch.channel >= 1 && ch.channel <= 16) {
+                const channel = document.createElement('span');
+                channel.className = 'session-track-channel';
+                channel.textContent = `Ch ${ch.channel}`;
+                channel.setAttribute('aria-label', `MIDI channel ${ch.channel}`);
+                label.appendChild(channel);
+            }
             block.appendChild(label);
 
             // Clip slots (vertical column under the track label)

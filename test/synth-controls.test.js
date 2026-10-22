@@ -424,6 +424,13 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         channelSelect.value = '16';
         channelSelect.listeners.change();
         assert.deepEqual(sent.at(-1), { type: 'set-device-channel', target: 'microfreak-output', channel: 16 });
+        const presetButtons = microItem.querySelector('.device-program-controls').children;
+        presetButtons[1].listeners.click();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 1]);
+        presetButtons[0].listeners.click();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 0]);
+        presetButtons[0].listeners.click();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 0], 'previous preset clamps at zero');
         cutoff.listeners.input();
         assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 23, 96], 'open knobs use the new channel immediately');
         hold.checked = false;

@@ -18,6 +18,7 @@ export class DeviceManager {
         this.onStateChange = null;
         this._synthControlCache = new Map();
         this.channels = {};
+        this.programs = new Map();
     }
 
     updateChannels(channels) {
@@ -75,6 +76,26 @@ export class DeviceManager {
 
             el.appendChild(nameEl);
             if (dev.output) {
+                const presets = document.createElement('div');
+                presets.className = 'device-program-controls';
+                const programKey = () => `${deviceChannelKey(dev.name)}:${this.channelForDevice(dev)}`;
+                for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = text;
+                    button.title = `${description} (${step > 0 ? '+1' : '−1'})`;
+                    button.setAttribute('aria-label', `${dev.displayName}: ${description}`);
+                    button.addEventListener('click', () => {
+                        if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
+                        const key = programKey();
+                        const program = Math.max(0, Math.min(127, (this.programs.get(key) ?? 0) + step));
+                        this.sendMidi(dev.id, [0xC0 | (this.channelForDevice(dev) - 1), program]);
+                        this.programs.set(key, program);
+                        presets.title = `Last requested preset: ${program + 1}`;
+                    });
+                    presets.appendChild(button);
+                }
+                el.appendChild(presets);
                 const channel = document.createElement('select');
                 channel.className = 'device-midi-channel';
                 channel.dataset.deviceKey = deviceChannelKey(dev.name);

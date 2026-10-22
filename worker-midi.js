@@ -1695,6 +1695,15 @@ class MIDIRouterWorker {
         return real;
     }
 
+    _recordPerformanceEvent(status, note, velocity, time) {
+        const track = this.daw.tracks[this.daw.recording?.track];
+        const wasAssigned = !!track?.channelAssigned;
+        const recorded = this.daw.recordEvent(status, note, velocity, time);
+        // Publish the first-note assignment immediately so headers update during the take.
+        if (!wasAssigned && track?.channelAssigned) this._broadcastState();
+        return recorded;
+    }
+
     _onIncomingMessage(deviceName, deltaTime, bytes) {
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
@@ -1771,7 +1780,7 @@ class MIDIRouterWorker {
             // feed the same timestamped MIDI event through the DAW's recording
             // gate.  That gate rejects events before recording.startTime.
             if (isNoteOn2 || isNoteOff) {
-                this.daw.recordEvent(bytes[0], bytes[1], bytes[2] ?? 0, eventTime);
+                this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2] ?? 0, eventTime);
             }
             return;
         } else if (control?.kind === 'transport') {
@@ -1807,7 +1816,7 @@ class MIDIRouterWorker {
             // learning; it must not gate recording during port enumeration/rebind.
             if (this.daw.recording) {
                 const sb = isNoteOff ? (0x80 | ((channel - 1) & 0x0f)) : (0x90 | ((channel - 1) & 0x0f));
-                this.daw.recordEvent(sb, n, vel, performance.now());
+                this._recordPerformanceEvent(sb, n, vel, performance.now());
             }
         }
 
