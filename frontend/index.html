@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=45">
+    <link rel="stylesheet" href="/css/style.css?v=47">
 </head>
 <body>
     <div id="app">
@@ -94,7 +94,7 @@
                     <label><select id="keyboard-low-c" aria-label="Keyboard lowest C"></select></label>
                     <label><select id="keyboard-high-c" aria-label="Keyboard highest C"></select></label>
                     <label class="keyboard-velocity-control"><span>Velocity</span><span id="keyboard-velocity-dial" class="midi-knob"><span class="midi-knob-face" aria-hidden="true"></span><input id="keyboard-velocity" class="midi-knob-input" aria-label="Keyboard velocity" type="range" min="1" max="127" step="1" value="100"></span><output id="keyboard-velocity-value" class="midi-knob-value" for="keyboard-velocity">100</output></label>
-                    <button id="keyboard-release" type="button" class="btn">Release notes</button>
+                    <button id="keyboard-sustain" type="button" class="btn" aria-pressed="false">Sustain</button>
                 </div>
                 <p class="tab-hint">Touch or hold keys to play the selected output. Scroll sideways for more notes.</p>
                 <div class="keyboard-scroll"><div id="keyboard-keys" class="keyboard-keys" aria-label="MIDI keyboard"></div></div>
@@ -215,6 +215,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=45"></script>
+    <script type="module" src="/js/app.js?v=47"></script>
 </body>
 </html>

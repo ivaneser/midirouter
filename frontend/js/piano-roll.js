@@ -9,8 +9,8 @@ export class PianoRoll {
         this.clip = document.getElementById('piano-roll-clip');
         if (!this.section) return;
         for (let n = 1; n <= 16; n++) this.channel.add(new Option(`Ch ${n}`, String(n)));
-        this.channel.addEventListener('change', () => this.update(this.state));
-        this.clip.addEventListener('change', () => this.render());
+        this.channel.addEventListener('change', () => { this.selectedClip = null; this.update(this.state); });
+        this.clip.addEventListener('change', () => { this.selectedClip = null; this.render(); });
         this.section.addEventListener('toggle', () => this.render());
     }
 
@@ -18,17 +18,30 @@ export class PianoRoll {
         this.state = state;
         this.positions = state?.playing === false ? [] : state?.clipProgress || [];
         if (!this.section || !state) return;
-        const selected = this.clip.value;
+        if (this.selectedClip && !state.tracks?.[this.selectedClip.track]?.clips?.[this.selectedClip.slot]) this.selectedClip = null;
+        const requested = this.selectedClip;
+        if (requested) {
+            const track = state.tracks?.[requested.track];
+            const first = track?.clips?.[requested.slot]?.events?.[0];
+            const channel = track?.channelAssigned ? track.channel : first?.channel;
+            if (channel) this.channel.value = String(channel);
+        }
+        const selected = requested ? `${requested.track}:${requested.slot}` : this.clip.value;
         this.clips = [];
         state.tracks?.forEach((track, t) => track.clips?.forEach((clip, s) => {
             const notes = (clip.events || []).filter(n => n.channel === Number(this.channel.value));
-            if (notes.length) this.clips.push({ key: `${t}:${s}`, label: `Track ${t + 1} · Clip ${s + 1}`, length: clip.length, notes });
+            if (notes.length || (requested?.track === t && requested?.slot === s)) this.clips.push({ key: `${t}:${s}`, label: `Track ${t + 1} · Clip ${s + 1}`, length: clip.length, notes });
         }));
         this.clip.replaceChildren();
         for (const clip of this.clips) this.clip.add(new Option(clip.label, clip.key));
         if (this.clips.some(c => c.key === selected)) this.clip.value = selected;
         this.clip.disabled = !this.clips.length;
         this.render();
+    }
+
+    selectClip(track, slot) {
+        this.selectedClip = { track, slot };
+        if (this.state) this.update(this.state);
     }
 
     render() {

@@ -1,10 +1,10 @@
 /* === MIDI Router — auto-connect all to all === */
 
 import { DeviceManager } from './device-manager.js?v=43';
-import { DAWUI } from './daw-ui.js?v=40';
+import { DAWUI } from './daw-ui.js?v=46';
 import { ConfigEditor } from './config-editor.js';
-import { PianoRoll } from './piano-roll.js?v=45';
-import { MidiKeyboard } from './midi-keyboard.js?v=44';
+import { PianoRoll } from './piano-roll.js?v=46';
+import { MidiKeyboard } from './midi-keyboard.js?v=47';
 
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {
@@ -33,6 +33,7 @@ const deviceManager = new DeviceManager();
 const pianoRoll = new PianoRoll();
 const midiKeyboard = new MidiKeyboard(deviceManager);
 const dawUI = new DAWUI(deviceManager);
+dawUI.onClipSelect = (track, slot) => pianoRoll.selectClip(track, slot);
 const configEditor = new ConfigEditor({
     deviceManager,
     ws: null, // will be set after connection

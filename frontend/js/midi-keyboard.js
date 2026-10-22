@@ -5,6 +5,8 @@ export class MidiKeyboard {
     constructor(deviceManager) {
         this.dm = deviceManager;
         this.held = new Map();
+        this.sustained = new Map();
+        this.sustain = false;
         this.activePointers = new Set();
         this.section = document.getElementById('midi-keyboard-section');
         if (!this.section) return;
@@ -45,7 +47,8 @@ export class MidiKeyboard {
             if (Number(this.highC.value) < Number(this.lowC.value)) this.lowC.value = this.highC.value;
             this.render();
         });
-        document.getElementById('keyboard-release').addEventListener('click', () => this.releaseAll());
+        this.sustainButton = document.getElementById('keyboard-sustain');
+        this.sustainButton.addEventListener('click', () => this.setSustain(!this.sustain));
         this.section.addEventListener('toggle', () => { if (!this.section.open) this.releaseAll(); });
         window.addEventListener('blur', () => this.releaseAll());
         document.addEventListener('visibilitychange', () => { if (document.hidden) this.releaseAll(); });
@@ -77,6 +80,13 @@ export class MidiKeyboard {
         const targets = target === '__all__' ? [...new Set(this.dm.outputs.map(d => d.id))] : [target];
         if (!targets.length) return;
         if ([...this.held.values()].some(n => n.target === target && n.channel === channel && n.note === note)) return;
+        const sustainedKey = `${target}:${channel}:${note}`;
+        const previous = this.sustained.get(sustainedKey);
+        if (previous) {
+            this.dm.sendPerformance(previous.targets, [0x80 | previous.channel, previous.note, 0]);
+            previous.button.classList.remove('pressed');
+            this.sustained.delete(sustainedKey);
+        }
         const velocity = Math.max(1, Math.min(127, Math.round(Number(this.velocity.value) || 100)));
         this.dm.sendPerformance(targets, [0x90 | channel, note, velocity]);
         this.held.set(id, { target, targets, channel, note, button });
@@ -87,13 +97,30 @@ export class MidiKeyboard {
         const held = this.held.get(id);
         if (!held) return;
         this.held.delete(id);
+        if (this.sustain) {
+            this.sustained.set(`${held.target}:${held.channel}:${held.note}`, held);
+            return;
+        }
         this.dm.sendPerformance(held.targets, [0x80 | held.channel, held.note, 0]);
         if (![...this.held.values()].some(n => n.button === held.button)) held.button.classList.remove('pressed');
     }
 
     releaseAll() {
+        this.setSustain(false);
         this.activePointers.clear();
         for (const id of [...this.held.keys()]) this.release(id);
+    }
+
+    setSustain(enabled) {
+        this.sustain = enabled;
+        this.sustainButton?.setAttribute('aria-pressed', String(enabled));
+        if (!enabled) {
+            for (const held of this.sustained.values()) {
+                this.dm.sendPerformance(held.targets, [0x80 | held.channel, held.note, 0]);
+                if (![...this.held.values()].some(n => n.button === held.button)) held.button.classList.remove('pressed');
+            }
+            this.sustained.clear();
+        }
     }
 
     render() {

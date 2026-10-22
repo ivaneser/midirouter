@@ -148,6 +148,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .keyboard-key.white { width: 44px; height: 150px; background: #e4eaf0; color: #25313d; border: 1px solid #87929d; }
 .keyboard-key.black { width: 28px; height: 96px; margin: 0 -14px; z-index: 1; background: #17212b; color: #c5d0db; border: 1px solid #060b10; }
 .keyboard-key.pressed { background: #a6d477; color: #14220b; }
+#keyboard-sustain[aria-pressed="true"] { background: #304229; border-color: var(--accent); color: #dcf3c8; }
 .piano-roll-toolbar .keyboard-velocity-control { gap: 8px; }
 .keyboard-velocity-control .midi-knob { width: 64px; height: 64px; flex-basis: 64px; }
 .device-program-controls button { min-width: 32px; min-height: 44px; padding: 4px 8px; font-size: 1.25rem; }
