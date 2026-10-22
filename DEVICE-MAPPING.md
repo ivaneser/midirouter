@@ -93,6 +93,14 @@ is open, initially assuming program 0. MIDI has no relative Program Change or
 universal preset readback: changes made on the synth itself are not detected.
 These buttons do not change banks.
 
+Sessions also save device/channel Program Change selections made through the
+router. Loading a session sends those programs to connected matching outputs and
+updates the preset displays. Matching tolerates changed ALSA client numbers;
+ambiguous or missing outputs are skipped. Preset names are queried again where
+readback is supported. Changes made only on a synth's front panel are not tracked.
+This recalls preset slots, not edits to the sound or bank selections. Older sessions
+without `devicePresets` load normally without sending Program Change.
+
 ### Preset name readback
 
 The display between ‹ / › shows the last requested preset number, then its name

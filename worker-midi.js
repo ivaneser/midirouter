@@ -6,6 +6,7 @@ import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
 import { PresetNames } from './preset-names.js';
+import { deviceChannelKey } from './frontend/js/device-channels.js';
 import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine, matches } from './controller-engine.js';
 import { ExternalMidiClock } from './external-midi-clock.js';
@@ -2244,6 +2245,7 @@ class MIDIRouterWorker {
 
     _broadcastState() {
         const state = this.daw.getState();
+        state.devicePresets = [...(this._devicePrograms?.values() || [])];
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
@@ -2368,12 +2370,37 @@ class MIDIRouterWorker {
         if (parentPort) parentPort?.postMessage({ type: 'daw_session_list', sessions: names, recent });
     }
 
+    _rememberDeviceProgram(target, channel, program) {
+        this._devicePrograms ??= new Map();
+        this._devicePrograms.set(`${deviceChannelKey(target)}:${channel}`, { target, channel, program });
+    }
+
+    _restoreDevicePrograms(presets) {
+        this._devicePrograms = new Map();
+        for (const preset of Array.isArray(presets) ? presets : []) {
+            if (typeof preset?.target !== 'string' || !Number.isInteger(preset.channel) || preset.channel < 1 || preset.channel > 16 ||
+                !Number.isInteger(preset.program) || preset.program < 0 || preset.program > 127) continue;
+            const candidates = [...this.outputs.keys()].filter(name => deviceChannelKey(name) === deviceChannelKey(preset.target));
+            const target = this.outputs.has(preset.target) ? preset.target : candidates.length === 1 ? candidates[0] : null;
+            this._rememberDeviceProgram(target || preset.target, preset.channel, preset.program);
+            if (!target) continue;
+            try {
+                const output = this.outputs.get(target);
+                output.sendMessage(Buffer.from([0xC0 | (preset.channel - 1), preset.program]));
+                this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
+                const request = this._presetNames.request(target, preset.channel, preset.program);
+                if (request) output.sendMessage(Buffer.from(request));
+            } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
+        }
+    }
+
     _saveSession(rawName) {
         try {
             const name = this._sessionNameOf(rawName);
             if (!name) throw new Error('invalid session name');
             const file = path.join(this._sessionsDir(), `${name}.json`);
             const data = this.daw.toData();
+            data.devicePresets = [...(this._devicePrograms?.values() || [])];
             const notes = data.tracks.reduce(
                 (sum, t) => sum + t.clips.reduce((s, c) => s + c.notes.length, 0), 0);
             fs.writeFileSync(file, JSON.stringify(data, null, 2));
@@ -2399,6 +2426,7 @@ class MIDIRouterWorker {
                 this._recordingStopTimer = null;
             }
             this.daw.loadData(data);
+            this._restoreDevicePrograms(data.devicePresets);
             this._transportPlaying = false;
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
@@ -2469,6 +2497,8 @@ if (parentPort) {
                 output.sendMessage(Buffer.from(bytes));
                 console.log(`[MIDI] [SERVER] -> ${targetName}: ${bytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`);
                 if ((bytes[0] & 0xf0) === 0xc0 && Number.isInteger(bytes[1]) && bytes[1] >= 0 && bytes[1] <= 127) {
+                    worker._rememberDeviceProgram(targetName, (bytes[0] & 15) + 1, bytes[1]);
+                    worker._broadcastState();
                     worker._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
                     const request = worker._presetNames.request(targetName, (bytes[0] & 15) + 1, bytes[1]);
                     if (request) output.sendMessage(Buffer.from(request));

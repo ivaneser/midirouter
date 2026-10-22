@@ -31,6 +31,14 @@ export class DeviceManager {
         this.refreshPresetLabels();
     }
 
+    updateDevicePresets(presets) {
+        this.programs.clear();
+        for (const { target, channel, program } of presets || []) {
+            this.programs.set(`${deviceChannelKey(target)}:${channel}`, program);
+        }
+        this.refreshPresetLabels();
+    }
+
     refreshPresetLabels() {
         document.querySelectorAll?.('.device-program-name').forEach(label => {
             const key = `${label.dataset.deviceKey}:${this.channels[label.dataset.deviceKey] || 1}`;
