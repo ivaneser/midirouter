@@ -143,6 +143,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .piano-roll-position { display: block; margin: 8px 0; color: #ffcf80; font: .8125rem ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 .piano-roll-view svg { display: block; width: 100%; min-width: 640px; }
 .keyboard-scroll { overflow-x: auto; padding-bottom: 8px; }
+#midi-keyboard-section, #midi-keyboard-section * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .keyboard-keys { display: flex; position: relative; width: max-content; padding-top: 8px; }
 .keyboard-key { border-radius: 0 0 5px 5px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; display: flex; align-items: flex-end; justify-content: center; padding: 8px 2px; font-size: .625rem; }
 .keyboard-key.white { width: 44px; height: 150px; background: #e4eaf0; color: #25313d; border: 1px solid #87929d; }

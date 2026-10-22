@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=43';
 import { DAWUI } from './daw-ui.js?v=46';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=46';
-import { MidiKeyboard } from './midi-keyboard.js?v=47';
+import { MidiKeyboard } from './midi-keyboard.js?v=48';
 
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {

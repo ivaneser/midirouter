@@ -24,6 +24,18 @@ export class MidiKeyboard {
             () => {},
         );
         this.keys = document.getElementById('keyboard-keys');
+        // Safari's long-touch text selection can escape a non-selectable button.
+        // Cancel the native touch gesture on keys, while Pointer Events play notes.
+        this.keys.addEventListener('touchstart', event => {
+            if (event.target.closest('.keyboard-key')) {
+                event.preventDefault();
+                window.getSelection()?.removeAllRanges();
+            }
+        }, { passive: false });
+        this.keys.addEventListener('selectstart', event => event.preventDefault());
+        document.addEventListener('selectstart', event => {
+            if (this.activePointers.size) event.preventDefault();
+        });
         for (let n = 1; n <= 16; n++) this.channel.add(new Option(`Ch ${n}`, String(n)));
         for (let n = -1; n <= 9; n++) {
             this.lowC.add(new Option(`C${n}`, String(n)));
@@ -140,7 +152,7 @@ export class MidiKeyboard {
             button.addEventListener('pointerdown', event => {
                 if (event.button !== 0) return;
                 event.preventDefault();
-                button.focus({ preventScroll: true });
+                if (event.pointerType !== 'touch') button.focus({ preventScroll: true });
                 button.setPointerCapture(event.pointerId);
                 this.activePointers.add(event.pointerId);
                 this.press(event.pointerId, note, button);
