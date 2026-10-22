@@ -76,8 +76,15 @@ order within each group.
 Signed ranges are display values. For the -64..63 map, CC encoding adds 64:
 left = 0, displayed neutral zero = 64, right = 127. The bipolar pointer is exactly
 centered at zero despite the asymmetric endpoints. Numeric MIDI bytes are clamped
-to 0..127. The existing panel sender uses MIDI channel 1; configure the receiving
-instrument accordingly. NRPN and SysEx parameters are not supported by this CC panel.
+to 0..127. Select the instrument's receive channel (1–16) beside its device name.
+All UI CC controls use this selection, including controls already open when you
+change it. Channel 1 is the default. Selections are saved on the router in
+`device-channels.json`, shared across browsers, and restored after restarts.
+Device names identify saved selections; changing ALSA client numbers does not
+reset them. Identically named ports share a setting; distinct port names or port
+numbers have separate settings. This setting changes UI CC messages only, not
+recorded notes or routed controller messages. It does not change the synth's own
+receive channel. NRPN and SysEx parameters are not supported by this CC panel.
 
 To enable another instrument, add/verify a map, register its file and detection
 in `synth-catalog.js`, and test classification, map loading and output-target CCs.

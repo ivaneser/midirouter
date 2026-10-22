@@ -349,7 +349,11 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
     const deviceList = new TestElement('div');
     const elements = { 'device-list': deviceList };
     const sent = [];
-    globalThis.document = { getElementById: id => elements[id] || null, createElement: tag => new TestElement(tag) };
+    globalThis.document = {
+        getElementById: id => elements[id] || null,
+        createElement: tag => new TestElement(tag),
+        querySelectorAll: selector => findAll(deviceList, el => el.className === selector.slice(1)),
+    };
     globalThis.WebSocket = { OPEN: 1 };
     globalThis.window = {
         app: { ws: { readyState: 1, send: value => sent.push(JSON.parse(value)) } },
@@ -413,6 +417,43 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         hold.checked = true;
         hold.listeners.change();
         assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 64, 127]);
+
+        const channelSelect = microItem.querySelector('.device-midi-channel');
+        assert.equal(channelSelect.children.length, 16);
+        assert.equal(channelSelect.value, '1');
+        channelSelect.value = '16';
+        channelSelect.listeners.change();
+        assert.deepEqual(sent.at(-1), { type: 'set-device-channel', target: 'microfreak-output', channel: 16 });
+        cutoff.listeners.input();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 23, 96], 'open knobs use the new channel immediately');
+        hold.checked = false;
+        hold.listeners.change();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 64, 0]);
+        slider.listeners.input();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 1, 42], 'other devices keep their own channel');
+
+        const { deviceChannelKey } = await import('../frontend/js/device-channels.js');
+        const saved = { [deviceChannelKey('Arturia MicroFreak')]: 3 };
+        manager.updateChannels(saved);
+        assert.equal(channelSelect.value, '3', 'shared settings update the existing selector');
+        cutoff.listeners.input();
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB2, 23, 96], 'settings from another client affect open controls');
+        assert.ok(microItem.contains(microPanel), 'settings updates keep controls open');
+        const ntsItem = deviceList.children.find(el => el.children[0]?.textContent === 'NTS-1 digital kit');
+        await ntsItem.children[0].click();
+        const dropdown = findAll(ntsItem, el => el.tagName === 'select' && el.dataset.cc)[0];
+        assert.ok(dropdown, 'NTS-1 has parameter selectors');
+        manager.updateChannels({ ...saved, [deviceChannelKey('NTS-1 digital kit')]: 8 });
+        dropdown.selectedIndex = 1;
+        dropdown.listeners.change();
+        assert.equal(sent.at(-1).target, 'nts-output-4');
+        assert.equal(sent.at(-1).data.bytes[0], 0xB7, 'parameter selectors use the selected channel');
+        manager.sendMidi('microfreak-output', [0x90, 60, 100]);
+        assert.deepEqual(sent.at(-1).data.bytes, [0x90, 60, 100], 'channel selection applies only to UI CCs');
+        const restored = new DeviceManager();
+        restored.updateChannels(saved);
+        restored.updatePorts([], [{ id: 'new-output', name: 'Arturia MicroFreak' }]);
+        assert.equal(deviceList.children[0].querySelector('.device-midi-channel').value, '3');
     } finally {
         globalThis.document = previous.document;
         globalThis.window = previous.window;

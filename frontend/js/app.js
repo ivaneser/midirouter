@@ -1,6 +1,6 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=24';
+import { DeviceManager } from './device-manager.js?v=26';
 import { DAWUI } from './daw-ui.js?v=25';
 import { ConfigEditor } from './config-editor.js';
 
@@ -121,6 +121,12 @@ if (shutdownBtn) {
 
 function handleMessage(msg) {
     switch (msg.type) {
+        case 'device-channels':
+            deviceManager.updateChannels(msg.channels || {});
+            break;
+        case 'device-channel-error':
+            log('Could not save MIDI channel: ' + msg.message);
+            break;
         case 'devices':
             deviceManager.updatePorts(msg.inputs || [], msg.outputs || []);
             // Refresh the clock source dropdown so hot-plugged inputs appear.

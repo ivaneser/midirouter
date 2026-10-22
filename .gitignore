@@ -3,3 +3,5 @@ package-lock.json
 __pycache__/
 # per-machine calibration (latency sliders)
 settings.json
+device-channels.json
+device-channels.json.tmp

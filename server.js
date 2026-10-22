@@ -6,6 +6,7 @@ import { join, extname } from 'path';
 import { Worker } from 'worker_threads';
 import { execFile } from 'child_process';
 import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
+import { DeviceChannelSettings } from './device-channel-settings.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
@@ -279,6 +280,7 @@ class MIDIRouterWorker {
 // === HTTP + WebSocket Server ===
 let wss;
 const router = new MIDIRouterWorker();
+const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 
 function startServer() {
     // HTTP server for the frontend — no caching of JS/CSS
@@ -356,6 +358,7 @@ function startServer() {
         console.log('[SERVER] Client connected from', req.socket.remoteAddress);
 
         // Send the port list on connection
+        ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('error', (err) => {
@@ -367,6 +370,19 @@ function startServer() {
                 const message = JSON.parse(data.toString());
 
                 switch (message.type) {
+                    case 'set-device-channel': {
+                        const name = router.outputs.get(message.target);
+                        try {
+                            if (!name || !deviceChannels.set(name, message.channel)) {
+                                throw new Error('Choose a connected output and a channel from 1 to 16.');
+                            }
+                            router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
+                        } catch (error) {
+                            ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
+                            ws.send(JSON.stringify({ type: 'device-channel-error', message: error.message }));
+                        }
+                        break;
+                    }
                     case 'get-devices':
                         // Device request from the client — reply with the current ones
                         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));

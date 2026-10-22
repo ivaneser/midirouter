@@ -129,6 +129,9 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .device-item-name::before { content: "▸"; color: var(--accent); }
 .device-item-name[aria-expanded="true"]::before { content: "▾"; }
 .device-item.disabled { opacity: .4; }
+.device-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.device-midi-channel { width: 88px; min-height: 44px; font-size: 1rem; }
+.device-item > .synth-controls { grid-column: 1 / -1; }
 .synth-card-name { font-weight: 600; }
 .synth-card-status { color: var(--muted); font-size: .75rem; }
 .synth-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 14px; padding-top: 16px; margin-top: 12px; border-top: 1px solid var(--line); }

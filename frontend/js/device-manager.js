@@ -2,6 +2,7 @@
 import { attachMidiKnob } from './midi-knob.js?v=22';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
+import { deviceChannelKey, validMidiChannel } from './device-channels.js';
 
 import {
     buildMidiCcBytes,
@@ -16,6 +17,19 @@ export class DeviceManager {
         this.outputs = [];  // [{id, name}]
         this.onStateChange = null;
         this._synthControlCache = new Map();
+        this.channels = {};
+    }
+
+    updateChannels(channels) {
+        this.channels = { ...channels };
+        document.querySelectorAll?.('.device-midi-channel').forEach(select => {
+            select.value = String(this.channels[select.dataset.deviceKey] || 1);
+        });
+    }
+
+    channelForDevice(device) {
+        const channel = this.channels[deviceChannelKey(device.name)];
+        return validMidiChannel(channel) ? channel : 1;
     }
 
     /** Refresh the port list */
@@ -60,6 +74,32 @@ export class DeviceManager {
             nameEl.addEventListener('click', () => this._toggleDevicePanel(dev, el, nameEl));
 
             el.appendChild(nameEl);
+            if (dev.output) {
+                const channel = document.createElement('select');
+                channel.className = 'device-midi-channel';
+                channel.dataset.deviceKey = deviceChannelKey(dev.name);
+                channel.setAttribute('aria-label', `${dev.displayName} MIDI channel`);
+                channel.title = 'Match the instrument’s MIDI receive channel';
+                for (let number = 1; number <= 16; number++) {
+                    const option = document.createElement('option');
+                    option.value = String(number);
+                    option.textContent = `Ch ${number}`;
+                    channel.appendChild(option);
+                }
+                channel.value = String(this.channelForDevice(dev));
+                channel.addEventListener('change', () => {
+                    const value = Number(channel.value);
+                    if (!validMidiChannel(value)) return;
+                    if (window.app?.ws?.readyState === WebSocket.OPEN) {
+                        this.channels[deviceChannelKey(dev.name)] = value;
+                        window.app.ws.send(JSON.stringify({ type: 'set-device-channel', target: dev.id, channel: value }));
+                    } else {
+                        channel.value = String(this.channelForDevice(dev));
+                        window.app?.log?.('Connect to the router to save the MIDI channel.');
+                    }
+                });
+                el.appendChild(channel);
+            }
             deviceList.appendChild(el);
         }
     }
@@ -218,6 +258,10 @@ export class DeviceManager {
 
     /** Send a MIDI message */
     sendMidi(targetId, bytes) {
+        const device = this.outputs.find(port => port.id === targetId);
+        if (device && (bytes[0] & 0xF0) === 0xB0) {
+            bytes = [0xB0 | (this.channelForDevice(device) - 1), ...bytes.slice(1)];
+        }
         if (window.app && window.app.ws && window.app.ws.readyState === WebSocket.OPEN) {
             window.app.ws.send(JSON.stringify({
                 type: 'midi-send',
