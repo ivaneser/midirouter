@@ -133,6 +133,17 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .device-item.disabled { opacity: .4; }
 .device-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
 .device-program-controls { display: flex; gap: 4px; }
+.piano-roll-toolbar { display: flex; flex-wrap: wrap; gap: 16px; }
+.piano-roll-toolbar label { display: flex; align-items: center; gap: 8px; }
+.piano-roll-view { overflow: auto; max-height: 440px; border-radius: 8px; }
+.piano-roll-view svg { display: block; width: 100%; min-width: 640px; }
+.keyboard-scroll { overflow-x: auto; padding-bottom: 8px; }
+.keyboard-keys { display: flex; position: relative; width: max-content; padding-top: 8px; }
+.keyboard-key { border-radius: 0 0 5px 5px; touch-action: none; user-select: none; display: flex; align-items: flex-end; justify-content: center; padding: 8px 2px; font-size: .625rem; }
+.keyboard-key.white { width: 44px; height: 150px; background: #e4eaf0; color: #25313d; border: 1px solid #87929d; }
+.keyboard-key.black { width: 28px; height: 96px; margin: 0 -14px; z-index: 1; background: #17212b; color: #c5d0db; border: 1px solid #060b10; }
+.keyboard-key.pressed { background: #a6d477; color: #14220b; }
+#keyboard-velocity { width: 80px; }
 .device-program-controls button { min-width: 32px; min-height: 44px; padding: 4px 8px; font-size: 1.25rem; }
 .device-midi-channel { width: 88px; min-height: 44px; font-size: 1rem; }
 .device-item > .synth-controls { grid-column: 1 / -1; }

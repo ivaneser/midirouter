@@ -3,6 +3,8 @@
 import { DeviceManager } from './device-manager.js?v=28';
 import { DAWUI } from './daw-ui.js?v=27';
 import { ConfigEditor } from './config-editor.js';
+import { PianoRoll } from './piano-roll.js';
+import { MidiKeyboard } from './midi-keyboard.js';
 
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {
@@ -28,6 +30,8 @@ if (timingPanel) timingPanel.open = window.matchMedia('(min-width: 700px)').matc
 
 // Initialize managers
 const deviceManager = new DeviceManager();
+const pianoRoll = new PianoRoll();
+const midiKeyboard = new MidiKeyboard(deviceManager);
 const dawUI = new DAWUI(deviceManager);
 const configEditor = new ConfigEditor({
     deviceManager,
@@ -73,6 +77,7 @@ function connect() {
     };
 
     ws.onclose = () => {
+        midiKeyboard.releaseAll();
         statusEl.textContent = '● Disconnected';
         statusEl.className = 'status-indicator disconnected';
         connectBtn.textContent = 'Connect';
@@ -98,6 +103,7 @@ function connect() {
 
 connectBtn.addEventListener('click', () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
+        midiKeyboard.releaseAll();
         ws.close();
     } else {
         connect();
@@ -105,6 +111,14 @@ connectBtn.addEventListener('click', () => {
 });
 
 // === Shutdown ===
+document.getElementById('btn-panic')?.addEventListener('click', () => {
+    midiKeyboard.releaseAll();
+    if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'midi-panic' }));
+        log('Panic: releasing notes on all MIDI outputs.');
+    }
+});
+
 const shutdownBtn = document.getElementById('btn-shutdown');
 if (shutdownBtn) {
     shutdownBtn.addEventListener('click', () => {
@@ -120,6 +134,7 @@ if (shutdownBtn) {
 // === Server messages ===
 
 function handleMessage(msg) {
+    if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
     switch (msg.type) {
         case 'device-channels':
             deviceManager.updateChannels(msg.channels || {});
@@ -129,6 +144,7 @@ function handleMessage(msg) {
             break;
         case 'devices':
             deviceManager.updatePorts(msg.inputs || [], msg.outputs || []);
+            midiKeyboard.updatePorts();
             // Refresh the clock source dropdown so hot-plugged inputs appear.
             dawUI.refreshClockSourceSelect();
             log(`Devices: ${msg.inputs?.length || 0} input, ${msg.outputs?.length || 0} output`);

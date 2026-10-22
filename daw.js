@@ -1187,7 +1187,7 @@ class DAWEngine {
             channel: t.channel,
             channelAssigned: t.channelAssigned,
             slotCount: t.clips.length,
-            clips: t.clips.map(c => ({ notes: c.notes.length, length: c.length })),
+            clips: t.clips.map(c => ({ notes: c.notes.length, length: c.length, events: c.notes.map(n => ({ ...n })) })),
             playing: this.clipState[i] >= 0,
             activeSlot: this.clipState[i],
             armed: t.armed,

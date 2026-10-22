@@ -370,6 +370,9 @@ function startServer() {
                 const message = JSON.parse(data.toString());
 
                 switch (message.type) {
+                    case 'midi-panic':
+                        router.worker?.postMessage({ type: 'panic_note_off', immediate: true });
+                        break;
                     case 'set-device-channel': {
                         const name = router.outputs.get(message.target);
                         try {

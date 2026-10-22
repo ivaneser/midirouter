@@ -2404,13 +2404,15 @@ class MIDIRouterWorker {
     }
 
     // ---- Panic: send All Notes Off to all outputs on all channels ----
-    sendPanicNoteOff() {
+    sendPanicNoteOff(immediate = false) {
         if (!this.outputs || this.outputs.size === 0) return;
         console.log('[WORKER] Sending All Notes Off to all outputs...');
         try {
             this.outputs.forEach((out) => {
                 for (let channel = 0; channel < 16; channel++) {
+                    if (immediate) out.sendMessage(Buffer.from([0xB0 | channel, 64, 0]));
                     out.sendMessage(Buffer.from([0xB0 | channel, 123, 0]));
+                    if (immediate) out.sendMessage(Buffer.from([0xB0 | channel, 120, 0]));
                 }
             });
             console.log('[WORKER] All Notes Off sent');
@@ -2451,7 +2453,7 @@ if (parentPort) {
         }
     } else if (msg.type === 'panic_note_off') {
         // Send panic note-off on all outputs
-        worker.sendPanicNoteOff();
+        worker.sendPanicNoteOff(msg.immediate === true);
     } else if (msg.type === 'reload_config') {
         // Reload the configuration
         worker._loadConfig();

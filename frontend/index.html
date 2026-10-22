@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=28">
+    <link rel="stylesheet" href="/css/style.css?v=31">
 </head>
 <body>
     <div id="app">
@@ -25,6 +25,7 @@
                 </div>
                 <span id="connection-status" class="status-indicator disconnected">● Disconnected</span>
                 <button id="btn-connect" class="btn btn-primary">Connect</button>
+                <button id="btn-panic" class="btn btn-danger" title="Release held notes on every MIDI output and channel">Panic</button>
                 <button id="btn-shutdown" class="btn btn-danger" title="Power off the Raspberry Pi">Power off</button>
             </div>
         </header>
@@ -68,6 +69,33 @@
             <!-- Track Controls -->
             <div id="track-controls" class="track-controls"></div>
 
+            </div>
+        </details>
+
+        <details id="piano-roll-section" class="collapsible-panel">
+            <summary class="collapsible-header"><span class="arrow">▶</span>Piano roll</summary>
+            <div class="config-panel-content">
+                <div class="piano-roll-toolbar">
+                    <label>MIDI channel <select id="piano-roll-channel" aria-label="Piano roll MIDI channel"></select></label>
+                    <label>Clip <select id="piano-roll-clip" aria-label="Piano roll clip"></select></label>
+                </div>
+                <p id="piano-roll-status" role="status">Select a channel with recorded notes.</p>
+                <div id="piano-roll-view" class="piano-roll-view"></div>
+            </div>
+        </details>
+
+        <details id="midi-keyboard-section" class="collapsible-panel">
+            <summary class="collapsible-header"><span class="arrow">▶</span>MIDI keyboard</summary>
+            <div class="config-panel-content">
+                <div class="piano-roll-toolbar">
+                    <label>Output <select id="keyboard-output" aria-label="Keyboard MIDI output"></select></label>
+                    <label>Channel <select id="keyboard-channel" aria-label="Keyboard MIDI channel"></select></label>
+                    <label>Octave <select id="keyboard-octave" aria-label="Keyboard octave"></select></label>
+                    <label>Velocity <input id="keyboard-velocity" type="number" min="1" max="127" value="100"></label>
+                    <button id="keyboard-release" type="button" class="btn">Release notes</button>
+                </div>
+                <p class="tab-hint">Touch or hold keys to play the selected output. Scroll sideways for more notes.</p>
+                <div class="keyboard-scroll"><div id="keyboard-keys" class="keyboard-keys" aria-label="MIDI keyboard"></div></div>
             </div>
         </details>
 
@@ -185,6 +213,6 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=28"></script>
+    <script type="module" src="/js/app.js?v=31"></script>
 </body>
 </html>
