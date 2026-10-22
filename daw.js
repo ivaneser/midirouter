@@ -750,6 +750,10 @@ class DAWEngine {
             // transport is stopped. The worker starts transport at pad press.
             startTime = now + 2 * bar * this._secondsPerBeat() * 1000;
         }
+        if (options.immediate) {
+            startTime = now;
+            startBeat = this.playing ? (now - this._playAnchorTime) / this._secondsPerBeatMs() : 0;
+        }
         this.recording = {
             track: trackIdx,
             slot,

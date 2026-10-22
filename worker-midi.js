@@ -724,6 +724,7 @@ class MIDIRouterWorker {
             const channel = Math.max(1, note.channel || 1);
             const key = `${channel}:${note.note}`;
             const fire = () => {
+                if (playback.stopAtMs != null && nextAt >= playback.stopAtMs) return;
                 this._sendToSynthOutputs(noteOn(channel - 1, note.note, note.velocity > 0 ? note.velocity : 80));
                 playback.active.set(key, (playback.active.get(key) || 0) + 1);
                 schedule(() => {
@@ -826,10 +827,41 @@ class MIDIRouterWorker {
         for (const trackIdx of tracks) this._stopTrackPlayback(trackIdx);
     }
 
+    _finishClipStop(trackIdx, playback) {
+        if (this._trackPlayTimers.get(trackIdx) !== playback) return;
+        this.daw.clipState[trackIdx] = -1;
+        const next = playback.nextClip;
+        this._stopTrackPlayback(trackIdx);
+        if (next) {
+            this._triggerPad(trackIdx, next.slot, playback.stopAtMs ?? performance.now(), { boundarySwitch: true });
+            return;
+        }
+        this._refreshPadLeds();
+        this._broadcastState();
+    }
+
+    _queueClipStop(trackIdx, now) {
+        const playback = this._trackPlayTimers.get(trackIdx);
+        if (!playback || playback.stopAtMs != null || playback.stopAtTick != null) return;
+        if (playback.externalClock) {
+            const tick = this._externalMidiClock.tickCount;
+            const offset = Math.round((this.audioOffsetMs || 0) / this.daw._secondsPerBeatMs() * 24);
+            const origin = playback.startTick + offset;
+            playback.stopAtTick = origin + Math.max(1, Math.floor((tick - origin) / playback.loopTicks) + 1) * playback.loopTicks;
+        } else {
+            const origin = playback.originMs + (playback.audioOffsetMs || 0);
+            const length = playback.loopBeats * playback.msPerBeat;
+            playback.stopAtMs = origin + Math.max(1, Math.floor((now - origin) / length) + 1) * length;
+            playback.stopTimer = setTimeout(() => this._finishClipStop(trackIdx, playback), Math.max(0, playback.stopAtMs - performance.now()));
+        }
+        this._broadcastState();
+    }
+
     _stopTrackPlayback(trackIdx) {
         this._cancelPendingStart(trackIdx);
         const playback = this._trackPlayTimers.get(trackIdx);
         if (playback) {
+            clearTimeout(playback.stopTimer);
             clearInterval(playback.interval);
             for (const timer of playback.timeouts) clearTimeout(timer);
             for (const key of playback.active.keys()) {
@@ -860,8 +892,12 @@ class MIDIRouterWorker {
     }
 
     _tickExternalClipPlayback(tick) {
-        for (const playback of this._trackPlayTimers.values()) {
+        for (const [trackIdx, playback] of this._trackPlayTimers) {
             if (!playback.externalClock) continue;
+            if (playback.stopAtTick != null && tick >= playback.stopAtTick) {
+                this._finishClipStop(trackIdx, playback);
+                continue;
+            }
 
             // Release every pending note-off whose scheduled tick is at or
             // before the current tick (handles skipped / late F8 ticks),
@@ -1247,7 +1283,7 @@ class MIDIRouterWorker {
         return true;
     }
 
-    _triggerPad(trackIdx, slot, now, { countIn = false } = {}) {
+    _triggerPad(trackIdx, slot, now, { countIn = false, boundarySwitch = false } = {}) {
         // During an active count-in, ignore pad presses (except stop via transport).
         if (this.daw._countInRunning) {
             return { action: 'count-in', track: trackIdx, slot };
@@ -1263,8 +1299,22 @@ class MIDIRouterWorker {
         // Requirement 1: capture the "empty project" state BEFORE triggerPad —
         // the first clip in an empty project starts the global cycle from this
         // very moment (the transport starts below).
+        const current = this._trackPlayTimers.get(trackIdx);
+        if (!boundarySwitch && current && this.daw.clipState[trackIdx] === current.slot &&
+            slot !== current.slot && !this.daw.recording && this.daw.tracks[trackIdx]?.clips[slot]) {
+            current.nextClip = { slot };
+            this._queueClipStop(trackIdx, now);
+            this._broadcastState();
+            return { action: 'switch-pending', track: trackIdx, slot };
+        }
+        if (this.daw.recordMode !== 'overdub' && this.daw.clipState[trackIdx] === slot &&
+            !this.daw.recording && this._trackPlayTimers.has(trackIdx)) {
+            delete current.nextClip;
+            this._queueClipStop(trackIdx, now);
+            return { action: 'stop-pending', track: trackIdx, slot };
+        }
         const wasEmptyProject = this.daw.isEmptyProject();
-        const result = this.daw.triggerPad(trackIdx, slot, now, { countIn });
+        const result = this.daw.triggerPad(trackIdx, slot, now, { countIn, immediate: boundarySwitch });
         // Playback and the transport anchor live on the beat grid; the press is
         // a wall-clock time. Convert it once for everything scheduled below.
         const gridNow = this.daw._pressTime(now);
@@ -1294,7 +1344,7 @@ class MIDIRouterWorker {
             } else {
                 // A take that was just recorded plays at once from its own beat 0.
                 // A manual launch of a stored clip waits for the next cycle start.
-                const immediate = result.action === 'record-stop';
+                const immediate = boundarySwitch || result.action === 'record-stop';
                 const delayMs = immediate || !this.daw.playing ? 0 : this.daw.msUntilPhase(0, gridNow);
                 this._lastActivated = { trackIdx, slot };
                 if (delayMs > 5) {
@@ -2245,6 +2295,11 @@ class MIDIRouterWorker {
 
     _broadcastState() {
         const state = this.daw.getState();
+        state.tracks.forEach((track, index) => {
+            const playback = this._trackPlayTimers.get(index);
+            track.stopPending = playback?.stopAtMs != null || playback?.stopAtTick != null;
+            track.pendingSlot = playback?.nextClip?.slot ?? null;
+        });
         state.devicePresets = [...(this._devicePrograms?.values() || [])];
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;

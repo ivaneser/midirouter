@@ -560,7 +560,7 @@ export class DAWUI {
                     cls += ' idle';
                 }
                 slot.className = cls;
-                const stateLabel = isPending ? 'Count-in' : isOverdubActive ? 'Overdub' : isRecording ? 'Recording' : isActive ? 'Playing' : clip?.notes > 0 ? 'Ready' : 'Empty';
+                const stateLabel = ch.pendingSlot === s ? 'Queued' : isPending ? 'Count-in' : isOverdubActive ? 'Overdub' : isRecording ? 'Recording' : isActive ? (ch.stopPending ? 'Stopping' : 'Playing') : clip?.notes > 0 ? 'Ready' : 'Empty';
                 const clipNumber = document.createElement('span');
                 clipNumber.className = 'clip-number';
                 clipNumber.textContent = String(s + 1).padStart(2, '0');
