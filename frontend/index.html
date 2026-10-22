@@ -102,13 +102,13 @@
         </details>
 
         <!-- Devices Panel (collapsible, collapsed by default) -->
-        <details class="collapsible-panel devices-details">
+        <details class="collapsible-panel clock-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                Devices &amp; sync
+                MIDI clock
             </summary>
             <div class="config-panel-content">
-                <p class="tab-hint">Your connected instruments and timing settings. Devices update automatically.</p>
+                <p class="tab-hint">Choose a MIDI clock source and adjust timing calibration.</p>
                 <!-- Clock Master selection -->
                 <div class="clock-master-section">
                     <h4>Clock &amp; calibration</h4>
@@ -130,6 +130,16 @@
                     </label>
                 </div>
 
+            </div>
+        </details>
+
+        <details class="collapsible-panel devices-details">
+            <summary class="collapsible-header">
+                <span class="arrow">▶</span>
+                MIDI devices
+            </summary>
+            <div class="config-panel-content">
+                <p class="tab-hint">Connected MIDI instruments and controls. Devices update automatically.</p>
                 <div class="port-section">
                     <div class="device-list" id="device-list"></div>
                 </div>
@@ -203,7 +213,7 @@
                 <h4>🔌 MIDI Routing</h4>
                 <ul>
                     <li>All connected MIDI devices are routed to each other automatically; hot-plug is supported.</li>
-                    <li>Custom routes: Routing → <strong>+ Add Route</strong>. Devices &amp; sync lists every connected port.</li>
+                    <li>Custom routes: Routing → <strong>+ Add Route</strong>. MIDI devices lists every connected port.</li>
                 </ul>
             </div>
         </details>
