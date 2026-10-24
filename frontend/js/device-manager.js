@@ -1,5 +1,5 @@
 /* === Device Manager — MIDI device management === */
-import { attachMidiKnob } from './midi-knob.js?v=24';
+import { attachMidiKnob } from './midi-knob.js?v=25';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=1';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
@@ -288,6 +288,7 @@ export class DeviceManager {
             if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
             const channelNumber = this.channelForDevice(dev, part);
             const program = this.programs.get(programKey());
+            if (program == null) window.app?.log?.('No preset selected on this channel yet: pick one with ‹ › first, then ↺ can reload it.');
             window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
             const prefix = `${dev.id}:${channelNumber}:`;
             for (const key of [...this._controlValues.keys()]) if (key.startsWith(prefix)) this._controlValues.delete(key);
@@ -375,7 +376,7 @@ export class DeviceManager {
             panel.replaceChildren();
             const hint = document.createElement('p');
             hint.className = 'synth-controls-hint';
-            hint.textContent = 'Knobs (↕): drag up or down · pads and graphs (↔ ↕): drag in any direction · Shift = fine · double-click a knob to reset · knobs that start in the middle count + / − from centre';
+            hint.textContent = 'Knobs 0…127 (↕): drag up or down · centred knobs −/+ (↔): drag left or right · pads and graphs: any direction · Shift = fine · double-click a knob to reset';
             panel.appendChild(hint);
             const send = (definition, value) => {
                 const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
@@ -401,9 +402,11 @@ export class DeviceManager {
                 nav.setAttribute('aria-label', 'Signal flow');
                 panel.appendChild(nav);
                 stages.forEach((stage, index) => {
-                    const section = document.createElement('section');
+                    // Each stage folds away and starts collapsed.
+                    const section = document.createElement('details');
                     section.className = 'synth-stage';
-                    const head = document.createElement('h4');
+                    section.open = false;
+                    const head = document.createElement('summary');
                     head.className = 'synth-stage-title';
                     head.textContent = `${index + 1} · ${stage.title}`;
                     section.appendChild(head);
@@ -452,7 +455,7 @@ export class DeviceManager {
                     const jump = document.createElement('button');
                     jump.type = 'button';
                     jump.textContent = `${index + 1} ${stage.title}`;
-                    jump.addEventListener('click', () => section.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+                    jump.addEventListener('click', () => { section.open = true; section.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); });
                     nav.appendChild(jump);
                 });
             } else {
@@ -550,9 +553,8 @@ export class DeviceManager {
             axis.setAttribute('aria-hidden', 'true');
             axis.textContent = '↕';
             dial.appendChild(axis);
-            dial.title = 'Drag up or down · double-click to reset';
             const center = definition.center == null ? undefined : Number(definition.center);
-            if (center !== undefined) dial.className += ' bipolar';
+            if (center !== undefined || Number(definition.min) < 0) dial.className += ' bipolar';
             attachMidiKnob(input, dial, readout, sendValue, { center, reset: definition.default == null ? undefined : Number(definition.default) });
         } else {
             row.className += input.type === 'checkbox' ? ' synth-control-toggle' : ' synth-control-select';

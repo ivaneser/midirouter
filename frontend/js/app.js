@@ -1,6 +1,6 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=58';
+import { DeviceManager } from './device-manager.js?v=62';
 import { DAWUI } from './daw-ui.js?v=55';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=46';
@@ -24,9 +24,6 @@ const logsDiv = document.getElementById('logs');
 
 let ws = null;
 
-// Keep the clip launcher in reach on phones; timing remains one tap away.
-const timingPanel = document.querySelector('.timing-details');
-if (timingPanel) timingPanel.open = window.matchMedia('(min-width: 700px)').matches;
 
 
 // Initialize managers

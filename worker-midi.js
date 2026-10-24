@@ -2516,6 +2516,24 @@ class MIDIRouterWorker {
         this._deviceControls.set(`${deviceChannelKey(target)}:${channel}:${cc}`, { target, channel, cc, value });
     }
 
+    // A synth ignores a repeated Program Change for the sound it already has, so switch briefly to the
+    // neighbouring sound (nothing remembered or named) and then select the real one again.
+    _reloadPreset(target, channel, index, name) {
+        const output = this.outputs.get(target);
+        this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
+        const bank = this._presetNames.bankInfo(target);
+        const total = bank?.programs ?? 128;
+        const other = index + 1 < total ? index + 1 : index - 1;
+        if (output && other >= 0) {
+            if (bank) output.sendMessage(Buffer.from([0xB0 | (channel - 1), bank.cc, other >> 7]));
+            output.sendMessage(Buffer.from([0xC0 | (channel - 1), other & 127]));
+        }
+        setTimeout(() => {
+            try { if (this._sendPreset(target, channel, index, name)) this._broadcastState(); }
+            catch (error) { console.error(`[MIDI] Preset reload failed for ${target}:`, error.message); }
+        }, 150);
+    }
+
     // Drop the remembered knob values of one channel (a preset reload discards them).
     _forgetDeviceControls(target, channel) {
         const prefix = `${deviceChannelKey(target)}:${channel}:`;
@@ -2672,9 +2690,15 @@ if (parentPort) {
     } else if (msg.type === 'select_preset') {
         if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
             try {
-                if (msg.reset) worker._forgetDeviceControls(msg.target, msg.channel);
-                if (msg.reset && !msg.reloadPreset) worker._broadcastState();
-                else if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState();
+                if (msg.reset) {
+                    // Reload the sound the router last selected on this channel, so the synth drops every tweak.
+                    worker._forgetDeviceControls(msg.target, msg.channel);
+                    const known = worker._devicePrograms?.get(`${deviceChannelKey(msg.target)}:${msg.channel}`);
+                    const program = known?.program ?? (msg.reloadPreset ? msg.index : undefined);
+                    if (program !== undefined) worker._reloadPreset(msg.target, msg.channel, program, known?.name);
+                    else console.log(`[MIDI] [PRESET] ${msg.target} ch${msg.channel}: no preset selected yet, nothing to reload`);
+                    worker._broadcastState();
+                } else if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState();
             }
             catch (e) { console.error(`[MIDI] Preset select failed for ${msg.target}:`, e.message); }
         }

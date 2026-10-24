@@ -2,16 +2,26 @@
 // dragging turns the dial without jumping to a value on the initial touch.
 // `center` marks a bipolar control (detune, semitone): the arc grows from the middle and the
 // readout counts away from it. Double-click returns to `reset` (the centre or the default).
-export function attachMidiKnob(input, dial, readout, onChange, { center, reset } = {}) {
+export function attachMidiKnob(input, dial, readout, onChange, options = {}) {
     const min = Number(input.min);
     const max = Number(input.max);
+    // Signed ranges (-64..63) are centred on 0.
+    const center = Number.isFinite(options.center) ? options.center : (min < 0 && max > 0 ? 0 : undefined);
+    const reset = options.reset;
     const bipolar = Number.isFinite(center) && center > min && center < max;
-    const fractionOf = value => max > min ? (value - min) / (max - min) : 0;
+    // Unipolar knobs turn with vertical drags, centred ones with horizontal drags.
+    const horizontal = bipolar;
+    const axis = dial.querySelector?.('.midi-knob-axis');
+    if (axis) axis.textContent = horizontal ? '↔' : '↕';
+    dial.title = horizontal ? 'Drag left or right · double-click to centre' : 'Drag up or down · double-click to reset';
+    const signed = min < 0 && max > 0 && !Number.isFinite(options.center);
+    // For signed ranges zero sits at the visual middle despite asymmetric endpoints.
+    const fractionOf = value => signed
+        ? (value < 0 ? 0.5 + value / (-2 * min) : 0.5 + value / (2 * max))
+        : max > min ? (value - min) / (max - min) : 0;
     const refresh = () => {
         const value = Number(input.value);
-        const fraction = min < 0 && max > 0 && !bipolar
-            ? (value < 0 ? 0.5 + value / (-2 * min) : 0.5 + value / (2 * max))
-            : fractionOf(value);
+        const fraction = fractionOf(value);
         const from = bipolar ? Math.min(fraction, fractionOf(center)) : 0;
         const to = bipolar ? Math.max(fraction, fractionOf(center)) : fraction;
         dial.style.setProperty('--knob-start', `${from * 270}deg`);
@@ -38,15 +48,15 @@ export function attachMidiKnob(input, dial, readout, onChange, { center, reset }
         event.preventDefault();
         input.focus({ preventScroll: true });
         input.setPointerCapture(event.pointerId);
-        drag = { id: event.pointerId, y: event.clientY, value: Number(input.value) };
+        drag = { id: event.pointerId, y: horizontal ? event.clientX : event.clientY, value: Number(input.value) };
     });
     input.addEventListener('pointermove', event => {
         if (!drag || event.pointerId !== drag.id) return;
         const sensitivity = (max - min) / (event.shiftKey ? 1200 : 160);
-        const raw = Math.max(min, Math.min(max, drag.value + (drag.y - event.clientY) * sensitivity));
+        const raw = Math.max(min, Math.min(max, drag.value + ((horizontal ? event.clientX - drag.y : drag.y - event.clientY)) * sensitivity));
         const value = Math.round(raw);
         // Incremental movement lets Shift change precision without value jumps.
-        drag.y = event.clientY;
+        drag.y = horizontal ? event.clientX : event.clientY;
         drag.value = raw;
         if (value === Number(input.value)) return;
         input.value = String(value);
