@@ -42,7 +42,7 @@ test('mapped pad Note On/Off messages reach the active recording path', (t) => {
 
     // Even though the controller path handles pad actions first, the DAW must
     // still reject any MIDI timestamp before the red Record transition.
-    daw.recording.startTime = performance.now() + 100;
+    daw.recording.startTime = performance.now() + 1000;
     worker._onIncomingMessage('Test Pad Controller', 0, [0x90, 63, 100]);
     worker._onIncomingMessage('Test Pad Controller', 0, [0x80, 63, 0]);
     assert.equal(daw.tracks[0].clips[0].notes.length, 0);

@@ -496,3 +496,17 @@ test('overdub notes played after the first loop wrap to the start of the clip', 
     daw._stopRecording(11);
     assert.equal(clip.length, 4);
 });
+
+test('notes just before the take starts are caught on the first beat (half a grid step)', () => {
+    const daw = new DAWEngine({ tempo: 120 }); // 500 ms per beat
+    daw.quantizeGrid = 0.5;                    // pre-roll = 0.25 beat = 125 ms
+    const clip = daw.tracks[0].clips[0];
+    daw.recording = {
+        track: 0, slot: 0, mode: 'take', clipWasEmpty: true, originBeat: 0, startBeat: 0,
+        startTime: 1000, notes: clip.notes, noteStarts: new Map(), liveBaseBeat: null,
+    };
+    assert.equal(daw.recordEvent(0x90, 60, 100, 900), true);   // 100 ms early: caught
+    assert.equal(daw.recordEvent(0x80, 60, 0, 1200), true);
+    assert.equal(daw.recordEvent(0x90, 62, 100, 800), false);  // 200 ms early: rejected
+    assert.equal(clip.notes[0].start, 0);
+});

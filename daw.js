@@ -884,7 +884,10 @@ class DAWEngine {
     recordEvent(statusByte, data1, data2, wallNow) {
         if (!this.recording) return false;
         const now = this._pressTime(wallNow); // grid time of the press
-        if (now < this.recording.startTime) return false;
+        // A note-on pressed slightly before the take starts belongs to its first beat:
+        // accept it up to half a quantization step early (it is clamped to beat 0).
+        const preRollMs = (this.quantizeGrid > 0 ? this.quantizeGrid / 2 : 0) * this._secondsPerBeat() * 1000;
+        if (now < this.recording.startTime - preRollMs) return false;
         const inputChannel = (statusByte & 0x0f) + 1;
         const track = this.tracks[this.recording.track];
         if (!track.channelAssigned && (statusByte & 0xf0) === 0x90 && data2 > 0) {
@@ -934,7 +937,7 @@ class DAWEngine {
     // Position of a recorded beat inside the clip. A layer on a looping clip wraps at the
     // clip length, so notes played after the first loop land at the start of the loop.
     _clipStart(r, beat) {
-        const rel = beat - r.originBeat;
+        const rel = Math.max(0, beat - r.originBeat);
         const len = this.tracks[r.track].clips[r.slot].length;
         if (r.mode !== 'overdub' || r.clipWasEmpty || !(len > 0)) return rel;
         return ((rel % len) + len) % len;

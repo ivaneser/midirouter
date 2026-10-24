@@ -73,7 +73,7 @@ test('count-in regression: future start boundary, pre-start MIDI ignored, Note O
     );
 
     // Pre-start MIDI (timestamp before startTime) is ignored.
-    const preStart = expectedStartTime - 1;
+    const preStart = expectedStartTime - 1000; // well outside the half-grid pre-roll
     const preResult = daw.recordEvent(0x90, 55, 80, preStart);
     assert.equal(preResult, false, 'MIDI before start boundary is ignored');
     assert.equal(daw.recording.notes.length, 0, 'no notes captured yet (pre-start)');
@@ -389,7 +389,7 @@ test('play-before-pad: two-bar count-in before recording begins', async (t) => {
     );
 
     // Pre-count-in MIDI (before startTime) must be ignored.
-    const preStart = daw.recording.startTime - 1;
+    const preStart = daw.recording.startTime - 1000;
     assert.equal(daw.recordEvent(0x90, 60, 80, preStart), false, 'MIDI before count-in boundary is ignored');
 
     // Pending pad LED state: during count-in (armRecording created but _countInRunning
@@ -540,7 +540,7 @@ test('subsequent pad: snap to nearest bar boundary while count-in pending (RED)'
     );
 
     // MIDI before the boundary is rejected.
-    const preStart = daw.recording.startTime - 1;
+    const preStart = daw.recording.startTime - 1000;
     assert.equal(daw.recordEvent(0x90, 60, 80, preStart), false, 'MIDI before next-bar boundary is ignored');
 
     // Wait for the count-in to complete.
