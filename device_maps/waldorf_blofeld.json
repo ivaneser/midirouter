@@ -57,7 +57,8 @@
       "max": 127,
       "type": "slider",
       "unit": "semitones",
-      "category": "osc"
+      "category": "osc",
+      "center": 64
     },
     {
       "cc": 29,
@@ -66,7 +67,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "center": 64
     },
     {
       "cc": 30,
@@ -137,7 +139,8 @@
       "max": 127,
       "type": "slider",
       "unit": "semitones",
-      "category": "osc"
+      "category": "osc",
+      "center": 64
     },
     {
       "cc": 37,
@@ -146,7 +149,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "center": 64
     },
     {
       "cc": 38,
@@ -217,7 +221,8 @@
       "max": 127,
       "type": "slider",
       "unit": "semitones",
-      "category": "osc"
+      "category": "osc",
+      "center": 64
     },
     {
       "cc": 46,
@@ -343,7 +348,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "center": 64
     },
     {
       "cc": 74,
@@ -352,7 +358,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "center": 64
     },
     {
       "cc": 75,
@@ -361,7 +368,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "center": 64
     },
     {
       "cc": 76,
@@ -421,7 +429,7 @@
   "controls_env": [
     {
       "cc": 95,
-      "name": "Filt1 Attack",
+      "name": "Filter Env Attack",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -430,7 +438,7 @@
     },
     {
       "cc": 96,
-      "name": "Filt1 Decay",
+      "name": "Filter Env Decay",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -439,7 +447,7 @@
     },
     {
       "cc": 97,
-      "name": "Filt1 Sustain",
+      "name": "Filter Env Sustain",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -448,7 +456,7 @@
     },
     {
       "cc": 98,
-      "name": "Filt1 Decay2",
+      "name": "Filter Env Decay2",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -457,7 +465,7 @@
     },
     {
       "cc": 99,
-      "name": "Filt1 Sustain2",
+      "name": "Filter Env Sustain2",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -466,7 +474,7 @@
     },
     {
       "cc": 100,
-      "name": "Filt1 Release",
+      "name": "Filter Env Release",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -475,7 +483,7 @@
     },
     {
       "cc": 101,
-      "name": "Filt2 Attack",
+      "name": "Amp Env Attack",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -484,7 +492,7 @@
     },
     {
       "cc": 102,
-      "name": "Filt2 Decay",
+      "name": "Amp Env Decay",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -493,7 +501,7 @@
     },
     {
       "cc": 103,
-      "name": "Filt2 Sustain",
+      "name": "Amp Env Sustain",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -502,7 +510,7 @@
     },
     {
       "cc": 104,
-      "name": "Filt2 Decay2",
+      "name": "Amp Env Decay2",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -511,7 +519,7 @@
     },
     {
       "cc": 105,
-      "name": "Filt2 Sustain2",
+      "name": "Amp Env Sustain2",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -520,7 +528,7 @@
     },
     {
       "cc": 106,
-      "name": "Filt2 Release",
+      "name": "Amp Env Release",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -712,7 +720,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "amp"
+      "category": "amp",
+      "center": 64
     },
     {
       "cc": 92,
@@ -741,5 +750,244 @@
       "unit": "%",
       "category": "fx"
     }
-  ]
+  ],
+  "ui": {
+    "stages": [
+      {
+        "title": "Sound source",
+        "hint": "Three oscillators and noise make the raw tone; the mixer sets how much of each goes to the filters.",
+        "modules": [
+          {
+            "title": "Oscillator 1",
+            "section": "osc1",
+            "exclude": [
+              "Level"
+            ],
+            "groups": [
+              {
+                "label": "Pitch",
+                "match": [
+                  "Octave",
+                  "Semitone",
+                  "Detune"
+                ]
+              },
+              {
+                "label": "Tone",
+                "match": [
+                  "Shape",
+                  "PW (",
+                  "PWM"
+                ]
+              },
+              {
+                "label": "FM",
+                "match": [
+                  "FM"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Oscillator 2",
+            "section": "osc2",
+            "exclude": [
+              "Level"
+            ],
+            "groups": [
+              {
+                "label": "Pitch",
+                "match": [
+                  "Octave",
+                  "Semitone",
+                  "Detune"
+                ]
+              },
+              {
+                "label": "Tone",
+                "match": [
+                  "Shape",
+                  "PW (",
+                  "PWM"
+                ]
+              },
+              {
+                "label": "FM",
+                "match": [
+                  "FM"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Oscillator 3",
+            "section": "osc3",
+            "exclude": [
+              "Level"
+            ],
+            "groups": [
+              {
+                "label": "Pitch",
+                "match": [
+                  "Octave",
+                  "Semitone"
+                ]
+              },
+              {
+                "label": "Tone",
+                "match": [
+                  "Shape",
+                  "PW (",
+                  "PWM"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Noise",
+            "section": "noise",
+            "exclude": [
+              "Level"
+            ]
+          },
+          {
+            "title": "Mixer",
+            "pick": [
+              {
+                "section": "osc1",
+                "name": "Level",
+                "label": "Osc 1"
+              },
+              {
+                "section": "osc2",
+                "name": "Level",
+                "label": "Osc 2"
+              },
+              {
+                "section": "osc3",
+                "name": "Level",
+                "label": "Osc 3"
+              },
+              {
+                "section": "noise",
+                "name": "Level",
+                "label": "Noise"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Filters",
+        "hint": "The mixed signal is shaped by two filters. Cutoff and resonance are on the pad; drag it.",
+        "modules": [
+          {
+            "title": "Filter 1",
+            "section": "filter1",
+            "groups": [
+              {
+                "label": "Character",
+                "match": [
+                  "Type",
+                  "Drive"
+                ]
+              },
+              {
+                "label": "Response",
+                "match": [
+                  "Keytrack",
+                  "Env",
+                  "Cutoff Mod",
+                  "FM"
+                ]
+              }
+            ]
+          },
+          {
+            "title": "Filter 2",
+            "section": "filter2"
+          }
+        ]
+      },
+      {
+        "title": "Amplifier and effects",
+        "hint": "Final level, how hard you play it, and the two effects.",
+        "modules": [
+          {
+            "title": "Amplifier",
+            "section": "global",
+            "category": "amp"
+          },
+          {
+            "title": "Effects mix",
+            "section": "global",
+            "category": "fx"
+          }
+        ]
+      },
+      {
+        "title": "Envelopes",
+        "hint": "How the filter and the loudness change over time after a key is pressed. Drag the points on the graphs.",
+        "modules": [
+          {
+            "title": "Filter envelope",
+            "section": "env",
+            "match": [
+              "Filter Env"
+            ]
+          },
+          {
+            "title": "Amp envelope",
+            "section": "env",
+            "match": [
+              "Amp Env"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Modulation",
+        "hint": "Slow movement: two LFOs, performance controllers and glide.",
+        "modules": [
+          {
+            "title": "LFO 1",
+            "section": "lfo",
+            "match": [
+              "LFO1"
+            ]
+          },
+          {
+            "title": "LFO 2",
+            "section": "lfo",
+            "match": [
+              "LFO2"
+            ]
+          },
+          {
+            "title": "Controllers",
+            "section": "global",
+            "category": "mod"
+          },
+          {
+            "title": "Pitch and glide",
+            "section": "global",
+            "categories": [
+              "pitchmod",
+              "glide"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Arpeggiator",
+        "hint": "Plays held notes as a pattern.",
+        "modules": [
+          {
+            "title": "Arpeggiator",
+            "section": "arp"
+          }
+        ]
+      }
+    ]
+  }
 }

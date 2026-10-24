@@ -36,7 +36,9 @@ export const MULTITIMBRAL_PARTS = { 'waldorf-blofeld': 16 };
 // A map lists its controls in `controls`, or split over several `controls_<section>` arrays.
 export function flattenControls(map) {
     if (Array.isArray(map?.controls)) return map.controls;
-    return Object.entries(map || {}).filter(([key, value]) => key.startsWith('controls_') && Array.isArray(value)).flatMap(([, value]) => value);
+    // Each controls_<section> array keeps its section so a layout can place it.
+    return Object.entries(map || {}).filter(([key, value]) => key.startsWith('controls_') && Array.isArray(value))
+        .flatMap(([key, value]) => value.map(control => ({ section: key.slice('controls_'.length), ...control })));
 }
 
 // ---------------------------------------------------------------------------
@@ -128,7 +130,10 @@ export async function getControlsForModel(model) {
     const controls = flattenControls(parsed);
 
     // Return a deep copy so callers never share mutation surface.
-    return JSON.parse(JSON.stringify(controls));
+    const copy = JSON.parse(JSON.stringify(controls));
+    // Optional signal-flow layout (map.ui) travels with the controls.
+    if (parsed.ui) copy.layout = JSON.parse(JSON.stringify(parsed.ui));
+    return copy;
 }
 
 /**

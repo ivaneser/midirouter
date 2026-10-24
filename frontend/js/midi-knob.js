@@ -1,18 +1,35 @@
 // A native range input supplies keyboard and screen-reader behavior; pointer
 // dragging turns the dial without jumping to a value on the initial touch.
-export function attachMidiKnob(input, dial, readout, onChange) {
+// `center` marks a bipolar control (detune, semitone): the arc grows from the middle and the
+// readout counts away from it. Double-click returns to `reset` (the centre or the default).
+export function attachMidiKnob(input, dial, readout, onChange, { center, reset } = {}) {
     const min = Number(input.min);
     const max = Number(input.max);
+    const bipolar = Number.isFinite(center) && center > min && center < max;
+    const fractionOf = value => max > min ? (value - min) / (max - min) : 0;
     const refresh = () => {
         const value = Number(input.value);
-        const fraction = min < 0 && max > 0
+        const fraction = min < 0 && max > 0 && !bipolar
             ? (value < 0 ? 0.5 + value / (-2 * min) : 0.5 + value / (2 * max))
-            : max > min ? (value - min) / (max - min) : 0;
-        dial.style.setProperty('--knob-fill', `${fraction * 270}deg`);
+            : fractionOf(value);
+        const from = bipolar ? Math.min(fraction, fractionOf(center)) : 0;
+        const to = bipolar ? Math.max(fraction, fractionOf(center)) : fraction;
+        dial.style.setProperty('--knob-start', `${from * 270}deg`);
+        dial.style.setProperty('--knob-fill', `${to * 270}deg`);
         dial.style.setProperty('--knob-angle', `${-135 + fraction * 270}deg`);
-        readout.textContent = String(value);
-        input.setAttribute('aria-valuetext', String(value));
+        const text = bipolar ? (value === center ? '0' : `${value > center ? '+' : '−'}${Math.abs(value - center)}`) : String(value);
+        readout.textContent = text;
+        input.setAttribute('aria-valuetext', text);
     };
+    const back = Number.isFinite(reset) ? reset : (bipolar ? center : undefined);
+    if (back !== undefined) {
+        input.addEventListener('dblclick', () => {
+            if (Number(input.value) === back) return;
+            input.value = String(back);
+            refresh();
+            onChange(back);
+        });
+    }
     input.addEventListener('input', () => { refresh(); onChange(Number(input.value)); });
     input.addEventListener('knob-sync', refresh);   // value set from outside: redraw, send nothing
     let drag = null;

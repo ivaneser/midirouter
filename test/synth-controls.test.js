@@ -558,3 +558,22 @@ test('Blofeld is one group card with a separate card, channel and controls per p
         globalThis.WebSocket = previous.WebSocket;
     }
 });
+
+test('Blofeld controls are arranged by signal flow without dropping any control', async () => {
+    const { buildStages } = await import('../frontend/js/synth-stages.js');
+    const controls = await getControlsForModel('waldorf-blofeld');
+    assert.equal(controls.length, 69);
+    assert.ok(controls.layout, 'the map layout travels with the controls');
+    const stages = buildStages(controls, controls.layout);
+    assert.deepEqual(stages.map(stage => stage.title), ['Sound source', 'Filters', 'Amplifier and effects', 'Envelopes', 'Modulation', 'Arpeggiator']);
+    const placed = stages.flatMap(stage => stage.modules.flatMap(module => module.groups.flatMap(group => group.controls)));
+    const mixer = stages[0].modules.find(module => module.title === 'Mixer');
+    assert.deepEqual(mixer.groups[0].controls.map(c => [c.name, c.cc]), [['Osc 1', 52], ['Osc 2', 56], ['Osc 3', 58], ['Noise', 60]]);
+    // Every CC appears exactly once (levels only in the mixer).
+    assert.deepEqual([...new Set(placed.map(c => c.cc))].sort((a, b) => a - b), controls.map(c => c.cc).sort((a, b) => a - b));
+    assert.equal(placed.length, controls.length);
+    const filterEnv = stages[3].modules.find(module => module.title === 'Filter envelope');
+    assert.deepEqual(filterEnv.groups[0].controls.map(c => c.cc), [95, 96, 97, 98, 99, 100]);
+    const osc1 = stages[0].modules[0];
+    assert.deepEqual(osc1.groups.map(group => group.label), ['Pitch', 'Tone', 'FM']);
+});

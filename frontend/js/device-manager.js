@@ -1,8 +1,9 @@
 /* === Device Manager — MIDI device management === */
-import { attachMidiKnob } from './midi-knob.js?v=23';
+import { attachMidiKnob } from './midi-knob.js?v=24';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=1';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
+import { buildStages } from './synth-stages.js';
 import { deviceChannelKey, validMidiChannel } from './device-channels.js';
 
 import {
@@ -355,33 +356,99 @@ export class DeviceManager {
             panel.replaceChildren();
             const hint = document.createElement('p');
             hint.className = 'synth-controls-hint';
-            hint.textContent = 'Drag knobs up or down, or drag points on the filter pad and envelope graphs · Shift for fine adjustment · Arrow keys supported';
+            hint.textContent = 'Knobs (↕): drag up or down · pads and graphs (↔ ↕): drag in any direction · Shift = fine · double-click a knob to reset · knobs that start in the middle count + / − from centre';
             panel.appendChild(hint);
-            for (const { label, controls: sectionControls } of groupSynthControls(controls)) {
-                const section = document.createElement('section');
-                section.className = 'synth-control-section';
-                const heading = document.createElement('h5');
-                heading.textContent = label;
-                section.appendChild(heading);
-                const group = document.createElement('div');
-                group.className = 'synth-control-grid';
-                section.appendChild(group);
-                panel.appendChild(section);
-                const { widgets, rest } = planWidgets(sectionControls);
-                const send = (definition, value) => {
-                    const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
-                    this._controlValues.set(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`, bytes[2]);
-                    this.sendMidi(device.id, bytes, part);
-                };
-                const saved = definition => {
-                    const raw = this._controlValues.get(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`);
-                    return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
-                };
+            const send = (definition, value) => {
+                const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
+                this._controlValues.set(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`, bytes[2]);
+                this.sendMidi(device.id, bytes, part);
+            };
+            const saved = definition => {
+                const raw = this._controlValues.get(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`);
+                return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
+            };
+            // Graphs first, then the remaining controls as knobs.
+            const fill = (grid, widgets, rest) => {
                 for (const plan of widgets) {
-                    group.appendChild(plan.kind === 'xy' ? createXYPad(plan, send, saved) : createAdsrGraph(plan, send, saved));
+                    grid.appendChild(plan.kind === 'xy' ? createXYPad(plan, send, saved) : createAdsrGraph(plan, send, saved));
                 }
-                for (const definition of rest) {
-                    group.appendChild(this._createDeviceControl(device, model, definition, part));
+                for (const definition of rest) grid.appendChild(this._createDeviceControl(device, model, definition, part));
+            };
+            const stages = controls.layout ? buildStages(controls, controls.layout) : null;
+            if (stages?.length) {
+                panel.className += ' synth-staged';
+                const nav = document.createElement('nav');
+                nav.className = 'synth-stage-nav';
+                nav.setAttribute('aria-label', 'Signal flow');
+                panel.appendChild(nav);
+                stages.forEach((stage, index) => {
+                    const section = document.createElement('section');
+                    section.className = 'synth-stage';
+                    const head = document.createElement('h4');
+                    head.className = 'synth-stage-title';
+                    head.textContent = `${index + 1} · ${stage.title}`;
+                    section.appendChild(head);
+                    if (stage.hint) {
+                        const hint = document.createElement('p');
+                        hint.className = 'synth-stage-hint';
+                        hint.textContent = stage.hint;
+                        section.appendChild(hint);
+                    }
+                    const modules = document.createElement('div');
+                    modules.className = 'synth-modules';
+                    section.appendChild(modules);
+                    for (const module of stage.modules) {
+                        const card = document.createElement('div');
+                        card.className = 'synth-module';
+                        const title = document.createElement('h5');
+                        title.textContent = module.title;
+                        card.appendChild(title);
+                        const { widgets, rest } = planWidgets(module.groups.flatMap(group => group.controls));
+                        if (widgets.length) {
+                            const grid = document.createElement('div');
+                            grid.className = 'synth-control-grid synth-module-widgets';
+                            fill(grid, widgets, []);
+                            card.appendChild(grid);
+                        }
+                        for (const group of module.groups) {
+                            const own = group.controls.filter(control => rest.includes(control));
+                            if (!own.length) continue;
+                            const wrap = document.createElement('div');
+                            wrap.className = 'synth-group';
+                            if (group.label) {
+                                const label = document.createElement('span');
+                                label.className = 'synth-group-label';
+                                label.textContent = group.label;
+                                wrap.appendChild(label);
+                            }
+                            const grid = document.createElement('div');
+                            grid.className = 'synth-control-grid';
+                            fill(grid, [], own);
+                            wrap.appendChild(grid);
+                            card.appendChild(wrap);
+                        }
+                        modules.appendChild(card);
+                    }
+                    panel.appendChild(section);
+                    const jump = document.createElement('button');
+                    jump.type = 'button';
+                    jump.textContent = `${index + 1} ${stage.title}`;
+                    jump.addEventListener('click', () => section.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+                    nav.appendChild(jump);
+                });
+            } else {
+                for (const { label, controls: sectionControls } of groupSynthControls(controls)) {
+                    const section = document.createElement('section');
+                    section.className = 'synth-control-section';
+                    const heading = document.createElement('h5');
+                    heading.textContent = label;
+                    section.appendChild(heading);
+                    const group = document.createElement('div');
+                    group.className = 'synth-control-grid';
+                    section.appendChild(group);
+                    panel.appendChild(section);
+                    const { widgets, rest } = planWidgets(sectionControls);
+                    fill(group, widgets, rest);
                 }
             }
         } catch (error) {
@@ -459,7 +526,15 @@ export class DeviceManager {
             const readout = document.createElement('output');
             readout.className = 'midi-knob-value';
             row.appendChild(readout);
-            attachMidiKnob(input, dial, readout, sendValue);
+            const axis = document.createElement('span');
+            axis.className = 'midi-knob-axis';
+            axis.setAttribute('aria-hidden', 'true');
+            axis.textContent = '↕';
+            dial.appendChild(axis);
+            dial.title = 'Drag up or down · double-click to reset';
+            const center = definition.center == null ? undefined : Number(definition.center);
+            if (center !== undefined) dial.className += ' bipolar';
+            attachMidiKnob(input, dial, readout, sendValue, { center, reset: definition.default == null ? undefined : Number(definition.default) });
         } else {
             row.className += input.type === 'checkbox' ? ' synth-control-toggle' : ' synth-control-select';
             input.addEventListener('change', () => {
