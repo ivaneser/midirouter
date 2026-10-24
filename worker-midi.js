@@ -2596,6 +2596,8 @@ class MIDIRouterWorker {
             const data = this.daw.toData();
             data.devicePresets = [...(this._devicePrograms?.values() || [])];
             data.deviceControls = [...(this._deviceControls?.values() || [])];
+            // Parts of multitimbral instruments (Blofeld) with their MIDI channels.
+            data.deviceParts = Object.fromEntries(Object.entries(this._deviceChannels || {}).filter(([key]) => key.includes('#')));
             const notes = data.tracks.reduce(
                 (sum, t) => sum + t.clips.reduce((s, c) => s + c.notes.length, 0), 0);
             fs.writeFileSync(file, JSON.stringify(data, null, 2));
@@ -2621,6 +2623,7 @@ class MIDIRouterWorker {
                 this._recordingStopTimer = null;
             }
             this.daw.loadData(data);
+            if (data.deviceParts && typeof data.deviceParts === 'object') parentPort?.postMessage({ type: 'session-device-parts', parts: data.deviceParts });
             this._restoreDevicePrograms(data.devicePresets);
             this._restoreDeviceControls(data.deviceControls);
             this._transportPlaying = false;
@@ -2685,6 +2688,8 @@ if (parentPort) {
         if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
             worker._uiKeyboardInput = { active: msg.active === true, channel: msg.channel };
         }
+    } else if (msg.type === 'device_channels') {
+        worker._deviceChannels = msg.channels && typeof msg.channels === 'object' ? msg.channels : {};
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
     } else if (msg.type === 'select_preset') {

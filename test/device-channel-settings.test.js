@@ -45,3 +45,20 @@ test('parts of a multitimbral device are saved and removed individually', t => {
     assert.equal(settings.removePart(name, 3), true);
     assert.deepEqual(Object.keys(new DeviceChannelSettings(path).channels), [`${key}#1`]);
 });
+
+test('replaceParts swaps the stored parts for a session\'s and keeps plain device channels', async t => {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const directory = mkdtempSync(join(tmpdir(), 'channels-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const settings = new DeviceChannelSettings(join(directory, 'channels.json'));
+    settings.set('Synth A', 4);
+    settings.setPart('Waldorf Blofeld', 1, 1);
+    settings.setPart('Waldorf Blofeld', 2, 2);
+    assert.equal(settings.replaceParts({ 'waldorf blofeld#3': 7, 'waldorf blofeld#99': 8, 'bad': 1, 'waldorf blofeld#4': 40 }), true);
+    const keys = Object.keys(settings.channels).sort();
+    assert.deepEqual(keys.filter(key => key.includes('#')), ['waldorf blofeld#3']);
+    assert.equal(Object.values(settings.channels).includes(4), true, 'plain channel kept');
+    assert.equal(settings.replaceParts(null), false);
+});

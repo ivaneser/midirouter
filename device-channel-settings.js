@@ -36,6 +36,18 @@ export class DeviceChannelSettings {
         return this._save(next);
     }
 
+    // Replace every part with the ones a session was saved with ({"<device key>#<part>": channel}).
+    // Plain per-device channels are left alone.
+    replaceParts(parts) {
+        if (!parts || typeof parts !== 'object' || Array.isArray(parts)) return false;
+        const next = Object.fromEntries(Object.entries(this.channels).filter(([key]) => !key.includes('#')));
+        for (const [key, channel] of Object.entries(parts)) {
+            const at = key.lastIndexOf('#');
+            if (at > 0 && validPart(Number(key.slice(at + 1))) && validMidiChannel(channel)) next[key] = channel;
+        }
+        return this._save(next);
+    }
+
     _save(next) {
         // Replace only after the complete file has been written successfully.
         writeFileSync(`${this.path}.tmp`, JSON.stringify(next, null, 2));

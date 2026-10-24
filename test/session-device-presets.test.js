@@ -88,3 +88,30 @@ test('a name request missed while the synth loads the sound is repeated until it
     t.mock.timers.tick(5000);
     assert.equal(requests(), 2, 'no more requests once the name has arrived');
 });
+
+test('Blofeld parts, their channels, sounds and controls are saved with the session and restored', t => {
+    const directory = mkdtempSync(join(tmpdir(), 'session-parts-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const synth = 'Waldorf Blofeld:Blofeld MIDI 1 24:0';
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine();
+    worker._sessionsDir = () => directory;
+    worker._listSessions = () => {};
+    worker._deviceChannels = { 'waldorf blofeld#1': 1, 'waldorf blofeld#2': 5, 'waldorf blofeld': 3, 'other synth': 2 };
+    worker._rememberDeviceProgram(synth, 1, 12, 'Part one');
+    worker._rememberDeviceProgram(synth, 5, 300, 'Part two');       // bank 2, program 44
+    worker._rememberDeviceControl(synth, 5, 69, 99);
+    worker._saveSession('multi');
+    const saved = JSON.parse(readFileSync(join(directory, 'multi.json'), 'utf8'));
+    assert.deepEqual(saved.deviceParts, { 'waldorf blofeld#1': 1, 'waldorf blofeld#2': 5 }, 'only parts, not plain channels');
+
+    const sent = [];
+    const posted = [];
+    worker.outputs = new Map([['Waldorf Blofeld:Blofeld MIDI 1 28:0', { sendMessage: bytes => sent.push([...bytes]) }]]);
+    for (const method of ['_stopAllClipPlayback', '_clearStaleRecordingFeedback', '_refreshPadLeds', '_syncPadClock', '_broadcastState']) worker[method] = () => {};
+    worker._loadSession('multi');
+    assert.deepEqual(sent.filter(bytes => bytes[0] === 0xC0), [[0xC0, 12]], 'part 1 restores its program');
+    assert.ok(sent.some(bytes => bytes[0] === 0xC4 && bytes[1] === 44), 'part 2 restores its program on channel 5');
+    assert.ok(sent.some(bytes => bytes[0] === 0xB4 && bytes[1] === 69 && bytes[2] === 99), 'part 2 control comes back');
+    assert.equal([...worker._devicePrograms.values()].find(p => p.channel === 5).name, 'Part two');
+});

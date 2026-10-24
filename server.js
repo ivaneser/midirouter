@@ -87,6 +87,10 @@ class MIDIRouterWorker {
 
     _handleWorkerMessage(msg) {
         switch (msg.type) {
+            case 'session-device-parts':
+                // A loaded session brings back the parts (and their channels) it was saved with.
+                if (this.deviceChannels?.replaceParts(msg.parts)) this.publishChannels(this.deviceChannels.channels);
+                break;
             case 'preset-name':
                 this.presetNames.set(`${deviceChannelKey(msg.target)}:${msg.channel}:${msg.program}`, msg.name);
                 this.events.emit('preset-name', msg);
@@ -274,6 +278,12 @@ class MIDIRouterWorker {
         });
     }
 
+    // Tell every browser the MIDI channel / part layout and give the worker a copy to save in sessions.
+    publishChannels(channels) {
+        this._broadcast({ type: 'device-channels', channels });
+        this.worker?.postMessage({ type: 'device_channels', channels });
+    }
+
     // Remember a CC sent to an instrument and tell every browser, so open knobs follow.
     noteControl(target, channel, cc, value) {
         const state = this.dawState ??= {};
@@ -310,6 +320,8 @@ let wss;
 let keyboardInputOwner = null;
 const router = new MIDIRouterWorker();
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
+router.deviceChannels = deviceChannels;
+router.worker?.postMessage({ type: 'device_channels', channels: deviceChannels.channels });
 const uiLayout = new UiLayoutSettings(join(import.meta.dirname, 'ui-layout.json'));
 // Audio capture/analysis tools come from mcpi (Python) and are forwarded through the same /mcp.
 // MCPI_URL="" disables forwarding.
@@ -325,7 +337,7 @@ const mcp = createMcpServer({
     },
     setChannel: (name, channel, part) => {
         if (!(part ? deviceChannels.setPart(name, part, channel) : deviceChannels.set(name, channel))) return false;
-        router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
+        router.publishChannels(deviceChannels.channels);
         return true;
     },
     getDawState: () => router.dawState,
@@ -506,7 +518,7 @@ function startServer() {
                             if (!name || !deviceChannels.set(name, message.channel)) {
                                 throw new Error('Choose a connected output and a channel from 1 to 16.');
                             }
-                            router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
+                            router.publishChannels(deviceChannels.channels);
                         } catch (error) {
                             ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
                             ws.send(JSON.stringify({ type: 'device-channel-error', message: error.message }));
@@ -521,7 +533,7 @@ function startServer() {
                                 ? deviceChannels.setPart(name, message.part, message.channel)
                                 : deviceChannels.removePart(name, message.part);
                             if (!ok) throw new Error('Choose a connected output, a part from 1 to 16 and a channel from 1 to 16.');
-                            router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
+                            router.publishChannels(deviceChannels.channels);
                         } catch (error) {
                             ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
                             ws.send(JSON.stringify({ type: 'device-channel-error', message: error.message }));
