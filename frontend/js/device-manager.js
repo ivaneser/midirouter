@@ -374,10 +374,6 @@ export class DeviceManager {
                 throw new Error('Control map is empty or unavailable.');
             }
             panel.replaceChildren();
-            const hint = document.createElement('p');
-            hint.className = 'synth-controls-hint';
-            hint.textContent = 'Knobs 0…127 (↕): drag up or down · centred knobs −/+ (↔): drag left or right · pads and graphs: any direction · Shift = fine · double-click a knob to reset';
-            panel.appendChild(hint);
             const send = (definition, value) => {
                 const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
                 this._controlValues.set(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`, bytes[2]);
@@ -397,10 +393,6 @@ export class DeviceManager {
             const stages = controls.layout ? buildStages(controls, controls.layout) : null;
             if (stages?.length) {
                 panel.className += ' synth-staged';
-                const nav = document.createElement('nav');
-                nav.className = 'synth-stage-nav';
-                nav.setAttribute('aria-label', 'Signal flow');
-                panel.appendChild(nav);
                 stages.forEach((stage, index) => {
                     // Each stage folds away and starts collapsed.
                     const section = document.createElement('details');
@@ -410,12 +402,6 @@ export class DeviceManager {
                     head.className = 'synth-stage-title';
                     head.textContent = `${index + 1} · ${stage.title}`;
                     section.appendChild(head);
-                    if (stage.hint) {
-                        const hint = document.createElement('p');
-                        hint.className = 'synth-stage-hint';
-                        hint.textContent = stage.hint;
-                        section.appendChild(hint);
-                    }
                     const modules = document.createElement('div');
                     modules.className = 'synth-modules';
                     section.appendChild(modules);
@@ -452,11 +438,6 @@ export class DeviceManager {
                         modules.appendChild(card);
                     }
                     panel.appendChild(section);
-                    const jump = document.createElement('button');
-                    jump.type = 'button';
-                    jump.textContent = `${index + 1} ${stage.title}`;
-                    jump.addEventListener('click', () => { section.open = true; section.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); });
-                    nav.appendChild(jump);
                 });
             } else {
                 for (const { label, controls: sectionControls } of groupSynthControls(controls)) {
@@ -548,11 +529,6 @@ export class DeviceManager {
             const readout = document.createElement('output');
             readout.className = 'midi-knob-value';
             row.appendChild(readout);
-            const axis = document.createElement('span');
-            axis.className = 'midi-knob-axis';
-            axis.setAttribute('aria-hidden', 'true');
-            axis.textContent = '↕';
-            dial.appendChild(axis);
             const center = definition.center == null ? undefined : Number(definition.center);
             if (center !== undefined || Number(definition.min) < 0) dial.className += ' bipolar';
             attachMidiKnob(input, dial, readout, sendValue, { center, reset: definition.default == null ? undefined : Number(definition.default) });
