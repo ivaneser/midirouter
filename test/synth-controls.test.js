@@ -55,6 +55,9 @@ function stubFetch() {
     };
 }
 
+// description/zones are LLM-facing metadata and do not affect the UI.
+const core = ({ description, zones, ...rest }) => rest;
+
 test.before(async () => {
     stubFetch();
     const mod = await import(new URL(CATALOG_PATH, import.meta.url).href);
@@ -72,7 +75,7 @@ test('getControlsForModel("craft-synth") returns 39 controls after fetching /dev
     assert.ok(Array.isArray(controls), 'returns an array of controls');
     assert.equal(controls.length, 39, 'matches map count exactly');
     // First control from the JSON must be intact.
-    assert.deepEqual(controls[0], {
+    assert.deepEqual(core(controls[0]), {
         cc: 1, name: 'Modulation', min: 0, max: 127, type: 'slider', unit: '%', category: 'mod'
     });
 });
@@ -82,7 +85,7 @@ test('getControlsForModel("korg-nts-1") returns 29 controls after fetching /devi
     assert.ok(Array.isArray(controls), 'returns an array of controls');
     assert.equal(controls.length, 29, 'matches actual map count (29 sliders+dropdowns)');
     // First control from the JSON must be intact.
-    assert.deepEqual(controls[0], {
+    assert.deepEqual(core(controls[0]), {
         cc: 14, name: 'Volume EG Type', min: 0, max: 5, type: 'dropdown',
         options: ['ADSR', 'AHR', 'AR', 'AR loop', 'Open'], category: 'osc'
     });

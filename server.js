@@ -8,6 +8,11 @@ import { execFile } from 'child_process';
 import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 import { DeviceChannelSettings } from './device-channel-settings.js';
 import { UiLayoutSettings } from './ui-layout.js';
+import { EventEmitter } from 'events';
+import { DeviceCatalog } from './device-catalog.js';
+import { createMcpServer } from './mcp-server.js';
+import { createUpstream } from './mcp-upstream.js';
+import { deviceChannelKey } from './frontend/js/device-channels.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
@@ -19,6 +24,9 @@ class MIDIRouterWorker {
         this.inputs = new Map();   // portId → name
         this.outputs = new Map();  // portId → name
         this.isReady = false;
+        this.events = new EventEmitter();
+        this.dawState = null;          // last daw_state payload (clips, transport, device presets/controls)
+        this.presetNames = new Map();  // `${deviceKey}:${channel}:${program}` -> name reported by the device
     }
 
     async init() {
@@ -80,6 +88,8 @@ class MIDIRouterWorker {
     _handleWorkerMessage(msg) {
         switch (msg.type) {
             case 'preset-name':
+                this.presetNames.set(`${deviceChannelKey(msg.target)}:${msg.channel}:${msg.program}`, msg.name);
+                this.events.emit('preset-name', msg);
                 this._broadcast(msg);
                 break;
             case 'ports-enumerated':
@@ -120,6 +130,7 @@ class MIDIRouterWorker {
                 break;
 
             case 'daw_state':
+                this.dawState = msg.state;
                 this._broadcast({ type: 'daw_state', payload: msg.state });
                 break;
 
@@ -132,6 +143,8 @@ class MIDIRouterWorker {
                 break;
 
             case 'daw_session_list':
+                this.events.emit('session-list', msg.sessions);
+                // falls through
             case 'daw_session_error':
                 this._broadcast({
                     type: msg.type,
@@ -261,6 +274,17 @@ class MIDIRouterWorker {
         });
     }
 
+    // Remember a CC sent to an instrument and tell every browser, so open knobs follow.
+    noteControl(target, channel, cc, value) {
+        const state = this.dawState ??= {};
+        const controls = state.deviceControls ??= [];
+        const key = deviceChannelKey(target);
+        const known = controls.find(c => deviceChannelKey(c.target) === key && c.channel === channel && c.cc === cc);
+        if (known) known.value = value;
+        else controls.push({ target, channel, cc, value });
+        this._broadcast({ type: 'device-control', target, channel, cc, value });
+    }
+
     // Cleanup on close
     cleanup() {
         console.log('[SERVER] Shutting down worker...');
@@ -287,6 +311,71 @@ let keyboardInputOwner = null;
 const router = new MIDIRouterWorker();
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 const uiLayout = new UiLayoutSettings(join(import.meta.dirname, 'ui-layout.json'));
+// Audio capture/analysis tools come from mcpi (Python) and are forwarded through the same /mcp.
+// MCPI_URL="" disables forwarding.
+const mcp = createMcpServer({
+    upstream: createUpstream({ url: process.env.MCPI_URL ?? 'http://127.0.0.1:8000/mcp', token: process.env.MCPI_TOKEN }),
+    catalog: new DeviceCatalog(join(import.meta.dirname, 'device_maps')),
+    getOutputs: () => router.getPorts().outputs,
+    getChannel: name => deviceChannels.channels[deviceChannelKey(name)] || 1,
+    setChannel: (name, channel) => {
+        if (!deviceChannels.set(name, channel)) return false;
+        router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
+        return true;
+    },
+    getDawState: () => router.dawState,
+    sendMidi: (target, bytes) => router._sendMidiToTarget(bytes, target),
+    noteControl: (target, channel, cc, value) => router.noteControl(target, channel, cc, value),
+    selectPreset: (target, channel, index) => {
+        router.presetNames.delete(`${deviceChannelKey(target)}:${channel}:${index}`);
+        router.worker?.postMessage({ type: 'select_preset', target, channel, index });
+    },
+    presetName: (target, channel, program) => router.presetNames.get(`${deviceChannelKey(target)}:${channel}:${program}`) ?? null,
+    waitPresetName: (target, channel, program, ms) => new Promise(resolve => {
+        const key = `${deviceChannelKey(target)}:${channel}:${program}`;
+        const done = name => { clearTimeout(timer); router.events.off('preset-name', onName); resolve(name); };
+        const onName = msg => { if (`${deviceChannelKey(msg.target)}:${msg.channel}:${msg.program}` === key) done(msg.name); };
+        const timer = setTimeout(() => done(null), ms);
+        router.events.on('preset-name', onName);
+    }),
+    sendPerformance: (targets, bytes) => router.worker?.postMessage({ type: 'midi_performance', targets, bytes, at: Date.now() }),
+    daw: message => router.worker?.postMessage(message),
+    listSessions: () => new Promise(resolve => {
+        const done = sessions => { clearTimeout(timer); router.events.off('session-list', done); resolve({ sessions }); };
+        const timer = setTimeout(() => done([]), 1500);
+        router.events.on('session-list', done);
+        router.worker?.postMessage({ type: 'daw_list_sessions' });
+    }),
+    panic: () => router.worker?.postMessage({ type: 'panic_note_off', immediate: true }),
+    later: (ms, fn) => setTimeout(fn, ms),
+});
+
+// MCP over Streamable HTTP. Set MIDIROUTER_MCP_TOKEN to require "Authorization: Bearer <token>".
+function handleMcpRequest(req, res) {
+    const send = (status, body) => {
+        res.writeHead(status, body === undefined ? {} : { 'Content-Type': 'application/json' });
+        res.end(body === undefined ? undefined : JSON.stringify(body));
+    };
+    if (req.method !== 'POST') return send(405, { error: 'POST JSON-RPC to /mcp' });
+    const origin = req.headers.origin;
+    if (origin) {
+        let host = null;
+        try { host = new URL(origin).host; } catch (_) {}
+        if (host !== req.headers.host) return send(403, { error: 'Cross-origin requests are not allowed' });
+    }
+    const token = process.env.MIDIROUTER_MCP_TOKEN;
+    if (token && req.headers.authorization !== `Bearer ${token}`) return send(401, { error: 'Unauthorized' });
+    let raw = '';
+    req.on('data', chunk => {
+        raw += chunk;
+        if (raw.length > 1_000_000) { send(413, { error: 'Request too large' }); req.destroy(); }
+    });
+    req.on('end', async () => {
+        if (res.writableEnded) return;
+        const { status, body } = await mcp.handlePost(raw);
+        send(status, body);
+    });
+}
 
 function startServer() {
     // HTTP server for the frontend — no caching of JS/CSS
@@ -305,6 +394,11 @@ function startServer() {
 
         // Strip query string (e.g. /css/style.css?v=3 → /css/style.css)
         const cleanUrl = req.url.split('?')[0];
+
+        if (cleanUrl === '/mcp') {
+            handleMcpRequest(req, res);
+            return;
+        }
 
         // Captive portal: OS connectivity probes hit arbitrary paths (via the
         // AP's DNS hijack + iptables port-80 redirect). Serve the UI for them
@@ -618,6 +712,9 @@ function startServer() {
                         if (message.data && message.target) {
                             const bytes = Array.isArray(message.data) ? message.data : (message.data.bytes || Array.from(message.data));
                             router._sendMidiToTarget(bytes, message.target);
+                            if ((bytes[0] & 0xf0) === 0xb0 && bytes.length === 3 && bytes[1] > 0 && bytes[1] !== 32 && bytes[1] < 120) {
+                                router.noteControl(message.target, (bytes[0] & 15) + 1, bytes[1], bytes[2]);
+                            }
                         }
                         break;
 

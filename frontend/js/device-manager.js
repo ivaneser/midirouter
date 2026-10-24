@@ -1,5 +1,5 @@
 /* === Device Manager — MIDI device management === */
-import { attachMidiKnob } from './midi-knob.js?v=22';
+import { attachMidiKnob } from './midi-knob.js?v=23';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=1';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
@@ -53,6 +53,25 @@ export class DeviceManager {
         this._controlValues.clear();
         for (const { target, cc, value } of controls || []) this._controlValues.set(`${target}:${cc}`, value);
         if (!first) this.render();   // closes open panels; reopening shows the loaded values
+    }
+
+    // A control changed from elsewhere (another browser or the MCP server): remember the raw
+    // value and move the matching widget in an open panel without sending any MIDI.
+    applyRemoteControl({ target, cc, value }) {
+        this._controlValues.set(`${target}:${cc}`, value);
+        for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
+            if (panel.dataset.deviceId !== target) continue;
+            for (const input of panel.querySelectorAll(`[data-cc="${Number(cc)}"]`)) {
+                const min = Number(input.dataset.min || 0);
+                const display = value - (min < 0 ? -min : 0);
+                if (input.type === 'range') {
+                    if (input === document.activeElement) continue;   // the user is dragging it
+                    input.value = String(display);
+                    input.dispatchEvent(new Event('knob-sync'));
+                } else if (input.type === 'checkbox') input.checked = display > 0;
+                else if (input.tagName === 'SELECT') input.selectedIndex = display - min;
+            }
+        }
     }
 
     updateDevicePresets(presets) {
@@ -201,6 +220,7 @@ export class DeviceManager {
         const panel = document.createElement('div');
         panel.className = 'synth-controls';
         panel.setAttribute('aria-label', `${device.name} controls`);
+        panel.dataset.deviceId = device.id;
         itemElement.appendChild(panel);
         nameButton.setAttribute('aria-expanded', 'true');
 
@@ -306,6 +326,7 @@ export class DeviceManager {
         }
 
         input.dataset.cc = String(definition.cc);
+        input.dataset.min = String(definition.min ?? 0);
         input.setAttribute('aria-label', instruction.label.text);
         if (input.type === 'checkbox') {
             input.checked = false;

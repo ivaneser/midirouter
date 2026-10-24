@@ -17,7 +17,15 @@
         "AR loop",
         "Open"
       ],
-      "category": "osc"
+      "category": "osc",
+      "description": "EG type. Zones measured 2025-10-03 (held C5, burst/constancy analysis): 0-25 ADSR, 26-51 AHR, 52-76 shows repeating bursts (AR Loop), 77-102 single decay (AR), 103-127 constant (Open). NOTE: the 52-76/77-102 pair is inverted relative to the knob order in the manual - trust the acoustic labels.",
+      "zones": {
+        "0": "ADSR",
+        "38": "AHR",
+        "64": "AR Loop (acoustic)",
+        "90": "AR (acoustic)",
+        "115": "Open"
+      }
     },
     {
       "cc": 16,
@@ -26,7 +34,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "EG attack time"
     },
     {
       "cc": 19,
@@ -35,7 +44,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "EG release time"
     },
     {
       "cc": 20,
@@ -44,7 +54,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "tremolo"
+      "category": "tremolo",
+      "description": "Tremolo depth"
     },
     {
       "cc": 21,
@@ -53,7 +64,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "tremolo"
+      "category": "tremolo",
+      "description": "Tremolo rate"
     },
     {
       "cc": 24,
@@ -62,7 +74,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "Oscillator LFO rate"
     },
     {
       "cc": 26,
@@ -71,7 +84,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "Oscillator LFO depth"
     },
     {
       "cc": 28,
@@ -80,7 +94,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "mod"
+      "category": "mod",
+      "description": "Modulation time"
     },
     {
       "cc": 29,
@@ -89,7 +104,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "mod"
+      "category": "mod",
+      "description": "Modulation depth"
     },
     {
       "cc": 30,
@@ -98,7 +114,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "delay"
+      "category": "delay",
+      "description": "Delay time"
     },
     {
       "cc": 31,
@@ -107,7 +124,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "delay"
+      "category": "delay",
+      "description": "Delay depth"
     },
     {
       "cc": 33,
@@ -116,7 +134,8 @@
       "max": 127,
       "type": "slider",
       "unit": "dry/wet",
-      "category": "mix"
+      "category": "mix",
+      "description": "Delay dry/wet mix"
     },
     {
       "cc": 34,
@@ -125,7 +144,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "reverb"
+      "category": "reverb",
+      "description": "Reverb time"
     },
     {
       "cc": 35,
@@ -134,7 +154,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "reverb"
+      "category": "reverb",
+      "description": "Reverb depth"
     },
     {
       "cc": 36,
@@ -143,7 +164,8 @@
       "max": 127,
       "type": "slider",
       "unit": "dry/wet",
-      "category": "fx"
+      "category": "fx",
+      "description": "Reverb dry/wet balance"
     },
     {
       "cc": 42,
@@ -160,7 +182,17 @@
         "HP4",
         "Off"
       ],
-      "category": "filter"
+      "category": "filter",
+      "description": "Filter type. 7 zones of ~18.3, all verified acoustically 2025-10-03: LP2 strong, LP4 weaker, BP2/BP4 band (high centroid, weak), HP2/HP4 (no fundamental, highest centroid), Thru (raw osc).",
+      "zones": {
+        "0": "Lowpass 2-pole",
+        "28": "Lowpass 4-pole",
+        "47": "Bandpass 2-pole",
+        "66": "Bandpass 4-pole",
+        "85": "Highpass 2-pole",
+        "104": "Highpass 4-pole",
+        "120": "Thru"
+      }
     },
     {
       "cc": 43,
@@ -170,7 +202,8 @@
       "type": "slider",
       "unit": "freq",
       "category": "filter",
-      "primary": true
+      "primary": true,
+      "description": "Cutoff frequency"
     },
     {
       "cc": 44,
@@ -179,7 +212,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "description": "Resonance"
     },
     {
       "cc": 45,
@@ -188,7 +222,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "sweep"
+      "category": "sweep",
+      "description": "Cutoff sweep depth: 0-62 up, 63 none, 64-127 down"
     },
     {
       "cc": 46,
@@ -197,7 +232,8 @@
       "max": 127,
       "type": "slider",
       "unit": "freq",
-      "category": "sweep"
+      "category": "sweep",
+      "description": "Cutoff sweep rate F0.0-F30.0"
     },
     {
       "cc": 53,
@@ -212,7 +248,15 @@
         "VPM",
         "Waves"
       ],
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator type. Zones verified empirically (spectral probing, 2025-10-03): 0-19 sawtooth, 20-44 triangle, 45-69 square, 70-99 VPM, 100-127 noise (user waves live at the top, acoustically indistinguishable with factory user OSC; 'Off' is not CC-addressable)",
+      "zones": {
+        "0": "Sawtooth",
+        "25": "Triangle",
+        "50": "Square",
+        "75": "VPM",
+        "105": "Noise"
+      }
     },
     {
       "cc": 54,
@@ -221,7 +265,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Wave-shaping amount"
     },
     {
       "cc": 55,
@@ -230,7 +275,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator alternate"
     },
     {
       "cc": 88,
@@ -244,7 +290,16 @@
         "Phase",
         "Flanger"
       ],
-      "category": "fx_mod"
+      "category": "fx_mod",
+      "description": "Modulation FX type. Probe 2025-10-03: 0-21 is dry (Off), then 5 wet zones of ~21.3: ~22-42 chorus/ensemble family, ~43-63 (more voices), ~64-84 comb (lowest centroid = phaser), ~85-105 flanger family, ~106-127 clipping (max RMS, lowest centroid = fuzz). Names follow manual order (OFF, Chorus, Ensemble, Phaser, Flanger, Soft Clip, Hard Clip, Sine Fold, Fuzz); the 9 names collapse into 6 CC zones, so middle identities are approximate.",
+      "zones": {
+        "0": "Off",
+        "32": "Chorus*",
+        "53": "Ensemble*",
+        "74": "Phaser*",
+        "95": "Flanger*",
+        "116": "Clipping (fuzz family)*"
+      }
     },
     {
       "cc": 89,
@@ -258,7 +313,17 @@
         "PingPong",
         "Tape"
       ],
-      "category": "fx_delay"
+      "category": "fx_delay",
+      "description": "Delay type. 7-slot scheme (step ~127/6), per midi.guide/d/korg/nts-1 community table: 0: Off, 21: Stereo, 42: Mono, 63: Ping Pong, 84: High Pass, 127: Tape. CC89=22 showing 'Stereo' on the display (2026-10-03) matches the 21-41 Stereo slot. The 105-126 slot is unnamed in the source (manual lists 12 types incl. One, *BPM variants, Doubling); KORG itself documents no CC ranges.",
+      "zones": {
+        "0": "Off",
+        "21": "Stereo",
+        "42": "Mono",
+        "63": "Ping Pong",
+        "84": "High Pass",
+        "105": "unknown (unnamed in source - One/*BPM/Doubling region)",
+        "127": "Tape"
+      }
     },
     {
       "cc": 90,
@@ -273,7 +338,20 @@
         "Riser",
         "Submarine"
       ],
-      "category": "fx_reverb"
+      "category": "fx_reverb",
+      "description": "Reverb type. Manual lists 11 (OFF + 10); 'OFF' is not CC-addressable (CC90=0 is already wet). 10 zones of ~12.8 in manual order. Probe 2025-10-03: lowest centroids at the top (104-116 Submarine / 117-127 Horror confirmed by measurement); dense early-reflection spike around ~80 (Early/Space region); others approximate.",
+      "zones": {
+        "0": "Hall*",
+        "13": "Smooth*",
+        "26": "Arena*",
+        "39": "Plate*",
+        "52": "Room*",
+        "65": "Early*",
+        "78": "Space*",
+        "91": "Riser*",
+        "104": "Submarine",
+        "117": "Horror"
+      }
     },
     {
       "cc": 117,
@@ -292,7 +370,20 @@
         "Seq",
         "User"
       ],
-      "category": "arp"
+      "category": "arp",
+      "description": "Arpeggiator pattern",
+      "zones": {
+        "0": "Up",
+        "12": "Down",
+        "24": "Up-down",
+        "36": "Down-up",
+        "48": "Conv",
+        "60": "Div",
+        "72": "Conv-div",
+        "84": "Div-conv",
+        "96": "Rand",
+        "127": "Stoch"
+      }
     },
     {
       "cc": 118,
@@ -308,7 +399,16 @@
         "Min",
         "Dim"
       ],
-      "category": "arp"
+      "category": "arp",
+      "description": "Arpeggiator intervals",
+      "zones": {
+        "0": "Oct",
+        "21": "Maj",
+        "42": "Sus",
+        "63": "Aug",
+        "84": "Min",
+        "127": "Dim"
+      }
     },
     {
       "cc": 119,
@@ -317,7 +417,8 @@
       "max": 127,
       "type": "slider",
       "unit": "length",
-      "category": "arp"
+      "category": "arp",
+      "description": "Arpeggiator pattern length"
     }
   ]
 }

@@ -14,6 +14,7 @@ export function attachMidiKnob(input, dial, readout, onChange) {
         input.setAttribute('aria-valuetext', String(value));
     };
     input.addEventListener('input', () => { refresh(); onChange(Number(input.value)); });
+    input.addEventListener('knob-sync', refresh);   // value set from outside: redraw, send nothing
     let drag = null;
     input.addEventListener('pointerdown', event => {
         if (event.button !== 0 || drag) return;

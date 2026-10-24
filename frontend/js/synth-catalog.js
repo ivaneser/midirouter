@@ -22,7 +22,7 @@ const KORG_NTS1_SIG = 'nts-1 digital kit';
 // /device_maps/<file>.json in production and read from disk during tests.
 // ---------------------------------------------------------------------------
 
-const MAP_FILES = {
+export const MAP_FILES = {
     'craft-synth': 'modal_craft_synth_v2',
     'korg-nts-1': 'korg_nts1',
     'arturia-microfreak': 'arturia_microfreak',

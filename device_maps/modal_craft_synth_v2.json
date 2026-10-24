@@ -11,7 +11,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "mod"
+      "category": "mod",
+      "description": "Modulation wheel"
     },
     {
       "cc": 5,
@@ -20,7 +21,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "glide"
+      "category": "glide",
+      "description": "Portamento time, 0-2.5s exponential"
     },
     {
       "cc": 7,
@@ -29,7 +31,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "amp"
+      "category": "amp",
+      "description": "Headphone volume"
     },
     {
       "cc": 12,
@@ -38,7 +41,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "fx"
+      "category": "fx",
+      "description": "Distortion dry-wet"
     },
     {
       "cc": 13,
@@ -47,7 +51,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "delay"
+      "category": "delay",
+      "description": "Delay dry-wet"
     },
     {
       "cc": 14,
@@ -56,7 +61,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "delay"
+      "category": "delay",
+      "description": "Delay time (free: 0-250ms; when MIDI-synced: steps)"
     },
     {
       "cc": 15,
@@ -65,7 +71,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "delay"
+      "category": "delay",
+      "description": "Delay feedback 0-90%"
     },
     {
       "cc": 16,
@@ -74,7 +81,8 @@
       "max": 127,
       "type": "slider",
       "unit": "wave",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator 1 waveform"
     },
     {
       "cc": 17,
@@ -83,7 +91,8 @@
       "max": 127,
       "type": "slider",
       "unit": "wave",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator 2 waveform"
     },
     {
       "cc": 18,
@@ -92,7 +101,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Osc1-Osc2 mix"
     },
     {
       "cc": 19,
@@ -101,7 +111,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Osc-modulation amount 0-full"
     },
     {
       "cc": 20,
@@ -110,7 +121,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Spread/chorus mode: 0-63 unison, 64-70 major, 71-77 minor, 78-84 major 6th, 85-91 sus4, 92-98 5ths, 99-105 5th+oct, 106-112 oct+1+2, 113-119 oct+1-1, 120-127 oct-1-2"
     },
     {
       "cc": 30,
@@ -119,7 +131,8 @@
       "max": 127,
       "type": "slider",
       "unit": "detune",
-      "category": "osc"
+      "category": "osc",
+      "description": "Osc2 coarse detune +/-4 octaves"
     },
     {
       "cc": 31,
@@ -128,7 +141,8 @@
       "max": 127,
       "type": "slider",
       "unit": "detune",
-      "category": "osc"
+      "category": "osc",
+      "description": "Osc2 fine detune +/-1 semitone"
     },
     {
       "cc": 33,
@@ -137,7 +151,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "description": "Filter morph: 0 LP, 64 BP, 127 HP"
     },
     {
       "cc": 34,
@@ -146,7 +161,8 @@
       "max": 127,
       "type": "slider",
       "unit": "freq",
-      "category": "filter"
+      "category": "filter",
+      "description": "Cutoff 0Hz-22kHz"
     },
     {
       "cc": 35,
@@ -155,7 +171,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "description": "Resonance none-full"
     },
     {
       "cc": 32,
@@ -164,7 +181,8 @@
       "max": 63,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "description": "Filter env amount, centered: 63 = 0"
     },
     {
       "cc": 22,
@@ -173,7 +191,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "filter_env"
+      "category": "filter_env",
+      "description": "Filter envelope attack 0-4s"
     },
     {
       "cc": 23,
@@ -182,7 +201,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "filter_env"
+      "category": "filter_env",
+      "description": "Filter envelope decay 0-4s"
     },
     {
       "cc": 24,
@@ -191,7 +211,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter_env"
+      "category": "filter_env",
+      "description": "Filter envelope sustain 0-1"
     },
     {
       "cc": 25,
@@ -200,7 +221,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "filter_env"
+      "category": "filter_env",
+      "description": "Filter envelope release 0-4s"
     },
     {
       "cc": 51,
@@ -209,7 +231,8 @@
       "max": 63,
       "type": "slider",
       "unit": "%",
-      "category": "amp"
+      "category": "amp",
+      "description": "Amp env amount, centered: 63 = 0"
     },
     {
       "cc": 26,
@@ -218,7 +241,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "Amp envelope attack 0-4s"
     },
     {
       "cc": 27,
@@ -227,7 +251,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "Amp envelope decay 0-4s"
     },
     {
       "cc": 28,
@@ -236,7 +261,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "env"
+      "category": "env",
+      "description": "Amp envelope sustain 0-1"
     },
     {
       "cc": 29,
@@ -245,7 +271,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "Amp envelope release 0-4s"
     },
     {
       "cc": 43,
@@ -254,7 +281,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "mod_env"
+      "category": "mod_env",
+      "description": "Modulation envelope attack 0-4s"
     },
     {
       "cc": 44,
@@ -263,7 +291,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "mod_env"
+      "category": "mod_env",
+      "description": "Modulation envelope decay 0-4s"
     },
     {
       "cc": 45,
@@ -272,7 +301,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "mod_env"
+      "category": "mod_env",
+      "description": "Modulation envelope sustain 0-1"
     },
     {
       "cc": 46,
@@ -281,7 +311,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "mod_env"
+      "category": "mod_env",
+      "description": "Modulation envelope release 0-4s"
     },
     {
       "cc": 36,
@@ -290,7 +321,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO1 rate (free: 0.02-32Hz; when MIDI-synced: 1/16..16 beats)"
     },
     {
       "cc": 37,
@@ -299,7 +331,8 @@
       "max": 63,
       "type": "slider",
       "unit": "%",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO1 depth, centered: 63 = 0"
     },
     {
       "cc": 39,
@@ -308,7 +341,8 @@
       "max": 127,
       "type": "slider",
       "unit": "shape",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO1 shape: 0-32 sine-triangle, 33-64 triangle-saw, 65-96 saw-square, 97-127 square-sample&hold"
     },
     {
       "cc": 47,
@@ -317,7 +351,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO2 rate (free 0-32Hz / root-relative / synced beats)"
     },
     {
       "cc": 48,
@@ -326,7 +361,8 @@
       "max": 63,
       "type": "slider",
       "unit": "%",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO2 depth, centered: 63 = 0"
     },
     {
       "cc": 50,
@@ -335,7 +371,8 @@
       "max": 127,
       "type": "slider",
       "unit": "shape",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO2 shape: same mapping as lfo1_shape"
     },
     {
       "cc": 58,
@@ -344,7 +381,8 @@
       "max": 127,
       "type": "toggle",
       "category": "arp",
-      "on_threshold": 64
+      "on_threshold": 64,
+      "description": "Arpeggiator: 0-63 OFF, 64-127 ON"
     },
     {
       "cc": 64,
@@ -353,7 +391,8 @@
       "max": 127,
       "type": "toggle",
       "category": "keyboard",
-      "on_threshold": 64
+      "on_threshold": 64,
+      "description": "Sustain pedal: 0-63 OFF, 64-127 ON"
     }
   ]
 }

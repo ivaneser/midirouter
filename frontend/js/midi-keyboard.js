@@ -1,5 +1,5 @@
 import { noteName } from './piano-roll.js';
-import { attachMidiKnob } from './midi-knob.js?v=22';
+import { attachMidiKnob } from './midi-knob.js?v=23';
 
 export class MidiKeyboard {
     constructor(deviceManager) {

@@ -1,11 +1,44 @@
 {
   "manufacturer": "Arturia",
   "presetName": {
-    "match": ["microfreak"],
-    "request": [240, 0, 32, 107, 7, 1, "sequence", 3, 25, "bank", "program", 0, 247],
+    "match": [
+      "microfreak"
+    ],
+    "request": [
+      240,
+      0,
+      32,
+      107,
+      7,
+      1,
+      "sequence",
+      3,
+      25,
+      "bank",
+      "program",
+      0,
+      247
+    ],
     "programs": 512,
     "bankSelectCc": 0,
-    "reply": { "prefix": [240, 0, 32, 107, 7, 1, null, null, 82], "sequenceOffset": 6, "bankOffset": 9, "programOffset": 10, "nameOffset": 21, "nameLength": 14 }
+    "reply": {
+      "prefix": [
+        240,
+        0,
+        32,
+        107,
+        7,
+        1,
+        null,
+        null,
+        82
+      ],
+      "sequenceOffset": 6,
+      "bankOffset": 9,
+      "programOffset": 10,
+      "nameOffset": 21,
+      "nameLength": 14
+    }
   },
   "model": "MicroFreak",
   "type": "digital hybrid synth (surface capacitive keyboard)",
@@ -17,7 +50,8 @@
       "min": 0,
       "max": 127,
       "type": "slider",
-      "category": "arp"
+      "category": "arp",
+      "description": "Keyboard: spice (Arturia's extra character knob)"
     },
     {
       "cc": 5,
@@ -26,7 +60,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "glide"
+      "category": "glide",
+      "description": "General: portamento/glide time"
     },
     {
       "cc": 9,
@@ -34,7 +69,8 @@
       "min": 0,
       "max": 127,
       "type": "slider",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator type zone. 0-11 Basic Waves; 12-16 SuperWave; 17-22 Wavetable; 23-27 Harmo; 28-33 Karplus; 34-38 Virtual Analog; 39-44 Waveshaper; 45-49 Two-Op FM; 50-55 Formant; 56-60 Chords; 61-66 Speech; 67-71 Modal; 72-77 Noise; 78-82 Bass; 83-88 SawX; 89-93 Harm; 94-99 WaveUser; 100-104 Sample; 105-110 ScanGrains; 111-115 CloudGrains; 116-121 HitGrains; 122-127 Vocoder"
     },
     {
       "cc": 10,
@@ -43,7 +79,8 @@
       "max": 127,
       "type": "slider",
       "unit": "wave",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator wave position within the selected type"
     },
     {
       "cc": 12,
@@ -52,7 +89,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator timbre"
     },
     {
       "cc": 13,
@@ -61,7 +99,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "osc"
+      "category": "osc",
+      "description": "Oscillator shape"
     },
     {
       "cc": 23,
@@ -71,7 +110,8 @@
       "type": "slider",
       "unit": "freq",
       "category": "filter",
-      "primary": true
+      "primary": true,
+      "description": "Filter cutoff"
     },
     {
       "cc": 24,
@@ -80,7 +120,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "cycl_env"
+      "category": "cycl_env",
+      "description": "Cycling envelope amount"
     },
     {
       "cc": 26,
@@ -89,7 +130,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "description": "Envelope: filter amount (env depth on cutoff)"
     },
     {
       "cc": 28,
@@ -98,7 +140,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "cycl_env"
+      "category": "cycl_env",
+      "description": "Cycling envelope hold"
     },
     {
       "cc": 29,
@@ -107,7 +150,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "env"
+      "category": "env",
+      "description": "Envelope sustain"
     },
     {
       "cc": 64,
@@ -116,7 +160,8 @@
       "max": 127,
       "type": "toggle",
       "on_threshold": 64,
-      "category": "keyboard"
+      "category": "keyboard",
+      "description": "Keyboard hold button (toggle)"
     },
     {
       "cc": 83,
@@ -125,7 +170,8 @@
       "max": 127,
       "type": "slider",
       "unit": "%",
-      "category": "filter"
+      "category": "filter",
+      "description": "Filter resonance"
     },
     {
       "cc": 91,
@@ -134,7 +180,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "arp"
+      "category": "arp",
+      "description": "Arp/sequencer rate, free-running"
     },
     {
       "cc": 92,
@@ -143,7 +190,8 @@
       "max": 127,
       "type": "slider",
       "unit": "sync_rate",
-      "category": "arp"
+      "category": "arp",
+      "description": "Arp/sequencer rate, MIDI-synced"
     },
     {
       "cc": 93,
@@ -152,7 +200,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO rate, free-running"
     },
     {
       "cc": 94,
@@ -161,7 +210,8 @@
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "lfo"
+      "category": "lfo",
+      "description": "LFO rate, MIDI-synced"
     },
     {
       "cc": 102,
@@ -170,7 +220,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "cycl_env"
+      "category": "cycl_env",
+      "description": "Cycling envelope rise"
     },
     {
       "cc": 103,
@@ -179,7 +230,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "cycl_env"
+      "category": "cycl_env",
+      "description": "Cycling envelope fall"
     },
     {
       "cc": 105,
@@ -188,7 +240,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "Envelope attack"
     },
     {
       "cc": 106,
@@ -197,7 +250,8 @@
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "env"
+      "category": "env",
+      "description": "Envelope decay"
     }
   ],
   "source": "https://downloads.arturia.net/products/microfreak/manual/microfreak_Manual_5_0_1_EN.pdf#page=146"

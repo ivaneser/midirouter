@@ -1,0 +1,1542 @@
+{
+ "model": "MicroFreak",
+ "source": "MicroFreak26.mfprojz factory/user archive (names decoded from .mbp headers); number = 1-based global preset (bank*128+program+1)",
+ "presets": {
+  "1": {
+   "name": "NervousKeys"
+  },
+  "2": {
+   "name": "Punisher"
+  },
+  "3": {
+   "name": "Trance"
+  },
+  "4": {
+   "name": "Ether"
+  },
+  "5": {
+   "name": "MotivSeq"
+  },
+  "6": {
+   "name": "Aft-WavPad"
+  },
+  "7": {
+   "name": "Brd But Arp"
+  },
+  "8": {
+   "name": "Invitation"
+  },
+  "9": {
+   "name": "261e"
+  },
+  "10": {
+   "name": "Raverz"
+  },
+  "11": {
+   "name": "Short Strings"
+  },
+  "12": {
+   "name": "Chord Bass"
+  },
+  "13": {
+   "name": "IDm5"
+  },
+  "14": {
+   "name": "Michtack"
+  },
+  "15": {
+   "name": "Cafe Chord"
+  },
+  "16": {
+   "name": "AutoCHILL"
+  },
+  "17": {
+   "name": "ATSpookBass"
+  },
+  "18": {
+   "name": "Lo-FiOrgan"
+  },
+  "19": {
+   "name": "VeloSparklz"
+  },
+  "20": {
+   "name": "Jobs 4 Rhythm"
+  },
+  "21": {
+   "name": "Colik"
+  },
+  "22": {
+   "name": "Kick A"
+  },
+  "23": {
+   "name": "Pig"
+  },
+  "24": {
+   "name": "Space Alert"
+  },
+  "25": {
+   "name": "Wuuut"
+  },
+  "26": {
+   "name": "Strings 2"
+  },
+  "27": {
+   "name": "Fusion Lead"
+  },
+  "28": {
+   "name": "Boarding"
+  },
+  "29": {
+   "name": "Dusty Bass"
+  },
+  "30": {
+   "name": "Cristal Church"
+  },
+  "31": {
+   "name": "Numnum Yoy"
+  },
+  "32": {
+   "name": "Monotron"
+  },
+  "33": {
+   "name": "Giraf"
+  },
+  "34": {
+   "name": "Sardine"
+  },
+  "35": {
+   "name": "70s Resolution"
+  },
+  "36": {
+   "name": "Kick It"
+  },
+  "37": {
+   "name": "Acetous Com"
+  },
+  "38": {
+   "name": "Sequenced"
+  },
+  "39": {
+   "name": "Digi Express"
+  },
+  "40": {
+   "name": "Organic 5ths"
+  },
+  "41": {
+   "name": "Lelies In H2O"
+  },
+  "42": {
+   "name": "2 Faces"
+  },
+  "43": {
+   "name": "Dragger"
+  },
+  "44": {
+   "name": "Shorties"
+  },
+  "45": {
+   "name": "Space Pluck"
+  },
+  "46": {
+   "name": "Gluck"
+  },
+  "47": {
+   "name": "Keywy"
+  },
+  "48": {
+   "name": "Random Snaps"
+  },
+  "49": {
+   "name": "Parrot"
+  },
+  "50": {
+   "name": "Init"
+  },
+  "51": {
+   "name": "Init"
+  },
+  "52": {
+   "name": "Init"
+  },
+  "53": {
+   "name": "Init"
+  },
+  "54": {
+   "name": "Init"
+  },
+  "55": {
+   "name": "Init"
+  },
+  "56": {
+   "name": "Init"
+  },
+  "57": {
+   "name": "Init"
+  },
+  "58": {
+   "name": "Init"
+  },
+  "59": {
+   "name": "Init"
+  },
+  "60": {
+   "name": "Init"
+  },
+  "61": {
+   "name": "Init"
+  },
+  "62": {
+   "name": "Init"
+  },
+  "63": {
+   "name": "Init"
+  },
+  "64": {
+   "name": "Init"
+  },
+  "65": {
+   "name": "Init"
+  },
+  "66": {
+   "name": "Init"
+  },
+  "67": {
+   "name": "Init"
+  },
+  "68": {
+   "name": "Init"
+  },
+  "69": {
+   "name": "Init"
+  },
+  "70": {
+   "name": "Init"
+  },
+  "71": {
+   "name": "Init"
+  },
+  "72": {
+   "name": "Init"
+  },
+  "73": {
+   "name": "Init"
+  },
+  "74": {
+   "name": "Init"
+  },
+  "75": {
+   "name": "Init"
+  },
+  "76": {
+   "name": "Init"
+  },
+  "77": {
+   "name": "Init"
+  },
+  "78": {
+   "name": "Init"
+  },
+  "79": {
+   "name": "Init"
+  },
+  "80": {
+   "name": "Init"
+  },
+  "81": {
+   "name": "Init"
+  },
+  "82": {
+   "name": "Init"
+  },
+  "83": {
+   "name": "Init"
+  },
+  "84": {
+   "name": "Init"
+  },
+  "85": {
+   "name": "Init"
+  },
+  "86": {
+   "name": "Init"
+  },
+  "87": {
+   "name": "Init"
+  },
+  "88": {
+   "name": "Init"
+  },
+  "89": {
+   "name": "Init"
+  },
+  "90": {
+   "name": "Init"
+  },
+  "91": {
+   "name": "Init"
+  },
+  "92": {
+   "name": "Init"
+  },
+  "93": {
+   "name": "Init"
+  },
+  "94": {
+   "name": "Init"
+  },
+  "95": {
+   "name": "Init"
+  },
+  "96": {
+   "name": "Init"
+  },
+  "97": {
+   "name": "Init"
+  },
+  "98": {
+   "name": "Init"
+  },
+  "99": {
+   "name": "Init"
+  },
+  "100": {
+   "name": "Club V"
+  },
+  "101": {
+   "name": "Darkstream"
+  },
+  "102": {
+   "name": "Pikdown"
+  },
+  "103": {
+   "name": "Bontempis"
+  },
+  "104": {
+   "name": "PolyBells"
+  },
+  "105": {
+   "name": "Voidom"
+  },
+  "106": {
+   "name": "Tubular"
+  },
+  "107": {
+   "name": "Chip"
+  },
+  "108": {
+   "name": "BrightBinary"
+  },
+  "109": {
+   "name": "Arp-fi"
+  },
+  "110": {
+   "name": "BouncKeyPara"
+  },
+  "111": {
+   "name": "AliGoop"
+  },
+  "112": {
+   "name": "Stan2"
+  },
+  "113": {
+   "name": "808 St8 M8"
+  },
+  "114": {
+   "name": "L9n1"
+  },
+  "115": {
+   "name": "Nost"
+  },
+  "116": {
+   "name": "Daft"
+  },
+  "117": {
+   "name": "Number Station"
+  },
+  "118": {
+   "name": "HarmonicTuneUp"
+  },
+  "119": {
+   "name": "Ixos "
+  },
+  "120": {
+   "name": "Organism"
+  },
+  "121": {
+   "name": "Corrosion"
+  },
+  "122": {
+   "name": "FM Seq"
+  },
+  "123": {
+   "name": "Rollie Lov"
+  },
+  "124": {
+   "name": "Chunk"
+  },
+  "125": {
+   "name": "Classist"
+  },
+  "126": {
+   "name": "Nostromo"
+  },
+  "127": {
+   "name": "Disrespectful"
+  },
+  "128": {
+   "name": "Madtraker"
+  },
+  "129": {
+   "name": "Hoss"
+  },
+  "130": {
+   "name": "FM-it"
+  },
+  "131": {
+   "name": "Lottreux"
+  },
+  "132": {
+   "name": "XnastX"
+  },
+  "133": {
+   "name": "White Calx"
+  },
+  "134": {
+   "name": "VintageEdge"
+  },
+  "135": {
+   "name": "Sci Organ"
+  },
+  "136": {
+   "name": "Death"
+  },
+  "137": {
+   "name": "Solitude"
+  },
+  "138": {
+   "name": "Ringussion"
+  },
+  "139": {
+   "name": "Crystal"
+  },
+  "140": {
+   "name": "Analordic"
+  },
+  "141": {
+   "name": "PowerStab"
+  },
+  "142": {
+   "name": "Hollows"
+  },
+  "143": {
+   "name": "Junk.J"
+  },
+  "144": {
+   "name": "Suby Rainbow"
+  },
+  "145": {
+   "name": "Unstable Solo"
+  },
+  "146": {
+   "name": "AftrBlush"
+  },
+  "147": {
+   "name": "Mood Strings"
+  },
+  "148": {
+   "name": "Kendrok"
+  },
+  "149": {
+   "name": "Mood"
+  },
+  "150": {
+   "name": "Vanarx"
+  },
+  "151": {
+   "name": "Angels"
+  },
+  "152": {
+   "name": "Canadian Bass"
+  },
+  "153": {
+   "name": "3opeR"
+  },
+  "154": {
+   "name": "Cliched Things"
+  },
+  "155": {
+   "name": "Sweep SQ"
+  },
+  "156": {
+   "name": "Buzzsaw"
+  },
+  "157": {
+   "name": "S.H Ld"
+  },
+  "158": {
+   "name": "Sneaker"
+  },
+  "159": {
+   "name": "Saying Goodbye"
+  },
+  "160": {
+   "name": "Eonz"
+  },
+  "161": {
+   "name": "A Juno Vibe"
+  },
+  "162": {
+   "name": "ArpZap"
+  },
+  "163": {
+   "name": "Traditon"
+  },
+  "164": {
+   "name": "Gaming"
+  },
+  "165": {
+   "name": "Over Me"
+  },
+  "166": {
+   "name": "Leeds Strings"
+  },
+  "167": {
+   "name": "Press So"
+  },
+  "168": {
+   "name": "Arp 2ol9"
+  },
+  "169": {
+   "name": "Whimsy"
+  },
+  "170": {
+   "name": "D-Funk"
+  },
+  "171": {
+   "name": "Kleo"
+  },
+  "172": {
+   "name": "Guisky"
+  },
+  "173": {
+   "name": "Cathil"
+  },
+  "174": {
+   "name": "Smooth Pd"
+  },
+  "175": {
+   "name": "Blind"
+  },
+  "176": {
+   "name": "Gloudal"
+  },
+  "177": {
+   "name": "Boers"
+  },
+  "178": {
+   "name": "Trapeurz"
+  },
+  "179": {
+   "name": "SH Stutter"
+  },
+  "180": {
+   "name": "Tout Doux"
+  },
+  "181": {
+   "name": "Tinnendo"
+  },
+  "182": {
+   "name": "Etna 01"
+  },
+  "183": {
+   "name": "Braine Storm"
+  },
+  "184": {
+   "name": "Padel"
+  },
+  "185": {
+   "name": "Wait..."
+  },
+  "186": {
+   "name": "SlowBurn"
+  },
+  "187": {
+   "name": "Clave String"
+  },
+  "188": {
+   "name": "Arame"
+  },
+  "189": {
+   "name": "ATZap"
+  },
+  "190": {
+   "name": "F-Back"
+  },
+  "191": {
+   "name": "AcidFrog"
+  },
+  "192": {
+   "name": "Anlg"
+  },
+  "193": {
+   "name": "D3 Chords"
+  },
+  "194": {
+   "name": "Fate In Freaks"
+  },
+  "195": {
+   "name": "Notobeat"
+  },
+  "196": {
+   "name": "Analog Chaser"
+  },
+  "197": {
+   "name": "Minor Pad"
+  },
+  "198": {
+   "name": "Fight"
+  },
+  "199": {
+   "name": "NoiseBusters"
+  },
+  "200": {
+   "name": "Fat Moves"
+  },
+  "201": {
+   "name": "Simon Says"
+  },
+  "202": {
+   "name": "TaBass"
+  },
+  "203": {
+   "name": "Luna5"
+  },
+  "204": {
+   "name": "Amigras"
+  },
+  "205": {
+   "name": "Snitch 5"
+  },
+  "206": {
+   "name": "Filicophyta"
+  },
+  "207": {
+   "name": "KickBass"
+  },
+  "208": {
+   "name": "HH Seq One"
+  },
+  "209": {
+   "name": "Evo Arp"
+  },
+  "210": {
+   "name": "Hold Riser"
+  },
+  "211": {
+   "name": "Malfunction"
+  },
+  "212": {
+   "name": "Qbit Brass"
+  },
+  "213": {
+   "name": "No Sleep"
+  },
+  "214": {
+   "name": "Chip Thunder"
+  },
+  "215": {
+   "name": "Solide"
+  },
+  "216": {
+   "name": "Metallic Talk"
+  },
+  "217": {
+   "name": "Long FM Bass"
+  },
+  "218": {
+   "name": "Hats maker"
+  },
+  "219": {
+   "name": "Digital Sea"
+  },
+  "220": {
+   "name": "Kick B"
+  },
+  "221": {
+   "name": "Hihat A"
+  },
+  "222": {
+   "name": "Hihat B"
+  },
+  "223": {
+   "name": "Snare Seq 1"
+  },
+  "224": {
+   "name": "Drum Grit Seq"
+  },
+  "225": {
+   "name": "Mad Drums"
+  },
+  "226": {
+   "name": "Colt"
+  },
+  "227": {
+   "name": "Stab One"
+  },
+  "228": {
+   "name": "The Unstable"
+  },
+  "229": {
+   "name": "B3"
+  },
+  "230": {
+   "name": "Old Tapes"
+  },
+  "231": {
+   "name": "Paralex"
+  },
+  "232": {
+   "name": "Prosper"
+  },
+  "233": {
+   "name": "Ice Cold"
+  },
+  "234": {
+   "name": "Grimy Beat"
+  },
+  "235": {
+   "name": "Snow Man"
+  },
+  "236": {
+   "name": "Incoming Ship"
+  },
+  "237": {
+   "name": "Crackle Sleep"
+  },
+  "238": {
+   "name": "Roid"
+  },
+  "239": {
+   "name": "Sausage Bass"
+  },
+  "240": {
+   "name": "Kick N Hard"
+  },
+  "241": {
+   "name": "Rnd Rytm Arp"
+  },
+  "242": {
+   "name": "Chordrone It"
+  },
+  "243": {
+   "name": "Arpic"
+  },
+  "244": {
+   "name": "Pats"
+  },
+  "245": {
+   "name": "Shaka"
+  },
+  "246": {
+   "name": "Prof"
+  },
+  "247": {
+   "name": "Snare Four"
+  },
+  "248": {
+   "name": "AfterBurner"
+  },
+  "249": {
+   "name": "Auster"
+  },
+  "250": {
+   "name": "Sayan 2"
+  },
+  "251": {
+   "name": "Square Poly"
+  },
+  "252": {
+   "name": "Keys 1"
+  },
+  "253": {
+   "name": "Keys 2"
+  },
+  "254": {
+   "name": "7th Keys"
+  },
+  "255": {
+   "name": "Toy Piano"
+  },
+  "256": {
+   "name": "Vibra"
+  },
+  "257": {
+   "name": "JP Strings"
+  },
+  "258": {
+   "name": "Xylophone"
+  },
+  "259": {
+   "name": "Strings 1"
+  },
+  "260": {
+   "name": "KarpluStrings"
+  },
+  "261": {
+   "name": "Karpad"
+  },
+  "262": {
+   "name": "Brass 1"
+  },
+  "263": {
+   "name": "Brass 2"
+  },
+  "264": {
+   "name": "Soft Brass"
+  },
+  "265": {
+   "name": "Organ 1"
+  },
+  "266": {
+   "name": "Organ 2"
+  },
+  "267": {
+   "name": "Glass Organ"
+  },
+  "268": {
+   "name": "Night Organ"
+  },
+  "269": {
+   "name": "Chorgan"
+  },
+  "270": {
+   "name": "Lucky Lead"
+  },
+  "271": {
+   "name": "FM Bass"
+  },
+  "272": {
+   "name": "Saw Bass"
+  },
+  "273": {
+   "name": "Square Bass"
+  },
+  "274": {
+   "name": "Acid Bass 2"
+  },
+  "275": {
+   "name": "Acid Bass 1"
+  },
+  "276": {
+   "name": "Simple Sub"
+  },
+  "277": {
+   "name": "Exotic Perc"
+  },
+  "278": {
+   "name": "Bells 1"
+  },
+  "279": {
+   "name": "Bells 2"
+  },
+  "280": {
+   "name": "Dirty"
+  },
+  "281": {
+   "name": "Movie Chase"
+  },
+  "282": {
+   "name": "Motorway"
+  },
+  "283": {
+   "name": "Raver"
+  },
+  "284": {
+   "name": "Hypno Chaos"
+  },
+  "285": {
+   "name": "Gaia"
+  },
+  "286": {
+   "name": "Subby"
+  },
+  "287": {
+   "name": "Rubber Band"
+  },
+  "288": {
+   "name": "Rectify"
+  },
+  "289": {
+   "name": "Metal Sequence"
+  },
+  "290": {
+   "name": "Planetary Dial"
+  },
+  "291": {
+   "name": "My Sweet Ai"
+  },
+  "292": {
+   "name": "Systemshock"
+  },
+  "293": {
+   "name": "Aphexian Kick"
+  },
+  "294": {
+   "name": "Talk About D"
+  },
+  "295": {
+   "name": "Neutrino A"
+  },
+  "296": {
+   "name": "Lowride"
+  },
+  "297": {
+   "name": "Midnight Pad"
+  },
+  "298": {
+   "name": "Last Days"
+  },
+  "299": {
+   "name": "Japan Xeno"
+  },
+  "300": {
+   "name": "KataKick"
+  },
+  "301": {
+   "name": "LektrO"
+  },
+  "302": {
+   "name": "Cryda Chords"
+  },
+  "303": {
+   "name": "Stillbass"
+  },
+  "304": {
+   "name": "Shy Robot"
+  },
+  "305": {
+   "name": "Fastrun"
+  },
+  "306": {
+   "name": "Funk Blaster"
+  },
+  "307": {
+   "name": "Deep Sea Call"
+  },
+  "308": {
+   "name": "70s Dracula"
+  },
+  "309": {
+   "name": "Move U Head"
+  },
+  "310": {
+   "name": "93s  Rave"
+  },
+  "311": {
+   "name": "Noisy"
+  },
+  "312": {
+   "name": "Nebem"
+  },
+  "313": {
+   "name": "GivemeSub"
+  },
+  "314": {
+   "name": "Queity"
+  },
+  "315": {
+   "name": "Laity"
+  },
+  "316": {
+   "name": "GrowLing"
+  },
+  "317": {
+   "name": "RisoLFO"
+  },
+  "318": {
+   "name": "Organic Random"
+  },
+  "319": {
+   "name": "Trinity"
+  },
+  "320": {
+   "name": "Carrytron"
+  },
+  "321": {
+   "name": "Comb-Me"
+  },
+  "322": {
+   "name": "WubbliDub"
+  },
+  "323": {
+   "name": "Fmit"
+  },
+  "324": {
+   "name": "Power Touch"
+  },
+  "325": {
+   "name": "Glip"
+  },
+  "326": {
+   "name": "Infini Pad"
+  },
+  "327": {
+   "name": "8bitfi"
+  },
+  "328": {
+   "name": "Eurgon Lead"
+  },
+  "329": {
+   "name": "Pled"
+  },
+  "330": {
+   "name": "Disaster"
+  },
+  "331": {
+   "name": "Bliss"
+  },
+  "332": {
+   "name": "Cloque"
+  },
+  "333": {
+   "name": "Tracteur"
+  },
+  "334": {
+   "name": "Melon"
+  },
+  "335": {
+   "name": "Poireau"
+  },
+  "336": {
+   "name": "Emo"
+  },
+  "337": {
+   "name": "Debout"
+  },
+  "338": {
+   "name": "Maison"
+  },
+  "339": {
+   "name": "Good"
+  },
+  "340": {
+   "name": "Malin"
+  },
+  "341": {
+   "name": "Dandi"
+  },
+  "342": {
+   "name": "Profet"
+  },
+  "343": {
+   "name": "Joan"
+  },
+  "344": {
+   "name": "Woody"
+  },
+  "345": {
+   "name": "Clark"
+  },
+  "346": {
+   "name": "Smooth IPA"
+  },
+  "347": {
+   "name": "Cosy Evening"
+  },
+  "348": {
+   "name": "Far Away"
+  },
+  "349": {
+   "name": "Synz Today"
+  },
+  "350": {
+   "name": "Driftsynchros"
+  },
+  "351": {
+   "name": "Holistic"
+  },
+  "352": {
+   "name": "Solo Trancer"
+  },
+  "353": {
+   "name": "Down For Bass"
+  },
+  "354": {
+   "name": "Qrazy Press"
+  },
+  "355": {
+   "name": "Poisoned 0scs"
+  },
+  "356": {
+   "name": "Moving Cars"
+  },
+  "357": {
+   "name": "Digital Roads"
+  },
+  "358": {
+   "name": "Synchronizer"
+  },
+  "359": {
+   "name": "Tactile Techno"
+  },
+  "360": {
+   "name": "Shiny Hat"
+  },
+  "361": {
+   "name": "King Snap"
+  },
+  "362": {
+   "name": "I Saw It B4"
+  },
+  "363": {
+   "name": "MfCheese"
+  },
+  "364": {
+   "name": "Perculiar Bass"
+  },
+  "365": {
+   "name": "No Rush"
+  },
+  "366": {
+   "name": "2020 Behind"
+  },
+  "367": {
+   "name": "Saw Vox"
+  },
+  "368": {
+   "name": "Vibrato Treble"
+  },
+  "369": {
+   "name": "Low Battery"
+  },
+  "370": {
+   "name": "Gated Com"
+  },
+  "371": {
+   "name": "Low Noisy Vox"
+  },
+  "372": {
+   "name": "Arp Sing"
+  },
+  "373": {
+   "name": "The Eyes"
+  },
+  "374": {
+   "name": "Shy Timbre"
+  },
+  "375": {
+   "name": "Tremolo Saw"
+  },
+  "376": {
+   "name": "Gliding Vox"
+  },
+  "377": {
+   "name": "Crying"
+  },
+  "378": {
+   "name": "PWM vox"
+  },
+  "379": {
+   "name": "Low Square Bot"
+  },
+  "380": {
+   "name": "SnH Voicing"
+  },
+  "381": {
+   "name": "Munks"
+  },
+  "382": {
+   "name": "Random Fields"
+  },
+  "383": {
+   "name": "Akiko San"
+  },
+  "384": {
+   "name": "Basstard Rock"
+  },
+  "385": {
+   "name": "Symfo"
+  },
+  "386": {
+   "name": "Fremens"
+  },
+  "387": {
+   "name": "Umbasa"
+  },
+  "388": {
+   "name": "Warm Brasses"
+  },
+  "389": {
+   "name": "Palette"
+  },
+  "390": {
+   "name": "Tal Rasha"
+  },
+  "391": {
+   "name": "Vocal Slap"
+  },
+  "392": {
+   "name": "Colony Zeta"
+  },
+  "393": {
+   "name": "Aquazone"
+  },
+  "394": {
+   "name": "Future Bits"
+  },
+  "395": {
+   "name": "Rough Riders"
+  },
+  "396": {
+   "name": "Juliet Fries"
+  },
+  "397": {
+   "name": "Cycles"
+  },
+  "398": {
+   "name": "Black Forest"
+  },
+  "399": {
+   "name": "Subnautica"
+  },
+  "400": {
+   "name": "S Waves"
+  },
+  "401": {
+   "name": "Resonant Echo"
+  },
+  "402": {
+   "name": "NTT Docomo"
+  },
+  "403": {
+   "name": "Mod Cello"
+  },
+  "404": {
+   "name": "The Quest"
+  },
+  "405": {
+   "name": "Son Of Uni"
+  },
+  "406": {
+   "name": "Area Scanner"
+  },
+  "407": {
+   "name": "Normandy"
+  },
+  "408": {
+   "name": "Burly Bass"
+  },
+  "409": {
+   "name": "This Key"
+  },
+  "410": {
+   "name": "Warm Keys"
+  },
+  "411": {
+   "name": "Andata"
+  },
+  "412": {
+   "name": "Save The Table"
+  },
+  "413": {
+   "name": "Germs"
+  },
+  "414": {
+   "name": "Ballast"
+  },
+  "415": {
+   "name": "Monumentale"
+  },
+  "416": {
+   "name": "Sector 9"
+  },
+  "417": {
+   "name": "UK 90s Stab"
+  },
+  "418": {
+   "name": "Around 80 BPM"
+  },
+  "419": {
+   "name": "Sampler Dirt"
+  },
+  "420": {
+   "name": "Leftovers"
+  },
+  "421": {
+   "name": "Resonant Slap"
+  },
+  "422": {
+   "name": "Vera Dub"
+  },
+  "423": {
+   "name": "Pfegeleicht"
+  },
+  "424": {
+   "name": "Unstable Keys"
+  },
+  "425": {
+   "name": "Polyphase"
+  },
+  "426": {
+   "name": "Wacky Saucer"
+  },
+  "427": {
+   "name": "Gritty Volts"
+  },
+  "428": {
+   "name": "Faxanadu"
+  },
+  "429": {
+   "name": "Dr Soong"
+  },
+  "430": {
+   "name": "Happy Vibes"
+  },
+  "431": {
+   "name": "2 Voice Unison"
+  },
+  "432": {
+   "name": "Quirky Plucks"
+  },
+  "433": {
+   "name": "Octa Star"
+  },
+  "434": {
+   "name": "Sweetest Ride"
+  },
+  "435": {
+   "name": "Tremendous Way"
+  },
+  "436": {
+   "name": "Mono Dex"
+  },
+  "437": {
+   "name": "Wander Drum"
+  },
+  "438": {
+   "name": "Bloatware"
+  },
+  "439": {
+   "name": "Joe Keys"
+  },
+  "440": {
+   "name": "Revert to Iron"
+  },
+  "441": {
+   "name": "Yggdrasil"
+  },
+  "442": {
+   "name": "Trence"
+  },
+  "443": {
+   "name": "Malibu"
+  },
+  "444": {
+   "name": "Betel"
+  },
+  "445": {
+   "name": "Casually"
+  },
+  "446": {
+   "name": "BzapiBzapo"
+  },
+  "447": {
+   "name": "PianoseK"
+  },
+  "448": {
+   "name": "Into Reverse"
+  },
+  "449": {
+   "name": "Lx1"
+  },
+  "450": {
+   "name": "Keynostril"
+  },
+  "451": {
+   "name": "Slow Amen"
+  },
+  "452": {
+   "name": "Water Stage"
+  },
+  "453": {
+   "name": "Koot"
+  },
+  "454": {
+   "name": "Go-t1E"
+  },
+  "455": {
+   "name": "Lost Vessel"
+  },
+  "456": {
+   "name": "Astrea"
+  },
+  "457": {
+   "name": "Enigma"
+  },
+  "458": {
+   "name": "Samu"
+  },
+  "459": {
+   "name": "Sigil"
+  },
+  "460": {
+   "name": "Antenna"
+  },
+  "461": {
+   "name": "Krazi Snake"
+  },
+  "462": {
+   "name": "Vasarely"
+  },
+  "463": {
+   "name": "Tatata"
+  },
+  "464": {
+   "name": "Funkotron"
+  },
+  "465": {
+   "name": "Trapped"
+  },
+  "466": {
+   "name": "Xoo0Ooo"
+  },
+  "467": {
+   "name": "Lemon"
+  },
+  "468": {
+   "name": "Dourev"
+  },
+  "469": {
+   "name": "Reforme"
+  },
+  "470": {
+   "name": "Mysty Paths"
+  },
+  "471": {
+   "name": "Namo"
+  },
+  "472": {
+   "name": "Ride The Storm"
+  },
+  "473": {
+   "name": "Encounter"
+  },
+  "474": {
+   "name": "Islander"
+  },
+  "475": {
+   "name": "Arcades 107bpm"
+  },
+  "476": {
+   "name": "Ten Forward"
+  },
+  "477": {
+   "name": "Disorder Point"
+  },
+  "478": {
+   "name": "Neurotic Twist"
+  },
+  "479": {
+   "name": "Mellow Tape"
+  },
+  "480": {
+   "name": "Twilight Times"
+  },
+  "481": {
+   "name": "Fragments Bomb"
+  },
+  "482": {
+   "name": "Pressurerise"
+  },
+  "483": {
+   "name": "Blue Exits"
+  },
+  "484": {
+   "name": "Smooth Glitch"
+  },
+  "485": {
+   "name": "Palou"
+  },
+  "486": {
+   "name": "Ciel"
+  },
+  "487": {
+   "name": "Kody"
+  },
+  "488": {
+   "name": "Koda"
+  },
+  "489": {
+   "name": "Bottle"
+  },
+  "490": {
+   "name": "TA1KO"
+  },
+  "491": {
+   "name": "Hartonium"
+  },
+  "492": {
+   "name": "Drumbo"
+  },
+  "493": {
+   "name": "Rhody"
+  },
+  "494": {
+   "name": "Pile"
+  },
+  "495": {
+   "name": "Jardin"
+  },
+  "496": {
+   "name": "Beads"
+  },
+  "497": {
+   "name": "Arppy"
+  },
+  "498": {
+   "name": "Spaswing"
+  },
+  "499": {
+   "name": "Init"
+  },
+  "500": {
+   "name": "Init"
+  },
+  "501": {
+   "name": "Init"
+  },
+  "502": {
+   "name": "Init"
+  },
+  "503": {
+   "name": "Init"
+  },
+  "504": {
+   "name": "Init"
+  },
+  "505": {
+   "name": "Init"
+  },
+  "506": {
+   "name": "Init"
+  },
+  "507": {
+   "name": "Init"
+  },
+  "508": {
+   "name": "Init"
+  },
+  "509": {
+   "name": "Init"
+  },
+  "510": {
+   "name": "Init"
+  },
+  "511": {
+   "name": "Init"
+  },
+  "512": {
+   "name": "Init"
+  }
+ }
+}
