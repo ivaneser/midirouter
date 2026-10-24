@@ -1,5 +1,6 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=22';
+import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=1';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
 import { deviceChannelKey, validMidiChannel } from './device-channels.js';
@@ -221,7 +222,7 @@ export class DeviceManager {
             panel.replaceChildren();
             const hint = document.createElement('p');
             hint.className = 'synth-controls-hint';
-            hint.textContent = 'Drag knobs up or down · Shift for fine adjustment · Keyboard arrows supported';
+            hint.textContent = 'Drag knobs up or down, or drag points on the filter pad and envelope graphs · Shift for fine adjustment · Arrow keys supported';
             panel.appendChild(hint);
             for (const { label, controls: sectionControls } of groupSynthControls(controls)) {
                 const section = document.createElement('section');
@@ -233,7 +234,13 @@ export class DeviceManager {
                 group.className = 'synth-control-grid';
                 section.appendChild(group);
                 panel.appendChild(section);
-                for (const definition of sectionControls) {
+                const { widgets, rest } = planWidgets(sectionControls);
+                const send = (definition, value) =>
+                    this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
+                for (const plan of widgets) {
+                    group.appendChild(plan.kind === 'xy' ? createXYPad(plan, send) : createAdsrGraph(plan, send));
+                }
+                for (const definition of rest) {
                     group.appendChild(this._createDeviceControl(device, model, definition));
                 }
             }

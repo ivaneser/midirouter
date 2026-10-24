@@ -352,6 +352,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
     globalThis.document = {
         getElementById: id => elements[id] || null,
         createElement: tag => new TestElement(tag),
+        createElementNS: (ns, tag) => new TestElement(tag),
         querySelectorAll: selector => findAll(deviceList, el => el.className === selector.slice(1)),
     };
     globalThis.WebSocket = { OPEN: 1 };
@@ -407,12 +408,21 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         const microPanel = microItem.querySelector('.synth-controls');
         assert.ok(microPanel);
         assert.equal(sent.length, beforeOpen, 'opening MicroFreak must not modify the synth');
-        assert.equal(findAll(microPanel, el => el.className === 'midi-knob').length, 20);
-        const cutoff = findAll(microPanel, el => el.type === 'range' && el.dataset.cc === '23')[0];
+        // Cutoff/resonance and the envelope are drawn as graphs; the rest stay knobs.
+        assert.equal(findAll(microPanel, el => el.className === 'midi-knob').length, 13);
+        assert.equal(findAll(microPanel, el => el.type === 'range' && el.dataset.cc === '23').length, 0);
+        const pad = findAll(microPanel, el => el.attributes?.class === 'synth-xy')[0];
+        assert.ok(pad, 'filter section must render the cutoff/resonance pad');
+        assert.equal(findAll(microPanel, el => el.attributes?.class === 'synth-adsr').length, 2, 'envelope + cycling envelope graphs');
+        pad.listeners.keydown({ key: 'ArrowRight', shiftKey: false, preventDefault() {} });
+        assert.equal(sent.at(-1).target, 'microfreak-output');
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 23, 8]);
+        pad.listeners.keydown({ key: 'ArrowUp', shiftKey: true, preventDefault() {} });
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 83, 1]);
+        const cutoff = findAll(microPanel, el => el.type === 'range' && el.dataset.cc === '26')[0];
         cutoff.value = '96';
         cutoff.listeners.input();
-        assert.equal(sent.at(-1).target, 'microfreak-output');
-        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 23, 96]);
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB0, 26, 96]);
         const hold = findAll(microPanel, el => el.type === 'checkbox')[0];
         hold.checked = true;
         hold.listeners.change();
@@ -439,7 +449,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         presetButtons[0].listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 }, 'previous preset clamps at zero');
         cutoff.listeners.input();
-        assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 23, 96], 'open knobs use the new channel immediately');
+        assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 26, 96], 'open knobs use the new channel immediately');
         hold.checked = false;
         hold.listeners.change();
         assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 64, 0]);
@@ -451,7 +461,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         manager.updateChannels(saved);
         assert.equal(channelSelect.value, '3', 'shared settings update the existing selector');
         cutoff.listeners.input();
-        assert.deepEqual(sent.at(-1).data.bytes, [0xB2, 23, 96], 'settings from another client affect open controls');
+        assert.deepEqual(sent.at(-1).data.bytes, [0xB2, 26, 96], 'settings from another client affect open controls');
         assert.ok(microItem.contains(microPanel), 'settings updates keep controls open');
         const ntsItem = deviceList.children.find(el => el.children[0]?.textContent === 'NTS-1 digital kit');
         await ntsItem.children[0].click();

@@ -287,3 +287,15 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .clip-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #0c180d99; pointer-events: none; border-radius: 0 0 7px 7px; }
 .clip-progress-fill { display: block; width: 100%; height: 100%; background: #d1f5a8; transform: scaleX(0); transform-origin: left center; transition: transform 50ms linear; }
 .session-slot.overdub .clip-progress-fill { background: #ffd4a6; }
+.synth-widget { grid-column: 1 / -1; max-width: 360px; padding: 10px; background: #141b21; border: 1px solid var(--line); border-radius: 10px; }
+.synth-widget-head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: .75rem; color: var(--muted); }
+.synth-widget-head output { color: #d3e6bf; font-variant-numeric: tabular-nums; }
+.synth-xy, .synth-adsr { display: block; width: 100%; height: auto; touch-action: none; background: #0f151a; border-radius: 6px; cursor: crosshair; }
+.synth-xy:focus-visible, .synth-adsr:focus-visible { outline: 2px solid var(--accent); }
+.synth-grid { stroke: #26323c; stroke-width: 1; }
+.synth-cross { stroke: #b4e48066; stroke-width: 1; stroke-dasharray: 3 3; }
+.synth-dot { fill: var(--accent); stroke: #0f151a; stroke-width: 2; }
+.synth-dot.fixed { fill: #465461; }
+.synth-adsr-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.synth-adsr-fill { fill: #b4e48022; stroke: none; }
+.synth-widget-axes { display: flex; justify-content: space-between; margin-top: 4px; font-size: .6875rem; color: var(--muted); }
