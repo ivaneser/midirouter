@@ -51,6 +51,22 @@ envelopes (including cycling envelope), effects, modulation, then performance.
 Unknown categories are retained after known groups. Parameters keep their JSON
 order within each group.
 
+## Multitimbral instruments (Waldorf Blofeld)
+
+The Blofeld plays up to 16 parts, each on its own MIDI channel. Its card is a group: the
+instrument name collapses the list, **+ Add part** adds the next free part (part N starts on
+channel N), and **×** removes one. Each part card has its own channel selector, preset ‹ ›
+buttons and expandable controls. Channels are saved in `device-channels.json` as
+`<device key>#<part>` and shared by all browsers. CC values and presets are remembered per
+output *and channel*, so parts never overwrite each other and sessions restore them separately.
+
+The synth must be in Multi mode with each part's receive channel set on the instrument; the
+router only chooses which channel it sends on. The CC panel covers the CCs listed in
+`device_maps/waldorf_blofeld.json` (no NRPN/SysEx). Bank selection and preset-name readback are
+not configured for the Blofeld yet, so ‹ › steps Program Change 0-127 within the current bank.
+The map's dropdowns send the option index as the CC value; check them against the Blofeld's CC
+chart before relying on them. MCP addresses a part as `device: "Blofeld part 3"`.
+
 ## Control-map schema
 
 ```json

@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { classifySynthPortName, MAP_FILES } from './frontend/js/synth-catalog.js';
+import { classifySynthPortName, MAP_FILES, flattenControls } from './frontend/js/synth-catalog.js';
 
 const normalize = text => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -26,6 +26,7 @@ export class DeviceCatalog {
         if (!file) return null;
         const map = this._load(join(this.directory, `${file}.json`));
         if (!map) return null;
+        map.controls = flattenControls(map);
         return { model, map, presets: this._load(join(this.directory, 'presets', `${file}.json`)) };
     }
 }

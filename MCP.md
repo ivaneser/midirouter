@@ -24,6 +24,8 @@ Requests with a foreign `Origin` header are rejected.
 | `daw_*` | State, tempo, record mode, transport, pads, sessions |
 | `panic` | All notes off |
 
+Multitimbral instruments appear once per added part in `list_devices`; address a part as `device: "Blofeld part 3"` (it uses that part's channel).
+
 Values use the UI semantics: sliders take displayed values (signed ranges allowed), dropdowns an
 option label or index, toggles true/false. Everything is clamped to the map range.
 

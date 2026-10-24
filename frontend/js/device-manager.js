@@ -10,6 +10,7 @@ import {
     classifySynthPortName,
     getControlsForModel,
     renderControlDefinition,
+    MULTITIMBRAL_PARTS,
 } from './synth-catalog.js?v=24';
 
 export class DeviceManager {
@@ -51,16 +52,16 @@ export class DeviceManager {
         const first = this._controlsRevision === undefined;
         this._controlsRevision = revision;
         this._controlValues.clear();
-        for (const { target, cc, value } of controls || []) this._controlValues.set(`${target}:${cc}`, value);
+        for (const { target, channel, cc, value } of controls || []) this._controlValues.set(`${target}:${channel}:${cc}`, value);
         if (!first) this.render();   // closes open panels; reopening shows the loaded values
     }
 
     // A control changed from elsewhere (another browser or the MCP server): remember the raw
     // value and move the matching widget in an open panel without sending any MIDI.
-    applyRemoteControl({ target, cc, value }) {
-        this._controlValues.set(`${target}:${cc}`, value);
+    applyRemoteControl({ target, channel, cc, value }) {
+        this._controlValues.set(`${target}:${channel}:${cc}`, value);
         for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
-            if (panel.dataset.deviceId !== target) continue;
+            if (panel.dataset.deviceId !== target || this.channelForKey(panel.dataset.unitKey, panel.dataset.part) !== channel) continue;
             for (const input of panel.querySelectorAll(`[data-cc="${Number(cc)}"]`)) {
                 const min = Number(input.dataset.min || 0);
                 const display = value - (min < 0 ? -min : 0);
@@ -84,7 +85,7 @@ export class DeviceManager {
 
     refreshPresetLabels() {
         document.querySelectorAll?.('.device-program-name').forEach(label => {
-            const key = `${label.dataset.deviceKey}:${this.channels[label.dataset.deviceKey] || 1}`;
+            const key = `${label.dataset.baseKey || label.dataset.deviceKey}:${this.channelForKey(label.dataset.deviceKey, label.dataset.part)}`;
             const program = this.programs.get(key);
             label.textContent = program == null ? '—' : this.presetNames.get(`${key}:${program}`) || String(program + 1);
             label.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
@@ -92,16 +93,35 @@ export class DeviceManager {
     }
 
     updateChannels(channels) {
+        const parts = obj => Object.keys(obj).filter(key => key.includes('#')).sort().join();
+        const partsChanged = parts(this.channels) !== parts(channels);
         this.channels = { ...channels };
+        if (partsChanged) this.render();   // a part was added or removed
         document.querySelectorAll?.('.device-midi-channel').forEach(select => {
             select.value = String(this.channels[select.dataset.deviceKey] || 1);
         });
         this.refreshPresetLabels();
     }
 
-    channelForDevice(device) {
-        const channel = this.channels[deviceChannelKey(device.name)];
-        return validMidiChannel(channel) ? channel : 1;
+    channelForDevice(device, part) {
+        return this.channelForKey(this.unitKey(device, part), part);
+    }
+
+    // Channel saved for a device, or for one part of a multitimbral device (default: part N on channel N).
+    channelForKey(key, part) {
+        const channel = this.channels[key];
+        return validMidiChannel(channel) ? channel : (Number(part) || 1);
+    }
+
+    unitKey(device, part) {
+        return part ? `${deviceChannelKey(device.name)}#${part}` : deviceChannelKey(device.name);
+    }
+
+    // Parts that exist for a multitimbral device (those with a saved channel), in order.
+    partsOf(device) {
+        const prefix = `${deviceChannelKey(device.name)}#`;
+        return Object.keys(this.channels).filter(key => key.startsWith(prefix))
+            .map(key => Number(key.slice(prefix.length))).filter(part => part >= 1 && part <= 16).sort((a, b) => a - b);
     }
 
     /** Refresh the port list */
@@ -143,72 +163,148 @@ export class DeviceManager {
             nameEl.textContent = dev.displayName;
             nameEl.title = `${dev.name} · ${dev.input && dev.output ? 'Input / Output' : dev.output ? 'Output' : 'Input'}`;
             nameEl.setAttribute('aria-expanded', 'false');
-            nameEl.addEventListener('click', () => this._toggleDevicePanel(dev, el, nameEl));
-
             el.appendChild(nameEl);
-            if (dev.output) {
-                this.loadPresetCount(dev);
-                const presets = document.createElement('div');
-                presets.className = 'device-program-controls';
-                const presetLabel = document.createElement('output');
-                presetLabel.className = 'device-program-name';
-                presetLabel.dataset.deviceKey = deviceChannelKey(dev.name);
-                presetLabel.setAttribute('aria-label', `${dev.displayName} preset`);
-                presetLabel.setAttribute('aria-live', 'polite');
-                const programKey = () => `${deviceChannelKey(dev.name)}:${this.channelForDevice(dev)}`;
-                for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.textContent = text;
-                    button.title = `${description} (${step > 0 ? '+1' : '−1'})`;
-                    button.setAttribute('aria-label', `${dev.displayName}: ${description}`);
-                    button.addEventListener('click', () => {
-                        if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
-                        const key = programKey();
-                        const program = Math.max(0, Math.min(this.presetCounts.get(deviceChannelKey(dev.name)) - 1 || 127, (this.programs.get(key) ?? 0) + step));
-                        window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev), index: program }));
-                        this.programs.set(key, program);
-                        // Clear cached names until this selection is confirmed by the device.
-                        this.presetNames.delete(`${key}:${program}`);
-                        this.refreshPresetLabels();
-                        presets.title = `Last requested preset: ${program + 1}`;
-                    });
-                    if (step > 0) presets.appendChild(presetLabel);
-                    presets.appendChild(button);
-                }
-                el.appendChild(presets);
-                const channel = document.createElement('select');
-                channel.className = 'device-midi-channel';
-                channel.dataset.deviceKey = deviceChannelKey(dev.name);
-                channel.setAttribute('aria-label', `${dev.displayName} MIDI channel`);
-                channel.title = 'Match the instrument’s MIDI receive channel';
-                for (let number = 1; number <= 16; number++) {
-                    const option = document.createElement('option');
-                    option.value = String(number);
-                    option.textContent = `Ch ${number}`;
-                    channel.appendChild(option);
-                }
-                channel.value = String(this.channelForDevice(dev));
-                channel.addEventListener('change', () => {
-                    const value = Number(channel.value);
-                    if (!validMidiChannel(value)) return;
-                    if (window.app?.ws?.readyState === WebSocket.OPEN) {
-                        this.channels[deviceChannelKey(dev.name)] = value;
-                        this.refreshPresetLabels();
-                        window.app.ws.send(JSON.stringify({ type: 'set-device-channel', target: dev.id, channel: value }));
-                    } else {
-                        channel.value = String(this.channelForDevice(dev));
-                        window.app?.log?.('Connect to the router to save the MIDI channel.');
-                    }
-                });
-                el.appendChild(channel);
+
+            const model = classifySynthPortName(dev.name).model;
+            if (dev.output && MULTITIMBRAL_PARTS[model]) {
+                // One card for the instrument; its parts are separate cards with their own controls and channels.
+                el.className += ' device-group';
+                nameEl.setAttribute('aria-expanded', 'true');
+                this._renderParts(el, nameEl, dev, MULTITIMBRAL_PARTS[model]);
+            } else {
+                nameEl.addEventListener('click', () => this._toggleDevicePanel(dev, el, nameEl));
+                if (dev.output) this._appendUnitControls(el, dev);
             }
             deviceList.appendChild(el);
         }
         this.refreshPresetLabels();
     }
 
-    async _toggleDevicePanel(device, itemElement, nameButton) {
+    _renderParts(group, nameEl, dev, maxParts) {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'device-part-add';
+        add.textContent = '+ Add part';
+        add.title = `Add a part (up to ${maxParts}); part N starts on MIDI channel N`;
+        const list = document.createElement('div');
+        list.className = 'device-parts';
+        const parts = this.partsOf(dev);
+        add.disabled = parts.length >= maxParts;
+        add.addEventListener('click', () => {
+            if (window.app?.ws?.readyState !== WebSocket.OPEN) {
+                window.app?.log?.('Connect to the router to add a part.');
+                return;
+            }
+            const next = Array.from({ length: maxParts }, (_, i) => i + 1).find(part => !this.partsOf(dev).includes(part));
+            if (next) window.app.ws.send(JSON.stringify({ type: 'set-device-part', target: dev.id, part: next, channel: next }));
+        });
+        nameEl.addEventListener('click', () => {
+            const open = list.hidden;
+            list.hidden = !open;
+            nameEl.setAttribute('aria-expanded', String(open));
+        });
+        group.appendChild(add);
+        if (!parts.length) {
+            const empty = document.createElement('div');
+            empty.className = 'synth-controls-message';
+            empty.textContent = 'No parts yet. Add one for each part you use; each part has its own MIDI channel, preset and controls.';
+            list.appendChild(empty);
+        }
+        for (const part of parts) {
+            const card = document.createElement('div');
+            card.className = 'device-item device-part connected';
+            const partName = document.createElement('button');
+            partName.type = 'button';
+            partName.className = 'device-item-name';
+            partName.textContent = `Part ${part}`;
+            partName.title = `${dev.displayName} · part ${part}`;
+            partName.setAttribute('aria-expanded', 'false');
+            partName.addEventListener('click', () => this._toggleDevicePanel(dev, card, partName, part));
+            card.appendChild(partName);
+            this._appendUnitControls(card, dev, part);
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'device-part-remove';
+            remove.textContent = '×';
+            remove.title = `Remove part ${part}`;
+            remove.setAttribute('aria-label', `${dev.displayName}: remove part ${part}`);
+            remove.addEventListener('click', () => {
+                if (window.app?.ws?.readyState === WebSocket.OPEN) window.app.ws.send(JSON.stringify({ type: 'remove-device-part', target: dev.id, part }));
+            });
+            card.appendChild(remove);
+            list.appendChild(card);
+        }
+        group.appendChild(list);
+    }
+
+    // Preset ‹ › buttons with the preset name, and the MIDI channel selector, for a device
+    // or for one part of a multitimbral device.
+    _appendUnitControls(el, dev, part) {
+        const label = part ? `${dev.displayName} part ${part}` : dev.displayName;
+        const unitKey = this.unitKey(dev, part);
+        const baseKey = deviceChannelKey(dev.name);
+        this.loadPresetCount(dev);
+        const presets = document.createElement('div');
+        presets.className = 'device-program-controls';
+        const presetLabel = document.createElement('output');
+        presetLabel.className = 'device-program-name';
+        presetLabel.dataset.deviceKey = unitKey;
+        presetLabel.dataset.baseKey = baseKey;
+        if (part) presetLabel.dataset.part = String(part);
+        presetLabel.setAttribute('aria-label', `${label} preset`);
+        presetLabel.setAttribute('aria-live', 'polite');
+        const programKey = () => `${baseKey}:${this.channelForDevice(dev, part)}`;
+        for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = text;
+            button.title = `${description} (${step > 0 ? '+1' : '−1'})`;
+            button.setAttribute('aria-label', `${label}: ${description}`);
+            button.addEventListener('click', () => {
+                if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
+                const key = programKey();
+                const program = Math.max(0, Math.min(this.presetCounts.get(baseKey) - 1 || 127, (this.programs.get(key) ?? 0) + step));
+                window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev, part), index: program }));
+                this.programs.set(key, program);
+                // Clear cached names until this selection is confirmed by the device.
+                this.presetNames.delete(`${key}:${program}`);
+                this.refreshPresetLabels();
+                presets.title = `Last requested preset: ${program + 1}`;
+            });
+            if (step > 0) presets.appendChild(presetLabel);
+            presets.appendChild(button);
+        }
+        el.appendChild(presets);
+        const channel = document.createElement('select');
+        channel.className = 'device-midi-channel';
+        channel.dataset.deviceKey = unitKey;
+        channel.setAttribute('aria-label', `${label} MIDI channel`);
+        channel.title = 'Match the instrument’s MIDI receive channel';
+        for (let number = 1; number <= 16; number++) {
+            const option = document.createElement('option');
+            option.value = String(number);
+            option.textContent = `Ch ${number}`;
+            channel.appendChild(option);
+        }
+        channel.value = String(this.channelForDevice(dev, part));
+        channel.addEventListener('change', () => {
+            const value = Number(channel.value);
+            if (!validMidiChannel(value)) return;
+            if (window.app?.ws?.readyState === WebSocket.OPEN) {
+                this.channels[unitKey] = value;
+                this.refreshPresetLabels();
+                window.app.ws.send(JSON.stringify(part
+                    ? { type: 'set-device-part', target: dev.id, part, channel: value }
+                    : { type: 'set-device-channel', target: dev.id, channel: value }));
+            } else {
+                channel.value = String(this.channelForDevice(dev, part));
+                window.app?.log?.('Connect to the router to save the MIDI channel.');
+            }
+        });
+        el.appendChild(channel);
+    }
+
+    async _toggleDevicePanel(device, itemElement, nameButton, part) {
         const current = itemElement.querySelector('.synth-controls');
         if (current) {
             current.remove();
@@ -221,6 +317,8 @@ export class DeviceManager {
         panel.className = 'synth-controls';
         panel.setAttribute('aria-label', `${device.name} controls`);
         panel.dataset.deviceId = device.id;
+        panel.dataset.unitKey = this.unitKey(device, part);
+        if (part) panel.dataset.part = String(part);
         itemElement.appendChild(panel);
         nameButton.setAttribute('aria-expanded', 'true');
 
@@ -269,18 +367,18 @@ export class DeviceManager {
                 const { widgets, rest } = planWidgets(sectionControls);
                 const send = (definition, value) => {
                     const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
-                    this._controlValues.set(`${device.id}:${definition.cc}`, bytes[2]);
-                    this.sendMidi(device.id, bytes);
+                    this._controlValues.set(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`, bytes[2]);
+                    this.sendMidi(device.id, bytes, part);
                 };
                 const saved = definition => {
-                    const raw = this._controlValues.get(`${device.id}:${definition.cc}`);
+                    const raw = this._controlValues.get(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`);
                     return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
                 };
                 for (const plan of widgets) {
                     group.appendChild(plan.kind === 'xy' ? createXYPad(plan, send, saved) : createAdsrGraph(plan, send, saved));
                 }
                 for (const definition of rest) {
-                    group.appendChild(this._createDeviceControl(device, model, definition));
+                    group.appendChild(this._createDeviceControl(device, model, definition, part));
                 }
             }
         } catch (error) {
@@ -296,7 +394,7 @@ export class DeviceManager {
         }
     }
 
-    _createDeviceControl(device, model, definition) {
+    _createDeviceControl(device, model, definition, part) {
         const instruction = renderControlDefinition(definition);
         const row = document.createElement('label');
         row.className = 'synth-control';
@@ -331,13 +429,13 @@ export class DeviceManager {
         if (input.type === 'checkbox') {
             input.checked = false;
         }
-        const valueKey = `${device.id}:${definition.cc}`;
-        const rawSaved = this._controlValues.get(valueKey);
+        const valueKey = () => `${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`;
+        const rawSaved = this._controlValues.get(valueKey());
         const savedValue = rawSaved === undefined ? undefined : rawSaved - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
         const sendValue = value => {
             const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
-            this._controlValues.set(valueKey, bytes[2]);
-            this.sendMidi(device.id, bytes);
+            this._controlValues.set(valueKey(), bytes[2]);
+            this.sendMidi(device.id, bytes, part);
         };
         if (savedValue !== undefined) {
             if (input.type === 'range') input.value = String(savedValue);
@@ -396,10 +494,10 @@ export class DeviceManager {
         }
     }
 
-    sendMidi(targetId, bytes) {
+    sendMidi(targetId, bytes, part) {
         const device = this.outputs.find(port => port.id === targetId);
         if (device && (bytes[0] & 0xF0) === 0xB0) {
-            bytes = [0xB0 | (this.channelForDevice(device) - 1), ...bytes.slice(1)];
+            bytes = [0xB0 | (this.channelForDevice(device, part) - 1), ...bytes.slice(1)];
         }
         if (window.app && window.app.ws && window.app.ws.readyState === WebSocket.OPEN) {
             window.app.ws.send(JSON.stringify({

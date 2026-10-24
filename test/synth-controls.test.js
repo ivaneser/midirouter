@@ -40,6 +40,7 @@ function stubFetch() {
             join(__dirname, MAP_DIR, 'korg_nts1.json'), 'utf-8'
         ),
         'arturia_microfreak.json': readFileSync(join(__dirname, MAP_DIR, 'arturia_microfreak.json'), 'utf-8'),
+        'waldorf_blofeld.json': readFileSync(join(__dirname, MAP_DIR, 'waldorf_blofeld.json'), 'utf-8'),
     };
 
     globalThis.fetch = async (url) => {
@@ -485,6 +486,72 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         restored.updateChannels(saved);
         restored.updatePorts([], [{ id: 'new-output', name: 'Arturia MicroFreak' }]);
         assert.equal(deviceList.children[0].querySelector('.device-midi-channel').value, '3');
+    } finally {
+        globalThis.document = previous.document;
+        globalThis.window = previous.window;
+        globalThis.WebSocket = previous.WebSocket;
+    }
+});
+
+test('Blofeld is one group card with a separate card, channel and controls per part', async () => {
+    const previous = { document: globalThis.document, window: globalThis.window, WebSocket: globalThis.WebSocket };
+    const deviceList = new TestElement('div');
+    const sent = [];
+    globalThis.document = {
+        getElementById: id => (id === 'device-list' ? deviceList : null),
+        createElement: tag => new TestElement(tag),
+        createElementNS: (ns, tag) => new TestElement(tag),
+        querySelectorAll: selector => findAll(deviceList, el => el.className === selector.slice(1)),
+    };
+    globalThis.WebSocket = { OPEN: 1 };
+    globalThis.window = { app: { ws: { readyState: 1, send: value => sent.push(JSON.parse(value)) } } };
+    try {
+        const { deviceChannelKey } = await import('../frontend/js/device-channels.js');
+        const manager = new DeviceManager();
+        manager.updatePorts([], [{ id: 'blofeld-out', name: 'Waldorf Blofeld' }]);
+        let group = deviceList.children[0];
+        assert.ok(group.className.includes('device-group'));
+        assert.equal(findAll(group, el => el.className === 'device-midi-channel').length, 0, 'no parts yet, so no channel selector');
+
+        // "+ Add part" asks the router for the first free part on the matching channel.
+        findAll(group, el => el.className === 'device-part-add')[0].listeners.click();
+        assert.deepEqual(sent.at(-1), { type: 'set-device-part', target: 'blofeld-out', part: 1, channel: 1 });
+
+        // The router answers with the saved channels; parts 1 and 3 (on channel 5) appear.
+        const key = deviceChannelKey('Waldorf Blofeld');
+        manager.updateChannels({ [`${key}#1`]: 1, [`${key}#3`]: 5 });
+        group = deviceList.children[0];   // re-rendered with the parts
+        const cards = findAll(group, el => el.className === 'device-item device-part connected');
+        assert.equal(cards.length, 2);
+        assert.deepEqual(cards.map(card => card.children[0].textContent), ['Part 1', 'Part 3']);
+        assert.deepEqual(findAll(group, el => el.className === 'device-midi-channel').map(select => select.value), ['1', '5']);
+        findAll(group, el => el.className === 'device-part-add')[0].listeners.click();
+        assert.equal(sent.at(-1).part, 2, 'the next free part is added');
+
+        // Each part has its own controls; values go out on the part's channel and stay separate.
+        await cards[1].children[0].click();
+        const knob3 = findAll(cards[1], el => el.type === 'range')[0];
+        knob3.value = '77';
+        knob3.listeners.input();
+        assert.equal(sent.at(-1).type, 'midi-send');
+        assert.equal(sent.at(-1).data.bytes[0], 0xB4, 'part 3 sends on channel 5');
+        assert.equal(sent.at(-1).data.bytes[2], 77);
+        await cards[0].children[0].click();
+        const knob1 = findAll(cards[0], el => el.type === 'range')[0];
+        knob1.value = '12';
+        knob1.listeners.input();
+        assert.equal(sent.at(-1).data.bytes[0], 0xB0, 'part 1 sends on channel 1');
+
+        // Changing a part's channel is saved for that part only.
+        findAll(cards[1], el => el.className === 'device-midi-channel')[0].value = '9';
+        findAll(cards[1], el => el.className === 'device-midi-channel')[0].listeners.change();
+        assert.deepEqual(sent.at(-1), { type: 'set-device-part', target: 'blofeld-out', part: 3, channel: 9 });
+
+        // A part removed on the router disappears.
+        findAll(cards[0], el => el.className === 'device-part-remove')[0].listeners.click();
+        assert.deepEqual(sent.at(-1), { type: 'remove-device-part', target: 'blofeld-out', part: 1 });
+        manager.updateChannels({ [`${key}#3`]: 9 });
+        assert.equal(findAll(deviceList.children[0], el => el.className === 'device-midi-channel').length, 1);
     } finally {
         globalThis.document = previous.document;
         globalThis.window = previous.window;

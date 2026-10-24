@@ -155,6 +155,11 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .piano-roll-toolbar .keyboard-velocity-control { gap: 8px; }
 .keyboard-velocity-control .midi-knob { width: 64px; height: 64px; flex-basis: 64px; }
 .device-program-controls button { min-width: 32px; min-height: 44px; padding: 4px 8px; font-size: 1.25rem; }
+.device-group > .device-parts { flex: 1 1 100%; display: grid; gap: 8px; min-width: 0; }
+.device-group > .device-parts[hidden] { display: none; }
+.device-part { background: #202a33; }
+.device-part-add, .device-part-remove { min-height: 44px; padding: 4px 12px; }
+.device-part-remove { min-width: 44px; font-size: 1.25rem; }
 .device-midi-channel { width: 88px; min-height: 44px; font-size: 1rem; }
 .device-item > .synth-controls { grid-column: 1 / -1; }
 .synth-card-name { font-weight: 600; }

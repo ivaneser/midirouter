@@ -1,3 +1,4 @@
+import { MULTITIMBRAL_PARTS } from './frontend/js/synth-catalog.js';
 import { deviceChannelKey, validMidiChannel } from './frontend/js/device-channels.js';
 import { resolveOutput, findControl, encodeControlValue, decodeControlValue } from './device-catalog.js';
 
@@ -40,9 +41,18 @@ class ToolError extends Error {}
 
 export function createMcpServer(ctx) {
     const outputs = () => ctx.getOutputs();
-    const resolve = device => resolveOutput(outputs(), device);
+    // "Blofeld part 3" selects part 3 of a multitimbral instrument (its own channel).
+    const resolve = device => {
+        const match = /^(.*?)[\s#:_-]*part[\s#:_-]*(\d{1,2})$/i.exec(String(device ?? '').trim());
+        const output = resolveOutput(outputs(), match ? match[1] : device);
+        if (!match) return output;
+        const part = Number(match[2]);
+        if (!MULTITIMBRAL_PARTS[ctx.catalog.forPort(output.name)?.model]) throw new ToolError(`"${output.name}" is not multitimbral`);
+        if (!ctx.getParts(output.name).some(p => p.part === part)) throw new ToolError(`part ${part} is not added; add it in the UI or use list_devices`);
+        return { ...output, part };
+    };
     const channelFor = (output, channel) => {
-        if (channel === undefined) return ctx.getChannel(output.name);
+        if (channel === undefined) return ctx.getChannel(output.name, output.part);
         if (!validMidiChannel(channel)) throw new ToolError('channel must be 1-16');
         return channel;
     };
@@ -76,16 +86,20 @@ export function createMcpServer(ctx) {
 
     const handlers = {
         list_devices() {
-            return outputs().map(o => {
+            return outputs().flatMap(o => {
                 const entry = ctx.catalog.forPort(o.name);
-                const channel = ctx.getChannel(o.name);
-                return { id: o.id, name: o.name, model: entry?.map.model ?? null, channel, preset: currentProgram(o, channel), controls: entry?.map.controls.length ?? 0, presetCatalog: Boolean(entry?.presets) };
+                const info = (unit, part) => {
+                    const channel = ctx.getChannel(o.name, part);
+                    return { id: o.id, name: o.name, ...(part ? { part, device: `${o.name} part ${part}` } : {}), model: entry?.map.model ?? null, channel, preset: currentProgram(unit, channel), controls: entry?.map.controls.length ?? 0, presetCatalog: Boolean(entry?.presets) };
+                };
+                if (MULTITIMBRAL_PARTS[entry?.model]) return ctx.getParts(o.name).map(({ part }) => info({ ...o, part }, part));
+                return [info(o)];
             });
         },
         get_device_params({ device, category }) {
             const output = resolve(device);
             const { map } = catalogFor(output);
-            const channel = ctx.getChannel(output.name);
+            const channel = ctx.getChannel(output.name, output.part);
             const raw = rawValues(output, channel);
             return {
                 device: output.name, model: map.model, channel,
@@ -151,7 +165,7 @@ export function createMcpServer(ctx) {
         },
         set_device_channel({ device, channel }) {
             const output = resolve(device);
-            if (!validMidiChannel(channel) || !ctx.setChannel(output.name, channel)) throw new ToolError('channel must be 1-16');
+            if (!validMidiChannel(channel) || !ctx.setChannel(output.name, channel, output.part)) throw new ToolError('channel must be 1-16');
             return { device: output.name, channel };
         },
         panic() { ctx.panic(); return { ok: true }; },

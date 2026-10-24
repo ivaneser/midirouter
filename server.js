@@ -317,9 +317,14 @@ const mcp = createMcpServer({
     upstream: createUpstream({ url: process.env.MCPI_URL ?? 'http://127.0.0.1:8000/mcp', token: process.env.MCPI_TOKEN }),
     catalog: new DeviceCatalog(join(import.meta.dirname, 'device_maps')),
     getOutputs: () => router.getPorts().outputs,
-    getChannel: name => deviceChannels.channels[deviceChannelKey(name)] || 1,
-    setChannel: (name, channel) => {
-        if (!deviceChannels.set(name, channel)) return false;
+    getChannel: (name, part) => deviceChannels.channels[part ? `${deviceChannelKey(name)}#${part}` : deviceChannelKey(name)] || part || 1,
+    getParts: name => {
+        const prefix = `${deviceChannelKey(name)}#`;
+        return Object.entries(deviceChannels.channels).filter(([key]) => key.startsWith(prefix))
+            .map(([key, channel]) => ({ part: Number(key.slice(prefix.length)), channel })).sort((a, b) => a.part - b.part);
+    },
+    setChannel: (name, channel, part) => {
+        if (!(part ? deviceChannels.setPart(name, part, channel) : deviceChannels.set(name, channel))) return false;
         router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
         return true;
     },
@@ -501,6 +506,21 @@ function startServer() {
                             if (!name || !deviceChannels.set(name, message.channel)) {
                                 throw new Error('Choose a connected output and a channel from 1 to 16.');
                             }
+                            router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
+                        } catch (error) {
+                            ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
+                            ws.send(JSON.stringify({ type: 'device-channel-error', message: error.message }));
+                        }
+                        break;
+                    }
+                    case 'set-device-part':
+                    case 'remove-device-part': {
+                        const name = router.outputs.get(message.target);
+                        try {
+                            const ok = message.type === 'set-device-part'
+                                ? deviceChannels.setPart(name, message.part, message.channel)
+                                : deviceChannels.removePart(name, message.part);
+                            if (!ok) throw new Error('Choose a connected output, a part from 1 to 16 and a channel from 1 to 16.');
                             router._broadcast({ type: 'device-channels', channels: deviceChannels.channels });
                         } catch (error) {
                             ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));

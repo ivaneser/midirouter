@@ -29,3 +29,19 @@ test('invalid saved channels are ignored', t => {
     const settings = new DeviceChannelSettings(path);
     assert.deepEqual({ ...settings.channels }, { good: 4 });
 });
+
+test('parts of a multitimbral device are saved and removed individually', t => {
+    const directory = mkdtempSync(join(tmpdir(), 'midi-channels-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const path = join(directory, 'channels.json');
+    const settings = new DeviceChannelSettings(path);
+    const name = 'Waldorf Blofeld:Waldorf Blofeld MIDI 1 24:0';
+    assert.equal(settings.setPart(name, 3, 5), true);
+    assert.equal(settings.setPart(name, 1, 1), true);
+    assert.equal(settings.setPart(name, 17, 1), false);
+    assert.equal(settings.setPart(name, 2, 0), false);
+    const key = deviceChannelKey('Waldorf Blofeld:Waldorf Blofeld MIDI 1 30:0');
+    assert.deepEqual({ ...new DeviceChannelSettings(path).channels }, { [`${key}#3`]: 5, [`${key}#1`]: 1 });
+    assert.equal(settings.removePart(name, 3), true);
+    assert.deepEqual(Object.keys(new DeviceChannelSettings(path).channels), [`${key}#1`]);
+});

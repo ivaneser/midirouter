@@ -117,3 +117,19 @@ test('tools of the mcpi upstream are forwarded through the same endpoint', async
     assert.deepEqual((await call('record_audio', { seconds: 2 })).data, { rms: 0.1 });
     assert.deepEqual(calls, [['record_audio', { seconds: 2 }]]);
 });
+
+test('parts of a multitimbral instrument are separate devices with their own channels', async () => {
+    const blofeld = { id: 'Waldorf Blofeld:Waldorf Blofeld MIDI 1 24:0', name: 'Waldorf Blofeld:Waldorf Blofeld MIDI 1 24:0' };
+    const parts = [{ part: 1, channel: 1 }, { part: 3, channel: 9 }];
+    const { call, sent } = setup({
+        getOutputs: () => [blofeld],
+        getParts: () => parts,
+        getChannel: (name, part) => parts.find(p => p.part === part)?.channel ?? 1,
+    });
+    const listed = await call('list_devices', {});
+    assert.deepEqual(listed.data.map(d => [d.part, d.channel, d.device]), [[1, 1, `${blofeld.name} part 1`], [3, 9, `${blofeld.name} part 3`]]);
+    const set = await call('set_parameter', { device: 'blofeld part 3', parameter: 35, value: 2 });
+    assert.equal(set.data.channel, 9);
+    assert.deepEqual(sent[0][1].slice(0, 2), [0xB8, 35]);
+    assert.ok((await call('set_parameter', { device: 'blofeld part 2', parameter: 35, value: 1 })).error, 'part 2 is not added');
+});

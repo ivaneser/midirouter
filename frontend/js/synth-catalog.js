@@ -26,7 +26,18 @@ export const MAP_FILES = {
     'craft-synth': 'modal_craft_synth_v2',
     'korg-nts-1': 'korg_nts1',
     'arturia-microfreak': 'arturia_microfreak',
+    'waldorf-blofeld': 'waldorf_blofeld',
 };
+
+// Multitimbral instruments: each part listens on its own MIDI channel and is shown as its own
+// card under the instrument.
+export const MULTITIMBRAL_PARTS = { 'waldorf-blofeld': 16 };
+
+// A map lists its controls in `controls`, or split over several `controls_<section>` arrays.
+export function flattenControls(map) {
+    if (Array.isArray(map?.controls)) return map.controls;
+    return Object.entries(map || {}).filter(([key, value]) => key.startsWith('controls_') && Array.isArray(value)).flatMap(([, value]) => value);
+}
 
 // ---------------------------------------------------------------------------
 // Classification (existing slice-1 behaviour, unchanged).
@@ -57,6 +68,10 @@ export function classifySynthPortName(name) {
 
     if (/micro[\s_-]*freak/.test(look)) {
         return { supported: true, model: 'arturia-microfreak' };
+    }
+
+    if (look.includes('blofeld')) {
+        return { supported: true, model: 'waldorf-blofeld' };
     }
 
     return { supported: false, model: null };
@@ -110,7 +125,7 @@ export async function getControlsForModel(model) {
     if (!resp.ok) return [];
 
     const parsed = await resp.json();
-    const controls = Array.isArray(parsed.controls) ? parsed.controls : [];
+    const controls = flattenControls(parsed);
 
     // Return a deep copy so callers never share mutation surface.
     return JSON.parse(JSON.stringify(controls));
