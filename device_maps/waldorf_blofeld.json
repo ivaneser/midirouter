@@ -1,5 +1,35 @@
 {
   "manufacturer": "Waldorf Music",
+  "presetName": {
+    "match": [
+      "blofeld"
+    ],
+    "request": [
+      240,
+      62,
+      19,
+      127,
+      0,
+      "bank",
+      "program",
+      247
+    ],
+    "programs": 1024,
+    "bankSelectCc": 0,
+    "reply": {
+      "prefix": [
+        240,
+        62,
+        19,
+        null,
+        16
+      ],
+      "bankOffset": 5,
+      "programOffset": 6,
+      "nameOffset": 370,
+      "nameLength": 16
+    }
+  },
   "model": "Blofeld",
   "type": "polyphonic wavetable/analog synth (16-part multitimbral)",
   "midi_version": "2.x",

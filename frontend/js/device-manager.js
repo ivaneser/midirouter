@@ -11,6 +11,7 @@ import {
     getControlsForModel,
     renderControlDefinition,
     MULTITIMBRAL_PARTS,
+    MAP_FILES,
 } from './synth-catalog.js?v=24';
 
 export class DeviceManager {
@@ -29,7 +30,7 @@ export class DeviceManager {
 
     async loadPresetCount(dev) {
         const model = classifySynthPortName(dev.name).model;
-        const file = { 'arturia-microfreak': 'arturia_microfreak' }[model];
+        const file = MAP_FILES[model];
         if (!file || this.presetCounts.has(deviceChannelKey(dev.name))) return;
         try {
             const map = await (await fetch(`/device_maps/${file}.json`)).json();

@@ -31,3 +31,16 @@ test('MicroFreak name requests above 128 carry the bank byte and check the reply
     const reply = [240, 0, 32, 107, 7, 1, request[6], 0, 82, 1, 44, ...new Array(10).fill(0), ...Buffer.from('Bank Two Patch'), 0, 247];
     assert.equal(names.receive(target, reply), null, 'wrong bank is rejected');
 });
+
+test('Blofeld name requests carry bank and program; the 16-character name is read from the sound dump', () => {
+    const names = new PresetNames(directory);
+    const target = 'Waldorf Blofeld:Waldorf Blofeld MIDI 1 24:0';
+    assert.deepEqual(names.bankInfo(target), { programs: 1024, cc: 0 });
+    assert.deepEqual(names.request(target, 3, 300), [240, 62, 19, 127, 0, 2, 44, 247]);
+    const reply = [240, 62, 19, 0, 16, 2, 44, ...Array(383).fill(0), 0, 247];
+    [...'Fat Bass'].forEach((c, i) => { reply[370 + i] = c.charCodeAt(0); });
+    const wrongProgram = reply.slice();
+    wrongProgram[6] = 45;
+    assert.equal(names.receive(target, wrongProgram), null);
+    assert.deepEqual(names.receive(target, reply), { target, channel: 3, program: 300, name: 'Fat Bass' });
+});

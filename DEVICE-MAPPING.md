@@ -62,8 +62,12 @@ output *and channel*, so parts never overwrite each other and sessions restore t
 
 The synth must be in Multi mode with each part's receive channel set on the instrument; the
 router only chooses which channel it sends on. The CC panel covers the CCs listed in
-`device_maps/waldorf_blofeld.json` (no NRPN/SysEx). Bank selection and preset-name readback are
-not configured for the Blofeld yet, so ‹ › steps Program Change 0-127 within the current bank.
+`device_maps/waldorf_blofeld.json` (no NRPN/SysEx). ‹ › steps through all 1024 sounds (8 banks of 128: Bank Select CC0, then
+Program Change) and asks the Blofeld for the sound's name with a Sound Request SysEx
+(`F0 3E 13 7F 00 <bank> <program> F7`); the reply's 16-character name is shown. This follows
+Waldorf's SysEx spec but is **unverified on hardware**: if no name appears, check the router log
+for `[PRESET] reply ... REJECTED` and adjust `presetName.reply.nameOffset` in the map. Parts
+share one pending request, so quickly switching several parts can leave the earlier names blank.
 The map's dropdowns send the option index as the CC value; check them against the Blofeld's CC
 chart before relying on them. MCP addresses a part as `device: "Blofeld part 3"`.
 
