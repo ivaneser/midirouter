@@ -1,6 +1,6 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=25';
-import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=3';
+import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=4';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
 import { buildStages } from './synth-stages.js';

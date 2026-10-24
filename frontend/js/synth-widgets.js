@@ -11,7 +11,7 @@ const find = (controls, pattern, exclude) => controls.find(c =>
 export function planWidgets(controls) {
     const used = new Set();
     const widgets = [];
-    const x = find(controls, /cut-?off|frequency|freq\b/i, /sweep|env|amount|depth/i);
+    const x = find(controls, /cut-?off|frequency|freq\b/i, /sweep|env|amount|depth|\bmod\b/i);
     const y = find(controls, /resonance|\bres\b|\bq\b/i);
     if (x && y && x !== y) {
         widgets.push({ kind: 'xy', x, y });

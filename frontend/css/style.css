@@ -316,11 +316,14 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .synth-stage-title { margin: 0; font-size: .9375rem; color: var(--accent); }
 .synth-stage-hint { margin: 0; font-size: .75rem; color: var(--muted); }
 .synth-modules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; align-items: start; }
-.synth-module { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #141b21; min-width: 0; }
-.synth-module > h5 { margin: 0; font-size: .8125rem; }
-.synth-group { display: grid; gap: 4px; }
+.synth-module { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #141b21; min-width: 0; }
+.synth-module > h5 { flex: 0 0 100%; margin: 0; font-size: .8125rem; }
+.synth-group { display: grid; gap: 4px; flex: 1 1 130px; min-width: 0; }
 .synth-group-label { font-size: .6875rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-.synth-module-widgets .synth-widget { max-width: 250px; width: 100%; margin: 0 auto; }
+.synth-module > .synth-module-widgets { display: block; flex: 0 1 190px; min-width: 150px; }
+.synth-module-widgets .synth-widget { max-width: none; width: 100%; margin: 0; padding: 4px; background: transparent; border: 0; }
+.synth-module-widgets .synth-widget-head { margin-bottom: 3px; font-size: .6875rem; }
+.synth-staged .synth-module { padding: 8px; }
 .synth-controls.synth-staged { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .synth-staged .synth-control-grid { grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; }
 .synth-staged .synth-control { padding: 8px 4px 6px; gap: 4px; border-radius: 9px; }
@@ -341,3 +344,15 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .synth-stage > summary.synth-stage-title::after { content: "+"; color: var(--accent); }
 .synth-stage[open] > summary.synth-stage-title::after { content: "−"; }
 .synth-stage[open] { gap: 8px; }
+
+/* Compact staged cards: smaller knobs, CC numbers only as tooltips, label beside its row. */
+.synth-staged .synth-control-grid { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 3px; }
+.synth-staged .synth-control { padding: 4px 2px 3px; gap: 2px; }
+.synth-staged .midi-knob { width: 40px; height: 40px; flex-basis: 40px; }
+.synth-staged .midi-knob-face { inset: 8px; }
+.synth-staged .synth-control-cc { display: none; }
+.synth-staged .synth-control-name { font-size: .625rem; }
+.synth-staged .midi-knob-value { font-size: .75rem; min-width: 0; }
+.synth-staged .synth-group { gap: 2px; }
+.synth-staged .synth-group-label { font-size: .625rem; }
+.synth-staged .synth-modules { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
