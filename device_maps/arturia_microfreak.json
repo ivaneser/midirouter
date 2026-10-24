@@ -2,8 +2,10 @@
   "manufacturer": "Arturia",
   "presetName": {
     "match": ["microfreak"],
-    "request": [240, 0, 32, 107, 7, 1, "sequence", 3, 25, 0, "program", 0, 247],
-    "reply": { "prefix": [240, 0, 32, 107, 7, 1, null, null, 82], "sequenceOffset": 6, "programOffset": 10, "nameOffset": 21, "nameLength": 14 }
+    "request": [240, 0, 32, 107, 7, 1, "sequence", 3, 25, "bank", "program", 0, 247],
+    "programs": 512,
+    "bankSelectCc": 0,
+    "reply": { "prefix": [240, 0, 32, 107, 7, 1, null, null, 82], "sequenceOffset": 6, "bankOffset": 9, "programOffset": 10, "nameOffset": 21, "nameLength": 14 }
   },
   "model": "MicroFreak",
   "type": "digital hybrid synth (surface capacitive keyboard)",

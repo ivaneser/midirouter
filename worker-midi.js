@@ -2440,21 +2440,33 @@ class MIDIRouterWorker {
         this._devicePrograms.set(`${deviceChannelKey(target)}:${channel}`, { target, channel, program });
     }
 
+    // Select a preset by full index (bank * 128 + program): Bank Select CC first when the
+    // device has more than 128 presets, then Program Change, then the name request.
+    _sendPreset(target, channel, index) {
+        const output = this.outputs.get(target);
+        this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
+        const bank = this._presetNames.bankInfo(target);
+        if (!output || !Number.isInteger(index) || index < 0 || index >= (bank?.programs ?? 128)) return false;
+        if (bank) output.sendMessage(Buffer.from([0xB0 | (channel - 1), bank.cc, index >> 7]));
+        output.sendMessage(Buffer.from([0xC0 | (channel - 1), index & 127]));
+        console.log(`[MIDI] [PRESET] ${target} ch${channel} -> preset ${index}${bank ? ` (bank ${index >> 7} via CC${bank.cc}, program ${index & 127})` : ''}`);
+        this._rememberDeviceProgram(target, channel, index);
+        const request = this._presetNames.request(target, channel, index);
+        if (request) output.sendMessage(Buffer.from(request));
+        return true;
+    }
+
     _restoreDevicePrograms(presets) {
         this._devicePrograms = new Map();
         for (const preset of Array.isArray(presets) ? presets : []) {
             if (typeof preset?.target !== 'string' || !Number.isInteger(preset.channel) || preset.channel < 1 || preset.channel > 16 ||
-                !Number.isInteger(preset.program) || preset.program < 0 || preset.program > 127) continue;
+                !Number.isInteger(preset.program) || preset.program < 0 || preset.program > 1023) continue;
             const candidates = [...this.outputs.keys()].filter(name => deviceChannelKey(name) === deviceChannelKey(preset.target));
             const target = this.outputs.has(preset.target) ? preset.target : candidates.length === 1 ? candidates[0] : null;
             this._rememberDeviceProgram(target || preset.target, preset.channel, preset.program);
             if (!target) continue;
             try {
-                const output = this.outputs.get(target);
-                output.sendMessage(Buffer.from([0xC0 | (preset.channel - 1), preset.program]));
-                this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
-                const request = this._presetNames.request(target, preset.channel, preset.program);
-                if (request) output.sendMessage(Buffer.from(request));
+                this._sendPreset(target, preset.channel, preset.program);
             } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
         }
     }
@@ -2556,6 +2568,11 @@ if (parentPort) {
         }
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
+    } else if (msg.type === 'select_preset') {
+        if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
+            try { if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState(); }
+            catch (e) { console.error(`[MIDI] Preset select failed for ${msg.target}:`, e.message); }
+        }
     } else if (msg.type === 'midi_send_to_target') {
         // Send a raw MIDI message to the target output
         const targetName = msg.target;

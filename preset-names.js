@@ -13,16 +13,23 @@ export class PresetNames {
         }
     }
 
+    // `program` is the full preset index: bank * 128 + Program Change number.
     request(target, channel, program) {
         const profile = this.profiles.find(p => p.match.some(name => target.toLowerCase().includes(name.toLowerCase())));
         if (!profile) return null;
         const sequence = this.sequence++ % 128;
-        const values = { program, channel: channel - 1, sequence };
+        const values = { program: program & 127, bank: program >> 7, channel: channel - 1, sequence };
         const bytes = profile.request.map(b => typeof b === 'string' ? values[b] : b);
         if (bytes.some(b => !Number.isInteger(b) || b < 0 || b > 255)) return null;
         console.log(`[PRESET] request ${target} ch${channel} program ${program} seq ${sequence}: ${bytes.map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
         this.pending.set(deviceChannelKey(target), { target, channel, program, sequence, profile, expires: Date.now() + 2000 });
         return bytes;
+    }
+
+    // Preset count and bank-select CC for a port, or null when it only has 128 presets.
+    bankInfo(target) {
+        const profile = this.profiles.find(p => p.match.some(name => target.toLowerCase().includes(name.toLowerCase())));
+        return profile?.programs > 128 ? { programs: profile.programs, cc: profile.bankSelectCc ?? 0 } : null;
     }
 
     receive(source, bytes) {
@@ -34,13 +41,15 @@ export class PresetNames {
             : !reply.prefix.every((b, i) => b === null || b === bytes[i]) ? 'prefix mismatch'
             : bytes.length < reply.nameOffset + reply.nameLength + 1 ? 'too short'
             : reply.sequenceOffset != null && bytes[reply.sequenceOffset] !== pending.sequence ? `sequence ${bytes[reply.sequenceOffset]} != ${pending.sequence}`
-            : reply.programOffset != null && bytes[reply.programOffset] !== pending.program ? `program ${bytes[reply.programOffset]} != ${pending.program}`
+            : reply.bankOffset != null && bytes[reply.bankOffset] !== pending.program >> 7 ? `bank ${bytes[reply.bankOffset]} != ${pending.program >> 7}`
+            : reply.programOffset != null && bytes[reply.programOffset] !== (pending.program & 127) ? `program ${bytes[reply.programOffset]} != ${pending.program & 127}`
             : null;
         console.log(`[PRESET] reply from ${source} (${bytes.length} bytes) ${reason ? 'REJECTED: ' + reason : 'ok'}: ${hex}`);
         if (bytes.at(-1) !== 0xf7 || !reply.prefix.every((b, i) => b === null || b === bytes[i]) ||
             bytes.length < reply.nameOffset + reply.nameLength + 1 ||
             (reply.sequenceOffset != null && bytes[reply.sequenceOffset] !== pending.sequence) ||
-            (reply.programOffset != null && bytes[reply.programOffset] !== pending.program)) return null;
+            (reply.bankOffset != null && bytes[reply.bankOffset] !== pending.program >> 7) ||
+            (reply.programOffset != null && bytes[reply.programOffset] !== (pending.program & 127))) return null;
         const name = String.fromCharCode(...bytes.slice(reply.nameOffset, reply.nameOffset + reply.nameLength))
             .split('\0')[0].replace(/[^\x20-\x7e]/g, '').trim();
         if (!name) return null;

@@ -593,6 +593,12 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_remove_clip', trackIdx: message.trackIdx });
                         break;
 
+                    case 'select-preset':
+                        if (router.worker && typeof message.target === 'string') {
+                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index });
+                        }
+                        break;
+
                     case 'midi-send':
                         // Send a raw MIDI message to the specified output
                         if (message.data && message.target) {

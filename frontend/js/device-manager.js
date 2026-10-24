@@ -20,6 +20,17 @@ export class DeviceManager {
         this.channels = {};
         this.programs = new Map();
         this.presetNames = new Map();
+        this.presetCounts = new Map();
+    }
+
+    async loadPresetCount(dev) {
+        const model = classifySynthPortName(dev.name).model;
+        const file = { 'arturia-microfreak': 'arturia_microfreak' }[model];
+        if (!file || this.presetCounts.has(deviceChannelKey(dev.name))) return;
+        try {
+            const map = await (await fetch(`/device_maps/${file}.json`)).json();
+            if (map.presetName?.programs > 128) this.presetCounts.set(deviceChannelKey(dev.name), map.presetName.programs);
+        } catch (_) { /* keep 128 presets */ }
     }
 
     updatePresetName({ target, channel, program, name }) {
@@ -44,7 +55,7 @@ export class DeviceManager {
             const key = `${label.dataset.deviceKey}:${this.channels[label.dataset.deviceKey] || 1}`;
             const program = this.programs.get(key);
             label.textContent = program == null ? '—' : this.presetNames.get(`${key}:${program}`) || String(program + 1);
-            label.title = program == null ? 'Select a preset' : `Preset ${program + 1}`;
+            label.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
         });
     }
 
@@ -104,6 +115,7 @@ export class DeviceManager {
 
             el.appendChild(nameEl);
             if (dev.output) {
+                this.loadPresetCount(dev);
                 const presets = document.createElement('div');
                 presets.className = 'device-program-controls';
                 const presetLabel = document.createElement('output');
@@ -121,8 +133,8 @@ export class DeviceManager {
                     button.addEventListener('click', () => {
                         if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
                         const key = programKey();
-                        const program = Math.max(0, Math.min(127, (this.programs.get(key) ?? 0) + step));
-                        this.sendMidi(dev.id, [0xC0 | (this.channelForDevice(dev) - 1), program]);
+                        const program = Math.max(0, Math.min(this.presetCounts.get(deviceChannelKey(dev.name)) - 1 || 127, (this.programs.get(key) ?? 0) + step));
+                        window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev), index: program }));
                         this.programs.set(key, program);
                         // Clear cached names until this selection is confirmed by the device.
                         this.presetNames.delete(`${key}:${program}`);

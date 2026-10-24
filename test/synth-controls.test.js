@@ -427,7 +427,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         assert.equal(microItem.querySelector('.device-header-mixer'), null);
         const presetButtons = microItem.querySelector('.device-program-controls').children.filter(el => el.tagName === 'button');
         presetButtons[1].listeners.click();
-        assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 1]);
+        assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 1 });
         const presetName = microItem.querySelector('.device-program-name');
         assert.equal(presetName.textContent, '2');
         manager.updatePresetName({ target: 'microfreak-output', channel: 16, program: 1, name: 'Warm Pad' });
@@ -435,9 +435,9 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         manager.updatePresetName({ target: 'microfreak-output', channel: 16, program: 0, name: 'Stale' });
         assert.equal(presetName.textContent, 'Warm Pad');
         presetButtons[0].listeners.click();
-        assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 0]);
+        assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 });
         presetButtons[0].listeners.click();
-        assert.deepEqual(sent.at(-1).data.bytes, [0xCF, 0], 'previous preset clamps at zero');
+        assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 }, 'previous preset clamps at zero');
         cutoff.listeners.input();
         assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 23, 96], 'open knobs use the new channel immediately');
         hold.checked = false;

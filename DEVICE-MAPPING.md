@@ -91,7 +91,11 @@ the selected channel, within programs 0–127 (usually displayed as presets 1–
 The router tracks the last requested program per device/channel while the page
 is open, initially assuming program 0. MIDI has no relative Program Change or
 universal preset readback: changes made on the synth itself are not detected.
-These buttons do not change banks.
+These buttons do not change banks, except for devices whose map declares
+`presetName.programs` above 128 (MicroFreak: 512). For those, the preset index is
+`bank × 128 + program`; the router sends Bank Select (`presetName.bankSelectCc`,
+default CC0, value = bank) and then Program Change, and the name request carries the
+bank. The Bank Select CC and value mapping are unverified on hardware.
 
 Sessions also save device/channel Program Change selections made through the
 router. Loading a session sends those programs to connected matching outputs and
