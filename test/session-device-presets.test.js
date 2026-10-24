@@ -90,6 +90,7 @@ test('a name request missed while the synth loads the sound is repeated until it
 });
 
 test('Blofeld parts, their channels, sounds and controls are saved with the session and restored', t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
     const directory = mkdtempSync(join(tmpdir(), 'session-parts-'));
     t.after(() => rmSync(directory, { recursive: true, force: true }));
     const synth = 'Waldorf Blofeld:Blofeld MIDI 1 24:0';
@@ -111,6 +112,10 @@ test('Blofeld parts, their channels, sounds and controls are saved with the sess
     for (const method of ['_stopAllClipPlayback', '_clearStaleRecordingFeedback', '_refreshPadLeds', '_syncPadClock', '_broadcastState']) worker[method] = () => {};
     worker._loadSession('multi');
     assert.deepEqual(sent.filter(bytes => bytes[0] === 0xC0), [[0xC0, 12]], 'part 1 restores its program');
+    assert.equal(sent.some(bytes => bytes[0] === 0xC4), false, 'part 2 waits for part 1 to load');
+    t.mock.timers.tick(300);
+    assert.equal(sent.some(bytes => bytes[0] === 0xB4 && bytes[1] === 69), false, 'knobs wait until the last sound has loaded');
+    t.mock.timers.tick(300);
     assert.ok(sent.some(bytes => bytes[0] === 0xC4 && bytes[1] === 44), 'part 2 restores its program on channel 5');
     assert.ok(sent.some(bytes => bytes[0] === 0xB4 && bytes[1] === 69 && bytes[2] === 99), 'part 2 control comes back');
     assert.equal([...worker._devicePrograms.values()].find(p => p.channel === 5).name, 'Part two');

@@ -26,6 +26,8 @@ const __dirname = path.dirname(__filename);
 const MIDI_DEBUG = process.env.MIDI_DEBUG === '1';
 // Test-only switch: MIDIR_NO_HARDWARE=1 skips real MIDI port enumeration, hot-plug
 // and the audio metronome, so the worker can run in tests without devices.
+// Pause between the sounds of a restored session so a busy synth does not drop one.
+const PRESET_RESTORE_GAP_MS = 300;
 const NO_HARDWARE = process.env.MIDIR_NO_HARDWARE === '1';
 
 class MIDIRouterWorker {
@@ -2555,8 +2557,12 @@ class MIDIRouterWorker {
         this._deviceControlsRev = (this._deviceControlsRev || 0) + 1;
     }
 
+    // Returns how many ms the restore takes: a synth (the Blofeld with several parts) needs time to load
+    // each sound and drops what arrives meanwhile, so the sounds go out one after another.
     _restoreDevicePrograms(presets) {
         this._devicePrograms = new Map();
+        const token = this._restoreToken = (this._restoreToken || 0) + 1;
+        let index = 0;
         for (const preset of Array.isArray(presets) ? presets : []) {
             if (typeof preset?.target !== 'string' || !Number.isInteger(preset.channel) || preset.channel < 1 || preset.channel > 16 ||
                 !Number.isInteger(preset.program) || preset.program < 0 || preset.program > 1023) continue;
@@ -2565,11 +2571,21 @@ class MIDIRouterWorker {
             const name = typeof preset.name === 'string' ? preset.name.replace(/[^\x20-\x7e]/g, '').trim().slice(0, 64) : '';
             this._rememberDeviceProgram(target || preset.target, preset.channel, preset.program, name || undefined);
             if (!target) continue;
-            try {
-                // A saved name is trusted: only the number is sent, no name request.
-                this._sendPreset(target, preset.channel, preset.program, name || undefined);
-            } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
+            const send = () => {
+                // Skip if another session was loaded or the sound was changed in the meantime.
+                if (token !== this._restoreToken) return;
+                const current = this._devicePrograms?.get(`${deviceChannelKey(target)}:${preset.channel}`);
+                if (current && current.program !== preset.program) return;
+                try {
+                    // A saved name is trusted: only the number is sent, no name request.
+                    this._sendPreset(target, preset.channel, preset.program, name || undefined);
+                } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
+            };
+            if (index === 0) send();
+            else setTimeout(send, index * PRESET_RESTORE_GAP_MS).unref?.();
+            index++;
         }
+        return index * PRESET_RESTORE_GAP_MS;
     }
 
     // A synth that is busy loading a preset (and the CCs sent right after it) can miss the first
@@ -2624,8 +2640,12 @@ class MIDIRouterWorker {
             }
             this.daw.loadData(data);
             if (data.deviceParts && typeof data.deviceParts === 'object') parentPort?.postMessage({ type: 'session-device-parts', parts: data.deviceParts });
-            this._restoreDevicePrograms(data.devicePresets);
-            this._restoreDeviceControls(data.deviceControls);
+            const wait = this._restoreDevicePrograms(data.devicePresets);
+            const token = this._restoreToken;
+            if (wait > 0) {
+                // Knob values go out after the last sound has loaded; loading a sound would reset them.
+                setTimeout(() => { if (token === this._restoreToken) this._restoreDeviceControls(data.deviceControls); }, wait).unref?.();
+            } else this._restoreDeviceControls(data.deviceControls);
             this._transportPlaying = false;
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
