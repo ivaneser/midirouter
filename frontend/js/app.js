@@ -1,6 +1,6 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=50';
+import { DeviceManager } from './device-manager.js?v=51';
 import { DAWUI } from './daw-ui.js?v=54';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=46';
@@ -63,6 +63,9 @@ function connect() {
 
     ws.onopen = () => {
         midiKeyboard.syncRecordingInput();
+        bestSyncRtt = Infinity;
+        window.app.clockOffset = 0;
+        for (let i = 0; i < 8; i++) setTimeout(syncClock, i * 120);
         statusEl.textContent = '● Connected';
         statusEl.className = 'status-indicator connected';
         connectBtn.textContent = 'Disconnect';
@@ -135,7 +138,23 @@ if (shutdownBtn) {
 
 // === Server messages ===
 
+// Clock offset to the router (router Date.now() − browser Date.now()). The sample with
+// the smallest round trip is the most accurate, so only that one is kept.
+let bestSyncRtt = Infinity;
+function syncClock() {
+    if (ws?.readyState === WebSocket.OPEN) send({ type: 'time-sync', t0: Date.now() });
+}
+function handleTimeSync(msg) {
+    const t1 = Date.now();
+    const rtt = t1 - msg.t0;
+    if (!Number.isFinite(rtt) || rtt < 0 || rtt >= bestSyncRtt) return;
+    bestSyncRtt = rtt;
+    window.app.clockOffset = msg.ts - (msg.t0 + t1) / 2;
+}
+setInterval(() => { bestSyncRtt *= 1.5; syncClock(); }, 15000);
+
 function handleMessage(msg) {
+    if (msg.type === 'time-sync') return handleTimeSync(msg);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
     if (msg.type === 'daw_state' && msg.payload?.devicePresets) deviceManager.updateDevicePresets(msg.payload.devicePresets);
     if (msg.type === 'daw_progress') pianoRoll.updateProgress(msg.payload?.playing === false ? [] : msg.payload?.clipProgress || []);

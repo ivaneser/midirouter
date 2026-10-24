@@ -1772,7 +1772,14 @@ class MIDIRouterWorker {
             !bytes.every(n => Number.isInteger(n) && n >= 0 && n <= 255) ||
             ![0x80, 0x90].includes(bytes[0] & 0xF0) || bytes[1] > 127 || bytes[2] > 127) return;
         // One performance event may have many output destinations, but is recorded once.
-        this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2], performance.now(), 'ui');
+        // `at` is the key press time on the router's wall clock (browser time plus its
+        // measured offset). Using it removes WebSocket/HTTP delay and jitter from takes.
+        let time = performance.now();
+        if (Number.isFinite(msg.at)) {
+            const age = Date.now() - msg.at;
+            if (age >= 0 && age <= 2000) time -= age;
+        }
+        this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2], time, 'ui');
         for (const target of new Set(Array.isArray(msg.targets) ? msg.targets : [])) {
             const output = this.outputs.get(target);
             if (!output) continue;

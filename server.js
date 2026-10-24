@@ -381,8 +381,12 @@ function startServer() {
                             router.worker?.postMessage({ type: 'ui_keyboard_input', active: message.active === true, channel: message.channel });
                         }
                         break;
+                    case 'time-sync':
+                        // Lets the browser estimate its clock offset to the router.
+                        ws.send(JSON.stringify({ type: 'time-sync', t0: message.t0, ts: Date.now() }));
+                        break;
                     case 'midi-performance':
-                        router.worker?.postMessage({ type: 'midi_performance', targets: message.targets, bytes: message.bytes });
+                        router.worker?.postMessage({ type: 'midi_performance', targets: message.targets, bytes: message.bytes, at: message.at });
                         break;
                     case 'midi-panic':
                         router.worker?.postMessage({ type: 'panic_note_off', immediate: true });

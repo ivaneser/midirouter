@@ -331,7 +331,9 @@ export class DeviceManager {
     /** Send a MIDI message */
     sendPerformance(targets, bytes) {
         if (window.app?.ws?.readyState === WebSocket.OPEN) {
-            window.app.ws.send(JSON.stringify({ type: 'midi-performance', targets, bytes }));
+            // Stamp the event on the router's clock so recordings ignore network latency.
+            const at = Math.round(Date.now() + (window.app.clockOffset || 0));
+            window.app.ws.send(JSON.stringify({ type: 'midi-performance', targets, bytes, at }));
         }
     }
 
