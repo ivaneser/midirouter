@@ -2520,7 +2520,24 @@ class MIDIRouterWorker {
             if (!target) continue;
             try {
                 this._sendPreset(target, preset.channel, preset.program);
+                this._retryPresetName(target, preset.channel, preset.program);
             } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
+        }
+    }
+
+    // A synth that is busy loading a preset (and the CCs sent right after it) can miss the first
+    // name request, so ask again a little later until the name has come back.
+    _retryPresetName(target, channel, program) {
+        for (const delay of [500, 1500, 3000]) {
+            const timer = setTimeout(() => {
+                const pending = this._presetNames?.pending.get(deviceChannelKey(target));
+                const current = this._devicePrograms?.get(`${deviceChannelKey(target)}:${channel}`);
+                if (!pending || pending.program !== program || current?.program !== program) return;
+                const output = this.outputs.get(target);
+                const request = this._presetNames.request(target, channel, program);
+                if (output && request) output.sendMessage(Buffer.from(request));
+            }, delay);
+            timer.unref?.();
         }
     }
 
