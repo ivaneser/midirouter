@@ -20,6 +20,7 @@ export class PresetNames {
         const values = { program, channel: channel - 1, sequence };
         const bytes = profile.request.map(b => typeof b === 'string' ? values[b] : b);
         if (bytes.some(b => !Number.isInteger(b) || b < 0 || b > 255)) return null;
+        console.log(`[PRESET] request ${target} ch${channel} program ${program} seq ${sequence}: ${bytes.map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
         this.pending.set(deviceChannelKey(target), { target, channel, program, sequence, profile, expires: Date.now() + 2000 });
         return bytes;
     }
@@ -28,6 +29,14 @@ export class PresetNames {
         const pending = this.pending.get(deviceChannelKey(source));
         if (!pending || pending.expires < Date.now()) return null;
         const reply = pending.profile.reply;
+        const hex = bytes.map(b => b.toString(16).padStart(2, '0')).join(' ');
+        const reason = bytes.at(-1) !== 0xf7 ? 'no F7 terminator'
+            : !reply.prefix.every((b, i) => b === null || b === bytes[i]) ? 'prefix mismatch'
+            : bytes.length < reply.nameOffset + reply.nameLength + 1 ? 'too short'
+            : reply.sequenceOffset != null && bytes[reply.sequenceOffset] !== pending.sequence ? `sequence ${bytes[reply.sequenceOffset]} != ${pending.sequence}`
+            : reply.programOffset != null && bytes[reply.programOffset] !== pending.program ? `program ${bytes[reply.programOffset]} != ${pending.program}`
+            : null;
+        console.log(`[PRESET] reply from ${source} (${bytes.length} bytes) ${reason ? 'REJECTED: ' + reason : 'ok'}: ${hex}`);
         if (bytes.at(-1) !== 0xf7 || !reply.prefix.every((b, i) => b === null || b === bytes[i]) ||
             bytes.length < reply.nameOffset + reply.nameLength + 1 ||
             (reply.sequenceOffset != null && bytes[reply.sequenceOffset] !== pending.sequence) ||
