@@ -11,6 +11,54 @@ export class DAWUI {
         this._activeSession = null; // name of the project currently loaded (shown green in header)
         this._initControls();
         this._initSessions();
+        this._bindPadGestures();
+    }
+
+    _triggerPad(t, s) {
+        const track = this.dawState?.tracks?.[t];
+        const isRecording = this.dawState?.recording?.track === t && this.dawState?.recording?.slot === s;
+        const isActive = !!track?.playing && s === track.activeSlot;
+        const stopping = isRecording || (isActive && this.dawState?.recordMode !== 'overdub');
+        if (!stopping) this.onClipSelect?.(t, s);
+        this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
+    }
+
+    // Clip pads: tap triggers, holding ~600 ms clears a recorded clip. Presses are tracked per
+    // pointer on the grid and released on the document, so they work independently of each
+    // other and of the on-screen keyboard: browsers send no `click` for a second finger while
+    // another is held, and the grid is rebuilt on every DAW state update.
+    _bindPadGestures() {
+        const grid = document.getElementById('session-grid');
+        if (!grid) return;
+        const presses = new Map();   // pointerId -> { t, s, timer, cleared }
+        const cell = target => target?.closest?.('.session-slot[data-track]');
+        grid.addEventListener('pointerdown', (e) => {
+            const slot = cell(e.target);
+            if (!slot || (e.button !== undefined && e.button !== 0)) return;
+            const t = Number(slot.dataset.track);
+            const s = Number(slot.dataset.slot);
+            const press = { t, s, timer: null, cleared: false };
+            if (this.dawState?.tracks?.[t]?.clips?.[s]?.notes > 0) {
+                press.timer = setTimeout(() => {
+                    press.timer = null;
+                    press.cleared = true;
+                    this._send({ type: 'daw-clear-clip', trackIdx: t, slot: s });
+                }, 600);
+            }
+            presses.set(e.pointerId, press);
+        });
+        const finish = (e, fire) => {
+            const press = presses.get(e.pointerId);
+            if (!press) return;
+            presses.delete(e.pointerId);
+            clearTimeout(press.timer);
+            if (!fire || press.cleared) return;
+            // Only a release on the pad that was pressed counts as a tap.
+            const under = e.clientX === undefined ? null : cell(document.elementFromPoint?.(e.clientX, e.clientY));
+            if (under && Number(under.dataset.track) === press.t && Number(under.dataset.slot) === press.s) this._triggerPad(press.t, press.s);
+        };
+        document.addEventListener('pointerup', (e) => finish(e, true));
+        document.addEventListener('pointercancel', (e) => finish(e, false));
     }
 
     // Sessions: save/load recordings (DAW clips) to/from disk.
@@ -586,30 +634,13 @@ export class DAWUI {
                 slot.dataset.slot = s;
                 slot.title = note?.length ? `Pads: ${note.join(', ')}` : 'unmapped';
 
-                // Click to trigger clip; long-press (≈600 ms) on a recorded clip clears it.
-                let pressTimer = null;
-                let longPressFired = false;
-                const cancelPress = () => { if (pressTimer) clearTimeout(pressTimer); pressTimer = null; };
-                slot.addEventListener('pointerdown', (e) => {
-                    if (e.button !== undefined && e.button !== 0) return;
-                    longPressFired = false;
-                    cancelPress();
-                    if (!clip || !(clip.notes > 0)) return;
-                    pressTimer = setTimeout(() => {
-                        pressTimer = null;
-                        longPressFired = true;
-                        this._send({ type: 'daw-clear-clip', trackIdx: t, slot: s });
-                    }, 600);
+                // Pointer presses are handled by _bindPadGestures() so a grid rebuild or another
+                // finger on the keyboard cannot swallow them. This click is the keyboard path only.
+                slot.addEventListener('click', (e) => {
+                    if (e.detail === 0) this._triggerPad(t, s);
                 });
-                ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => slot.addEventListener(ev, cancelPress));
-                slot.addEventListener('contextmenu', (e) => { if (pressTimer || longPressFired) e.preventDefault(); });
-                slot.addEventListener('click', () => {
-                    if (longPressFired) { longPressFired = false; return; }
-                    const stopping = isRecording || (isActive && this.dawState?.recordMode !== 'overdub');
-                    if (!stopping) this.onClipSelect?.(t, s);
-                    this._send({ type: 'daw-pad-trigger', trackIdx: t, slot: s });
-                });
-                
+                slot.addEventListener('contextmenu', (e) => e.preventDefault());
+
                 block.appendChild(slot);
             }
 
