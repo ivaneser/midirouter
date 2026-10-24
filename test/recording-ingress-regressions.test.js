@@ -33,6 +33,8 @@ test('mapped pad Note On/Off messages reach the active recording path', (t) => {
 
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = daw;
+    worker._trackPlayTimers = new Map();
+    worker._clockMaster = { source: null, activeOutputs: [] };
     worker.controllerEngine = {
         inputEvent: () => ({ kind: 'pad', pad: { trackIdx: 1, slot: 0 }, pressed: true, consume: true }),
     };

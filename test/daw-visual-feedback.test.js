@@ -87,11 +87,13 @@ test('clip-start feedback is emitted after the state redraw message', () => {
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = {
         recordMode: 'none',
+        clipState: [],
         isEmptyProject: () => false,
         triggerPad: () => ({ action: 'play' }),
         _pressTime: (t) => t,
     };
     worker._ledGlow = new Map();
+    worker._trackPlayTimers = new Map();
     worker._clearStaleRecordingFeedback = () => {};
     worker._startTrackPlayback = () => {};
     worker._broadcastState = () => order.push('state');

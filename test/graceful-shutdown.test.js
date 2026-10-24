@@ -48,7 +48,7 @@ test('server exits with code 0 on SIGINT while a WS client is connected', async 
 
     const sp = spawn(process.execPath, ['server.js'], {
         cwd: REPO_DIR,
-        env: { ...process.env, PORT: String(port) },
+        env: { ...process.env, PORT: String(port), MIDIROUTER_NO_POWEROFF: '1' },
         stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -106,7 +106,7 @@ test('server exits with code 0 on SIGINT when no clients are connected', async (
 
     const sp = spawn(process.execPath, ['server.js'], {
         cwd: REPO_DIR,
-        env: { ...process.env, PORT: String(port) },
+        env: { ...process.env, PORT: String(port), MIDIROUTER_NO_POWEROFF: '1' },
         stdio: 'pipe',
     });
 

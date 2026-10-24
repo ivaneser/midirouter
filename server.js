@@ -759,6 +759,12 @@ function startServer() {
             }
         }
 
+        // MIDIROUTER_NO_POWEROFF=1 exits without powering off the host (used by tests).
+        if (process.env.MIDIROUTER_NO_POWEROFF === '1') {
+            console.log('[SERVER] Exiting (power-off disabled).');
+            process.exit(0);
+        }
+
         // Power off the Raspberry Pi via systemd shutdown.
         console.log('[SERVER] Initiating Raspberry Pi power-off...');
         const SHUTDOWN_EXEC_TIMEOUT_MS = 4000;

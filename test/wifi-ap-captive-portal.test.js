@@ -33,9 +33,9 @@ test('HTTP requests from outside the AP subnet are not redirected', () => {
     }), null);
 });
 
-test('AP setup redirects HTTP only and never downgrades HTTPS to plain HTTP', () => {
-    assert.match(startAp, /--dport 80\s+-j REDIRECT --to-port \$\{WEB_PORT\}/);
-    assert.doesNotMatch(startAp, /--dport 443\s+-j REDIRECT/);
+test('AP setup redirects all client TCP traffic to the web UI port', () => {
+    assert.match(startAp, /iptables -t nat -A MIDIRouter -p tcp -j REDIRECT --to-port \$\{WEB_PORT\}/);
+    assert.match(startAp, /iptables -t nat -A PREROUTING -i wlan0 -s 10\.0\.0\.0\/24 -j MIDIRouter/);
 });
 
 test('AP client allow rules are attached to filter INPUT, not invalid PREROUTING', () => {
