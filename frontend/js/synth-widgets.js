@@ -103,16 +103,16 @@ function dragSurface(surface, element, onMove) {
     surface.addEventListener('lostpointercapture', () => { id = null; });
 }
 
-function initial(def) {
-    const v = Number(def.default ?? def.min ?? 0);
+function initial(def, saved) {
+    const v = Number(saved ?? def.default ?? def.min ?? 0);
     return Number.isFinite(v) ? v : 0;
 }
 
 /** Cutoff on X, resonance on Y, with a dot at the current position. */
-export function createXYPad(plan, send) {
+export function createXYPad(plan, send, saved = () => undefined) {
     const { x: xDef, y: yDef } = plan;
     const { wrap, readout } = makeFrame(`${xDef.name} / ${yDef.name}`, '');
-    const state = { x: initial(xDef), y: initial(yDef) };
+    const state = { x: initial(xDef, saved(xDef)), y: initial(yDef, saved(yDef)) };
     const pad = svg('svg', { viewBox: '0 0 200 140', class: 'synth-xy', role: 'application', tabindex: '0',
         'aria-label': `${xDef.name} (horizontal) and ${yDef.name} (vertical)` });
     for (let i = 1; i < 4; i++) {
@@ -161,13 +161,13 @@ export function createXYPad(plan, send) {
 }
 
 /** Standard ADSR graph; missing stages are drawn at a fixed default. */
-export function createAdsrGraph(plan, send) {
+export function createAdsrGraph(plan, send, saved = () => undefined) {
     const defs = { a: plan.a, d: plan.d, s: plan.s, r: plan.r };
     const fixed = { a: 0.15, d: 0.3, s: 0.6, r: 0.3 };
     const title = ['A', 'D', 'S', 'R'].filter((_, i) => Object.values(defs)[i]).join('·');
     const { wrap, readout } = makeFrame(`Envelope ${title}`, '');
     const state = {};
-    for (const k of Object.keys(defs)) state[k] = defs[k] ? toFraction(initial(defs[k]), defs[k]) : fixed[k];
+    for (const k of Object.keys(defs)) state[k] = defs[k] ? toFraction(initial(defs[k], saved(defs[k])), defs[k]) : fixed[k];
 
     const g = ADSR_GEOMETRY;
     const graph = svg('svg', { viewBox: '0 0 200 110', class: 'synth-adsr', role: 'application', tabindex: '0',

@@ -1,7 +1,7 @@
 // Reading order follows sound creation, shaping, effects, then modulation.
 const SECTIONS = [
     ['sound', 'Sound'], ['osc', 'Oscillator'],
-    ['filter', 'Filter'], ['amp', 'Amplifier'], ['env', 'Envelope'],
+    ['filter', 'Filter'], ['filter_env', 'Filter envelope'], ['amp', 'Amplifier'], ['env', 'Envelope'], ['mod_env', 'Modulation envelope'],
     ['cycl_env', 'Cycling envelope'],
     ['fx', 'Effects'], ['fx_mod', 'Modulation effect'],
     ['delay', 'Delay'], ['fx_delay', 'Delay effect'],

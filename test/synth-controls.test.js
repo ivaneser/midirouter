@@ -67,10 +67,10 @@ test.before(async () => {
 // 1. Map loading — getControlsForModel(model) fetches the exact map URL
 // ---------------------------------------------------------------------------
 
-test('getControlsForModel("craft-synth") returns 18 controls after fetching /device_maps/modal_craft_synth_v2.json', async () => {
+test('getControlsForModel("craft-synth") returns 39 controls after fetching /device_maps/modal_craft_synth_v2.json', async () => {
     const controls = await getControlsForModel('craft-synth');
     assert.ok(Array.isArray(controls), 'returns an array of controls');
-    assert.equal(controls.length, 18, 'matches map count exactly');
+    assert.equal(controls.length, 39, 'matches map count exactly');
     // First control from the JSON must be intact.
     assert.deepEqual(controls[0], {
         cc: 1, name: 'Modulation', min: 0, max: 127, type: 'slider', unit: '%', category: 'mod'
@@ -92,7 +92,7 @@ test('getControlsForModel returns a fresh copy each call (no shared mutation)', 
     const a = await getControlsForModel('craft-synth');
     const b = await getControlsForModel('craft-synth');
     a.push({ cc: 999 }); // mutate
-    assert.equal(b.length, 18, 'second call is not affected by mutating the first');
+    assert.equal(b.length, 39, 'second call is not affected by mutating the first');
 });
 
 test('MicroFreak loads its documented 21 CC controls with corrected parameter types', async () => {
@@ -392,15 +392,19 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         assert.equal(sent[0].target, 'craft-output-9');
         assert.deepEqual(sent[0].data.bytes, [0xB0, 1, 42]);
 
-        const pan = findAll(panel, el => el.type === 'range' && el.dataset.cc === '11')[0];
+        const pan = findAll(panel, el => el.type === 'range' && el.dataset.cc === '32')[0];
         assert.equal(pan.value, '0', 'signed knob starts at neutral without transmitting');
         assert.equal(sent.length, 1);
         pan.listeners.input();
-        assert.deepEqual(sent[1].data.bytes, [0xB0, 11, 64], 'displayed zero sends the MIDI midpoint');
+        assert.deepEqual(sent[1].data.bytes, [0xB0, 32, 63], 'displayed zero sends the MIDI midpoint');
 
         // Collapsing removes the panel again.
         await craftName.click();
         assert.equal(craftItem.querySelector('.synth-controls'), null, 'second click must collapse the panel');
+        await craftName.click();
+        const reopened = findAll(craftItem.querySelector('.synth-controls'), el => el.type === 'range' && el.dataset.cc === '1')[0];
+        assert.equal(reopened.value, '42', 'a re-opened panel keeps the values already sent');
+        await craftName.click();
 
         const microItem = deviceList.children.find(el => el.children[0]?.textContent === 'Arturia MicroFreak');
         const beforeOpen = sent.length;

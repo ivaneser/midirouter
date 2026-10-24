@@ -289,11 +289,25 @@ class DAWEngine {
     }
 
     setExternalClock(enabled) {
+        const was = this._externalClock;
         this._externalClock = !!enabled;
         if (this._externalClock) {
             this._midiClock?.pause();
-        } else if (this.playing && this._midiClockEnabled && this._midiClock) {
-            this._midiClock.start();
+            // Switching to external while playing: the internal click timer would keep
+            // ticking next to the external-clock clicks (double clicks). Hand over.
+            if (!was && this._metronomeTimer) {
+                clearInterval(this._metronomeTimer);
+                this._metronomeTimer = null;
+                this._metronomeBeatInMeasure = -1;
+                this._externalClickPrimed = false;
+                this._internalClickSuspended = true;
+            }
+        } else {
+            if (this._internalClickSuspended && this.playing && !this._metronomeTimer) {
+                this._startMetronome(); // external clock gone: the internal timer takes over
+            }
+            this._internalClickSuspended = false;
+            if (this.playing && this._midiClockEnabled && this._midiClock) this._midiClock.start();
         }
     }
 

@@ -15,16 +15,16 @@
     },
     {
       "cc": 5,
-      "name": "Portamento Time",
+      "name": "Glide",
       "min": 0,
       "max": 127,
       "type": "slider",
       "unit": "time",
-      "category": "portamento"
+      "category": "glide"
     },
     {
       "cc": 7,
-      "name": "Volume",
+      "name": "Headphone Volume",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -32,35 +32,124 @@
       "category": "amp"
     },
     {
-      "cc": 11,
-      "name": "Panpot",
-      "min": -64,
-      "max": 63,
+      "cc": 12,
+      "name": "Distortion",
+      "min": 0,
+      "max": 127,
       "type": "slider",
-      "unit": "pan",
-      "center": 0,
-      "category": "amp"
+      "unit": "%",
+      "category": "fx"
     },
     {
-      "cc": 64,
-      "name": "Hold 1 (Sustain)",
+      "cc": 13,
+      "name": "Delay Mix",
       "min": 0,
       "max": 127,
-      "type": "toggle",
-      "on_threshold": 64,
-      "category": "keyboard"
+      "type": "slider",
+      "unit": "%",
+      "category": "delay"
     },
     {
-      "cc": 66,
-      "name": "Portamento",
+      "cc": 14,
+      "name": "Delay Time",
       "min": 0,
       "max": 127,
-      "type": "toggle",
-      "on_threshold": 64,
-      "category": "portamento"
+      "type": "slider",
+      "unit": "time",
+      "category": "delay"
     },
     {
-      "cc": 72,
+      "cc": 15,
+      "name": "Delay Feedback",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "delay"
+    },
+    {
+      "cc": 16,
+      "name": "Osc 1 Wave",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "wave",
+      "category": "osc"
+    },
+    {
+      "cc": 17,
+      "name": "Osc 2 Wave",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "wave",
+      "category": "osc"
+    },
+    {
+      "cc": 18,
+      "name": "Osc Mix",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 19,
+      "name": "Osc Mod Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 20,
+      "name": "Spread",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "osc"
+    },
+    {
+      "cc": 30,
+      "name": "Osc 2 Coarse Detune",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "detune",
+      "category": "osc"
+    },
+    {
+      "cc": 31,
+      "name": "Osc 2 Fine Detune",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "detune",
+      "category": "osc"
+    },
+    {
+      "cc": 33,
+      "name": "Filter Morph (LP-BP-HP)",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 34,
+      "name": "Cutoff",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "freq",
+      "category": "filter"
+    },
+    {
+      "cc": 35,
       "name": "Resonance",
       "min": 0,
       "max": 127,
@@ -69,8 +158,62 @@
       "category": "filter"
     },
     {
-      "cc": 73,
-      "name": "Release Time",
+      "cc": 32,
+      "name": "Filter Env Amount",
+      "min": -63,
+      "max": 63,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter"
+    },
+    {
+      "cc": 22,
+      "name": "Filter Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "filter_env"
+    },
+    {
+      "cc": 23,
+      "name": "Filter Env Decay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "filter_env"
+    },
+    {
+      "cc": 24,
+      "name": "Filter Env Sustain",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "filter_env"
+    },
+    {
+      "cc": 25,
+      "name": "Filter Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "filter_env"
+    },
+    {
+      "cc": 51,
+      "name": "Amp Env Amount",
+      "min": -63,
+      "max": 63,
+      "type": "slider",
+      "unit": "%",
+      "category": "amp"
+    },
+    {
+      "cc": 26,
+      "name": "Amp Env Attack",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -78,8 +221,8 @@
       "category": "env"
     },
     {
-      "cc": 74,
-      "name": "Attack Time",
+      "cc": 27,
+      "name": "Amp Env Decay",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -87,18 +230,17 @@
       "category": "env"
     },
     {
-      "cc": 75,
-      "name": "Cutoff",
+      "cc": 28,
+      "name": "Amp Env Sustain",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "freq",
-      "category": "filter",
-      "primary": true
+      "unit": "%",
+      "category": "env"
     },
     {
-      "cc": 76,
-      "name": "Decay Time",
+      "cc": 29,
+      "name": "Amp Env Release",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -106,72 +248,112 @@
       "category": "env"
     },
     {
-      "cc": 77,
-      "name": "Vibrato Rate",
+      "cc": 43,
+      "name": "Mod Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "mod_env"
+    },
+    {
+      "cc": 44,
+      "name": "Mod Env Decay",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "mod_env"
+    },
+    {
+      "cc": 45,
+      "name": "Mod Env Sustain",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mod_env"
+    },
+    {
+      "cc": 46,
+      "name": "Mod Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "time",
+      "category": "mod_env"
+    },
+    {
+      "cc": 36,
+      "name": "LFO 1 Rate",
       "min": 0,
       "max": 127,
       "type": "slider",
       "unit": "rate",
-      "category": "vibrato"
+      "category": "lfo"
     },
     {
-      "cc": 78,
-      "name": "Vibrato Depth",
-      "min": 0,
-      "max": 127,
+      "cc": 37,
+      "name": "LFO 1 Depth",
+      "min": -63,
+      "max": 63,
       "type": "slider",
       "unit": "%",
-      "category": "vibrato"
+      "category": "lfo"
     },
     {
-      "cc": 80,
-      "name": "Vibrato Delay",
+      "cc": 39,
+      "name": "LFO 1 Shape",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "time",
-      "category": "vibrato"
+      "unit": "shape",
+      "category": "lfo"
     },
     {
-      "cc": 81,
-      "name": "FILTER Knob",
+      "cc": 47,
+      "name": "LFO 2 Rate",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "%",
-      "user_assignable": true,
-      "category": "filter",
-      "primary": true
+      "unit": "rate",
+      "category": "lfo"
     },
     {
-      "cc": 82,
-      "name": "MOD Knob",
-      "min": 0,
-      "max": 127,
+      "cc": 48,
+      "name": "LFO 2 Depth",
+      "min": -63,
+      "max": 63,
       "type": "slider",
       "unit": "%",
-      "user_assignable": true,
-      "category": "mod"
+      "category": "lfo"
     },
     {
-      "cc": 83,
-      "name": "FX Knob",
+      "cc": 50,
+      "name": "LFO 2 Shape",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "%",
-      "user_assignable": true,
-      "category": "fx"
+      "unit": "shape",
+      "category": "lfo"
     },
     {
-      "cc": 84,
-      "name": "SOUND Knob",
+      "cc": 58,
+      "name": "Arpeggiator On",
       "min": 0,
       "max": 127,
-      "type": "slider",
-      "unit": "%",
-      "user_assignable": true,
-      "category": "sound"
+      "type": "toggle",
+      "category": "arp",
+      "on_threshold": 64
+    },
+    {
+      "cc": 64,
+      "name": "Hold Pedal",
+      "min": 0,
+      "max": 127,
+      "type": "toggle",
+      "category": "keyboard",
+      "on_threshold": 64
     }
   ]
 }

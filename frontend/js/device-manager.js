@@ -18,6 +18,8 @@ export class DeviceManager {
         this.outputs = [];  // [{id, name}]
         this.onStateChange = null;
         this._synthControlCache = new Map();
+        // Last value sent per device+CC, so a re-opened panel shows what the synth was set to.
+        this._controlValues = new Map();
         this.channels = {};
         this.programs = new Map();
         this.presetNames = new Map();
@@ -235,10 +237,13 @@ export class DeviceManager {
                 section.appendChild(group);
                 panel.appendChild(section);
                 const { widgets, rest } = planWidgets(sectionControls);
-                const send = (definition, value) =>
+                const send = (definition, value) => {
+                    this._controlValues.set(`${device.id}:${definition.cc}`, value);
                     this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
+                };
+                const saved = definition => this._controlValues.get(`${device.id}:${definition.cc}`);
                 for (const plan of widgets) {
-                    group.appendChild(plan.kind === 'xy' ? createXYPad(plan, send) : createAdsrGraph(plan, send));
+                    group.appendChild(plan.kind === 'xy' ? createXYPad(plan, send, saved) : createAdsrGraph(plan, send, saved));
                 }
                 for (const definition of rest) {
                     group.appendChild(this._createDeviceControl(device, model, definition));
@@ -291,7 +296,17 @@ export class DeviceManager {
         if (input.type === 'checkbox') {
             input.checked = false;
         }
-        const sendValue = value => this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
+        const valueKey = `${device.id}:${definition.cc}`;
+        const savedValue = this._controlValues.get(valueKey);
+        const sendValue = value => {
+            this._controlValues.set(valueKey, value);
+            this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
+        };
+        if (savedValue !== undefined) {
+            if (input.type === 'range') input.value = String(savedValue);
+            else if (input.type === 'checkbox') input.checked = savedValue > 0;
+            else input.selectedIndex = savedValue - Number(definition.min || 0);
+        }
         if (input.type === 'range') {
             row.className += ' synth-control-knob';
             const dial = document.createElement('span');

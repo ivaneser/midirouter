@@ -30,7 +30,7 @@ Open **Devices & sync**, then tap the instrument's name.
 
 | Detected instrument | Catalog model | JSON file | Parameters |
 |---|---|---|---|
-| Craft Synth | `craft-synth` | `modal_craft_synth_v2.json` | 18 |
+| Craft Synth | `craft-synth` | `modal_craft_synth_v2.json` | 39 |
 | NTS-1 digital kit | `korg-nts-1` | `korg_nts1.json` | 29 |
 | Arturia MicroFreak | `arturia-microfreak` | `arturia_microfreak.json` | 21 |
 

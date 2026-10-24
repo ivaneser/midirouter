@@ -32,7 +32,7 @@ test('NTS-1 follows oscillator, shaping, envelope, effects, modulation, performa
 test('Craft Synth presents sound and tone before effects, modulation and keyboard controls', () => {
     const { controls } = JSON.parse(readFileSync(new URL('../device_maps/modal_craft_synth_v2.json', import.meta.url)));
     assert.deepEqual(groupSynthControls(controls).map(group => group.category), [
-        'sound', 'filter', 'amp', 'env', 'fx', 'mod', 'vibrato', 'portamento', 'keyboard',
+        'osc', 'filter', 'filter_env', 'amp', 'env', 'mod_env', 'fx', 'delay', 'mod', 'lfo', 'glide', 'keyboard', 'arp',
     ]);
 });
 

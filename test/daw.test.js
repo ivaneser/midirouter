@@ -510,3 +510,20 @@ test('notes just before the take starts are caught on the first beat (half a gri
     assert.equal(daw.recordEvent(0x90, 62, 100, 800), false);  // 200 ms early: rejected
     assert.equal(clip.notes[0].start, 0);
 });
+
+test('switching to the external clock while playing stops the internal click timer', async () => {
+    const { DAWEngine } = await import('../daw.js');
+    const daw = new DAWEngine();
+    let clicks = 0;
+    daw._onAudioBeat = () => { clicks++; };
+    daw.playing = true;
+    daw._playAnchorTime = performance.now();
+    daw._startMetronome();
+    assert.ok(daw._metronomeTimer, 'internal click timer runs');
+    daw.setExternalClock(true);
+    assert.equal(daw._metronomeTimer, null, 'no second click source once external drives the beat');
+    daw.setExternalClock(false);
+    assert.ok(daw._metronomeTimer, 'internal timer resumes when the external clock is lost');
+    daw._stopMetronome(true);
+    daw._midiClock?.stop();
+});

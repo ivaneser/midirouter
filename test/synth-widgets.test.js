@@ -17,10 +17,14 @@ test('MicroFreak filter gets an XY pad and the envelope an ADSR graph with its t
     assert.deepEqual([env.a.cc, env.d.cc, env.s.cc, env.r], [105, 106, 29, undefined]);
 });
 
-test('Craft Synth has no sustain control; ADSR still drawn from A, D, R', () => {
-    const env = plans('modal_craft_synth_v2').find(s => s.category === 'env').widgets[0];
-    assert.equal(env.s, undefined);
-    assert.ok(env.a && env.d && env.r);
+test('Craft Synth: cutoff 34 / resonance 35 pad and full ADSR graphs from the CC chart', () => {
+    const p = plans('modal_craft_synth_v2');
+    const xy = p.find(s => s.category === 'filter').widgets.find(w => w.kind === 'xy');
+    assert.deepEqual([xy.x.cc, xy.y.cc], [34, 35]);
+    const amp = p.find(s => s.category === 'env').widgets[0];
+    assert.deepEqual([amp.a.cc, amp.d.cc, amp.s.cc, amp.r.cc], [26, 27, 28, 29]);
+    const filt = p.find(s => s.category === 'filter_env').widgets[0];
+    assert.deepEqual([filt.a.cc, filt.d.cc, filt.s.cc, filt.r.cc], [22, 23, 24, 25]);
 });
 
 test('adsr outline stays inside each stage slot', () => {
