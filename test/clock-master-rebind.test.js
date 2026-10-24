@@ -32,3 +32,27 @@ test('clock master stays external and waits when its device is absent', () => {
     worker._rebindClockMaster();
     assert.equal(worker._clockMaster.source.kind, 'external');
 });
+
+function restoreWorker(saved, inputs) {
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    const calls = [];
+    worker.inputs = new Map(inputs.map(n => [n, {}]));
+    worker.daw = { setMidiClock: v => calls.push(['mtc', v]) };
+    worker.controllerEngine = { profiles: [] };
+    worker._clockMaster = { source: { kind: 'internal' }, selectExternal(n) { this.source = { kind: 'external', masterPortName: n }; } };
+    worker._savedClockSource = saved;
+    worker._selectDefaultClockSource();
+    return { worker, calls };
+}
+
+test('a clock source saved in an earlier session is restored at startup', () => {
+    const ext = restoreWorker({ kind: 'external', portName: 'NTS-1 digital kit:NTS-1 digital kit _ SOUND 20:0' },
+        ['NTS-1 digital kit:NTS-1 digital kit _ SOUND 24:0']);
+    assert.equal(ext.worker._clockMaster.source.masterPortName, 'NTS-1 digital kit:NTS-1 digital kit _ SOUND 24:0');
+    assert.deepEqual(ext.calls, [['mtc', false]]);
+    const absent = restoreWorker({ kind: 'external', portName: 'Gone:Gone 20:0' }, []);
+    assert.equal(absent.worker._clockMaster.source.masterPortName, 'Gone:Gone 20:0', 'waits for the device');
+    const internal = restoreWorker({ kind: 'internal' }, ['Launchkey Mini MK3:x 20:0']);
+    assert.equal(internal.worker._clockMaster.source.kind, 'internal');
+    assert.deepEqual(internal.calls, [['mtc', true]]);
+});

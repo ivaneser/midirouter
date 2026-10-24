@@ -223,6 +223,11 @@ class MIDIRouterWorker {
             const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(-200, Math.min(200, Math.round(+v))) : d);
             this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
             this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
+            const cs = s.clockSource;
+            if (cs?.kind === 'internal') this._savedClockSource = { kind: 'internal' };
+            else if (cs?.kind === 'external' && typeof cs.portName === 'string' && cs.portName) {
+                this._savedClockSource = { kind: 'external', portName: cs.portName };
+            }
             console.log(`[WORKER] Calibration loaded: audio ${this.audioOffsetMs} ms, click ${this.clickOffsetMs} ms`);
         } catch (e) {
             console.error('[WORKER] Settings load failed:', e.message);
@@ -234,6 +239,7 @@ class MIDIRouterWorker {
             fs.writeFileSync(this._settingsPath(), JSON.stringify({
                 audioOffsetMs: this.audioOffsetMs,
                 clickOffsetMs: this.clickOffsetMs,
+                clockSource: this._savedClockSource || undefined,
             }, null, 2) + '\n');
         } catch (e) {
             console.error('[WORKER] Settings save failed:', e.message);
@@ -265,6 +271,22 @@ class MIDIRouterWorker {
      * port names are known.
      */
     _selectDefaultClockSource() {
+        // A source chosen in an earlier session wins over the controller default.
+        const saved = this._savedClockSource;
+        if (saved?.kind === 'internal') {
+            this.daw.setMidiClock(true);
+            console.log('[WORKER] Clock source restored: internal');
+            return;
+        }
+        if (saved?.kind === 'external') {
+            const key = stablePortKey(saved.portName);
+            const live = [...this.inputs.keys()].find((n) => n === saved.portName || stablePortKey(n) === key);
+            // Not plugged in yet: keep the saved name; _rebindClockMaster picks it up on hot-plug.
+            this._clockMaster.selectExternal(live || saved.portName);
+            this.daw.setMidiClock(false);
+            console.log(`[WORKER] Clock source restored: external (${live || saved.portName})`);
+            return;
+        }
         const profile = this.controllerEngine.profiles[0];
         if (!profile) return;
         // Find the real input port that matches the profile matcher.
@@ -2644,6 +2666,9 @@ if (parentPort) {
                 }
                 worker.daw.setMidiClock(false);
             }
+            worker._savedClockSource = kind === 'internal' ? { kind: 'internal' }
+                : portName ? { kind: 'external', portName } : worker._savedClockSource;
+            worker._saveSettings();
             worker._broadcastState();
         } else if (msg.type === 'clock_source_explicit_exclusions') {
             const excl = Array.isArray(msg.exclusions) ? msg.exclusions : [];
