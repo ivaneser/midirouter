@@ -73,7 +73,7 @@ export function createMcpServer(ctx) {
         const key = deviceChannelKey(output.id);
         const found = (ctx.getDawState()?.devicePresets || []).find(p => deviceChannelKey(p.target) === key && p.channel === channel);
         if (!found) return null;
-        return { index: found.program, number: found.program + 1, name: ctx.presetName(output.id, channel, found.program) ?? presetCatalogName(output, found.program) };
+        return { index: found.program, number: found.program + 1, name: ctx.presetName(output.id, channel, found.program) ?? found.name ?? presetCatalogName(output, found.program) };
     };
     const presetCatalogName = (output, index) => ctx.catalog.forPort(output.name)?.presets?.presets?.[String(index + 1)]?.name ?? null;
 

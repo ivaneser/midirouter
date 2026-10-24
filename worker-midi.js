@@ -1813,7 +1813,10 @@ class MIDIRouterWorker {
     _onIncomingMessage(deviceName, deltaTime, bytes) {
         if (bytes[0] === 0xf0 && this._presetNames) {
             const preset = this._presetNames.receive(deviceName, bytes);
-            if (preset) parentPort?.postMessage({ type: 'preset-name', ...preset });
+            if (preset) {
+                this._noteDevicePresetName(preset);
+                parentPort?.postMessage({ type: 'preset-name', ...preset });
+            }
         }
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
@@ -2466,14 +2469,25 @@ class MIDIRouterWorker {
         if (parentPort) parentPort?.postMessage({ type: 'daw_session_list', sessions: names, recent });
     }
 
-    _rememberDeviceProgram(target, channel, program) {
+    // The preset name travels with the number (and is saved in sessions) while the same preset stays selected.
+    _rememberDeviceProgram(target, channel, program, name) {
         this._devicePrograms ??= new Map();
-        this._devicePrograms.set(`${deviceChannelKey(target)}:${channel}`, { target, channel, program });
+        const key = `${deviceChannelKey(target)}:${channel}`;
+        const known = this._devicePrograms.get(key);
+        const kept = name ?? (known?.program === program ? known.name : undefined);
+        this._devicePrograms.set(key, kept ? { target, channel, program, name: kept } : { target, channel, program });
+    }
+
+    // A name the device reported for the preset that is currently selected on that channel.
+    _noteDevicePresetName({ target, channel, program, name }) {
+        const entry = this._devicePrograms?.get(`${deviceChannelKey(target)}:${channel}`);
+        if (entry?.program === program && typeof name === 'string' && name) entry.name = name;
     }
 
     // Select a preset by full index (bank * 128 + program): Bank Select CC first when the
     // device has more than 128 presets, then Program Change, then the name request.
-    _sendPreset(target, channel, index) {
+    // With `name` (restored from a session) the preset is selected without asking the device for it again.
+    _sendPreset(target, channel, index, name) {
         const output = this.outputs.get(target);
         this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
         const bank = this._presetNames.bankInfo(target);
@@ -2481,7 +2495,11 @@ class MIDIRouterWorker {
         if (bank) output.sendMessage(Buffer.from([0xB0 | (channel - 1), bank.cc, index >> 7]));
         output.sendMessage(Buffer.from([0xC0 | (channel - 1), index & 127]));
         console.log(`[MIDI] [PRESET] ${target} ch${channel} -> preset ${index}${bank ? ` (bank ${index >> 7} via CC${bank.cc}, program ${index & 127})` : ''}`);
-        this._rememberDeviceProgram(target, channel, index);
+        this._rememberDeviceProgram(target, channel, index, name);
+        if (name) {
+            parentPort?.postMessage({ type: 'preset-name', target, channel, program: index, name });
+            return true;
+        }
         const request = this._presetNames.request(target, channel, index);
         if (request) output.sendMessage(Buffer.from(request));
         return true;
@@ -2516,11 +2534,13 @@ class MIDIRouterWorker {
                 !Number.isInteger(preset.program) || preset.program < 0 || preset.program > 1023) continue;
             const candidates = [...this.outputs.keys()].filter(name => deviceChannelKey(name) === deviceChannelKey(preset.target));
             const target = this.outputs.has(preset.target) ? preset.target : candidates.length === 1 ? candidates[0] : null;
-            this._rememberDeviceProgram(target || preset.target, preset.channel, preset.program);
+            const name = typeof preset.name === 'string' ? preset.name.replace(/[^\x20-\x7e]/g, '').trim().slice(0, 64) : '';
+            this._rememberDeviceProgram(target || preset.target, preset.channel, preset.program, name || undefined);
             if (!target) continue;
             try {
-                this._sendPreset(target, preset.channel, preset.program);
-                this._retryPresetName(target, preset.channel, preset.program);
+                // A saved name is trusted: only the number is sent, no name request.
+                this._sendPreset(target, preset.channel, preset.program, name || undefined);
+                if (!name) this._retryPresetName(target, preset.channel, preset.program);
             } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
         }
     }

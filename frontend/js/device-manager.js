@@ -78,8 +78,10 @@ export class DeviceManager {
 
     updateDevicePresets(presets) {
         this.programs.clear();
-        for (const { target, channel, program } of presets || []) {
-            this.programs.set(`${deviceChannelKey(target)}:${channel}`, program);
+        for (const { target, channel, program, name } of presets || []) {
+            const key = `${deviceChannelKey(target)}:${channel}`;
+            this.programs.set(key, program);
+            if (name) this.presetNames.set(`${key}:${program}`, name);   // saved with the session
         }
         this.refreshPresetLabels();
     }

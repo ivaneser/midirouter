@@ -42,3 +42,31 @@ test('instrument control values are saved with the session and re-sent on load',
     assert.deepEqual(sent, [[0xB1, 34, 99]]);
     assert.equal(w._deviceControls.size, 1, 'invalid entries are dropped');
 });
+
+test('preset names are saved with the session and restored without asking the device', t => {
+    const directory = mkdtempSync(join(tmpdir(), 'session-presets-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine();
+    worker._sessionsDir = () => directory;
+    worker._listSessions = () => {};
+    const synth = 'Arturia MicroFreak:MicroFreak MIDI 1 20:0';
+    worker._rememberDeviceProgram(synth, 3, 300);
+    worker._noteDevicePresetName({ target: synth, channel: 3, program: 299, name: 'Wrong' });
+    assert.equal([...worker._devicePrograms.values()][0].name, undefined, 'a name for another preset is ignored');
+    worker._noteDevicePresetName({ target: synth, channel: 3, program: 300, name: 'Warm Pad' });
+    worker._rememberDeviceProgram(synth, 3, 300);
+    assert.equal([...worker._devicePrograms.values()][0].name, 'Warm Pad', 'reselecting the same preset keeps its name');
+    worker._saveSession('named');
+    const saved = JSON.parse(readFileSync(join(directory, 'named.json'), 'utf8'));
+    assert.deepEqual(saved.devicePresets, [{ target: synth, channel: 3, program: 300, name: 'Warm Pad' }]);
+
+    const sent = [];
+    worker.outputs = new Map([['Arturia MicroFreak:MicroFreak MIDI 1 40:0', { sendMessage: bytes => sent.push([...bytes]) }]]);
+    for (const method of ['_stopAllClipPlayback', '_clearStaleRecordingFeedback', '_refreshPadLeds', '_syncPadClock', '_broadcastState']) worker[method] = () => {};
+    worker._loadSession('named');
+    assert.deepEqual(sent, [[0xB2, 0, 2], [0xC2, 44]], 'only Bank Select and Program Change go out, no SysEx name request');
+    assert.equal([...worker._devicePrograms.values()][0].name, 'Warm Pad');
+    worker._rememberDeviceProgram('Arturia MicroFreak:MicroFreak MIDI 1 40:0', 3, 301);
+    assert.equal([...worker._devicePrograms.values()][0].name, undefined, 'a new preset drops the old name');
+});
