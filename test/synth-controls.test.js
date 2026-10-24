@@ -336,6 +336,26 @@ class TestElement {
         }
         return null;
     }
+
+    // Supports ".class" and "[data-name]" selectors.
+    querySelectorAll(selector) {
+        const className = selector.startsWith('.') ? selector.slice(1) : null;
+        const dataName = selector.match(/^\[data-([a-z-]+)\]$/)?.[1];
+        const matches = [];
+        const walk = element => {
+            for (const child of element.children) {
+                if (className ? child.className.split(/\s+/).includes(className) : dataName && child.dataset[dataName.replace(/-./g, c => c[1].toUpperCase())] !== undefined) matches.push(child);
+                walk(child);
+            }
+        };
+        walk(this);
+        return matches;
+    }
+
+    dispatchEvent(event) {
+        this.listeners[event.type]?.(event);
+        return true;
+    }
 }
 
 function findAll(element, predicate, result = []) {
@@ -456,6 +476,8 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 });
         presetButtons[0].listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 }, 'previous preset clamps at zero');
+        assert.equal(cutoff.value, '0', 'a new sound puts the knobs back to their start positions');
+        cutoff.value = '96';
         cutoff.listeners.input();
         assert.deepEqual(sent.at(-1).data.bytes, [0xBF, 26, 96], 'open knobs use the new channel immediately');
         hold.checked = false;

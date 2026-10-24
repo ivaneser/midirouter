@@ -141,6 +141,8 @@ export function createXYPad(plan, send, saved = () => undefined) {
         draw();
     };
     dragSurface(pad, pad, (fx, fy) => set(toValue(fx, xDef), toValue(fy, yDef)));
+    // Values changed from outside (a sound reset): redraw from the remembered values, send nothing.
+    wrap.addEventListener('widget-sync', () => { state.x = initial(xDef, saved(xDef)); state.y = initial(yDef, saved(yDef)); draw(); });
     pad.addEventListener('keydown', event => {
         const step = event.shiftKey ? 1 : 8;
         const move = { ArrowRight: [step, 0], ArrowLeft: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[event.key];
@@ -230,6 +232,10 @@ export function createAdsrGraph(plan, send, saved = () => undefined) {
         draw();
     });
     wrap.appendChild(graph);
+    wrap.addEventListener('widget-sync', () => {
+        for (const k of Object.keys(defs)) state[k] = defs[k] ? toFraction(initial(defs[k], saved(defs[k])), defs[k]) : fixed[k];
+        draw();
+    });
     draw();
     return wrap;
 }

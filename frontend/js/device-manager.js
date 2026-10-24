@@ -1,6 +1,6 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=25';
-import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=4';
+import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
 import { buildStages } from './synth-stages.js';
@@ -243,6 +243,23 @@ export class DeviceManager {
 
     // Preset ‹ › buttons with the preset name, and the MIDI channel selector, for a device
     // or for one part of a multitimbral device.
+    // A new or reloaded sound replaces every knob tweak: forget the remembered values and put every
+    // control of an open panel back to its start position (nothing is sent to the synth).
+    _discardControls(el, dev, part) {
+        const prefix = `${dev.id}:${this.channelForDevice(dev, part)}:`;
+        for (const key of [...this._controlValues.keys()]) if (key.startsWith(prefix)) this._controlValues.delete(key);
+        const panel = el.querySelector('.synth-controls');
+        if (!panel) return;
+        for (const input of panel.querySelectorAll('[data-cc]')) {
+            if (input.type === 'range') {
+                input.value = input.dataset.start ?? input.min;
+                input.dispatchEvent(new Event('knob-sync'));
+            } else if (input.type === 'checkbox') input.checked = false;
+            else if (input.tagName === 'SELECT') input.selectedIndex = 0;
+        }
+        for (const widget of panel.querySelectorAll('.synth-widget')) widget.dispatchEvent(new Event('widget-sync'));
+    }
+
     _appendUnitControls(el, dev, part) {
         const label = part ? `${dev.displayName} part ${part}` : dev.displayName;
         const unitKey = this.unitKey(dev, part);
@@ -273,6 +290,7 @@ export class DeviceManager {
                 // Clear cached names until this selection is confirmed by the device.
                 this.presetNames.delete(`${key}:${program}`);
                 this.refreshPresetLabels();
+                this._discardControls(el, dev, part);
                 presets.title = `Last requested preset: ${program + 1}`;
             });
             if (step > 0) presets.appendChild(presetLabel);
@@ -290,12 +308,7 @@ export class DeviceManager {
             const program = this.programs.get(programKey());
             if (program == null) window.app?.log?.('No preset selected on this channel yet: pick one with ‹ › first, then ↺ can reload it.');
             window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
-            const prefix = `${dev.id}:${channelNumber}:`;
-            for (const key of [...this._controlValues.keys()]) if (key.startsWith(prefix)) this._controlValues.delete(key);
-            // Rebuild an open panel so every knob shows the reloaded sound, not the old tweaks.
-            const open = el.querySelector('.synth-controls');
-            const toggle = el.querySelector('[aria-expanded="true"]');
-            if (open && toggle) { await this._toggleDevicePanel(dev, el, toggle, part); await this._toggleDevicePanel(dev, el, toggle, part); }
+            this._discardControls(el, dev, part);
         });
         presets.appendChild(reset);
         el.appendChild(presets);
@@ -498,6 +511,7 @@ export class DeviceManager {
 
         input.dataset.cc = String(definition.cc);
         input.dataset.min = String(definition.min ?? 0);
+        if (input.type === 'range') input.dataset.start = instruction.attrs.value;
         input.setAttribute('aria-label', instruction.label.text);
         if (input.type === 'checkbox') {
             input.checked = false;

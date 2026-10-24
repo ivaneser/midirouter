@@ -2498,6 +2498,8 @@ class MIDIRouterWorker {
         output.sendMessage(Buffer.from([0xC0 | (channel - 1), index & 127]));
         console.log(`[MIDI] [PRESET] ${target} ch${channel} -> preset ${index}${bank ? ` (bank ${index >> 7} via CC${bank.cc}, program ${index & 127})` : ''}`);
         this._rememberDeviceProgram(target, channel, index, name);
+        // The synth loaded a fresh sound, so earlier knob tweaks on this channel no longer apply.
+        this._forgetDeviceControls(target, channel);
         if (name) {
             parentPort?.postMessage({ type: 'preset-name', target, channel, program: index, name });
             return true;

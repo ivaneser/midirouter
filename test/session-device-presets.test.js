@@ -120,3 +120,16 @@ test('Blofeld parts, their channels, sounds and controls are saved with the sess
     assert.ok(sent.some(bytes => bytes[0] === 0xB4 && bytes[1] === 69 && bytes[2] === 99), 'part 2 control comes back');
     assert.equal([...worker._devicePrograms.values()].find(p => p.channel === 5).name, 'Part two');
 });
+
+test('selecting or reloading a sound drops the remembered knob values of that channel only', () => {
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    const synth = 'Waldorf Blofeld:Blofeld MIDI 1 24:0';
+    worker.outputs = new Map([[synth, { sendMessage() {} }]]);
+    worker._rememberDeviceControl(synth, 1, 71, 99);
+    worker._rememberDeviceControl(synth, 2, 71, 50);
+    worker._sendPreset(synth, 1, 7, 'Name');
+    assert.deepEqual([...worker._deviceControls.values()].map(c => c.channel), [2]);
+    worker._rememberDeviceControl(synth, 2, 72, 10);
+    worker._forgetDeviceControls(synth, 2);
+    assert.equal(worker._deviceControls.size, 0);
+});
