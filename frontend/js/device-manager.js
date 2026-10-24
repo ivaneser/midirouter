@@ -45,6 +45,16 @@ export class DeviceManager {
         this.refreshPresetLabels();
     }
 
+    // Controls restored by loading a session: replace the remembered values (raw CC bytes).
+    updateDeviceControls(controls, revision) {
+        if (revision === this._controlsRevision) return;
+        const first = this._controlsRevision === undefined;
+        this._controlsRevision = revision;
+        this._controlValues.clear();
+        for (const { target, cc, value } of controls || []) this._controlValues.set(`${target}:${cc}`, value);
+        if (!first) this.render();   // closes open panels; reopening shows the loaded values
+    }
+
     updateDevicePresets(presets) {
         this.programs.clear();
         for (const { target, channel, program } of presets || []) {
@@ -238,10 +248,14 @@ export class DeviceManager {
                 panel.appendChild(section);
                 const { widgets, rest } = planWidgets(sectionControls);
                 const send = (definition, value) => {
-                    this._controlValues.set(`${device.id}:${definition.cc}`, value);
-                    this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
+                    const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
+                    this._controlValues.set(`${device.id}:${definition.cc}`, bytes[2]);
+                    this.sendMidi(device.id, bytes);
                 };
-                const saved = definition => this._controlValues.get(`${device.id}:${definition.cc}`);
+                const saved = definition => {
+                    const raw = this._controlValues.get(`${device.id}:${definition.cc}`);
+                    return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
+                };
                 for (const plan of widgets) {
                     group.appendChild(plan.kind === 'xy' ? createXYPad(plan, send, saved) : createAdsrGraph(plan, send, saved));
                 }
@@ -297,10 +311,12 @@ export class DeviceManager {
             input.checked = false;
         }
         const valueKey = `${device.id}:${definition.cc}`;
-        const savedValue = this._controlValues.get(valueKey);
+        const rawSaved = this._controlValues.get(valueKey);
+        const savedValue = rawSaved === undefined ? undefined : rawSaved - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
         const sendValue = value => {
-            this._controlValues.set(valueKey, value);
-            this.sendMidi(device.id, buildMidiCcBytes(model, definition.cc, value, definition));
+            const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
+            this._controlValues.set(valueKey, bytes[2]);
+            this.sendMidi(device.id, bytes);
         };
         if (savedValue !== undefined) {
             if (input.type === 'range') input.value = String(savedValue);

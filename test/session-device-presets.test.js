@@ -28,3 +28,17 @@ test('sessions save and restore device programs on their channels after port ren
     worker._restoreDevicePrograms(undefined);
     assert.equal(worker._devicePrograms.size, 0, 'old sessions load without preset data');
 });
+
+test('instrument control values are saved with the session and re-sent on load', async () => {
+    const { MIDIRouterWorker } = await import('../worker-midi.js');
+    const w = Object.create(MIDIRouterWorker.prototype);
+    const sent = [];
+    w.outputs = new Map([['Synth:Synth 20:0', { sendMessage: b => sent.push([...b]) }]]);
+    w._rememberDeviceControl('Synth:Synth 20:0', 2, 34, 99);
+    const saved = [...w._deviceControls.values()];
+    assert.deepEqual(saved, [{ target: 'Synth:Synth 20:0', channel: 2, cc: 34, value: 99 }]);
+    w.outputs = new Map([['Synth:Synth 24:0', { sendMessage: b => sent.push([...b]) }]]);
+    w._restoreDeviceControls([...saved, { target: 'x', channel: 99, cc: 1, value: 1 }]);
+    assert.deepEqual(sent, [[0xB1, 34, 99]]);
+    assert.equal(w._deviceControls.size, 1, 'invalid entries are dropped');
+});

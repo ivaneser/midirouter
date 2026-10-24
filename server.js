@@ -7,6 +7,7 @@ import { Worker } from 'worker_threads';
 import { execFile } from 'child_process';
 import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 import { DeviceChannelSettings } from './device-channel-settings.js';
+import { UiLayoutSettings } from './ui-layout.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
@@ -285,6 +286,7 @@ let wss;
 let keyboardInputOwner = null;
 const router = new MIDIRouterWorker();
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
+const uiLayout = new UiLayoutSettings(join(import.meta.dirname, 'ui-layout.json'));
 
 function startServer() {
     // HTTP server for the frontend — no caching of JS/CSS
@@ -363,6 +365,7 @@ function startServer() {
 
         // Send the port list on connection
         ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
+        ws.send(JSON.stringify({ type: 'ui-layout', order: uiLayout.order }));
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('error', (err) => {
@@ -390,6 +393,13 @@ function startServer() {
                         break;
                     case 'midi-panic':
                         router.worker?.postMessage({ type: 'panic_note_off', immediate: true });
+                        break;
+                    case 'set-ui-layout':
+                        try {
+                            router._broadcast({ type: 'ui-layout', order: uiLayout.set(message.order) });
+                        } catch (error) {
+                            console.error('[SERVER] Could not save UI layout:', error.message);
+                        }
                         break;
                     case 'set-device-channel': {
                         const name = router.outputs.get(message.target);

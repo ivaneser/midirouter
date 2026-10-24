@@ -1,10 +1,11 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=52';
+import { DeviceManager } from './device-manager.js?v=53';
 import { DAWUI } from './daw-ui.js?v=54';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=46';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
+import { SectionOrder } from './section-order.js?v=1';
 
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {
@@ -39,6 +40,9 @@ const configEditor = new ConfigEditor({
     ws: null, // will be set after connection
     log
 });
+
+// Draggable page sections; the router keeps their order between restarts.
+const sectionOrder = new SectionOrder(document.getElementById('app'), order => send({ type: 'set-ui-layout', order }));
 
 // Global references for other modules
 window.app = {
@@ -156,9 +160,13 @@ setInterval(() => { bestSyncRtt *= 1.5; syncClock(); }, 15000);
 function handleMessage(msg) {
     if (msg.type === 'time-sync') return handleTimeSync(msg);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
+    if (msg.type === 'daw_state' && msg.payload?.deviceControls) deviceManager.updateDeviceControls(msg.payload.deviceControls, msg.payload.deviceControlsRev);
     if (msg.type === 'daw_state' && msg.payload?.devicePresets) deviceManager.updateDevicePresets(msg.payload.devicePresets);
     if (msg.type === 'daw_progress') pianoRoll.updateProgress(msg.payload?.playing === false ? [] : msg.payload?.clipProgress || []);
     switch (msg.type) {
+        case 'ui-layout':
+            sectionOrder.apply(msg.order);
+            break;
         case 'preset-name':
             deviceManager.updatePresetName(msg);
             break;

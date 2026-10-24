@@ -2340,6 +2340,8 @@ class MIDIRouterWorker {
             track.pendingSlot = playback?.nextClip?.slot ?? null;
         });
         state.devicePresets = [...(this._devicePrograms?.values() || [])];
+        state.deviceControls = [...(this._deviceControls?.values() || [])];
+        state.deviceControlsRev = this._deviceControlsRev || 0;
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
@@ -2485,6 +2487,28 @@ class MIDIRouterWorker {
         return true;
     }
 
+    // Last CC value sent to each instrument parameter (from the UI knobs, pads and graphs).
+    // Saved with the session so loading it brings the sound back.
+    _rememberDeviceControl(target, channel, cc, value) {
+        this._deviceControls ??= new Map();
+        this._deviceControls.set(`${deviceChannelKey(target)}:${channel}:${cc}`, { target, channel, cc, value });
+    }
+
+    _restoreDeviceControls(controls) {
+        this._deviceControls = new Map();
+        for (const c of Array.isArray(controls) ? controls : []) {
+            if (typeof c?.target !== 'string' || !Number.isInteger(c.channel) || c.channel < 1 || c.channel > 16 ||
+                !Number.isInteger(c.cc) || c.cc < 0 || c.cc > 119 || !Number.isInteger(c.value) || c.value < 0 || c.value > 127) continue;
+            const candidates = [...this.outputs.keys()].filter(name => deviceChannelKey(name) === deviceChannelKey(c.target));
+            const target = this.outputs.has(c.target) ? c.target : candidates.length === 1 ? candidates[0] : null;
+            this._rememberDeviceControl(target || c.target, c.channel, c.cc, c.value);
+            if (!target) continue;
+            try { this.outputs.get(target).sendMessage(Buffer.from([0xB0 | (c.channel - 1), c.cc, c.value])); }
+            catch (error) { console.error(`[MIDI] Session control restore failed for ${target}:`, error.message); }
+        }
+        this._deviceControlsRev = (this._deviceControlsRev || 0) + 1;
+    }
+
     _restoreDevicePrograms(presets) {
         this._devicePrograms = new Map();
         for (const preset of Array.isArray(presets) ? presets : []) {
@@ -2507,6 +2531,7 @@ class MIDIRouterWorker {
             const file = path.join(this._sessionsDir(), `${name}.json`);
             const data = this.daw.toData();
             data.devicePresets = [...(this._devicePrograms?.values() || [])];
+            data.deviceControls = [...(this._deviceControls?.values() || [])];
             const notes = data.tracks.reduce(
                 (sum, t) => sum + t.clips.reduce((s, c) => s + c.notes.length, 0), 0);
             fs.writeFileSync(file, JSON.stringify(data, null, 2));
@@ -2533,6 +2558,7 @@ class MIDIRouterWorker {
             }
             this.daw.loadData(data);
             this._restoreDevicePrograms(data.devicePresets);
+            this._restoreDeviceControls(data.deviceControls);
             this._transportPlaying = false;
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
@@ -2611,6 +2637,9 @@ if (parentPort) {
             try {
                 output.sendMessage(Buffer.from(bytes));
                 console.log(`[MIDI] [SERVER] -> ${targetName}: ${bytes.map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`);
+                if ((bytes[0] & 0xf0) === 0xb0 && bytes.length === 3 && bytes[1] > 0 && bytes[1] !== 32 && bytes[1] < 120) {
+                    worker._rememberDeviceControl(targetName, (bytes[0] & 15) + 1, bytes[1], bytes[2]);
+                }
                 if ((bytes[0] & 0xf0) === 0xc0 && Number.isInteger(bytes[1]) && bytes[1] >= 0 && bytes[1] <= 127) {
                     worker._rememberDeviceProgram(targetName, (bytes[0] & 15) + 1, bytes[1]);
                     worker._broadcastState();
