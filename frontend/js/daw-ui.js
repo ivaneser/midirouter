@@ -507,7 +507,7 @@ export class DAWUI {
             for (const inp of currentInputs) {
                 const opt = document.createElement('option');
                 opt.value = `external:${inp}`;
-                opt.textContent = `External: ${inp}`;
+                opt.textContent = String(inp).replace(/\s+\d+:\d+$/, '').split(':')[0].trim() || inp;   // device name only, no ALSA address
                 select.appendChild(opt);
             }
         }
