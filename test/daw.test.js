@@ -479,3 +479,20 @@ test('_stopRecording derives sustained-note duration from the actual stop beat',
         [{ channel: 1, note: 60, velocity: 100, start: 1, dur: 2 }],
         'sustained note stopped at beat 3 must have dur from the actual stop beat (3 - 1 = 2), not a hardcoded value');
 });
+
+test('overdub notes played after the first loop wrap to the start of the clip', () => {
+    const daw = new DAWEngine({ tempo: 120 });
+    const clip = daw.tracks[0].clips[0];
+    clip.notes.push({ channel: 1, note: 60, velocity: 100, start: 0, dur: 1 });
+    clip.length = 4;
+    daw.recording = {
+        track: 0, slot: 0, mode: 'overdub', clipWasEmpty: false, originBeat: 0, startBeat: 0,
+        startTime: 0, notes: clip.notes, noteStarts: new Map(), liveBaseBeat: null,
+    };
+    daw.recordEvent(0x90, 64, 100, 5000); // beat 10 at 120 bpm → wraps to 2
+    daw.recordEvent(0x80, 64, 0, 5500);
+    const note = clip.notes.find(n => n.note === 64);
+    assert.equal(note.start, 2);
+    daw._stopRecording(11);
+    assert.equal(clip.length, 4);
+});

@@ -841,7 +841,7 @@ class DAWEngine {
                 } else {
                     duration = 0.25;
                 }
-                r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(start.beat - r.originBeat), dur: roundBeats(duration) });
+                r.notes.push({ channel: start.channel, note: +note, velocity: start.velocity, start: roundBeats(this._clipStart(r, start.beat)), dur: roundBeats(duration) });
             }
         }
         r.noteStarts.clear();
@@ -872,7 +872,7 @@ class DAWEngine {
                 const snapped = this._snapToBars(Math.max(maxEnd, span));
                 // A layer added on top of a looping clip keeps the clip's loop length.
                 const isLayer = r.mode === 'overdub' && !r.clipWasEmpty;
-                clip.length = isLayer ? Math.max(clip.length, snapped) : snapped;
+                clip.length = isLayer ? clip.length : snapped;
                 if (r.clipWasEmpty) this.tracks[r.track].clips[r.slot].phase = r.phase;
             }
         }
@@ -916,7 +916,7 @@ class DAWEngine {
                     // Store relative to the clip start (startBeat = 0), so that
                     // playback always starts at beat 0 regardless of which beat of the
                     // global cycle the recording started on.
-                    start: roundBeats(start.beat - this.recording.originBeat), dur: roundBeats(Math.max(0.125, beat - start.beat)),
+                    start: roundBeats(this._clipStart(this.recording, start.beat)), dur: roundBeats(Math.max(0.125, beat - start.beat)),
                 };
                 this.recording.notes.push(recorded);
                 // Overdub: the clip keeps looping while we layer on top. Notify so
@@ -929,6 +929,15 @@ class DAWEngine {
             return true;
         }
         return false; // other messages (CC) are ignored for now
+    }
+
+    // Position of a recorded beat inside the clip. A layer on a looping clip wraps at the
+    // clip length, so notes played after the first loop land at the start of the loop.
+    _clipStart(r, beat) {
+        const rel = beat - r.originBeat;
+        const len = this.tracks[r.track].clips[r.slot].length;
+        if (r.mode !== 'overdub' || r.clipWasEmpty || !(len > 0)) return rel;
+        return ((rel % len) + len) % len;
     }
 
     _beatAt(now) {
