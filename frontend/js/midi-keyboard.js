@@ -47,8 +47,9 @@ export class MidiKeyboard {
             this.releaseAll();
             const device = this.dm.outputs.find(d => d.id === this.output.value);
             if (device) this.channel.value = String(this.dm.channelForDevice(device));
+            this.syncRecordingInput();
         });
-        this.channel.addEventListener('change', () => this.releaseAll());
+        this.channel.addEventListener('change', () => { this.releaseAll(); this.syncRecordingInput(); });
         this.lowC.addEventListener('change', () => {
             this.releaseAll();
             if (Number(this.lowC.value) > Number(this.highC.value)) this.highC.value = this.lowC.value;
@@ -61,7 +62,10 @@ export class MidiKeyboard {
         });
         this.sustainButton = document.getElementById('keyboard-sustain');
         this.sustainButton.addEventListener('click', () => this.setSustain(!this.sustain));
-        this.section.addEventListener('toggle', () => { if (!this.section.open) this.releaseAll(); });
+        this.section.addEventListener('toggle', () => {
+            if (!this.section.open) this.releaseAll();
+            this.syncRecordingInput();
+        });
         window.addEventListener('blur', () => this.releaseAll());
         document.addEventListener('visibilitychange', () => { if (document.hidden) this.releaseAll(); });
         this.render();
@@ -82,6 +86,13 @@ export class MidiKeyboard {
             if (device) this.channel.value = String(this.dm.channelForDevice(device));
         }
         this.render();
+        this.syncRecordingInput();
+    }
+
+    syncRecordingInput() {
+        if (window.app?.ws?.readyState === WebSocket.OPEN) {
+            window.app.ws.send(JSON.stringify({ type: 'ui-keyboard-input', active: !!this.section.open, channel: Number(this.channel.value) }));
+        }
     }
 
     press(id, note, button) {

@@ -1747,7 +1747,17 @@ class MIDIRouterWorker {
         return real;
     }
 
-    _recordPerformanceEvent(status, note, velocity, time) {
+    _recordPerformanceEvent(status, note, velocity, time, source = 'midi') {
+        const recording = this.daw.recording;
+        if (recording) {
+            if (!recording.input && this._uiKeyboardInput?.active) {
+                recording.input = { source: 'ui', channel: this._uiKeyboardInput.channel };
+            }
+            if (!recording.input && source === 'ui') recording.input = { source, channel: (status & 15) + 1 };
+            if (recording.input && (recording.input.source !== source || recording.input.channel !== (status & 15) + 1)) return false;
+            const assignedTrack = this.daw.tracks[recording.track];
+            if (source === 'ui' && assignedTrack.channelAssigned && assignedTrack.channel !== (status & 15) + 1) return false;
+        }
         const track = this.daw.tracks[this.daw.recording?.track];
         const wasAssigned = !!track?.channelAssigned;
         const recorded = this.daw.recordEvent(status, note, velocity, time);
@@ -1762,7 +1772,7 @@ class MIDIRouterWorker {
             !bytes.every(n => Number.isInteger(n) && n >= 0 && n <= 255) ||
             ![0x80, 0x90].includes(bytes[0] & 0xF0) || bytes[1] > 127 || bytes[2] > 127) return;
         // One performance event may have many output destinations, but is recorded once.
-        this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2], performance.now());
+        this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2], performance.now(), 'ui');
         for (const target of new Set(Array.isArray(msg.targets) ? msg.targets : [])) {
             const output = this.outputs.get(target);
             if (!output) continue;
@@ -2540,6 +2550,10 @@ if (parentPort) {
         process.exit(0);
     } else if (msg.type.startsWith('daw_')) {
         worker.handleDawControl(msg);
+    } else if (msg.type === 'ui_keyboard_input') {
+        if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
+            worker._uiKeyboardInput = { active: msg.active === true, channel: msg.channel };
+        }
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
     } else if (msg.type === 'midi_send_to_target') {

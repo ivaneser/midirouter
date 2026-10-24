@@ -282,6 +282,7 @@ class MIDIRouterWorker {
 
 // === HTTP + WebSocket Server ===
 let wss;
+let keyboardInputOwner = null;
 const router = new MIDIRouterWorker();
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 
@@ -373,6 +374,13 @@ function startServer() {
                 const message = JSON.parse(data.toString());
 
                 switch (message.type) {
+                    case 'ui-keyboard-input':
+                        if (Number.isInteger(message.channel) && message.channel >= 1 && message.channel <= 16 &&
+                            (message.active === true || keyboardInputOwner === ws)) {
+                            keyboardInputOwner = message.active === true ? ws : null;
+                            router.worker?.postMessage({ type: 'ui_keyboard_input', active: message.active === true, channel: message.channel });
+                        }
+                        break;
                     case 'midi-performance':
                         router.worker?.postMessage({ type: 'midi_performance', targets: message.targets, bytes: message.bytes });
                         break;
@@ -657,6 +665,10 @@ function startServer() {
         });
 
         ws.on('close', (code, reason) => {
+            if (keyboardInputOwner === ws) {
+                keyboardInputOwner = null;
+                router.worker?.postMessage({ type: 'ui_keyboard_input', active: false, channel: 1 });
+            }
             console.log('[SERVER] Client disconnected:', code, reason.toString());
         });
     });

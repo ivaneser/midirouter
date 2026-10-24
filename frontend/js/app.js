@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=50';
 import { DAWUI } from './daw-ui.js?v=54';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=46';
-import { MidiKeyboard } from './midi-keyboard.js?v=48';
+import { MidiKeyboard } from './midi-keyboard.js?v=55';
 
 // Auto-detect WebSocket URL from current page location
 (function autoDetectWsUrl() {
@@ -62,6 +62,7 @@ function connect() {
     window.app.ws = ws;
 
     ws.onopen = () => {
+        midiKeyboard.syncRecordingInput();
         statusEl.textContent = '● Connected';
         statusEl.className = 'status-indicator connected';
         connectBtn.textContent = 'Disconnect';

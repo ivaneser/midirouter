@@ -80,6 +80,37 @@ test('UI keyboard respects count-in recording gate while still monitoring notes'
     assert.equal(worker.daw.tracks[0].clips[0].notes.length, 0);
 });
 
+test('UI keyboard take rejects other channels and synth echoes before and during performance', t => {
+    const worker = setup(t);
+    worker._uiKeyboardInput = { active: true, channel: 7 };
+    worker._onIncomingMessage(NTS, 0, [0x92, 45, 100]);
+    worker._onIncomingMessage(NTS, 0, [0x82, 45, 0]);
+    assert.equal(worker.daw.tracks[0].channelAssigned, false, 'playback echoes cannot claim an empty track');
+    worker._handleUiPerformance({ targets: [], bytes: [0x96, 60, 100] });
+    // Even same-channel hardware MIDI must not double the UI performance.
+    worker._onIncomingMessage(NTS, 0, [0x96, 60, 100]);
+    worker._onIncomingMessage(NTS, 0, [0x86, 60, 0]);
+    worker._onIncomingMessage(OTHER, 0, [0x91, 70, 100]);
+    worker._onIncomingMessage(OTHER, 0, [0x81, 70, 0]);
+    worker._handleUiPerformance({ targets: [], bytes: [0x97, 72, 100] });
+    worker._handleUiPerformance({ targets: [], bytes: [0x87, 72, 0] });
+    worker._handleUiPerformance({ targets: [], bytes: [0x86, 60, 0] });
+    const notes = worker.daw.tracks[0].clips[0].notes;
+    assert.equal(notes.length, 1);
+    assert.equal(notes[0].note, 60);
+    assert.equal(notes[0].channel, 7);
+    assert.equal(worker.daw.recording.noteStarts.size, 0);
+});
+
+test('UI keyboard never remaps its selected channel onto a differently assigned track', t => {
+    const worker = setup(t);
+    worker.daw.tracks[0].channelAssigned = true;
+    worker.daw.tracks[0].channel = 3;
+    worker._handleUiPerformance({ targets: [], bytes: [0x96, 60, 100] });
+    worker._handleUiPerformance({ targets: [], bytes: [0x86, 60, 0] });
+    assert.equal(worker.daw.tracks[0].clips[0].notes.length, 0);
+});
+
 for (const zeroVelocityRelease of [false, true]) {
     test(`clock-master NTS-1 ribbon records without controller registration (zero-velocity release: ${zeroVelocityRelease})`, t => {
         const worker = setup(t);
