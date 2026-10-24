@@ -2501,7 +2501,11 @@ class MIDIRouterWorker {
             return true;
         }
         const request = this._presetNames.request(target, channel, index);
-        if (request) output.sendMessage(Buffer.from(request));
+        if (request) {
+            output.sendMessage(Buffer.from(request));
+            // A synth that is busy loading the new sound can miss this request; ask again until it answers.
+            this._retryPresetName(target, channel, index);
+        }
         return true;
     }
 
@@ -2540,7 +2544,6 @@ class MIDIRouterWorker {
             try {
                 // A saved name is trusted: only the number is sent, no name request.
                 this._sendPreset(target, preset.channel, preset.program, name || undefined);
-                if (!name) this._retryPresetName(target, preset.channel, preset.program);
             } catch (error) { console.error(`[MIDI] Session preset restore failed for ${target}:`, error.message); }
         }
     }
@@ -2548,7 +2551,7 @@ class MIDIRouterWorker {
     // A synth that is busy loading a preset (and the CCs sent right after it) can miss the first
     // name request, so ask again a little later until the name has come back.
     _retryPresetName(target, channel, program) {
-        for (const delay of [500, 1500, 3000]) {
+        for (const delay of [250, 750, 1500, 3000]) {
             const timer = setTimeout(() => {
                 const pending = this._presetNames?.pending.get(deviceChannelKey(target));
                 const current = this._devicePrograms?.get(`${deviceChannelKey(target)}:${channel}`);

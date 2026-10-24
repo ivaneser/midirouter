@@ -70,3 +70,21 @@ test('preset names are saved with the session and restored without asking the de
     worker._rememberDeviceProgram('Arturia MicroFreak:MicroFreak MIDI 1 40:0', 3, 301);
     assert.equal([...worker._devicePrograms.values()][0].name, undefined, 'a new preset drops the old name');
 });
+
+test('a name request missed while the synth loads the sound is repeated until it answers', t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    const target = 'Blofeld:Blofeld 32:0';
+    const sent = [];
+    worker.outputs = new Map([[target, { sendMessage: bytes => sent.push([...bytes]) }]]);
+    worker._broadcastState = () => {};
+    worker._sendPreset(target, 13, 17);
+    const requests = () => sent.filter(bytes => bytes[0] === 0xF0).length;
+    assert.equal(requests(), 1);
+    t.mock.timers.tick(250);
+    assert.equal(requests(), 2, 'asked again after the synth had time to load');
+    worker._presetNames.pending.delete(Object.keys(Object.fromEntries(worker._presetNames.pending))[0] ?? '');
+    for (const key of [...worker._presetNames.pending.keys()]) worker._presetNames.pending.delete(key);
+    t.mock.timers.tick(5000);
+    assert.equal(requests(), 2, 'no more requests once the name has arrived');
+});
