@@ -940,6 +940,11 @@ class DAWEngine {
                 // the newly completed note is scheduled into the live playback and
                 // is heard on the next loop (current notes keep playing meanwhile).
                 if (this.recording.mode === 'overdub') {
+                    // The scheduled loop copy is not rebuilt when the layer ends, so snap the
+                    // note to the grid now; otherwise it keeps playing at the raw press time.
+                    const grid = this.quantizeGrid;
+                    const len = this.tracks[this.recording.track].clips[this.recording.slot].length;
+                    if (grid > 0 && len > 0) recorded.start = roundBeats((Math.round(recorded.start / grid) * grid) % len);
                     this._onNoteRecorded?.(this.recording.track, this.recording.slot, recorded);
                 }
             }

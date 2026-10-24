@@ -527,3 +527,23 @@ test('switching to the external clock while playing stops the internal click tim
     daw._stopMetronome(true);
     daw._midiClock?.stop();
 });
+
+test('overdub notes are snapped to the quantize grid before they are scheduled', () => {
+    const daw = new DAWEngine({ tempo: 120 });
+    daw.quantizeGrid = 0.5;
+    const clip = daw.tracks[0].clips[0];
+    clip.notes.push({ channel: 1, note: 60, velocity: 100, start: 0, dur: 1 });
+    clip.length = 4;
+    let scheduled;
+    daw._onNoteRecorded = (t, s, n) => { scheduled = n.start; };
+    daw.recording = {
+        track: 0, slot: 0, mode: 'overdub', clipWasEmpty: false, originBeat: 0, startBeat: 0,
+        startTime: 0, notes: clip.notes, noteStarts: new Map(), liveBaseBeat: null,
+    };
+    daw.recordEvent(0x90, 64, 100, 540); // beat 1.08
+    daw.recordEvent(0x80, 64, 0, 900);
+    assert.equal(scheduled, 1);
+    daw.recordEvent(0x90, 65, 100, 3900); // beat 7.8 -> wraps to 3.8 -> snaps to 4 -> 0
+    daw.recordEvent(0x80, 65, 0, 4200);
+    assert.equal(scheduled, 0);
+});
