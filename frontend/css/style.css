@@ -333,3 +333,4 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .midi-knob.bipolar::after { content: ''; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 6px; border-radius: 1px; background: #d7ecbc; opacity: .7; pointer-events: none; }
 .synth-widget-axes span { font-weight: 600; }
 .synth-widget-note { margin: 2px 0 0; color: #8fa0ad; font-size: .72rem; }
+.device-program-controls .device-program-reset { font-size: 1.1rem; }

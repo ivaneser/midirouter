@@ -278,6 +278,25 @@ export class DeviceManager {
             if (step > 0) presets.appendChild(presetLabel);
             presets.appendChild(button);
         }
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'device-program-reset';
+        reset.textContent = '↺';
+        reset.title = 'Reload this preset and discard all knob changes';
+        reset.setAttribute('aria-label', `${label}: reload preset, discard changes`);
+        reset.addEventListener('click', async () => {
+            if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
+            const channelNumber = this.channelForDevice(dev, part);
+            const program = this.programs.get(programKey());
+            window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
+            const prefix = `${dev.id}:${channelNumber}:`;
+            for (const key of [...this._controlValues.keys()]) if (key.startsWith(prefix)) this._controlValues.delete(key);
+            // Rebuild an open panel so every knob shows the reloaded sound, not the old tweaks.
+            const open = el.querySelector('.synth-controls');
+            const toggle = el.querySelector('[aria-expanded="true"]');
+            if (open && toggle) { await this._toggleDevicePanel(dev, el, toggle, part); await this._toggleDevicePanel(dev, el, toggle, part); }
+        });
+        presets.appendChild(reset);
         el.appendChild(presets);
         const channel = document.createElement('select');
         channel.className = 'device-midi-channel';

@@ -2516,6 +2516,12 @@ class MIDIRouterWorker {
         this._deviceControls.set(`${deviceChannelKey(target)}:${channel}:${cc}`, { target, channel, cc, value });
     }
 
+    // Drop the remembered knob values of one channel (a preset reload discards them).
+    _forgetDeviceControls(target, channel) {
+        const prefix = `${deviceChannelKey(target)}:${channel}:`;
+        for (const key of [...(this._deviceControls?.keys() || [])]) if (key.startsWith(prefix)) this._deviceControls.delete(key);
+    }
+
     _restoreDeviceControls(controls) {
         this._deviceControls = new Map();
         for (const c of Array.isArray(controls) ? controls : []) {
@@ -2665,7 +2671,11 @@ if (parentPort) {
         worker._handleUiPerformance(msg);
     } else if (msg.type === 'select_preset') {
         if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
-            try { if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState(); }
+            try {
+                if (msg.reset) worker._forgetDeviceControls(msg.target, msg.channel);
+                if (msg.reset && !msg.reloadPreset) worker._broadcastState();
+                else if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState();
+            }
             catch (e) { console.error(`[MIDI] Preset select failed for ${msg.target}:`, e.message); }
         }
     } else if (msg.type === 'midi_send_to_target') {

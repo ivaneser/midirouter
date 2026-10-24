@@ -723,7 +723,7 @@ function startServer() {
 
                     case 'select-preset':
                         if (router.worker && typeof message.target === 'string') {
-                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index });
+                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index, reset: message.reset === true, reloadPreset: message.reloadPreset === true });
                         }
                         break;
 
