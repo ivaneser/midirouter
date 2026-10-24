@@ -254,5 +254,98 @@
       "description": "Envelope decay"
     }
   ],
-  "source": "https://downloads.arturia.net/products/microfreak/manual/microfreak_Manual_5_0_1_EN.pdf#page=146"
+  "source": "https://downloads.arturia.net/products/microfreak/manual/microfreak_Manual_5_0_1_EN.pdf#page=146",
+  "ui": {
+    "stages": [
+      {
+        "title": "Sound source",
+        "modules": [
+          {
+            "title": "Oscillator",
+            "categories": [
+              "osc"
+            ],
+            "groups": [
+              {
+                "label": "Type",
+                "match": [
+                  "Oscillator Type",
+                  "Oscillator Wave"
+                ]
+              },
+              {
+                "label": "Tone",
+                "match": [
+                  "Oscillator Timbre",
+                  "Oscillator Shape"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Filter",
+        "modules": [
+          {
+            "title": "Filter",
+            "categories": [
+              "filter"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Envelopes",
+        "modules": [
+          {
+            "title": "Envelope",
+            "categories": [
+              "env"
+            ]
+          },
+          {
+            "title": "Cycling envelope",
+            "categories": [
+              "cycl_env"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Modulation",
+        "modules": [
+          {
+            "title": "LFO",
+            "categories": [
+              "lfo"
+            ]
+          },
+          {
+            "title": "Glide",
+            "categories": [
+              "glide"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Arpeggiator and keys",
+        "modules": [
+          {
+            "title": "Arpeggiator",
+            "categories": [
+              "arp"
+            ]
+          },
+          {
+            "title": "Keyboard",
+            "categories": [
+              "keyboard"
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

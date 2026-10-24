@@ -126,13 +126,6 @@ export function createXYPad(plan, send, saved = () => undefined) {
     pad.appendChild(vLine);
     pad.appendChild(dot);
     wrap.appendChild(pad);
-    const axes = document.createElement('div');
-    axes.className = 'synth-widget-axes';
-    const lx = document.createElement('span'); lx.textContent = `↔ ${xDef.name} (left–right)`;
-    const ly = document.createElement('span'); ly.textContent = `↕ ${yDef.name} (up–down)`;
-    axes.appendChild(lx);
-    axes.appendChild(ly);
-    wrap.appendChild(axes);
 
     const draw = () => {
         const px = toFraction(state.x, xDef) * 200;
@@ -237,10 +230,6 @@ export function createAdsrGraph(plan, send, saved = () => undefined) {
         draw();
     });
     wrap.appendChild(graph);
-    const note = document.createElement('p');
-    note.className = 'synth-widget-note';
-    note.textContent = '↔ drag a dot sideways for time · ↕ the middle dot also sets the sustain level';
-    wrap.appendChild(note);
     draw();
     return wrap;
 }

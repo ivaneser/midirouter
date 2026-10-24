@@ -420,5 +420,133 @@
       "category": "arp",
       "description": "Arpeggiator pattern length"
     }
-  ]
+  ],
+  "ui": {
+    "stages": [
+      {
+        "title": "Sound source",
+        "modules": [
+          {
+            "title": "Oscillator",
+            "categories": [
+              "osc"
+            ],
+            "exclude": [
+              "Volume EG"
+            ],
+            "groups": [
+              {
+                "label": "Type",
+                "match": [
+                  "Osc Type"
+                ]
+              },
+              {
+                "label": "Tone",
+                "match": [
+                  "Wave Shaping",
+                  "Alt"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Filter",
+        "modules": [
+          {
+            "title": "Filter",
+            "categories": [
+              "filter"
+            ]
+          },
+          {
+            "title": "Sweep",
+            "categories": [
+              "sweep"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Effects",
+        "modules": [
+          {
+            "title": "Modulation effect",
+            "categories": [
+              "mod",
+              "fx_mod"
+            ]
+          },
+          {
+            "title": "Delay",
+            "categories": [
+              "delay",
+              "fx_delay"
+            ]
+          },
+          {
+            "title": "Reverb",
+            "categories": [
+              "reverb",
+              "fx_reverb"
+            ]
+          },
+          {
+            "title": "Mix",
+            "categories": [
+              "mix",
+              "fx"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Envelope",
+        "modules": [
+          {
+            "title": "Amp envelope",
+            "categories": [
+              "env",
+              "osc"
+            ],
+            "match": [
+              "Volume EG",
+              "Attack",
+              "Release"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Modulation",
+        "modules": [
+          {
+            "title": "Oscillator LFO",
+            "categories": [
+              "lfo"
+            ]
+          },
+          {
+            "title": "Tremolo",
+            "categories": [
+              "tremolo"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Arpeggiator",
+        "modules": [
+          {
+            "title": "Arpeggiator",
+            "categories": [
+              "arp"
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }

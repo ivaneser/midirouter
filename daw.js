@@ -65,7 +65,7 @@ class DAWEngine {
         this._lastProgressBeat = null;
 
         // Metronome / click track
-        this._metronomeEnabled = false;
+        this._metronomeEnabled = true;
         this._preRecordTwoBarRemainingBeats = null; // two-bar mode after project reset
         this._metronomeTimer = null;
         this._metronomeNote = 57;          // default click note — A3 on off-beats (MIDI 57)
@@ -1318,7 +1318,7 @@ class DAWEngine {
             ? data.masterLoopBars : null;
         this._midiClockEnabled = data.midiClockEnabled !== false;
         const m = data.metronome || {};
-        this._metronomeEnabled = !!m.enabled;
+        this._metronomeEnabled = m.enabled === undefined ? true : !!m.enabled;
         if (Number.isInteger(m.note)) this._metronomeNote = Math.max(0, Math.min(127, m.note));
         if (Number.isInteger(m.accentNote)) this._metronomeAccentNote = Math.max(0, Math.min(127, m.accentNote));
         if (Number.isInteger(m.beatsPerMeasure)) this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, m.beatsPerMeasure));

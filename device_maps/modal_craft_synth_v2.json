@@ -394,5 +394,166 @@
       "on_threshold": 64,
       "description": "Sustain pedal: 0-63 OFF, 64-127 ON"
     }
-  ]
+  ],
+  "ui": {
+    "stages": [
+      {
+        "title": "Sound source",
+        "modules": [
+          {
+            "title": "Oscillators",
+            "categories": [
+              "osc"
+            ],
+            "groups": [
+              {
+                "label": "Waves",
+                "match": [
+                  "Osc 1",
+                  "Osc 2 Wave",
+                  "Osc Mix"
+                ]
+              },
+              {
+                "label": "Detune",
+                "match": [
+                  "Osc 2 Coarse",
+                  "Osc 2 Fine"
+                ]
+              },
+              {
+                "label": "Colour",
+                "match": [
+                  "Osc Mod",
+                  "Spread"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Filter",
+        "modules": [
+          {
+            "title": "Filter",
+            "categories": [
+              "filter"
+            ],
+            "groups": [
+              {
+                "label": "Character",
+                "match": [
+                  "Filter Morph"
+                ]
+              },
+              {
+                "label": "Response",
+                "match": [
+                  "Filter Env"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Amplifier and effects",
+        "modules": [
+          {
+            "title": "Amplifier",
+            "categories": [
+              "amp"
+            ]
+          },
+          {
+            "title": "Effects",
+            "categories": [
+              "fx",
+              "delay"
+            ],
+            "groups": [
+              {
+                "label": "Drive",
+                "match": [
+                  "Distortion"
+                ]
+              },
+              {
+                "label": "Delay",
+                "match": [
+                  "Delay"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Envelopes",
+        "modules": [
+          {
+            "title": "Filter envelope",
+            "categories": [
+              "filter_env"
+            ]
+          },
+          {
+            "title": "Amp envelope",
+            "categories": [
+              "env"
+            ]
+          },
+          {
+            "title": "Mod envelope",
+            "categories": [
+              "mod_env"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Modulation",
+        "modules": [
+          {
+            "title": "LFO 1",
+            "categories": [
+              "lfo"
+            ],
+            "match": [
+              "LFO 1"
+            ]
+          },
+          {
+            "title": "LFO 2",
+            "categories": [
+              "lfo"
+            ],
+            "match": [
+              "LFO 2"
+            ]
+          },
+          {
+            "title": "Performance",
+            "categories": [
+              "mod",
+              "glide",
+              "keyboard"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Arpeggiator",
+        "modules": [
+          {
+            "title": "Arpeggiator",
+            "categories": [
+              "arp"
+            ]
+          }
+        ]
+      }
+    ]
+  }
 }
