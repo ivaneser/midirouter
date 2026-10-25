@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=58">
+    <link rel="stylesheet" href="/css/style.css?v=59">
 </head>
 <body>
     <div id="app">
@@ -50,14 +50,14 @@
                     <label class="transport-label post-record"><span>After recording</span><select id="record-mode" title="What happens when the initial recording stops"><option value="none">Play</option><option value="overdub">Overdub</option></select></label>
                     <p id="session-status" class="session-status" role="status"></p>
                 </div>
-                <details class="timing-details"><summary>Timing settings <span>Tempo · Quantize · Metronome</span></summary>
+                <details class="timing-details"><summary>Timing settings <span>Tempo · Quantize · Metronome · MIDI clock</span></summary>
                 <div class="transport-settings-group" aria-label="Timing settings">
                     <div class="transport-label tempo-control"><label for="tempo">Tempo <span class="unit">BPM</span></label><div class="tempo-input"><input type="number" id="tempo" aria-label="Tempo in BPM" inputmode="numeric" min="20" max="300" step="1" value="120"><button id="tap-tempo" class="btn btn-sm">Tap</button></div></div>
                     <div class="transport-label"><label for="quantize-grid">Quantize</label><select id="quantize-grid"><option value="0">Off</option><option value="0.125">1/32</option><option value="0.25">1/16</option><option value="0.5" selected>1/8</option><option value="1">1/4</option><option value="2">1/2</option></select></div>
                     <div class="transport-label"><label for="master-loop-bars">Loop bars</label><input type="number" id="master-loop-bars" inputmode="numeric" min="1" max="64" step="1" placeholder="Auto" title="Global cycle length in bars; blank sets it automatically"></div>
                     <div class="transport-label"><label for="metro-beats">Beats / bar</label><select id="metro-beats"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></div>
                     <button id="metronome-toggle" class="btn metronome-button" title="Toggle metronome">♪ Metronome</button>
-                    <button id="midi-clock-toggle" class="btn" hidden style="display:none" title="MIDI clock output">MIDI Clock</button>
+                    <button id="midi-clock-toggle" class="btn metronome-button" aria-pressed="false" title="Send MIDI clock (and Start/Stop) to connected devices while playing">MIDI clock out: off</button>
                 </div></details>
             </div>
             <div class="grid-heading"><h3>Clips</h3><div class="clip-legend" aria-label="Clip states"><span class="legend-ready">Ready</span><span class="legend-play">Playing</span><span class="legend-record">Recording</span></div></div>
@@ -233,6 +233,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=61"></script>
+    <script type="module" src="/js/app.js?v=62"></script>
 </body>
 </html>

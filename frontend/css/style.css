@@ -76,7 +76,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 #tempo { font-weight: 650; }
 #master-loop-bars { width: 100%; }
 .metronome-button { min-height: 44px; }
-#metronome-toggle.active { background: #2f4329; border-color: #85ae64; color: #d4f7b5; }
+#metronome-toggle.active, #midi-clock-toggle.active { background: #2f4329; border-color: #85ae64; color: #d4f7b5; }
 #record-mode.mode-play { border-color: #4a6640; color: #c9e6b6; }
 #record-mode.mode-overdub { border-color: #84624a; color: #efc89a; }
 .session-status { width: 100%; font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }

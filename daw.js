@@ -1316,7 +1316,8 @@ class DAWEngine {
         // Restore an explicit master loop setting (bars), if persisted.
         this.masterLoopBars = Number.isInteger(data.masterLoopBars) && data.masterLoopBars >= 1
             ? data.masterLoopBars : null;
-        this._midiClockEnabled = data.midiClockEnabled !== false;
+        // Clock output is not a per-session setting: an old session must not switch it off.
+        if (!this._externalClock) this._midiClockEnabled = true;
         const m = data.metronome || {};
         this._metronomeEnabled = m.enabled === undefined ? true : !!m.enabled;
         if (Number.isInteger(m.note)) this._metronomeNote = Math.max(0, Math.min(127, m.note));

@@ -439,7 +439,8 @@ export class DAWUI {
         if (midiClockBtn) {
             const enabled = this.dawState.midiClockEnabled;
             midiClockBtn.classList.toggle('active', !!enabled);
-            midiClockBtn.textContent = enabled ? '⏱ MTC ON' : '⏱ MTC';
+            midiClockBtn.textContent = enabled ? '⏱ MIDI clock out: on' : 'MIDI clock out: off';
+            midiClockBtn.setAttribute('aria-pressed', String(!!enabled));
         }
         // Stop button label: "master loop active" = transport playing or
         // a recording in progress (including count-in pending).
