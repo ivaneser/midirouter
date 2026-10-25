@@ -168,7 +168,13 @@ function showSystemStats(stats) {
         el.hidden = !value;
         el.textContent = value || '';
     }
-    footer.dataset.hot = String(stats.tempC >= 75);
+    // Pi throttles from about 80 C: warn from 70, critical from 80.
+    const level = stats.tempC >= 80 ? 'critical' : stats.tempC >= 70 ? 'warm' : 'ok';
+    if (level === 'critical' && footer.dataset.level !== 'critical') {
+        log(`Raspberry Pi is at ${stats.tempC.toFixed(0)}°C: it will throttle the CPU and MIDI timing may suffer. Improve cooling.`);
+    }
+    footer.dataset.level = level;
+    footer.title = level === 'critical' ? 'Critical temperature: the Pi is throttling or about to' : '';
     footer.hidden = !Object.values(text).some(Boolean);
 }
 
