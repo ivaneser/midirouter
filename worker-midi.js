@@ -2322,17 +2322,20 @@ class MIDIRouterWorker {
         const result = [];
         for (const [trackIdx, playback] of this._trackPlayTimers || []) {
             if (this.daw.clipState[trackIdx] !== playback.slot) continue;
-            let elapsed, length;
+            let elapsed, length, periodMs;
             if (playback.externalClock) {
                 const offsetTicks = Math.round((this.audioOffsetMs || 0) / this.daw._secondsPerBeatMs() * 24);
                 elapsed = this._externalMidiClock.tickCount - playback.startTick - offsetTicks;
                 length = playback.loopTicks;
+                periodMs = length / 24 * this.daw._secondsPerBeatMs();
             } else {
                 elapsed = now - playback.originMs - (playback.audioOffsetMs || 0);
                 length = playback.loopBeats * playback.msPerBeat;
+                periodMs = length;
             }
             if (!Number.isFinite(elapsed) || elapsed < 0 || !(length > 0)) continue;
-            result.push({ trackIdx, slot: playback.slot, progress: (elapsed % length) / length });
+            // periodMs lets the UI keep the bar moving evenly between samples that arrive in bursts.
+            result.push({ trackIdx, slot: playback.slot, progress: (elapsed % length) / length, periodMs });
         }
         return result;
     }

@@ -714,22 +714,71 @@ export class DAWUI {
         this._cueTimers.set(el, timer);
     }
 
+    // Samples reach the browser in bursts (a few ticks arrive late, then together), so a bar drawn straight
+    // from them stutters. Each bar advances on its own at the clip's loop speed (tempo is steady) and
+    // listens to samples only when it is clearly off: a big gap (new loop, tempo change, seek) snaps it.
     _updateClipProgress(positions = []) {
         const lookup = new Map((Array.isArray(positions) ? positions : [])
-            .map(position => [`${position.trackIdx}:${position.slot}`, position.progress]));
+            .map(position => [`${position.trackIdx}:${position.slot}`, position]));
+        const anim = this._clipAnim ||= new Map();
+        const now = performance.now();
         for (const track of document.querySelectorAll('.session-slot')) {
             const bar = track.querySelector('.clip-progress');
             if (!bar) continue;
-            const progress = lookup.get(`${track.dataset.track}:${track.dataset.slot}`);
-            bar.hidden = !Number.isFinite(progress);
-            if (bar.hidden) continue;
-            const fraction = Math.max(0, Math.min(1, progress));
+            const key = `${track.dataset.track}:${track.dataset.slot}`;
+            const position = lookup.get(key);
+            bar.hidden = !Number.isFinite(position?.progress);
+            if (bar.hidden) { anim.delete(key); continue; }
             const fill = bar.querySelector('.clip-progress-fill');
-            // A new loop snaps to the left instead of animating backwards.
-            fill.style.transition = fraction < Number(fill.dataset.progress || 0) ? 'none' : '';
-            fill.style.transform = `scaleX(${fraction})`;
-            fill.dataset.progress = String(fraction);
+            const sample = Math.max(0, Math.min(1, position.progress));
+            const period = Number(position.periodMs);
+            const state = anim.get(key);
+            let fraction = sample;
+            if (period > 0) {
+                if (state) {
+                    this._advanceClip(state, now);
+                    let error = sample - state.est;
+                    error -= Math.round(error);
+                    const offMs = Math.abs(error) * period;
+                    // Late or bursty samples are ignored; a tiny pull cancels clock drift, a big gap re-syncs.
+                    state.est = offMs > 250 ? sample : offMs > 40 ? (state.est + error * 0.05 + 1) % 1 : state.est;
+                    state.period = period;
+                    state.fill = fill;
+                    fraction = state.est;
+                } else {
+                    anim.set(key, { est: sample, period, at: now, fill });
+                }
+                this._ensureClipAnimation();
+            }
+            this._drawClip(fill, fraction, period > 0);
         }
+    }
+
+    _advanceClip(state, now) {
+        state.est = (state.est + (now - state.at) / state.period) % 1;
+        state.at = now;
+    }
+
+    _drawClip(fill, fraction, smooth) {
+        // A new loop snaps to the left instead of animating backwards.
+        fill.style.transition = smooth || fraction < Number(fill.dataset.progress || 0) ? 'none' : '';
+        fill.style.transform = `scaleX(${fraction})`;
+        fill.dataset.progress = String(fraction);
+    }
+
+    _ensureClipAnimation() {
+        if (this._clipFrame || typeof requestAnimationFrame !== 'function') return;
+        const step = () => {
+            this._clipFrame = null;
+            if (!this._clipAnim?.size) return;
+            const now = performance.now();
+            for (const state of this._clipAnim.values()) {
+                this._advanceClip(state, now);
+                this._drawClip(state.fill, state.est, true);
+            }
+            this._clipFrame = requestAnimationFrame(step);
+        };
+        this._clipFrame = requestAnimationFrame(step);
     }
 
     _updateTransportCue(cue) {
