@@ -12,6 +12,7 @@ import { EventEmitter } from 'events';
 import { DeviceCatalog } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
 import { createUpstream } from './mcp-upstream.js';
+import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -821,6 +822,11 @@ function startServer() {
             console.log('[SERVER] Client disconnected:', code, reason.toString());
         });
     });
+
+    const systemStats = new SystemStats();
+    setInterval(() => {
+        if (wss?.clients.size) router._broadcast({ type: 'system-stats', stats: systemStats.sample() });
+    }, 3000).unref();
 
     server.listen(PORT, '0.0.0.0', () => {
         console.log('\n========================================');

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=55">
+    <link rel="stylesheet" href="/css/style.css?v=56">
 </head>
 <body>
     <div id="app">
@@ -225,6 +225,13 @@
         </details>
     </div>
 
-    <script type="module" src="/js/app.js?v=58"></script>
+    <footer id="system-stats" class="system-stats" aria-label="Raspberry Pi status" hidden>
+        <span data-stat="temp" title="CPU temperature"></span>
+        <span data-stat="cpu" title="CPU usage"></span>
+        <span data-stat="mem" title="Memory used"></span>
+        <span data-stat="disk" title="Disk used"></span>
+    </footer>
+
+    <script type="module" src="/js/app.js?v=59"></script>
 </body>
 </html>

@@ -154,6 +154,24 @@ function handleTimeSync(msg) {
 }
 setInterval(() => { bestSyncRtt *= 1.5; syncClock(); }, 15000);
 
+function showSystemStats(stats) {
+    const footer = document.getElementById('system-stats');
+    if (!footer || !stats) return;
+    const text = {
+        temp: stats.tempC != null && `${stats.tempC.toFixed(0)}°C`,
+        cpu: stats.cpu != null && `CPU ${stats.cpu}%`,
+        mem: stats.mem && `RAM ${stats.mem.usedPercent}%`,
+        disk: stats.disk && `Disk ${stats.disk.usedPercent}% (${stats.disk.freeGb} GB free)`,
+    };
+    for (const [key, value] of Object.entries(text)) {
+        const el = footer.querySelector(`[data-stat="${key}"]`);
+        el.hidden = !value;
+        el.textContent = value || '';
+    }
+    footer.dataset.hot = String(stats.tempC >= 75);
+    footer.hidden = !Object.values(text).some(Boolean);
+}
+
 function handleMessage(msg) {
     if (msg.type === 'time-sync') return handleTimeSync(msg);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
@@ -161,6 +179,9 @@ function handleMessage(msg) {
     if (msg.type === 'daw_state' && msg.payload?.devicePresets) deviceManager.updateDevicePresets(msg.payload.devicePresets);
     if (msg.type === 'daw_progress') pianoRoll.updateProgress(msg.payload?.playing === false ? [] : msg.payload?.clipProgress || []);
     switch (msg.type) {
+        case 'system-stats':
+            showSystemStats(msg.stats);
+            break;
         case 'ui-layout':
             sectionOrder.apply(msg.order);
             break;
