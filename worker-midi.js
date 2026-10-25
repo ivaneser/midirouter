@@ -284,10 +284,15 @@ class MIDIRouterWorker {
         if (saved?.kind === 'external') {
             const key = stablePortKey(saved.portName);
             const live = [...this.inputs.keys()].find((n) => n === saved.portName || stablePortKey(n) === key);
-            // Not plugged in yet: keep the saved name; _rebindClockMaster picks it up on hot-plug.
-            this._clockMaster.selectExternal(live || saved.portName);
+            if (!live) {
+                // The saved source is not connected: run on the internal clock (the saved choice is kept
+                // for the next start, when the device may be back).
+                this._fallbackToInternalClock(`saved source ${saved.portName} not found`);
+                return;
+            }
+            this._clockMaster.selectExternal(live);
             this.daw.setMidiClock(false);
-            console.log(`[WORKER] Clock source restored: external (${live || saved.portName})`);
+            console.log(`[WORKER] Clock source restored: external (${live})`);
             return;
         }
         const profile = this.controllerEngine.profiles[0];
@@ -303,6 +308,16 @@ class MIDIRouterWorker {
         console.log(`[WORKER] Default clock source: external (${portName})`);
     }
 
+    // The external clock source cannot be found: use the internal clock instead of waiting for it.
+    _fallbackToInternalClock(reason) {
+        this._clockMaster.selectInternal();
+        this._externalMidiClock?.reset();
+        this._externalClockActive = false;
+        this._externalTransportState = null;
+        this.daw.setMidiClock(true);
+        console.log(`[WORKER] Clock source: internal (${reason})`);
+    }
+
     /**
      * Keep the external clock master bound to its device across re-plugs.
      * The master is matched by stable name (no ALSA address).
@@ -314,7 +329,8 @@ class MIDIRouterWorker {
         const key = stablePortKey(source.masterPortName);
         const match = [...this.inputs.keys()].find((name) => stablePortKey(name) === key);
         if (!match) {
-            console.log(`[WORKER] Clock master ${source.masterPortName} not connected; waiting for it`);
+            this._fallbackToInternalClock(`clock master ${source.masterPortName} disconnected`);
+            this._broadcastState();
             return;
         }
         this._clockMaster.selectExternal(match);
@@ -1092,7 +1108,7 @@ class MIDIRouterWorker {
         if (!active) return false;
         // The external master ticks by itself; a missing _clockMaster (test stubs) — no ticking.
         if (this._clockMaster?.source?.kind !== 'internal') return false;
-        if (this.daw._midiClockEnabled && !this.daw._externalClock) return false; // global MTC already ticks
+        if (this.daw.playing && this.daw._midiClockEnabled) return false; // global MTC already ticks
         return true;
     }
 

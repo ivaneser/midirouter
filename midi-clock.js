@@ -36,7 +36,6 @@ class MidiClock {
         this.bpm       = Math.max(20, Math.min(300, Number(opts.bpm) || 120));
         this._emit     = typeof opts.emit === 'function' ? opts.emit : () => {};
         this._playing  = false;
-        this._idle     = false;   // ticking without a transport: no Start/Stop, just the tempo grid
         this._timer    = null;
         this._tickIdx  = 0;       // which tick we're on (resets per start)
 
@@ -51,25 +50,8 @@ class MidiClock {
         this.bpm = Math.max(20, Math.min(300, Number(bpm)));
         // If already playing, reschedule with the new interval so the
         // next tick lands at the correct time.
-        if (this._playing || this._idle) {
+        if (this._playing) {
             this._reschedule();
-        }
-    }
-
-    /** Tick without a transport (no Start/Stop), so gear that follows clock, such as arpeggiators, keeps the tempo. */
-    runIdle() {
-        if (this._playing || this._idle) return;
-        this._idle = true;
-        this._reschedule();
-        this._timer.unref?.();
-    }
-
-    haltIdle() {
-        if (!this._idle) return;
-        this._idle = false;
-        if (this._timer && !this._playing) {
-            clearInterval(this._timer);
-            this._timer = null;
         }
     }
 
@@ -77,7 +59,6 @@ class MidiClock {
     start() {
         if (this._playing) return;
         this._playing = true;
-        this._idle = false;
         this._tickIdx = 0;
         this._emit({ type: 'midi', data: [MIDI_START] });
         this._reschedule();
@@ -104,7 +85,6 @@ class MidiClock {
 
     /** Pause without sending stop (for future transport pause support) */
     pause() {
-        this.haltIdle();
         if (!this._playing) return;
         this._playing = false;
         if (this._timer) {
@@ -126,10 +106,9 @@ class MidiClock {
         const anchor = performance.now();
         let lastTickIdx = -1;
         this._timer = setInterval(() => {
-            const running = () => self._playing || self._idle;
-            if (!running()) return;
+            if (!self._playing) return;
             const due = Math.floor((performance.now() - anchor) / msPerTick);
-            while (lastTickIdx < due && running()) {
+            while (lastTickIdx < due && self._playing) {
                 lastTickIdx++;
                 self._tickIdx++;
                 self._emit({ type: 'midi', data: [CLOCK_TICK] });
