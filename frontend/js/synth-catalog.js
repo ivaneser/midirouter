@@ -1,5 +1,5 @@
 /**
- * Synthesizer catalog for Craft Synth, Korg NTS-1 and Arturia MicroFreak ports.
+ * Synthesizer catalog for Craft Synth, Korg NTS-1, Arturia MicroFreak, Waldorf Blofeld and PreenFM2 ports.
  * Provides port classification, authoritative control-map loading, and safe MIDI
  * CC payload construction for the expandable synth cards.
  *
@@ -27,6 +27,7 @@ export const MAP_FILES = {
     'korg-nts-1': 'korg_nts1',
     'arturia-microfreak': 'arturia_microfreak',
     'waldorf-blofeld': 'waldorf_blofeld',
+    'preenfm2': 'preenfm2',
 };
 
 // Multitimbral instruments: each part listens on its own MIDI channel and is shown as its own
@@ -70,6 +71,10 @@ export function classifySynthPortName(name) {
 
     if (/micro[\s_-]*freak/.test(look)) {
         return { supported: true, model: 'arturia-microfreak' };
+    }
+
+    if (/pre[\s_-]*enfm[\s_-]*2?/.test(look)) {
+        return { supported: true, model: 'preenfm2' };
     }
 
     if (look.includes('blofeld')) {

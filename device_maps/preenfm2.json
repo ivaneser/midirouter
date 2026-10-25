@@ -332,5 +332,71 @@
   "controls_sysex": {
     "description": "Full parameter mapping via SysEx for loading/saving presets",
     "note": "Used for full backup, not for realtime control"
+  },
+  "ui": {
+    "stages": [
+      {
+        "title": "Sound source",
+        "modules": [
+          {
+            "title": "Algorithm",
+            "section": "cc",
+            "categories": [
+              "algorithm"
+            ]
+          },
+          {
+            "title": "Operator 1",
+            "section": "cc",
+            "categories": [
+              "operator_1"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Envelopes",
+        "modules": [
+          {
+            "title": "Modulator envelope",
+            "section": "cc",
+            "categories": [
+              "mod_env"
+            ]
+          },
+          {
+            "title": "Carrier envelope",
+            "section": "cc",
+            "categories": [
+              "car_env"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Amp",
+        "modules": [
+          {
+            "title": "Amp",
+            "section": "cc",
+            "categories": [
+              "amp"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Arpeggiator",
+        "modules": [
+          {
+            "title": "Arpeggiator",
+            "section": "cc",
+            "categories": [
+              "arp"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

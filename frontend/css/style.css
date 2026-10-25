@@ -356,3 +356,4 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .synth-staged .synth-group { gap: 2px; }
 .synth-staged .synth-group-label { font-size: .625rem; }
 .synth-staged .synth-modules { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px; }
+.device-controller-tag { color: var(--text-muted, #888); font-size: 0.9rem; padding: 0 8px; align-self: center; }

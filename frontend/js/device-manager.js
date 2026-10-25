@@ -13,7 +13,7 @@ import {
     renderControlDefinition,
     MULTITIMBRAL_PARTS,
     MAP_FILES,
-} from './synth-catalog.js?v=24';
+} from './synth-catalog.js?v=25';
 
 export class DeviceManager {
     constructor() {
@@ -177,7 +177,13 @@ export class DeviceManager {
                 this._renderParts(el, nameEl, dev, MULTITIMBRAL_PARTS[model]);
             } else {
                 nameEl.addEventListener('click', () => this._toggleDevicePanel(dev, el, nameEl));
-                if (dev.output) this._appendUnitControls(el, dev);
+                if (dev.output && model) this._appendUnitControls(el, dev);
+                else {
+                    const tag = document.createElement('span');
+                    tag.className = 'device-controller-tag';
+                    tag.textContent = 'Controller';
+                    el.appendChild(tag);
+                }
             }
             deviceList.appendChild(el);
         }
