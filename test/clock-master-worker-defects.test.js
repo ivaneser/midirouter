@@ -332,18 +332,19 @@ test('Defect 5: clock source selector tracks actual hot-plugged inputs and selec
     try {
         const ui = Object.create(DAWUI.prototype);
         ui.deviceManager = { inputs: [{ name: 'Clock In A' }] };
-        ui.dawState = { clockMasterSource: { kind: 'external', masterPortName: 'Clock In A' }, clockMasterActiveOutputs: [] };
+        ui.dawState = { clockMasterSource: { kind: 'external', masterPortName: 'Clock In A' }, clockMasterActiveOutputs: [], clockSenders: ['Clock In A', 'Clock In B'] };
 
         ui._renderClockMasterUI();
         assert.deepEqual(Array.from(select.options, option => option.value), ['internal', 'external:Clock In A']);
         assert.equal(select.value, 'external:Clock In A');
 
-        ui.deviceManager.inputs.push({ name: 'Clock In B' });
+        ui.deviceManager.inputs.push({ name: 'Clock In B' }, { name: 'Silent Keys' });
         ui._renderClockMasterUI();
         assert.deepEqual(Array.from(select.options, option => option.value), ['internal', 'external:Clock In A', 'external:Clock In B']);
         assert.equal(select.value, 'external:Clock In A', 'preserve selection when another input is added');
+        assert.ok(!select.options.some(option => option.value === 'external:Silent Keys'), 'inputs that never sent clock are not offered');
 
-        ui.deviceManager.inputs = [{ name: 'Clock In B' }];
+        ui.deviceManager.inputs = [{ name: 'Clock In B' }, { name: 'Silent Keys' }];
         ui._renderClockMasterUI();
         assert.deepEqual(Array.from(select.options, option => option.value), ['internal', 'external:Clock In B']);
         assert.equal(select.value, 'internal', 'fall back safely when selected input disappears');

@@ -44,6 +44,7 @@ class MIDIRouterWorker {
                     clipProgress: this._clipPlaybackProgress() },
             });
         };
+        this._clockSenders = new Set();   // input ports seen sending MIDI clock (0xF8)
         this._transportPlaying = false;
         this._externalClockActive = false;
         this._externalTransportState = null;
@@ -1865,6 +1866,12 @@ class MIDIRouterWorker {
         if (isSysRealTime) {
             const now = performance.now();
             if (statusByte === 0xf8) {
+                // Remember which inputs send clock at all: only those are offered as clock sources.
+                const senders = this._clockSenders ||= new Set();
+                if (!senders.has(deviceName)) {
+                    senders.add(deviceName);
+                    this._broadcastState();
+                }
                 // Gate external clock ticks to the single selected master port only.
                 if (this._clockMaster.source.kind === 'external' &&
                     this._clockMaster.masterPortName !== deviceName) {
@@ -2352,6 +2359,7 @@ class MIDIRouterWorker {
         state.deviceControlsRev = this._deviceControlsRev || 0;
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;
+        state.clockSenders = [...(this._clockSenders || [])].filter(name => this.inputs.has(name));
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
         state.audioOffsetMs = this.audioOffsetMs;
         state.clickOffsetMs = this.clickOffsetMs;

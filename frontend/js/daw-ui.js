@@ -463,8 +463,11 @@ export class DAWUI {
 
         // Compare the actual DeviceManager input set against the DOM options
         // so hot-plug additions/removals are reflected in the dropdown.
+        // Only inputs that have sent MIDI clock (plus the current master) can be a clock source.
+        const senders = this.dawState?.clockSenders || [];
         const currentInputs = (this.deviceManager && this.deviceManager.inputs)
             ? this.deviceManager.inputs.map(i => i.name)
+                .filter(name => senders.includes(name) || name === source.masterPortName)
             : [];
 
         const existingOptions = Array.from(select.options).map(o => o.value);
