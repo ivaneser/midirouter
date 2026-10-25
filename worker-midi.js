@@ -1092,7 +1092,7 @@ class MIDIRouterWorker {
         if (!active) return false;
         // The external master ticks by itself; a missing _clockMaster (test stubs) — no ticking.
         if (this._clockMaster?.source?.kind !== 'internal') return false;
-        if (this.daw.playing && this.daw._midiClockEnabled) return false; // global MTC already ticks
+        if (this.daw._midiClockEnabled && !this.daw._externalClock) return false; // global MTC already ticks
         return true;
     }
 

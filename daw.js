@@ -272,6 +272,15 @@ class DAWEngine {
         } else if (!this._midiClockEnabled) {
             this._midiClock.stop();
         }
+        this._syncIdleClock();
+    }
+
+    // While the transport is stopped the internal clock keeps ticking (without Start/Stop) so that
+    // gear following MIDI clock, such as arpeggiators, still gets the tempo.
+    _syncIdleClock() {
+        if (!this._midiClock) return;
+        if (this._midiClockEnabled && !this._externalClock && !this.playing) this._midiClock.runIdle();
+        else this._midiClock.haltIdle();
     }
 
     getMidiClockState() {
@@ -309,6 +318,7 @@ class DAWEngine {
             this._internalClickSuspended = false;
             if (this.playing && this._midiClockEnabled && this._midiClock) this._midiClock.start();
         }
+        this._syncIdleClock();
     }
 
     _startMetronome() {
@@ -1193,6 +1203,7 @@ class DAWEngine {
         if (this._midiClock) {
             this._midiClock.stop();
         }
+        this._syncIdleClock();
     }
 
     // Output MIDI bytes to the outputs (forwarded to the worker)
@@ -1317,6 +1328,7 @@ class DAWEngine {
         this.masterLoopBars = Number.isInteger(data.masterLoopBars) && data.masterLoopBars >= 1
             ? data.masterLoopBars : null;
         this._midiClockEnabled = data.midiClockEnabled !== false;
+        this._syncIdleClock();
         const m = data.metronome || {};
         this._metronomeEnabled = m.enabled === undefined ? true : !!m.enabled;
         if (Number.isInteger(m.note)) this._metronomeNote = Math.max(0, Math.min(127, m.note));
