@@ -146,7 +146,12 @@ class DAWEngine {
         if (typeof bpm !== 'number' || !Number.isFinite(bpm)) {
             return;
         }
+        // A running internal transport keeps its beat position when the tempo changes
+        // (the cycle anchor moves with it) instead of jumping to another phase.
+        const keepBeat = this.playing && !this._externalClock;
+        const beatsElapsed = keepBeat ? (performance.now() - this._playAnchorTime) / 1000 / this._secondsPerBeat() : 0;
         this.tempo = Math.max(20, Math.min(300, bpm));
+        if (keepBeat) this._playAnchorTime = performance.now() - beatsElapsed * this._secondsPerBeat() * 1000;
         // Keep MIDI clock in sync with tempo changes
         if (this._midiClock) this._midiClock.setTempo(this.tempo);
         this._onMetronomeTempo(this.tempo);

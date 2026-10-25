@@ -116,7 +116,9 @@ class MIDIRouterWorker {
 
         const origSetTempo = this.daw.setTempo.bind(this.daw);
         this.daw.setTempo = (bpm) => {
+            const before = this.daw.tempo;
             origSetTempo(bpm);
+            if (Math.abs(this.daw.tempo - before) > 0.01) this._retempoPlayingClips();
         };
 
         // Keep the click audible through the full two-bar count-in. Individual
@@ -711,9 +713,15 @@ class MIDIRouterWorker {
         const loopBeats = Math.max(1, Number(clip.length) || this.daw.loopLenBeats);
         const loopMs = loopBeats * msPerBeat;
         const playback = { slot, interval: null, timeouts: new Set(), active: new Map() };
-        const schedule = (fn, delay) => {
-            const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, Math.max(0, delay));
+        playback.noteOnTimers = new Set();   // pending note-ons: re-timed when the tempo changes
+        const schedule = (fn, delay, isNoteOn = false) => {
+            const timer = setTimeout(() => {
+                playback.timeouts.delete(timer);
+                playback.noteOnTimers.delete(timer);
+                fn();
+            }, Math.max(0, delay));
             playback.timeouts.add(timer);
+            if (isNoteOn) playback.noteOnTimers.add(timer);
         };
 
         this._ledGlow.set(trackIdx, { slot, state: 'playing' });
@@ -756,14 +764,27 @@ class MIDIRouterWorker {
         playback.loopBeats = loopBeats;
         playback.msPerBeat = msPerBeat;
 
+        playback.schedule = schedule;
+        this._scheduleClipNotes(playback, clip, trackIdx);
+
+        this._trackPlayTimers.set(trackIdx, playback);
+    }
+
+    // Schedule every note of the clip against the playback's origin and tempo. `from` is a time
+    // (performance.now()) and the first pass of each note is the first one at or after it; a fresh
+    // launch passes null and starts every note at its first occurrence.
+    _scheduleClipNotes(playback, clip, trackIdx, from = null) {
+        const { originMs, loopBeats, msPerBeat, schedule } = playback;
+        const audioOffset = playback.audioOffsetMs || 0;
+        const loopMs = loopBeats * msPerBeat;
         for (const note of clip.notes) {
             // Each event is stored relative to the clip's own beat 0, repeats every clip.length.
             const eventOffset = ((note.start % loopBeats) + loopBeats) % loopBeats;
-            // Fire note-ons earlier by the audio latency offset (non-external path).
-            // Note-off stays relative to its note-on, so duration is unchanged.
-            let nextAt = now + barDelay + eventOffset * msPerBeat + (this.audioOffsetMs || 0);
             const channel = Math.max(1, note.channel || 1);
             const key = `${channel}:${note.note}`;
+            const first = originMs + eventOffset * msPerBeat + audioOffset;   // note-on of pass 0 (earlier by the audio offset)
+            const pass = from == null ? 0 : Math.max(0, Math.ceil((from - first) / loopMs));
+            let nextAt = first + pass * loopMs;
             const fire = () => {
                 if (playback.stopAtMs != null && nextAt >= playback.stopAtMs) return;
                 this._sendToSynthOutputs(noteOn(channel - 1, note.note, note.velocity > 0 ? note.velocity : 80));
@@ -773,17 +794,43 @@ class MIDIRouterWorker {
                     const count = playback.active.get(key) || 0;
                     if (count <= 1) playback.active.delete(key);
                     else playback.active.set(key, count - 1);
-                }, (note.dur || 0.25) * msPerBeat);
+                }, (note.dur || 0.25) * playback.msPerBeat, false);
 
                 // Schedule against the ideal absolute cycle boundary, avoiding
                 // cumulative drift from repeatedly adding timer callback latency.
                 nextAt += loopMs;
-                schedule(fire, nextAt - performance.now());
+                schedule(fire, nextAt - performance.now(), true);
             };
-            schedule(fire, nextAt - performance.now());
+            schedule(fire, nextAt - performance.now(), true);
         }
+    }
 
-        this._trackPlayTimers.set(trackIdx, playback);
+    // A tempo change applies to the clips that are playing right now: each keeps its beat position
+    // and carries on at the new speed, instead of waiting for the next cycle start.
+    _retempoPlayingClips(now = performance.now()) {
+        if (!this.daw.playing || this._externalClockActive) return;
+        const msPerBeat = this.daw._secondsPerBeat() * 1000;
+        for (const [trackIdx, playback] of this._trackPlayTimers || []) {
+            if (playback.externalClock || playback.originMs == null || !(playback.msPerBeat > 0)) continue;
+            if (Math.abs(playback.msPerBeat - msPerBeat) < 1e-6) continue;
+            const clip = this.daw.tracks[trackIdx]?.clips[playback.slot];
+            if (!clip) continue;
+            // Beat position of the clip right now (negative while a queued launch has not started).
+            const beat = (now - playback.originMs) / playback.msPerBeat;
+            for (const timer of playback.noteOnTimers || []) {
+                clearTimeout(timer);
+                playback.timeouts.delete(timer);
+            }
+            playback.noteOnTimers?.clear();
+            if (playback.stopAtMs != null) {
+                playback.stopAtMs = now + (playback.stopAtMs - now) / playback.msPerBeat * msPerBeat;
+                clearTimeout(playback.stopTimer);
+                playback.stopTimer = setTimeout(() => this._finishClipStop(trackIdx, playback), Math.max(0, playback.stopAtMs - now));
+            }
+            playback.originMs = now - beat * msPerBeat;
+            playback.msPerBeat = msPerBeat;
+            this._scheduleClipNotes(playback, clip, trackIdx, now);
+        }
     }
 
     // Overdub: the existing layers keep looping while the new take is recorded.
@@ -812,31 +859,8 @@ class MIDIRouterWorker {
             return;
         }
         if (playback.originMs == null) return;
-        const { originMs, loopBeats, msPerBeat } = playback;
-        const offset = ((note.start % loopBeats) + loopBeats) % loopBeats;
-        const elapsedBeats = (performance.now() - originMs) / msPerBeat;
-        // First occurrence strictly after now; the pass that just happened is skipped.
-        const k = Math.max(0, Math.floor((elapsedBeats - offset) / loopBeats) + 1);
-        const channel = Math.max(1, note.channel || 1);
-        const key = `${channel}:${note.note}`;
-        let nextAt = originMs + (offset + k * loopBeats) * msPerBeat + (this.audioOffsetMs || 0);
-        const schedule = (fn, delay) => {
-            const timer = setTimeout(() => { playback.timeouts.delete(timer); fn(); }, Math.max(0, delay));
-            playback.timeouts.add(timer);
-        };
-        const fire = () => {
-            this._sendToSynthOutputs(noteOn(channel - 1, note.note, note.velocity > 0 ? note.velocity : 80));
-            playback.active.set(key, (playback.active.get(key) || 0) + 1);
-            schedule(() => {
-                this._sendToSynthOutputs(noteOff(channel - 1, note.note));
-                const count = playback.active.get(key) || 0;
-                if (count <= 1) playback.active.delete(key);
-                else playback.active.set(key, count - 1);
-            }, (note.dur || 0.25) * msPerBeat);
-            nextAt += loopBeats * msPerBeat;
-            schedule(fire, nextAt - performance.now());
-        };
-        schedule(fire, nextAt - performance.now());
+        // Same scheduling as the clip's own notes, so a later tempo change re-times it with them.
+        this._scheduleClipNotes(playback, { notes: [note] }, trackIdx, performance.now() + 1);
     }
 
     // A clip launched mid-bar waits for the next cycle start. The wait is kept
