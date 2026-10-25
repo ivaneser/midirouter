@@ -465,6 +465,7 @@ export class DAWUI {
         // so hot-plug additions/removals are reflected in the dropdown.
         // Only inputs that have sent MIDI clock (plus the current master) can be a clock source.
         const senders = this.dawState?.clockSenders || [];
+        this._renderClockMasterStatus(source, senders);
         const currentInputs = (this.deviceManager && this.deviceManager.inputs)
             ? this.deviceManager.inputs.map(i => i.name)
                 .filter(name => senders.includes(name) || name === source.masterPortName)
@@ -530,6 +531,17 @@ export class DAWUI {
                 console.warn(`[DAWUI] Clock master port "${portName}" not found in inputs, fell back to internal`);
             }
         }
+    }
+
+    // An external source that has sent no clock cannot drive the tempo: say so instead of looking broken.
+    _renderClockMasterStatus(source, senders) {
+        const status = document.getElementById('clock-master-status');
+        if (!status) return;
+        const waiting = source.kind === 'external' && source.masterPortName && !senders.includes(source.masterPortName);
+        status.hidden = !waiting;
+        status.textContent = waiting
+            ? `${String(source.masterPortName).replace(/\s+\d+:\d+$/, '').split(':')[0].trim()} has not sent any MIDI clock, so the tempo cannot follow it. Many keyboards and pad controllers send no clock; use Internal or a device that does.`
+            : '';
     }
 
     /** Public entry point for the clock source dropdown to refresh after hotplug. */

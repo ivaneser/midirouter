@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=56">
+    <link rel="stylesheet" href="/css/style.css?v=57">
 </head>
 <body>
     <div id="app">
@@ -118,6 +118,7 @@
                             <option value="internal">Internal DAW Clock</option>
                         </select>
                     </label>
+                    <p id="clock-master-status" class="clock-master-status" role="status" hidden></p>
                     <label class="transport-label" title="Clip note timing. Negative = notes earlier, positive = later. Tune to match what you hear.">
                         Audio offset:
                         <input type="range" id="audio-latency" min="-200" max="200" step="1" value="-30">
@@ -232,6 +233,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=59"></script>
+    <script type="module" src="/js/app.js?v=60"></script>
 </body>
 </html>

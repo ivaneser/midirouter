@@ -361,3 +361,5 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .system-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; max-width: 1440px; margin: 0 auto; padding: 12px 24px max(16px, env(safe-area-inset-bottom)); color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
 .system-stats[hidden], .system-stats [hidden] { display: none; }
 .system-stats[data-hot="true"] [data-stat="temp"] { color: var(--red); }
+.clock-master-status { color: var(--amber); font-size: .85rem; margin: 4px 0 8px; }
+.clock-master-status[hidden] { display: none; }
