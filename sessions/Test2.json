@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "savedAt": "2026-10-23T04:05:17.712Z",
+  "tempo": 119.9908126967561,
+  "recordMode": "none",
+  "slotsPerTrack": 2,
+  "loopLenBeats": 24,
+  "masterLoopBars": null,
+  "globalCycleLocked": true,
+  "midiClockEnabled": false,
+  "metronome": {
+    "enabled": true,
+    "note": 57,
+    "accentNote": 60,
+    "beatsPerMeasure": 4
+  },
+  "tracks": [
+    {
+      "channel": 3,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 24,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 3,
+              "note": 57,
+              "velocity": 14,
+              "start": 0,
+              "dur": 2.12
+            },
+            {
+              "channel": 3,
+              "note": 62,
+              "velocity": 17,
+              "start": 2,
+              "dur": 2.14
+            },
+            {
+              "channel": 3,
+              "note": 60,
+              "velocity": 30,
+              "start": 4,
+              "dur": 2.07
+            },
+            {
+              "channel": 3,
+              "note": 64,
+              "velocity": 5,
+              "start": 6,
+              "dur": 1.07
+            },
+            {
+              "channel": 3,
+              "note": 62,
+              "velocity": 22,
+              "start": 7,
+              "dur": 1.36
+            },
+            {
+              "channel": 3,
+              "note": 67,
+              "velocity": 20,
+              "start": 8,
+              "dur": 1.13
+            },
+            {
+              "channel": 3,
+              "note": 64,
+              "velocity": 13,
+              "start": 9,
+              "dur": 1.16
+            },
+            {
+              "channel": 3,
+              "note": 65,
+              "velocity": 13,
+              "start": 10,
+              "dur": 1.2
+            },
+            {
+              "channel": 3,
+              "note": 62,
+              "velocity": 3,
+              "start": 11,
+              "dur": 1.25
+            },
+            {
+              "channel": 3,
+              "note": 64,
+              "velocity": 24,
+              "start": 12,
+              "dur": 3.02
+            }
+          ]
+        },
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "channel": 10,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 10,
+              "note": 67,
+              "velocity": 127,
+              "start": 4,
+              "dur": 4.04
+            },
+            {
+              "channel": 10,
+              "note": 72,
+              "velocity": 127,
+              "start": 8,
+              "dur": 2.16
+            },
+            {
+              "channel": 10,
+              "note": 64,
+              "velocity": 127,
+              "start": 10,
+              "dur": 1.16
+            },
+            {
+              "channel": 10,
+              "note": 69,
+              "velocity": 127,
+              "start": 11,
+              "dur": 1.12
+            },
+            {
+              "channel": 10,
+              "note": 67,
+              "velocity": 127,
+              "start": 12,
+              "dur": 2.01
+            }
+          ]
+        },
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "channel": 3,
+      "channelAssigned": false,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        },
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "channel": 4,
+      "channelAssigned": false,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        },
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "channel": 5,
+      "channelAssigned": false,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        },
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "channel": 6,
+      "channelAssigned": false,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        },
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "devicePresets": [
+    {
+      "target": "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 32:0",
+      "channel": 10,
+      "program": 53
+    },
+    {
+      "target": "Arturia MicroFreak:Arturia MicroFreak 40:0",
+      "channel": 3,
+      "program": 16
+    }
+  ]
+}

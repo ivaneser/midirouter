@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "savedAt": "2026-10-18T07:45:56.236Z",
-  "tempo": 99.04868425978819,
+  "savedAt": "2026-10-24T14:41:05.312Z",
+  "tempo": 116.1191030604963,
   "recordMode": "none",
   "slotsPerTrack": 2,
   "loopLenBeats": 12,
@@ -92,9 +92,164 @@
           ]
         },
         {
-          "length": 4,
+          "length": 24,
           "phase": 0,
-          "notes": []
+          "notes": [
+            {
+              "channel": 3,
+              "note": 64,
+              "velocity": 100,
+              "start": 1,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 60,
+              "velocity": 100,
+              "start": 2,
+              "dur": 0.19
+            },
+            {
+              "channel": 3,
+              "note": 57,
+              "velocity": 100,
+              "start": 3,
+              "dur": 0.18
+            },
+            {
+              "channel": 3,
+              "note": 52,
+              "velocity": 100,
+              "start": 4,
+              "dur": 0.3
+            },
+            {
+              "channel": 3,
+              "note": 59,
+              "velocity": 100,
+              "start": 6,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 57,
+              "velocity": 100,
+              "start": 6.5,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 53,
+              "velocity": 100,
+              "start": 7,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 52,
+              "velocity": 100,
+              "start": 7.5,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 59,
+              "velocity": 100,
+              "start": 8,
+              "dur": 0.16
+            },
+            {
+              "channel": 3,
+              "note": 65,
+              "velocity": 100,
+              "start": 10,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 64,
+              "velocity": 100,
+              "start": 11,
+              "dur": 0.18
+            },
+            {
+              "channel": 3,
+              "note": 60,
+              "velocity": 100,
+              "start": 12,
+              "dur": 0.13
+            },
+            {
+              "channel": 3,
+              "note": 53,
+              "velocity": 100,
+              "start": 14,
+              "dur": 0.16
+            },
+            {
+              "channel": 3,
+              "note": 57,
+              "velocity": 100,
+              "start": 14.5,
+              "dur": 0.13
+            },
+            {
+              "channel": 3,
+              "note": 59,
+              "velocity": 100,
+              "start": 15,
+              "dur": 0.13
+            },
+            {
+              "channel": 3,
+              "note": 62,
+              "velocity": 100,
+              "start": 15.5,
+              "dur": 0.13
+            },
+            {
+              "channel": 3,
+              "note": 67,
+              "velocity": 100,
+              "start": 16,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 60,
+              "velocity": 100,
+              "start": 17,
+              "dur": 0.13
+            },
+            {
+              "channel": 3,
+              "note": 53,
+              "velocity": 100,
+              "start": 18,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 60,
+              "velocity": 100,
+              "start": 19,
+              "dur": 0.15
+            },
+            {
+              "channel": 3,
+              "note": 57,
+              "velocity": 100,
+              "start": 19.5,
+              "dur": 0.13
+            },
+            {
+              "channel": 3,
+              "note": 53,
+              "velocity": 100,
+              "start": 20,
+              "dur": 0.13
+            }
+          ]
         }
       ]
     },
@@ -222,5 +377,18 @@
         }
       ]
     }
-  ]
+  ],
+  "devicePresets": [
+    {
+      "target": "Arturia MicroFreak:Arturia MicroFreak 32:0",
+      "channel": 3,
+      "program": 156
+    },
+    {
+      "target": "Craft Synth 2.0:Craft Synth 2.0 MIDI 1 40:0",
+      "channel": 10,
+      "program": 53
+    }
+  ],
+  "deviceControls": []
 }
