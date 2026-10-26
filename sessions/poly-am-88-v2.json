@@ -1,0 +1,534 @@
+{
+  "version": 1,
+  "savedAt": "2026-10-26T21:16:12.765Z",
+  "tempo": 88,
+  "recordMode": "none",
+  "slotsPerTrack": 1,
+  "loopLenBeats": 4,
+  "masterLoopBars": 4,
+  "globalCycleLocked": true,
+  "midiClockEnabled": true,
+  "metronome": {
+    "enabled": false,
+    "note": 57,
+    "accentNote": 60,
+    "beatsPerMeasure": 1
+  },
+  "tracks": [
+    {
+      "channel": 1,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 24,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 1,
+              "note": 45,
+              "velocity": 85,
+              "start": 0,
+              "dur": 24
+            },
+            {
+              "channel": 1,
+              "note": 52,
+              "velocity": 75,
+              "start": 0,
+              "dur": 24
+            },
+            {
+              "channel": 1,
+              "note": 57,
+              "velocity": 65,
+              "start": 3,
+              "dur": 21
+            },
+            {
+              "channel": 1,
+              "note": 60,
+              "velocity": 50,
+              "start": 8,
+              "dur": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "channel": 2,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 7,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 2,
+              "note": 69,
+              "velocity": 70,
+              "start": 0,
+              "dur": 0.4
+            },
+            {
+              "channel": 2,
+              "note": 71,
+              "velocity": 85,
+              "start": 1,
+              "dur": 0.75
+            },
+            {
+              "channel": 2,
+              "note": 72,
+              "velocity": 70,
+              "start": 1.5,
+              "dur": 0.75
+            },
+            {
+              "channel": 2,
+              "note": 69,
+              "velocity": 70,
+              "start": 3,
+              "dur": 0.4
+            },
+            {
+              "channel": 2,
+              "note": 71,
+              "velocity": 115,
+              "start": 4,
+              "dur": 0.4
+            },
+            {
+              "channel": 2,
+              "note": 72,
+              "velocity": 85,
+              "start": 4.5,
+              "dur": 0.75
+            },
+            {
+              "channel": 2,
+              "note": 74,
+              "velocity": 115,
+              "start": 5.5,
+              "dur": 0.25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "channel": 3,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 9,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 3,
+              "note": 76,
+              "velocity": 70,
+              "start": 0,
+              "dur": 0.25
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 100,
+              "start": 0.5,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 115,
+              "start": 1,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 115,
+              "start": 2,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 77,
+              "velocity": 115,
+              "start": 2.5,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 79,
+              "velocity": 85,
+              "start": 3,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 115,
+              "start": 4.5,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 100,
+              "start": 5.5,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 115,
+              "start": 8,
+              "dur": 0.4
+            },
+            {
+              "channel": 3,
+              "note": 81,
+              "velocity": 115,
+              "start": 8.5,
+              "dur": 0.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "channel": 4,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 11,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 4,
+              "note": 60,
+              "velocity": 115,
+              "start": 0,
+              "dur": 0.4
+            },
+            {
+              "channel": 4,
+              "note": 62,
+              "velocity": 85,
+              "start": 0.5,
+              "dur": 0.4
+            },
+            {
+              "channel": 4,
+              "note": 64,
+              "velocity": 115,
+              "start": 1,
+              "dur": 0.75
+            },
+            {
+              "channel": 4,
+              "note": 67,
+              "velocity": 70,
+              "start": 2,
+              "dur": 0.75
+            },
+            {
+              "channel": 4,
+              "note": 64,
+              "velocity": 115,
+              "start": 3,
+              "dur": 0.4
+            },
+            {
+              "channel": 4,
+              "note": 65,
+              "velocity": 115,
+              "start": 4,
+              "dur": 0.75
+            },
+            {
+              "channel": 4,
+              "note": 62,
+              "velocity": 85,
+              "start": 4.5,
+              "dur": 0.25
+            },
+            {
+              "channel": 4,
+              "note": 64,
+              "velocity": 115,
+              "start": 7,
+              "dur": 0.75
+            },
+            {
+              "channel": 4,
+              "note": 65,
+              "velocity": 100,
+              "start": 7.5,
+              "dur": 0.4
+            },
+            {
+              "channel": 4,
+              "note": 69,
+              "velocity": 100,
+              "start": 8,
+              "dur": 0.4
+            },
+            {
+              "channel": 4,
+              "note": 67,
+              "velocity": 100,
+              "start": 8.5,
+              "dur": 0.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "channel": 5,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 16,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 5,
+              "note": 33,
+              "velocity": 110,
+              "start": 0,
+              "dur": 3
+            },
+            {
+              "channel": 5,
+              "note": 33,
+              "velocity": 90,
+              "start": 3.5,
+              "dur": 0.5
+            },
+            {
+              "channel": 5,
+              "note": 40,
+              "velocity": 105,
+              "start": 4.5,
+              "dur": 1.5
+            },
+            {
+              "channel": 5,
+              "note": 38,
+              "velocity": 100,
+              "start": 6.5,
+              "dur": 1.5
+            },
+            {
+              "channel": 5,
+              "note": 36,
+              "velocity": 110,
+              "start": 8,
+              "dur": 3
+            },
+            {
+              "channel": 5,
+              "note": 43,
+              "velocity": 95,
+              "start": 11.5,
+              "dur": 1
+            },
+            {
+              "channel": 5,
+              "note": 40,
+              "velocity": 100,
+              "start": 12.5,
+              "dur": 1
+            },
+            {
+              "channel": 5,
+              "note": 31,
+              "velocity": 105,
+              "start": 14,
+              "dur": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "devicePresets": [
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 1,
+      "program": 306,
+      "name": "RoundTheHorn  HS"
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 2,
+      "program": 257,
+      "name": "Ice Bells     SK"
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 3,
+      "program": 337,
+      "name": "TranceHarp    HM"
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 4,
+      "program": 141,
+      "name": "Bellissimo"
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 5,
+      "program": 802,
+      "name": "Subsonic"
+    }
+  ],
+  "deviceControls": [
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 1,
+      "cc": 12,
+      "value": 4
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 1,
+      "cc": 14,
+      "value": 0
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 1,
+      "cc": 7,
+      "value": 97
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 1,
+      "cc": 10,
+      "value": 64
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 2,
+      "cc": 12,
+      "value": 4
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 2,
+      "cc": 14,
+      "value": 0
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 3,
+      "cc": 12,
+      "value": 4
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 3,
+      "cc": 14,
+      "value": 0
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 4,
+      "cc": 12,
+      "value": 4
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 4,
+      "cc": 14,
+      "value": 0
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 5,
+      "cc": 12,
+      "value": 4
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 5,
+      "cc": 14,
+      "value": 0
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 2,
+      "cc": 7,
+      "value": 68
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 2,
+      "cc": 10,
+      "value": 30
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 3,
+      "cc": 7,
+      "value": 71
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 3,
+      "cc": 10,
+      "value": 98
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 4,
+      "cc": 7,
+      "value": 78
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 4,
+      "cc": 10,
+      "value": 64
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 5,
+      "cc": 7,
+      "value": 93
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 5,
+      "cc": 10,
+      "value": 64
+    }
+  ],
+  "deviceParts": {
+    "blofeld:blofeld port:0#1": 1,
+    "blofeld:blofeld port:0#2": 2,
+    "blofeld:blofeld port:0#3": 3,
+    "blofeld:blofeld port:0#4": 4
+  }
+}
