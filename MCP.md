@@ -21,7 +21,14 @@ Requests with a foreign `Origin` header are rejected.
 | `list_presets` / `select_preset` | Preset catalog (`device_maps/presets/`), Bank Select + Program Change, name via SysEx readback |
 | `set_device_channel` | Same per-device channel as the UI selector |
 | `play_notes` | Timed notes; captured by an armed DAW recording |
-| `daw_*` | State, tempo, record mode, transport, pads, sessions |
+| `daw_*` | State, tempo, record mode, transport, pads, sessions (list/save/load/delete) |
+| `daw_reset`, `daw_set_layout`, `daw_set_clip`, `daw_clear_clip`, `daw_stop_clip`, `daw_track` | Build a session without recording: reset, size the grid, write clips from note lists, mute/solo/arm |
+| `daw_set_loop_bars`, `daw_set_clock`, `daw_set_metronome`, `daw_set_quantize` | Master loop length, clock source (internal/external) and clock output, metronome, quantize grid |
+| `set_device_part` | Add, move or remove a part of a multitimbral instrument |
+
+Typical flow to build and play a session: `daw_reset` → `daw_set_layout` → `select_preset` / `set_parameters` per device
+→ `daw_set_clip` per track and slot (give `device` so the clip uses its channel) → `daw_set_tempo` → `daw_transport play`
+→ `daw_trigger_pad` for each clip → `daw_sessions save`.
 | `panic` | All notes off |
 
 Multitimbral instruments appear once per added part in `list_devices`; address a part as `device: "Blofeld part 3"` (it uses that part's channel).

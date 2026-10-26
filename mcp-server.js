@@ -30,7 +30,21 @@ export const TOOLS = [
     { name: 'daw_set_record_mode', description: 'Record mode: none (play), replace or overdub.', inputSchema: obj({ mode: { enum: ['none', 'replace', 'overdub'] } }, ['mode']) },
     { name: 'daw_transport', description: 'Start or stop the DAW transport.', inputSchema: obj({ action: { enum: ['play', 'stop'] } }, ['action']) },
     { name: 'daw_trigger_pad', description: 'Press a clip pad (0-based track and slot): starts/stops recording or playback according to the record mode.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 7 }, slot: { type: 'integer', minimum: 0, maximum: 15 } }, ['track', 'slot']) },
-    { name: 'daw_sessions', description: 'List, save or load DAW sessions (clips plus instrument presets and parameter values).', inputSchema: obj({ action: { enum: ['list', 'save', 'load'] }, name: { type: 'string' } }, ['action']) },
+    { name: 'daw_sessions', description: 'List, save, load or delete DAW sessions (clips plus instrument presets and parameter values).', inputSchema: obj({ action: { enum: ['list', 'save', 'load', 'delete'] }, name: { type: 'string' } }, ['action']) },
+    { name: 'daw_reset', description: 'Reset the DAW session: stop playback and transport, erase all clips, restore the default 6 tracks x 2 clips and Play mode. Does not change device presets or channels.', inputSchema: obj({}) },
+    { name: 'daw_set_layout', description: 'Set the number of tracks (1-16) and/or clips per track (1-16). Stops playback; existing clips beyond the new size are dropped.', inputSchema: obj({ tracks: { type: 'integer', minimum: 1, maximum: 16 }, slots: { type: 'integer', minimum: 1, maximum: 16 } }) },
+    { name: 'daw_set_clip', description: 'Write a looping clip without recording. Give device (its channel is used) or channel. notes: [{note, start beats, duration beats, velocity}], beat 0 = clip start. Length rounds up to whole bars (or set bars). Start it with daw_trigger_pad once daw_transport play is running.', inputSchema: obj({
+        track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 }, device: DEVICE, channel: CHANNEL, bars: { type: 'integer', minimum: 1, maximum: 64 },
+        notes: { type: 'array', maxItems: 1024, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0 }, duration: { type: 'number', exclusiveMinimum: 0 }, velocity: { type: 'integer', minimum: 1, maximum: 127 } }, ['note', 'start', 'duration']) },
+    }, ['track', 'slot', 'notes']) },
+    { name: 'daw_clear_clip', description: 'Erase one clip (stops it first).', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 } }, ['track', 'slot']) },
+    { name: 'daw_stop_clip', description: 'Stop the clip playing on a track.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 } }, ['track']) },
+    { name: 'daw_track', description: 'Track controls: add_track, remove_track, add_clip (append a clip to the track), arm, mute or solo (arm/mute/solo toggle).', inputSchema: obj({ action: { enum: ['add_track', 'remove_track', 'add_clip', 'arm', 'mute', 'solo'] }, track: { type: 'integer', minimum: 0, maximum: 15 } }, ['action']) },
+    { name: 'daw_set_loop_bars', description: 'Master loop length in bars (1-64); every clip then repeats for exactly this long.', inputSchema: obj({ bars: { type: 'integer', minimum: 1, maximum: 64 } }, ['bars']) },
+    { name: 'daw_set_clock', description: 'Master clock. source: internal (the router is clock master) or external (follow the MIDI input named port). output: send MIDI clock to devices on or off.', inputSchema: obj({ source: { enum: ['internal', 'external'] }, port: { type: 'string', description: 'Input port name for external source' }, output: { type: 'boolean' } }) },
+    { name: 'daw_set_metronome', description: 'Metronome on/off and beats per measure (1-16), which sets the bar length.', inputSchema: obj({ enabled: { type: 'boolean' }, beats_per_measure: { type: 'integer', minimum: 1, maximum: 16 } }) },
+    { name: 'daw_set_quantize', description: 'Quantize grid for recorded takes in beats: 0 (off), 0.125, 0.25, 0.5, 1 or 2.', inputSchema: obj({ beats: { enum: [0, 0.125, 0.25, 0.5, 1, 2] } }, ['beats']) },
+    { name: 'set_device_part', description: 'Add or move a part of a multitimbral instrument (e.g. Blofeld part 2 on channel 6), or remove it. Afterwards address it as "<device> part <n>".', inputSchema: obj({ device: DEVICE, part: { type: 'integer', minimum: 1, maximum: 16 }, channel: CHANNEL, remove: { type: 'boolean' } }, ['device', 'part']) },
     { name: 'play_notes', description: 'Play timed notes on a device now. An armed DAW recording captures them. notes: [{note 0-127, start beats, duration beats, velocity 1-127}].', inputSchema: obj({
         device: DEVICE, channel: CHANNEL, bpm: { type: 'number', minimum: 20, maximum: 300 },
         notes: { type: 'array', maxItems: MAX_NOTES, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0 }, duration: { type: 'number', exclusiveMinimum: 0 }, velocity: { type: 'integer', minimum: 1, maximum: 127 } }, ['note', 'start', 'duration']) },
@@ -189,7 +203,84 @@ export function createMcpServer(ctx) {
         daw_sessions({ action, name }) {
             if (action === 'list') return ctx.listSessions();
             if (typeof name !== 'string' || !/^[\w .-]{1,64}$/.test(name)) throw new ToolError('name is required (letters, digits, space, . _ -)');
-            ctx.daw({ type: action === 'save' ? 'daw_save_session' : 'daw_load_session', name }); return { ok: true, action, name };
+            const types = { save: 'daw_save_session', load: 'daw_load_session', delete: 'daw_delete_session' };
+            if (!types[action]) throw new ToolError('action must be list, save, load or delete');
+            ctx.daw({ type: types[action], name }); return { ok: true, action, name };
+        },
+        daw_reset() { ctx.daw({ type: 'daw_reset_arm_record' }); return { ok: true }; },
+        daw_set_layout({ tracks, slots }) {
+            if (tracks === undefined && slots === undefined) throw new ToolError('give tracks and/or slots');
+            for (const [key, v, max] of [['tracks', tracks, 16], ['slots', slots, 16]]) {
+                if (v !== undefined && (!Number.isInteger(v) || v < 1 || v > max)) throw new ToolError(`${key} must be 1-${max}`);
+            }
+            ctx.daw({ type: 'daw_set_layout', tracks, slots }); return { ok: true, tracks, slots };
+        },
+        daw_set_clip({ track, slot, device, channel, bars, notes }) {
+            const state = ctx.getDawState();
+            const clips = state?.tracks?.[track]?.clips;
+            if (!clips) throw new ToolError(`no track ${track} (see daw_get_state / daw_set_layout)`);
+            if (!clips[slot]) throw new ToolError(`track ${track} has no slot ${slot} (it has ${clips.length})`);
+            if (!Array.isArray(notes) || notes.length > 1024) throw new ToolError('notes must hold 0-1024 entries');
+            let ch = channel;
+            if (device !== undefined) ch = channelFor(resolve(device), channel);
+            if (!validMidiChannel(ch)) throw new ToolError('give device or channel (1-16)');
+            if (bars !== undefined && (!Number.isInteger(bars) || bars < 1 || bars > 64)) throw new ToolError('bars must be 1-64');
+            const clean = notes.map(n => {
+                const velocity = n?.velocity === undefined ? 100 : n.velocity;
+                if (!Number.isInteger(n?.note) || n.note < 0 || n.note > 127 || !(n.start >= 0) || !(n.duration > 0) || !Number.isInteger(velocity) || velocity < 1 || velocity > 127) {
+                    throw new ToolError('each note needs note 0-127, start >= 0, duration > 0 and velocity 1-127');
+                }
+                return { note: n.note, start: n.start, dur: n.duration, velocity };
+            });
+            ctx.daw({ type: 'daw_set_clip', trackIdx: track, slot, channel: ch, bars, notes: clean });
+            return { ok: true, track, slot, channel: ch, notes: clean.length };
+        },
+        daw_clear_clip({ track, slot }) {
+            if (!Number.isInteger(track) || track < 0 || track > 15 || !Number.isInteger(slot) || slot < 0 || slot > 15) throw new ToolError('track 0-15, slot 0-15');
+            ctx.daw({ type: 'daw_clear_clip', trackIdx: track, slot }); return { ok: true, track, slot };
+        },
+        daw_stop_clip({ track }) {
+            if (!Number.isInteger(track) || track < 0 || track > 15) throw new ToolError('track 0-15');
+            ctx.daw({ type: 'daw_stop_clip', trackIdx: track }); return { ok: true, track };
+        },
+        daw_track({ action, track }) {
+            const types = { add_track: 'daw_add_track', remove_track: 'daw_remove_track', add_clip: 'daw_add_clip', arm: 'daw_arm_track', mute: 'daw_mute_track', solo: 'daw_solo_track' };
+            if (!types[action]) throw new ToolError(`action must be one of ${Object.keys(types).join(', ')}`);
+            if (action !== 'add_track' && (!Number.isInteger(track) || track < 0 || track > 15)) throw new ToolError('track 0-15 is required');
+            ctx.daw({ type: types[action], trackIdx: track }); return { ok: true, action, track };
+        },
+        daw_set_loop_bars({ bars }) {
+            if (!Number.isInteger(bars) || bars < 1 || bars > 64) throw new ToolError('bars must be 1-64');
+            ctx.daw({ type: 'daw_set_master_loop_bars', bars }); return { ok: true, bars };
+        },
+        daw_set_clock({ source, port, output }) {
+            if (source === undefined && output === undefined) throw new ToolError('give source and/or output');
+            if (source !== undefined) {
+                if (!['internal', 'external'].includes(source)) throw new ToolError('source must be internal or external');
+                if (source === 'external' && typeof port !== 'string') throw new ToolError('external source needs port (an input name)');
+                ctx.daw({ type: 'clock_source_select', kind: source, portName: port });
+            }
+            if (output !== undefined) ctx.daw({ type: output ? 'daw_midi_clock_on' : 'daw_midi_clock_off' });
+            return { ok: true, source, port, output };
+        },
+        daw_set_metronome({ enabled, beats_per_measure: beats }) {
+            if (enabled === undefined && beats === undefined) throw new ToolError('give enabled and/or beats_per_measure');
+            if (enabled !== undefined) ctx.daw({ type: enabled ? 'daw_metronome_on' : 'daw_metronome_off' });
+            if (beats !== undefined) {
+                if (!Number.isInteger(beats) || beats < 1 || beats > 16) throw new ToolError('beats_per_measure must be 1-16');
+                ctx.daw({ type: 'daw_metronome_beats_per_measure', bpm: beats });
+            }
+            return { ok: true, enabled, beats_per_measure: beats };
+        },
+        daw_set_quantize({ beats }) {
+            if (![0, 0.125, 0.25, 0.5, 1, 2].includes(beats)) throw new ToolError('beats must be 0, 0.125, 0.25, 0.5, 1 or 2');
+            ctx.daw({ type: 'daw_quantize_grid', beats }); return { ok: true, beats };
+        },
+        set_device_part({ device, part, channel, remove }) {
+            const output = resolveOutput(outputs(), device);
+            if (!MULTITIMBRAL_PARTS[ctx.catalog.forPort(output.name)?.model]) throw new ToolError(`"${output.name}" is not multitimbral`);
+            if (!ctx.setPart(output.name, part, remove ? undefined : channel, !!remove)) throw new ToolError('part must be 1-16' + (remove ? '' : ' and channel 1-16 is required'));
+            return { device: output.name, part, channel: remove ? null : channel, removed: !!remove, parts: ctx.getParts(output.name) };
         },
         play_notes({ device, channel, bpm = 120, notes }) {
             const output = resolve(device);

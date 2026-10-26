@@ -342,6 +342,11 @@ const mcp = createMcpServer({
         return true;
     },
     getDawState: () => router.dawState,
+    setPart: (name, part, channel, remove) => {
+        if (!(remove ? deviceChannels.removePart(name, part) : deviceChannels.setPart(name, part, channel))) return false;
+        router.publishChannels(deviceChannels.channels);
+        return true;
+    },
     sendMidi: (target, bytes) => router._sendMidiToTarget(bytes, target),
     noteControl: (target, channel, cc, value) => router.noteControl(target, channel, cc, value),
     selectPreset: (target, channel, index) => {

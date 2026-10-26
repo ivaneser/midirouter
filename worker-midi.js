@@ -2320,7 +2320,44 @@ class MIDIRouterWorker {
                     this._broadcastState();
                 }
                 break;
-
+            // ---- Authoring (MCP): build sessions without recording ----
+            case 'daw_set_layout': {
+                // Track and clips-per-track counts; stops playback first because track indexes shift.
+                this._stopAllClipPlayback();
+                if (Number.isInteger(msg.tracks)) daw._setTrackCount(msg.tracks);
+                if (Number.isInteger(msg.slots)) daw.setSlotsPerTrack(msg.slots);
+                this._refreshPadLeds();
+                this._broadcastState();
+                break;
+            }
+            case 'daw_set_clip': {
+                const { trackIdx, slot } = msg;
+                const wasPlaying = daw.clipState[trackIdx] === slot && daw.playing;
+                if (!daw.setClipNotes(trackIdx, slot, msg.notes, msg.channel, msg.bars)) break;
+                // Replay a playing clip so it picks up the new notes from its start.
+                if (wasPlaying) this._startTrackPlayback(trackIdx, slot);
+                this._refreshPadLeds(trackIdx, slot);
+                this._broadcastState();
+                break;
+            }
+            case 'daw_stop_clip': {
+                const { trackIdx } = msg;
+                if (daw.tracks[trackIdx]) {
+                    this._stopTrackPlayback(trackIdx);
+                    daw.clipState[trackIdx] = -1;
+                    this._refreshPadLeds();
+                    this._broadcastState();
+                }
+                break;
+            }
+            case 'daw_remove_track':
+                if (daw.tracks.length > 1 && daw.tracks[msg.trackIdx]) {
+                    this._stopAllClipPlayback();
+                    daw.removeTrack(msg.trackIdx);
+                    this._refreshPadLeds();
+                    this._broadcastState();
+                }
+                break;
 
         }
     }

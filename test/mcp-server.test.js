@@ -133,3 +133,47 @@ test('parts of a multitimbral instrument are separate devices with their own cha
     assert.deepEqual(sent[0][1].slice(0, 2), [0xB8, 35]);
     assert.ok((await call('set_parameter', { device: 'blofeld part 2', parameter: 35, value: 1 })).error, 'part 2 is not added');
 });
+
+test('DAW authoring tools validate input and forward worker messages', async () => {
+    const { call, daw, state } = setup();
+    state.tracks = [{ clips: [{}, {}] }];
+    assert.equal((await call('daw_reset', {})).error, undefined);
+    assert.deepEqual(daw.pop(), { type: 'daw_reset_arm_record' });
+    await call('daw_set_layout', { tracks: 3, slots: 4 });
+    assert.deepEqual(daw.pop(), { type: 'daw_set_layout', tracks: 3, slots: 4 });
+    assert.ok((await call('daw_set_layout', {})).error);
+
+    const notes = [{ note: 60, start: 0, duration: 1 }, { note: 64, start: 1, duration: 1, velocity: 90 }];
+    const ok = await call('daw_set_clip', { track: 0, slot: 1, device: 'MicroFreak', notes });
+    assert.equal(ok.data.channel, 3);
+    assert.deepEqual(daw.pop(), { type: 'daw_set_clip', trackIdx: 0, slot: 1, channel: 3, bars: undefined, notes: [
+        { note: 60, start: 0, dur: 1, velocity: 100 }, { note: 64, start: 1, dur: 1, velocity: 90 }] });
+    assert.ok((await call('daw_set_clip', { track: 0, slot: 2, channel: 1, notes })).error);   // no such slot
+    assert.ok((await call('daw_set_clip', { track: 0, slot: 0, notes })).error);               // no channel
+    assert.ok((await call('daw_set_clip', { track: 0, slot: 0, channel: 1, notes: [{ note: 200, start: 0, duration: 1 }] })).error);
+
+    await call('daw_track', { action: 'mute', track: 2 });
+    assert.deepEqual(daw.pop(), { type: 'daw_mute_track', trackIdx: 2 });
+    assert.ok((await call('daw_track', { action: 'solo' })).error);
+
+    await call('daw_set_clock', { source: 'external', port: 'Keystep', output: false });
+    assert.deepEqual(daw.splice(-2), [{ type: 'clock_source_select', kind: 'external', portName: 'Keystep' }, { type: 'daw_midi_clock_off' }]);
+    assert.ok((await call('daw_set_clock', { source: 'external' })).error);
+
+    await call('daw_set_metronome', { enabled: false, beats_per_measure: 3 });
+    assert.deepEqual(daw.splice(-2), [{ type: 'daw_metronome_off' }, { type: 'daw_metronome_beats_per_measure', bpm: 3 }]);
+    await call('daw_sessions', { action: 'delete', name: 'old' });
+    assert.deepEqual(daw.pop(), { type: 'daw_delete_session', name: 'old' });
+});
+
+test('DAWEngine.setClipNotes fills a clip, assigns the channel and rounds the length to bars', async () => {
+    const { DAWEngine } = await import('../daw.js');
+    const daw = new DAWEngine();
+    const clip = daw.setClipNotes(1, 0, [{ note: 60, start: 0, dur: 1, velocity: 100 }, { note: 62, start: 4.5, dur: 1, velocity: 80 }], 7);
+    assert.equal(clip.notes.length, 2);
+    assert.equal(clip.notes[0].channel, 7);
+    assert.equal(clip.length, 8);
+    assert.equal(daw.tracks[1].channel, 7);
+    assert.equal(daw.tracks[1].channelAssigned, true);
+    assert.equal(daw.setClipNotes(99, 0, [], 1), null);
+});

@@ -532,6 +532,28 @@ class DAWEngine {
         return true;
     }
 
+    // Fill a clip with authored notes ({note, start, dur, velocity} in beats). The track takes
+    // `channel` (as a first recorded note would assign it) and the clip length is rounded up to
+    // whole bars, at least `bars` when given. Returns the clip, or null when it does not exist.
+    setClipNotes(trackIdx, slot, notes, channel, bars) {
+        const track = this.tracks[trackIdx];
+        const clip = track?.clips[slot];
+        if (!clip) return null;
+        if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) this._stopRecording();
+        clip.notes = notes.map(n => ({
+            channel, note: n.note, velocity: n.velocity, start: roundBeats(n.start), dur: roundBeats(Math.max(0.125, n.dur)),
+        }));
+        const end = clip.notes.reduce((max, n) => Math.max(max, n.start + n.dur), 0);
+        const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+        const wanted = Number.isInteger(bars) ? bars * bar : (this.masterLoopBars != null ? this.loopLenBeats : 0);
+        clip.length = Math.max(this._snapToBars(end), wanted);
+        track.channel = channel;
+        track.channelAssigned = true;
+        // A longer clip than the shared cycle extends the cycle unless an explicit master loop is set.
+        if (this.masterLoopBars == null && clip.length > this.loopLenBeats) this.loopLenBeats = clip.length;
+        return clip;
+    }
+
     // Sets the clip count of every track (and the default for new tracks).
     setSlotsPerTrack(n) {
         // Reject non-number input (null, strings, booleans, objects...) and
