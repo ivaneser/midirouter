@@ -177,3 +177,13 @@ test('DAWEngine.setClipNotes fills a clip, assigns the channel and rounds the le
     assert.equal(daw.tracks[1].channelAssigned, true);
     assert.equal(daw.setClipNotes(99, 0, [], 1), null);
 });
+
+test('send_cc sends a validated raw control change and records it', async () => {
+    const { call, sent, state } = setup();
+    const ok = await call('send_cc', { device: 'MicroFreak', cc: 7, value: 90, channel: 2 });
+    assert.equal(ok.data.cc, 7);
+    assert.deepEqual(sent.pop(), [FREAK.id, [0xB1, 7, 90]]);
+    assert.deepEqual(state.deviceControls.pop(), { target: FREAK.id, channel: 2, cc: 7, value: 90 });
+    assert.ok((await call('send_cc', { device: 'MicroFreak', cc: 120, value: 1 })).error);
+    assert.ok((await call('send_cc', { device: 'MicroFreak', cc: 7, value: 128 })).error);
+});

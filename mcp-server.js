@@ -21,6 +21,7 @@ export const TOOLS = [
     { name: 'get_device_state', description: 'Last values sent to a device (by parameter name) plus its current preset. MIDI has no readback, so this is what the router last sent.', inputSchema: obj({ device: DEVICE, channel: CHANNEL }, ['device']) },
     { name: 'set_parameter', description: 'Set one parameter by name or CC number. Sliders take the displayed value (signed ranges allowed), dropdowns an option label or index, toggles true/false. The UI knob moves too.', inputSchema: obj({ device: DEVICE, parameter: { type: ['string', 'integer'] }, value: { type: ['number', 'string', 'boolean'] }, channel: CHANNEL }, ['device', 'parameter', 'value']) },
     { name: 'set_parameters', description: 'Set several parameters at once: values maps parameter name (or CC number) to value.', inputSchema: obj({ device: DEVICE, values: { type: 'object', additionalProperties: { type: ['number', 'string', 'boolean'] } }, channel: CHANNEL }, ['device', 'values']) },
+    { name: 'send_cc', description: 'Send a raw Control Change (cc 1-119 except 32) for things outside the control map, e.g. part volume (7), pan (10, 64 = centre). Prefer set_parameter when the control is listed.', inputSchema: obj({ device: DEVICE, cc: { type: 'integer', minimum: 1, maximum: 119 }, value: { type: 'integer', minimum: 0, maximum: 127 }, channel: CHANNEL }, ['device', 'cc', 'value']) },
     { name: 'list_presets', description: 'Preset catalog of a device (name, number, tags) when one is available; supports a name filter.', inputSchema: obj({ device: DEVICE, query: { type: 'string' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, ['device']) },
     { name: 'select_preset', description: 'Switch preset: Bank Select + Program Change. preset is the 1-based global number (as in list_presets) or a catalog name. Returns the preset name when the device reports it.', inputSchema: obj({ device: DEVICE, preset: { type: ['integer', 'string'] }, channel: CHANNEL }, ['device', 'preset']) },
     { name: 'set_device_channel', description: 'Set the MIDI channel the router uses for UI/MCP messages to a device.', inputSchema: obj({ device: DEVICE, channel: CHANNEL }, ['device', 'channel']) },
@@ -176,6 +177,15 @@ export function createMcpServer(ctx) {
             ctx.selectPreset(output.id, ch, index);
             const reported = await ctx.waitPresetName(output.id, ch, index, 1500);
             return { device: output.name, channel: ch, preset: number, name: reported ?? presetCatalogName(output, index), nameSource: reported ? 'device' : (presetCatalogName(output, index) ? 'catalog' : 'none') };
+        },
+        send_cc({ device, cc, value, channel }) {
+            const output = resolve(device);
+            const ch = channelFor(output, channel);
+            if (!Number.isInteger(cc) || cc < 1 || cc > 119 || cc === 32) throw new ToolError('cc must be 1-119 (not 32)');
+            if (!Number.isInteger(value) || value < 0 || value > 127) throw new ToolError('value must be 0-127');
+            ctx.sendMidi(output.id, [0xB0 | (ch - 1), cc, value]);
+            if (cc !== 0) ctx.noteControl(output.id, ch, cc, value);
+            return { device: output.name, channel: ch, cc, value };
         },
         set_device_channel({ device, channel }) {
             const output = resolve(device);
