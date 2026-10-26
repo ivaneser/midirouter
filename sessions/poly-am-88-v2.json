@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "savedAt": "2026-10-26T21:16:12.765Z",
+  "savedAt": "2026-10-26T21:21:49.958Z",
   "tempo": 88,
   "recordMode": "none",
   "slotsPerTrack": 1,
@@ -369,6 +369,70 @@
           ]
         }
       ]
+    },
+    {
+      "channel": 6,
+      "channelAssigned": true,
+      "armed": false,
+      "muted": false,
+      "soloed": false,
+      "clips": [
+        {
+          "length": 13,
+          "phase": 0,
+          "notes": [
+            {
+              "channel": 6,
+              "note": 57,
+              "velocity": 120,
+              "start": 0,
+              "dur": 0.25
+            },
+            {
+              "channel": 6,
+              "note": 64,
+              "velocity": 70,
+              "start": 2.5,
+              "dur": 0.25
+            },
+            {
+              "channel": 6,
+              "note": 60,
+              "velocity": 90,
+              "start": 3.5,
+              "dur": 0.25
+            },
+            {
+              "channel": 6,
+              "note": 52,
+              "velocity": 100,
+              "start": 6,
+              "dur": 0.25
+            },
+            {
+              "channel": 6,
+              "note": 64,
+              "velocity": 65,
+              "start": 8.5,
+              "dur": 0.25
+            },
+            {
+              "channel": 6,
+              "note": 57,
+              "velocity": 95,
+              "start": 9.5,
+              "dur": 0.25
+            },
+            {
+              "channel": 6,
+              "note": 60,
+              "velocity": 75,
+              "start": 11.5,
+              "dur": 0.25
+            }
+          ]
+        }
+      ]
     }
   ],
   "devicePresets": [
@@ -401,6 +465,12 @@
       "channel": 5,
       "program": 802,
       "name": "Subsonic"
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 6,
+      "program": 950,
+      "name": "AnalogBongo 1"
     }
   ],
   "deviceControls": [
@@ -523,12 +593,38 @@
       "channel": 5,
       "cc": 10,
       "value": 64
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 6,
+      "cc": 12,
+      "value": 4
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 6,
+      "cc": 14,
+      "value": 0
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 6,
+      "cc": 7,
+      "value": 65
+    },
+    {
+      "target": "Blofeld:Blofeld 32:0",
+      "channel": 6,
+      "cc": 10,
+      "value": 84
     }
   ],
   "deviceParts": {
     "blofeld:blofeld port:0#1": 1,
     "blofeld:blofeld port:0#2": 2,
     "blofeld:blofeld port:0#3": 3,
-    "blofeld:blofeld port:0#4": 4
+    "blofeld:blofeld port:0#4": 4,
+    "blofeld:blofeld port:0#5": 5,
+    "blofeld:blofeld port:0#6": 6
   }
 }
