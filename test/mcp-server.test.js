@@ -187,3 +187,15 @@ test('send_cc sends a validated raw control change and records it', async () => 
     assert.ok((await call('send_cc', { device: 'MicroFreak', cc: 120, value: 1 })).error);
     assert.ok((await call('send_cc', { device: 'MicroFreak', cc: 7, value: 128 })).error);
 });
+
+test('send_sysex frames and validates a raw System Exclusive message', async () => {
+    const { call, sent } = setup();
+    const ok = await call('send_sysex', { device: 'MicroFreak', bytes: [0x3E, 0x13, 0x00, 0x20, 0x00, 0x01, 0x02, 0x03] });
+    assert.equal(ok.data.length, 10);
+    assert.deepEqual(sent.pop(), [FREAK.id, [0xF0, 0x3E, 0x13, 0x00, 0x20, 0x00, 0x01, 0x02, 0x03, 0xF7]]);
+    await call('send_sysex', { device: 'MicroFreak', bytes: [0xF0, 1, 2, 0xF7] });
+    assert.deepEqual(sent.pop(), [FREAK.id, [0xF0, 1, 2, 0xF7]]);
+    assert.ok((await call('send_sysex', { device: 'MicroFreak', bytes: [0x3E, 128] })).error);
+    assert.ok((await call('send_sysex', { device: 'MicroFreak', bytes: [0xF0, 0xF7] })).error);
+    assert.ok((await call('send_sysex', { device: 'MicroFreak', bytes: [1, 0xF0, 2] })).error);
+});

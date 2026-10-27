@@ -18,6 +18,8 @@ Requests with a foreign `Origin` header are rejected.
 | `get_device_params` | Control map with CC, range/options, description, value zones, current value |
 | `get_device_state` | Values last sent to the device plus its preset (MIDI has no readback) |
 | `set_parameter` / `set_parameters` | Set parameters by name or CC; open UI knobs follow |
+| `send_cc` | Raw Control Change outside the control map (part volume 7, pan 10) |
+| `send_sysex` | Raw System Exclusive (data bytes; F0/F7 added), e.g. Blofeld effect types |
 | `list_presets` / `select_preset` | Preset catalog (`device_maps/presets/`), Bank Select + Program Change, name via SysEx readback |
 | `set_device_channel` | Same per-device channel as the UI selector |
 | `play_notes` | Timed notes; captured by an armed DAW recording |

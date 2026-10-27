@@ -22,6 +22,7 @@ export const TOOLS = [
     { name: 'set_parameter', description: 'Set one parameter by name or CC number. Sliders take the displayed value (signed ranges allowed), dropdowns an option label or index, toggles true/false. The UI knob moves too.', inputSchema: obj({ device: DEVICE, parameter: { type: ['string', 'integer'] }, value: { type: ['number', 'string', 'boolean'] }, channel: CHANNEL }, ['device', 'parameter', 'value']) },
     { name: 'set_parameters', description: 'Set several parameters at once: values maps parameter name (or CC number) to value.', inputSchema: obj({ device: DEVICE, values: { type: 'object', additionalProperties: { type: ['number', 'string', 'boolean'] } }, channel: CHANNEL }, ['device', 'values']) },
     { name: 'send_cc', description: 'Send a raw Control Change (cc 1-119 except 32) for things outside the control map, e.g. part volume (7), pan (10, 64 = centre). Prefer set_parameter when the control is listed.', inputSchema: obj({ device: DEVICE, cc: { type: 'integer', minimum: 1, maximum: 119 }, value: { type: 'integer', minimum: 0, maximum: 127 }, channel: CHANNEL }, ['device', 'cc', 'value']) },
+    { name: 'send_sysex', description: 'Send a raw System Exclusive message to a device, for settings that have no CC (e.g. Blofeld effect types via Sound Parameter Change). bytes: the data bytes 0-127, with or without the leading 0xF0 and trailing 0xF7 (added when missing). Starts and ends are validated; no reply is read.', inputSchema: obj({ device: DEVICE, bytes: { type: 'array', minItems: 1, maxItems: 512, items: { type: 'integer', minimum: 0, maximum: 247 } } }, ['device', 'bytes']) },
     { name: 'list_presets', description: 'Preset catalog of a device (name, number, tags) when one is available; supports a name filter.', inputSchema: obj({ device: DEVICE, query: { type: 'string' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, ['device']) },
     { name: 'select_preset', description: 'Switch preset: Bank Select + Program Change. preset is the 1-based global number (as in list_presets) or a catalog name. Returns the preset name when the device reports it.', inputSchema: obj({ device: DEVICE, preset: { type: ['integer', 'string'] }, channel: CHANNEL }, ['device', 'preset']) },
     { name: 'set_device_channel', description: 'Set the MIDI channel the router uses for UI/MCP messages to a device.', inputSchema: obj({ device: DEVICE, channel: CHANNEL }, ['device', 'channel']) },
@@ -186,6 +187,16 @@ export function createMcpServer(ctx) {
             ctx.sendMidi(output.id, [0xB0 | (ch - 1), cc, value]);
             if (cc !== 0) ctx.noteControl(output.id, ch, cc, value);
             return { device: output.name, channel: ch, cc, value };
+        },
+        send_sysex({ device, bytes }) {
+            const output = resolve(device);
+            if (!Array.isArray(bytes) || bytes.length < 1 || bytes.length > 512 || !bytes.every(Number.isInteger)) throw new ToolError('bytes must be 1-512 integers');
+            const data = bytes[0] === 0xF0 ? bytes.slice(1) : bytes;
+            const body = data[data.length - 1] === 0xF7 ? data.slice(0, -1) : data;
+            if (!body.length || body.some(b => b < 0 || b > 127)) throw new ToolError('data bytes must be 0-127 (0xF0 only first, 0xF7 only last)');
+            const message = [0xF0, ...body, 0xF7];
+            ctx.sendMidi(output.id, message);
+            return { device: output.name, length: message.length, bytes: message };
         },
         set_device_channel({ device, channel }) {
             const output = resolve(device);
