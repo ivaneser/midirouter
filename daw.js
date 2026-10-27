@@ -541,7 +541,7 @@ class DAWEngine {
         if (!clip) return null;
         if (this.recording && this.recording.track === trackIdx && this.recording.slot === slot) this._stopRecording();
         clip.notes = notes.map(n => ({
-            channel, note: n.note, velocity: n.velocity, start: roundBeats(n.start), dur: roundBeats(Math.max(0.125, n.dur)),
+            channel: Number.isInteger(n.channel) ? n.channel : channel, note: n.note, velocity: n.velocity, start: roundBeats(n.start), dur: roundBeats(Math.max(0.125, n.dur)),
         }));
         const end = clip.notes.reduce((max, n) => Math.max(max, n.start + n.dur), 0);
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);

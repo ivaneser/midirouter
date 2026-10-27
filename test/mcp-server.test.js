@@ -199,3 +199,12 @@ test('send_sysex frames and validates a raw System Exclusive message', async () 
     assert.ok((await call('send_sysex', { device: 'MicroFreak', bytes: [0xF0, 0xF7] })).error);
     assert.ok((await call('send_sysex', { device: 'MicroFreak', bytes: [1, 0xF0, 2] })).error);
 });
+
+test('daw_set_clip accepts an optional channel per note', async () => {
+    const { call, daw, state } = setup();
+    state.tracks = [{ clips: [{}, {}] }];
+    const ok = await call('daw_set_clip', { track: 0, slot: 1, channel: 1, notes: [{ note: 60, start: 0, duration: 1 }, { note: 62, start: 1, duration: 1, channel: 9 }] });
+    assert.equal(ok.data.notes, 2);
+    assert.equal(daw.pop().notes[1].channel, 9);
+    assert.ok((await call('daw_set_clip', { track: 0, slot: 1, channel: 1, notes: [{ note: 60, start: 0, duration: 1, channel: 17 }] })).error);
+});

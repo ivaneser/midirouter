@@ -37,7 +37,7 @@ export const TOOLS = [
     { name: 'daw_set_layout', description: 'Set the number of tracks (1-16) and/or clips per track (1-16). Stops playback; existing clips beyond the new size are dropped.', inputSchema: obj({ tracks: { type: 'integer', minimum: 1, maximum: 16 }, slots: { type: 'integer', minimum: 1, maximum: 16 } }) },
     { name: 'daw_set_clip', description: 'Write a looping clip without recording. Give device (its channel is used) or channel. notes: [{note, start beats, duration beats, velocity}], beat 0 = clip start. Length rounds up to whole bars (or set bars). Start it with daw_trigger_pad once daw_transport play is running.', inputSchema: obj({
         track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 }, device: DEVICE, channel: CHANNEL, bars: { type: 'integer', minimum: 1, maximum: 64 },
-        notes: { type: 'array', maxItems: 1024, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0 }, duration: { type: 'number', exclusiveMinimum: 0 }, velocity: { type: 'integer', minimum: 1, maximum: 127 } }, ['note', 'start', 'duration']) },
+        notes: { type: 'array', maxItems: 1024, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0 }, duration: { type: 'number', exclusiveMinimum: 0 }, velocity: { type: 'integer', minimum: 1, maximum: 127 }, channel: { type: 'integer', minimum: 1, maximum: 16, description: 'Optional per-note MIDI channel, so one clip can drive several parts' } }, ['note', 'start', 'duration']) },
     }, ['track', 'slot', 'notes']) },
     { name: 'daw_clear_clip', description: 'Erase one clip (stops it first).', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 } }, ['track', 'slot']) },
     { name: 'daw_stop_clip', description: 'Stop the clip playing on a track.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 } }, ['track']) },
@@ -251,7 +251,8 @@ export function createMcpServer(ctx) {
                 if (!Number.isInteger(n?.note) || n.note < 0 || n.note > 127 || !(n.start >= 0) || !(n.duration > 0) || !Number.isInteger(velocity) || velocity < 1 || velocity > 127) {
                     throw new ToolError('each note needs note 0-127, start >= 0, duration > 0 and velocity 1-127');
                 }
-                return { note: n.note, start: n.start, dur: n.duration, velocity };
+                if (n.channel !== undefined && !validMidiChannel(n.channel)) throw new ToolError('note channel must be 1-16');
+                return n.channel === undefined ? { note: n.note, start: n.start, dur: n.duration, velocity } : { note: n.note, start: n.start, dur: n.duration, velocity, channel: n.channel };
             });
             ctx.daw({ type: 'daw_set_clip', trackIdx: track, slot, channel: ch, bars, notes: clean });
             return { ok: true, track, slot, channel: ch, notes: clean.length };
