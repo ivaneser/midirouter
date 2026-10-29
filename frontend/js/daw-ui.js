@@ -408,8 +408,8 @@ export class DAWUI {
 
         // Beats per measure
         const metroBeatsInput = document.getElementById('metro-beats');
-        if (metroBeatsInput && this.daw) {
-            metroBeatsInput.value = this.daw._metronomeBeatsPerMeasure || 4;
+        if (metroBeatsInput && this.dawState.metronomeBeatsPerMeasure != null) {
+            metroBeatsInput.value = String(this.dawState.metronomeBeatsPerMeasure);
         }
 
         // Click latency slider: sync from state.

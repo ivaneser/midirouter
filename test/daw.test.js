@@ -547,3 +547,20 @@ test('overdub notes are snapped to the quantize grid before they are scheduled',
     daw.recordEvent(0x80, 65, 0, 4200);
     assert.equal(scheduled, 0);
 });
+
+test('resetAllClips in auto mode puts the loop back to one bar and unlocks it for the next take', () => {
+    const daw = new DAWEngine();
+    daw.loopLenBeats = 12;
+    daw._globalCycleLocked = true;
+    daw.resetAllClips();
+    assert.equal(daw.loopLenBeats, 4);
+    assert.equal(daw._globalCycleLocked, false);
+});
+
+test('resetAllClips keeps an explicit master loop', () => {
+    const daw = new DAWEngine();
+    daw.setMasterLoopBars(4);
+    daw.resetAllClips();
+    assert.equal(daw.loopLenBeats, 16);
+    assert.equal(daw._globalCycleLocked, true);
+});

@@ -500,6 +500,11 @@ class DAWEngine {
         this.sessionRecording = false;
         // With an explicit master loop the emptied clips keep the full cycle
         // length so the next take repeats for the selected number of bars.
+        // In auto mode the cycle goes back to one bar and unlocks: the next first take sets it.
+        if (this.masterLoopBars == null) {
+            this.loopLenBeats = this._snapToBars(0);
+            this._globalCycleLocked = false;
+        }
         const resetLength = this.masterLoopBars != null ? this.loopLenBeats : this._snapToBars(0);
         for (const track of this.tracks) {
             for (const clip of track.clips) {
@@ -1269,6 +1274,7 @@ class DAWEngine {
             loopLenBeats: this.loopLenBeats,
             masterLoopBars: this.masterLoopBars,
             metronomeEnabled: this._metronomeEnabled,
+            metronomeBeatsPerMeasure: this._metronomeBeatsPerMeasure,
             sessionRecording: this.sessionRecording,
             midiClockEnabled: this._midiClockEnabled,
             clockSource: this.getClockSource(),
