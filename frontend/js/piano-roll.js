@@ -109,10 +109,13 @@ export class PianoRoll {
         for (let pitch = high; pitch >= low; pitch--) {
             const y = top + (high - pitch) * row;
             const allowed = isAllowed(pitch, this.root, this.scale);
-            add('rect', { x: 0, y, width, height: row, fill: [1, 3, 6, 8, 10].includes(pitch % 12) ? '#131b22' : '#202b34' });
-            if (!allowed) add('rect', { x: 0, y, width, height: row, fill: '#0b0f13', opacity: 0.72, 'pointer-events': 'none' });
-            else if (this.scale && (pitch - this.root) % 12 === 0) add('rect', { x: 0, y, width: left - 2, height: row, fill: '#a6d477', opacity: 0.18, 'pointer-events': 'none' });
-            add('text', { x: 5, y: y + 13, fill: allowed ? '#aab9c7' : '#4d5963', 'font-size': 11, 'pointer-events': 'none' }, noteName(pitch));
+            // Same two shades as the piano keys: without a scale the black keys are dark; with one, the
+            // notes outside it take the dark shade and the notes inside it the light one.
+            const dark = this.scale ? !allowed : [1, 3, 6, 8, 10].includes(pitch % 12);
+            const fill = dark ? '#131b22' : '#202b34';
+            add('rect', { x: 0, y, width, height: row, fill });
+            if (allowed && this.scale && (pitch - this.root) % 12 === 0) add('rect', { x: 0, y, width: left - 2, height: row, fill: '#a6d477', opacity: 0.25, 'pointer-events': 'none' });
+            add('text', { x: 5, y: y + 13, fill: allowed ? '#aab9c7' : '#5b6874', 'font-size': 11, 'pointer-events': 'none' }, noteName(pitch));
         }
         const step = Math.max(1, Math.ceil(beats / 64));
         for (let beat = 0; beat <= beats; beat += step) {
