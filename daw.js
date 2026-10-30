@@ -947,6 +947,13 @@ class DAWEngine {
                 clip.length = isLayer ? clip.length : snapped;
                 if (r.clipWasEmpty) this.tracks[r.track].clips[r.slot].phase = r.phase;
             }
+            // A finished take is moved into the session scale: this covers notes that were not corrected
+            // as they came in (the on-screen keyboard).
+            const scale = scaleById(this._scaleId);
+            if (scale) {
+                const clip = this.tracks[r.track].clips[r.slot];
+                clip.notes = fitNotesToScale(clip.notes, this._scaleRoot, scale);
+            }
         }
 
         this.recording = null;

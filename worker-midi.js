@@ -1332,6 +1332,8 @@ class MIDIRouterWorker {
             const enterOverdub = !stopTransport && this.daw.recordMode === 'overdub' && recording.clipWasEmpty && clip?.notes.length > 0;
             this.daw._stopRecording(endBeat, true);
             this.daw.quantizeClip(track, slot, this.quantizeGrid ?? 0.5);
+            // The take was refitted to the scale: a clip that is already playing re-times to its final notes.
+            if (this.daw._scaleId) this._refreshPlayingClip(track, slot);
 
             if (stopTransport) {
                 this.daw.stopTransport();

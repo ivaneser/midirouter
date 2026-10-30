@@ -68,3 +68,28 @@ test('incoming notes are corrected, and each note-off releases the note that was
     assert.equal(worker._correctIncomingNote('LPK', 1, 61, false), 61);
     assert.equal(worker._correctIncomingNote('LPK', 1, 99, false), 99, 'a stray note-off is not corrected');
 });
+
+test('a finished take is moved into the session scale, including notes that were not corrected live', () => {
+    const daw = new DAWEngine();
+    daw.setScale(0, 'major');
+    daw.setRecordMode('none');
+    daw.triggerPad(0, 0, 1000);                 // empty pad starts recording
+    daw.recordEvent(0x90, 61, 100, 1000);       // C#, as the on-screen keyboard sends it
+    daw.recordEvent(0x80, 61, 0, 1500);
+    daw.recordEvent(0x90, 66, 100, 1500);       // F#
+    daw.recordEvent(0x80, 66, 0, 2000);
+    daw.setRecordMode('none');
+    daw.triggerPad(0, 0, 2000);                 // stop the take
+    const notes = daw.tracks[0].clips[0].notes.map(n => n.note).sort((a, b) => a - b);
+    assert.deepEqual(notes, [60, 67], 'C# became C and F# became G');
+});
+
+test('without a scale a finished take keeps its notes', () => {
+    const daw = new DAWEngine();
+    daw.setRecordMode('none');
+    daw.triggerPad(0, 0, 1000);
+    daw.recordEvent(0x90, 61, 100, 1000);
+    daw.recordEvent(0x80, 61, 0, 1500);
+    daw.triggerPad(0, 0, 1500);
+    assert.deepEqual(daw.tracks[0].clips[0].notes.map(n => n.note), [61]);
+});
