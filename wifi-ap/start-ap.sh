@@ -105,6 +105,8 @@ iptables -t filter -N MIDIRouter 2>/dev/null || true
 # Redirect ALL TCP traffic from AP clients to the midirouter web server on
 # port 3000 (10.0.0.1). This makes the captive portal catch every request —
 # no matter which URL or port a client tries — and always serve the UI.
+# Except the listen-only page on port 80 (http://10.0.0.1/), which is served as it is.
+iptables -t nat -A MIDIRouter -p tcp -d 10.0.0.1 --dport 80 -j RETURN 2>/dev/null || true
 iptables -t nat -A MIDIRouter -p tcp -j REDIRECT --to-port ${WEB_PORT} 2>/dev/null || true
 
 # Apply the captive portal redirect to traffic from AP clients

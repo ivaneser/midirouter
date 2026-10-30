@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#05010f">
+    <title>Live sound</title>
+    <style>
+        :root { --hue: 280; --level: 0; --size: clamp(140px, 46vmin, 300px); color-scheme: dark; }
+        html, body { margin: 0; height: 100%; background: #05010f; overflow: hidden; overscroll-behavior: none; }
+        body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; -webkit-tap-highlight-color: transparent; }
+        canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+        main { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; }
+        .stack { position: relative; width: var(--size); height: var(--size); }
+
+        /* Voice level: a ring around the button that fills as the sound gets louder. */
+        .meter { position: absolute; inset: -16px; border-radius: 50%;
+            background: conic-gradient(from -90deg, hsl(var(--hue) 100% 66%) calc(var(--level) * 360deg), rgba(255, 255, 255, .1) 0);
+            -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+            mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px)); }
+
+        .play { display: grid; place-items: center; pointer-events: auto; position: relative; width: 100%; height: 100%; padding: 0; border-radius: 50%; cursor: pointer; color: #fff;
+            border: 3px solid hsl(var(--hue) 100% 72% / .9);
+            background: radial-gradient(circle at 50% 30%, rgba(255, 255, 255, .28), rgba(14, 3, 40, .86) 68%);
+            box-shadow: 0 0 calc(24px + var(--level) * 90px) hsl(var(--hue) 100% 60% / calc(.35 + var(--level) * .6)),
+                        inset 0 0 calc(10px + var(--level) * 50px) hsl(var(--hue) 100% 70% / .5);
+            transform: scale(calc(1 + var(--level) * .07)); transition: transform .06s linear; touch-action: manipulation; }
+        .play:focus-visible { outline: 3px solid #fff; outline-offset: 6px; }
+        .play svg { width: 42%; height: 42%; fill: currentColor; filter: drop-shadow(0 0 12px hsl(var(--hue) 100% 70%)); }
+        .play .stop { display: none; }
+        .play.on .go { display: none; }
+        .play.on .stop { display: block; }
+        .play .go { transform: translateX(6%); }   /* a triangle looks centered a little right of the middle */
+
+        #status { position: fixed; left: 50%; transform: translateX(-50%); top: calc(50% + var(--size) / 2 + 36px); width: max-content; max-width: 92vw; box-sizing: border-box; margin: 0; font-weight: 600; font-size: clamp(14px, 2.6vmin, 20px); letter-spacing: .1em; text-transform: uppercase; text-align: center;
+            color: hsl(var(--hue) 100% 84%); text-shadow: 0 0 14px hsl(var(--hue) 100% 60%); min-height: 1.4em; padding: 6px 18px; border-radius: 999px;
+            background: rgba(5, 1, 15, .6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+        #full { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: 44px; height: 44px; border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, .25); background: rgba(5, 1, 15, .5); color: #fff; font-size: 20px; cursor: pointer; }
+        #full[hidden] { display: none; }
+        @media (prefers-reduced-motion: reduce) { .play { transition: none; } }
+    </style>
+</head>
+<body>
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <main>
+        <div class="stack">
+            <div class="meter" aria-hidden="true"></div>
+            <button id="play" class="play" type="button" aria-label="Play live sound" aria-pressed="false">
+                <svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>
+                <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            </button>
+        </div>
+        <p id="status" role="status">Tap to listen</p>
+    </main>
+    <button id="full" type="button" aria-label="Full screen" title="Full screen">⛶</button>
+
+    <script type="module">
+        import { AudioListener } from '/audio-listener.js';
+        import { startVisual } from '/visual.js';
+
+        const root = document.documentElement;
+        const play = document.getElementById('play');
+        const status = document.getElementById('status');
+        const labels = { connecting: 'Connecting…', live: 'Live', reconnecting: 'Waiting for the sound…', stopped: 'Tap to listen' };
+
+        let wake = null;
+        const keepAwake = async () => { try { wake = await navigator.wakeLock?.request('screen'); } catch { /* optional */ } };
+        const letSleep = () => { wake?.release?.().catch(() => {}); wake = null; };
+
+        const listener = new AudioListener(null, {
+            analyser: true,
+            retry: true,   // many devices stay open for hours: reconnect by themselves
+            onState: (state, error) => {
+                status.textContent = state === 'reconnecting' && error ? `${labels[state]}  ${error}` : labels[state];
+                const on = state !== 'stopped';
+                play.classList.toggle('on', on);
+                play.setAttribute('aria-pressed', String(on));
+                play.setAttribute('aria-label', on ? 'Stop' : 'Play live sound');
+                if (on) keepAwake(); else letSleep();
+            },
+        });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && listener.active) keepAwake(); });
+
+        play.addEventListener('click', () => (listener.active ? listener.stop() : listener.start()));
+
+        // The picture leaves the button's circle free and its level ring follows the voice.
+        startVisual(document.getElementById('stage'), {
+            getAnalyser: () => listener.analyser,
+            getHole: () => play.getBoundingClientRect().width / 2 + 18,
+            onFrame: ({ level, hue }) => {
+                root.style.setProperty('--level', level.toFixed(3));
+                root.style.setProperty('--hue', hue.toFixed(1));
+            },
+        });
+
+        const full = document.getElementById('full');
+        if (!document.fullscreenEnabled) full.hidden = true;
+        full.addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : root.requestFullscreen?.()));
+    </script>
+</body>
+</html>

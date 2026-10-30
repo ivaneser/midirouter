@@ -178,6 +178,7 @@ export function serveLiveAudio(capture, req, res) {
         'X-Channels': '1',
         'Cache-Control': 'no-store',
     });
+    res.flushHeaders();   // the player starts as soon as it has the headers, not with the first chunk
     res.socket?.setNoDelay(true);   // send every chunk at once: no waiting to fill a packet
     if (backfill > 0) res.write(capture.snapshot(backfill));
     const onChunk = chunk => { if (res.writableLength < 262144) res.write(chunk); };

@@ -13,6 +13,7 @@ import { DeviceCatalog } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
 import { scaleById } from './frontend/js/scales.js';
 import { AudioCapture, serveLiveAudio } from './audio-capture.js';
+import { createListenServer, listenOnFirstFree } from './listen-server.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
@@ -325,6 +326,7 @@ const router = new MIDIRouterWorker();
 // The router owns the audio interface: the browser listens to it and mcpi gets its audio from here.
 // MIDIROUTER_AUDIO=off leaves the device alone (for another program that needs it).
 const audioCapture = new AudioCapture();
+let listenServer = null;
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 router.deviceChannels = deviceChannels;
 router.worker?.postMessage({ type: 'device_channels', channels: deviceChannels.channels });
@@ -867,6 +869,17 @@ function startServer() {
     });
 
     if (process.env.MIDIROUTER_AUDIO !== 'off') audioCapture.start();
+    // A separate listen-only page for many devices: port 80 (LISTEN_PORT overrides, "off" disables).
+    // Without the permission to open port 80 it falls back to 8080.
+    if (process.env.LISTEN_PORT !== 'off') {
+        listenServer = createListenServer({ capture: audioCapture });
+        const wanted = process.env.LISTEN_PORT ? [Number(process.env.LISTEN_PORT)] : [80, 8080];
+        listenOnFirstFree(listenServer, wanted).then(port => {
+            if (!port) console.warn(`[LISTEN] Could not open ${wanted.join(' or ')} for the listen page`);
+            else if (wanted[0] === 80 && port !== 80) console.warn(`[LISTEN] Listen page on port ${port}: port 80 needs permission (see README: Listen page)`);
+            else console.log(`[LISTEN] Listen page on port ${port}`);
+        });
+    }
     const systemStats = new SystemStats();
     setInterval(() => {
         if (wss?.clients.size) router._broadcast({ type: 'system-stats', stats: systemStats.sample() });
@@ -929,6 +942,8 @@ function startServer() {
         console.log('\n[SERVER] Shutting down...');
         router.cleanup();
         audioCapture.stop();
+        listenServer?.closeAllConnections();   // its audio streams are long-lived
+        listenServer?.close();
 
         // Wait for clients to close, then fall back to a bounded force-exit.
         try {

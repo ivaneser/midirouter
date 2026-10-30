@@ -9,7 +9,7 @@ Type=simple
 User=pi
 Group=audio
 SupplementaryGroups=audio
-AmbientCapabilities=CAP_SYS_RAWIO
+AmbientCapabilities=CAP_SYS_RAWIO CAP_NET_BIND_SERVICE
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 WorkingDirectory=/home/pi/myprojects/midirouter
 ExecStartPre=/bin/sh -c 'sleep 3 && aconnect -l >/dev/null 2>&1 || true'

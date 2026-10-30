@@ -2,6 +2,7 @@
 // arrives through Web Audio with a small buffer (about 120 ms) to ride out network jitter.
 const TARGET_AHEAD = 0.12;   // seconds of audio kept queued
 const MAX_AHEAD = 0.5;       // beyond this the player is lagging: drop chunks to catch up
+const RETRY_MS = 2000;
 
 // Little-endian 16-bit samples from a byte chunk. An odd trailing byte is returned in `rest` to join the next chunk.
 export function pcmToFloat(bytes, carry = null) {
@@ -24,10 +25,18 @@ export function pcmToFloat(bytes, carry = null) {
     return { samples, peak, rest: whole < data.length ? data[whole] : null };
 }
 
+// `button` may be null (the listen page has its own controls). Options:
+//   analyser  expose an AnalyserNode (this.analyser) that the sound passes through, for visualizations
+//   retry     reconnect every couple of seconds when the stream drops or the router has no audio yet
+//   onState   (state, error) with state 'connecting' | 'live' | 'reconnecting' | 'stopped'
 export class AudioListener {
-    constructor(button, { log = () => {} } = {}) {
+    constructor(button, { log = () => {}, analyser = false, retry = false, onState = () => {} } = {}) {
         this.button = button;
         this.log = log;
+        this.wantAnalyser = analyser;
+        this.retry = retry;
+        this.onState = onState;
+        this.analyser = null;
         this.active = false;
         this.level = 0;
         this.button?.addEventListener('click', () => (this.active ? this.stop() : this.start()));
@@ -39,45 +48,82 @@ export class AudioListener {
         this.active = true;
         this.error = null;
         this._render();
-        this.controller = new AbortController();
+        this.onState('connecting', null);
         try {
+            // Created synchronously so it happens inside the tap that started the playback.
             this.context ||= new AudioContext({ latencyHint: 'interactive' });
+            this._ensureOutput();
             await this.context.resume();
-            const response = await fetch('/audio/live', { signal: this.controller.signal, cache: 'no-store' });
-            if (!response.ok) {
-                const reason = (await response.json().catch(() => ({}))).error || `HTTP ${response.status}`;
-                throw new Error(reason);
-            }
-            const rate = Number(response.headers.get('X-Sample-Rate')) || 44100;
-            this.next = 0;
-            const reader = response.body.getReader();
-            let carry = null;
-            this._animate();
-            for (;;) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const { samples, peak, rest } = pcmToFloat(value, carry);
-                carry = rest;
-                this.level = Math.max(peak, this.level * 0.85);
-                if (samples.length) this._play(samples, rate);
-            }
-            this.log('Audio stream ended');
         } catch (error) {
-            if (error.name !== 'AbortError') {
-                this.log(`Audio: ${error.message}`);
-                this.error = error.message;
-            }
-        } finally {
+            this.error = error.message;
+            this.log(`Audio: ${error.message}`);
             this.stop();
+            return;
         }
+        while (this.active) {
+            this.controller = new AbortController();
+            try {
+                await this._stream();
+                if (this.active) this.log('Audio stream ended');
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    this.error = error.message;
+                    this.log(`Audio: ${error.message}`);
+                }
+            }
+            if (!this.active || !this.retry) break;
+            this.level = 0;
+            this.onState('reconnecting', this.error);
+            await new Promise(resolve => setTimeout(resolve, RETRY_MS));
+        }
+        this.stop();
     }
 
     stop() {
+        const wasActive = this.active;
         this.controller?.abort();
         this.controller = null;
         this.active = false;
         this.level = 0;
         this._render();
+        if (wasActive) this.onState('stopped', this.error);
+    }
+
+    async _stream() {
+        const response = await fetch('/audio/live', { signal: this.controller.signal, cache: 'no-store' });
+        if (!response.ok) {
+            const reason = (await response.json().catch(() => ({}))).error || `HTTP ${response.status}`;
+            throw new Error(reason);
+        }
+        const rate = Number(response.headers.get('X-Sample-Rate')) || 44100;
+        this.next = 0;
+        this.error = null;
+        const reader = response.body.getReader();
+        let carry = null;
+        let first = true;
+        this._animate();
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (first) {
+                first = false;
+                this.onState('live', null);
+            }
+            const { samples, peak, rest } = pcmToFloat(value, carry);
+            carry = rest;
+            this.level = Math.max(peak, this.level * 0.85);
+            if (samples.length) this._play(samples, rate);
+        }
+    }
+
+    _ensureOutput() {
+        if (this.wantAnalyser && !this.analyser) {
+            this.analyser = this.context.createAnalyser();
+            this.analyser.fftSize = 1024;
+            this.analyser.smoothingTimeConstant = 0.6;
+            this.analyser.connect(this.context.destination);
+        }
+        this.output = this.analyser || this.context.destination;
     }
 
     _play(samples, rate) {
@@ -89,15 +135,17 @@ export class AudioListener {
         if (this.next - now > MAX_AHEAD) return;                       // too far behind: skip this chunk
         const source = context.createBufferSource();
         source.buffer = buffer;
-        source.connect(context.destination);
+        source.connect(this.output);
         source.start(this.next);
         this.next += buffer.duration;
     }
 
     _animate() {
+        if (!this.button || this._animating) return;
+        this._animating = true;
         const frame = () => {
-            if (!this.active) return;
-            this.button?.style.setProperty('--level', String(Math.min(1, this.level)));
+            if (!this.active) { this._animating = false; return; }
+            this.button.style.setProperty('--level', String(Math.min(1, this.level)));
             requestAnimationFrame(frame);
         };
         requestAnimationFrame(frame);

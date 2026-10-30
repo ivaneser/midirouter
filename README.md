@@ -168,6 +168,22 @@ midirouter/
 └── *.md                   # Documentation (SPEC, ARCHITECTURE, etc.)
 ```
 
+## Listen page
+
+A separate, listen-only page for many devices: `http://<pi>/` (port 80; on the hotspot `http://10.0.0.1/`).
+One big round play button in the middle shows the voice level; a psychedelic visualization that follows the
+sound is drawn around it. It serves only that page and the live audio of the USB audio interface, nothing of
+the DAW or MIDI controls, and each device just opens its own stream (about 0.7 Mbit/s each).
+
+- Opening port 80 needs a permission the service has only once its unit includes `CAP_NET_BIND_SERVICE`
+  (it is in `midirouter.service`). Install it with
+  `sudo cp midirouter.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart midirouter.service`.
+  Until then the page falls back to port 8080 and logs that.
+- The hotspot redirects all web traffic to the main UI; `wifi-ap/start-ap.sh` leaves `10.0.0.1:80` alone
+  so the listen page is reachable there (restart the access point to apply it).
+- `LISTEN_PORT=8080` picks another port, `LISTEN_PORT=off` turns the page off. `MIDIROUTER_AUDIO=off` stops
+  the router from opening the audio interface at all.
+
 ## Autostart when the Pi boots
 The service is already set up by `bootstrap.sh`. If you need to do it manually:
 ```bash
