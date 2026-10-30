@@ -183,7 +183,7 @@ class MIDIRouterWorker {
         // Calibration offsets (ms), tuned by ear: negative = earlier, positive = later.
         this.audioOffsetMs = -30;  // clip notes
         // Click latency compensation (ms) for the audio metronome, tuned by ear.
-        this._audioMonitorGain = 4;   // monitored input next to the clicks (+12 dB: the input is usually quiet)
+        this._audioMonitorGain = 1;   // the monitored input plays as it is (the knob can boost a quiet one)
         this.clickOffsetMs = 0;    // metronome clicks
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;

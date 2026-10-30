@@ -4,7 +4,8 @@ import { DeviceManager } from './device-manager.js?v=71';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
-import { AudioListener, sliderToGain } from './audio-listener.js?v=4';
+import { AudioListener, sliderToGain } from './audio-listener.js?v=5';
+import { attachMidiKnob } from './midi-knob.js?v=25';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
 
@@ -188,17 +189,32 @@ let audioMonitor = false;
 monitorButton?.addEventListener('click', () => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor', on: !audioMonitor }));
 });
-// The slider position is the gain on the same scale as the listen page (middle = as it is, right = +24 dB).
+// The knob position is the gain on the same scale as the listen page's volume (middle = as it is, right = +24 dB).
+const gainControl = document.getElementById('monitor-gain-control');
 const monitorGain = document.getElementById('monitor-gain');
-const gainToSlider = gain => (gain <= 1 ? gain / 2 : 0.5 + (gain - 1) / 30) * 100;
-monitorGain?.addEventListener('input', () => {
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor-gain', gain: sliderToGain(monitorGain.value / 100) }));
-});
+const gainReadout = document.getElementById('monitor-gain-value');
+const gainToKnob = gain => (gain <= 1 ? gain / 2 : 0.5 + (gain - 1) / 30) * 100;
+const gainText = gain => {
+    const dB = Math.round(20 * Math.log10(gain));
+    return gain <= 0 ? 'off' : dB === 0 ? '0 dB' : `${dB > 0 ? '+' : '−'}${Math.abs(dB)} dB`;
+};
+if (monitorGain) {
+    attachMidiKnob(monitorGain, document.getElementById('monitor-gain-dial'), gainReadout, position => {
+        const gain = sliderToGain(position / 100);
+        gainReadout.textContent = gainText(gain);
+        if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor-gain', gain }));
+    }, { reset: 50 });
+    gainReadout.textContent = gainText(sliderToGain(monitorGain.value / 100));
+}
 function showAudioMonitor(state) {
     if (!monitorButton) return;
-    if (monitorGain) {
-        monitorGain.hidden = state.audioOutAvailable === false;
-        if (Number.isFinite(state.audioMonitorGain) && document.activeElement !== monitorGain) monitorGain.value = String(Math.round(gainToSlider(state.audioMonitorGain)));
+    if (gainControl) {
+        gainControl.hidden = state.audioOutAvailable === false;
+        if (Number.isFinite(state.audioMonitorGain) && document.activeElement !== monitorGain) {
+            monitorGain.value = String(Math.round(gainToKnob(state.audioMonitorGain)));
+            monitorGain.dispatchEvent(new Event('knob-sync'));   // redraw the dial without sending anything
+            gainReadout.textContent = gainText(state.audioMonitorGain);
+        }
     }
     audioMonitor = !!state.audioMonitor;
     monitorButton.hidden = state.audioOutAvailable === false;

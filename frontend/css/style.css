@@ -158,6 +158,14 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 #keyboard-sustain[aria-pressed="true"] { background: #304229; border-color: var(--accent); color: #dcf3c8; }
 .piano-roll-toolbar .keyboard-velocity-control { gap: 8px; }
 .keyboard-velocity-control .midi-knob { width: 64px; height: 64px; flex-basis: 64px; }
+.monitor-group { display: inline-flex; align-items: center; gap: 8px; }
+.monitor-group:has(> [hidden]:first-child) { gap: 0; }
+.monitor-gain-control { display: inline-flex; align-items: center; gap: 6px; }
+.monitor-gain-control[hidden] { display: none; }
+.monitor-gain-control .midi-knob { width: 46px; height: 46px; flex-basis: 46px; }
+.monitor-gain-control .midi-knob-face { inset: 8px; }
+.monitor-gain-control .midi-knob-face::after { top: 4px; height: 10px; }
+.monitor-gain-control .midi-knob-value { min-width: 48px; font-size: .75rem; }
 .device-program-controls button { min-width: 32px; min-height: 44px; padding: 4px 8px; font-size: 1.25rem; }
 .device-group > .device-parts { flex: 1 1 100%; display: grid; gap: 8px; min-width: 0; }
 .device-group > .device-parts[hidden] { display: none; }

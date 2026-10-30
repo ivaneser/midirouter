@@ -15,7 +15,7 @@ IPC Controls (via stdin)
     start         # Start playing clicks (audio-ready; actual clicks come via ``click``)
     stop          # Stop playing clicks (silence)
     monitor <1|0> # Mix the router's live audio input into the output (with the clicks) on/off
-    monitorgain <x># Gain of the monitored input (1 = as it is, default 4)
+    monitorgain <x># Gain of the monitored input (1 = as it is, default 1)
     bpm <n>       # Change BPM (stored for volume / accent calculations)
     beats <n>     # Change beats per measure
     click         # Play one metronome click immediately
@@ -43,7 +43,7 @@ SAMPLE_RATE = 44100
 CLICK_FREQ  = 1000       # normal click (off-beats)
 ACCENT_FREQ = 2000       # accent click (first beat of bar -- higher pitch)
 CLICK_DUR   = 0.05
-VOLUME      = 0.8
+VOLUME      = 0.3        # click level (peak, 1.0 = full scale): quiet next to the live audio
 # One persistent aplay is fed continuously (silence + mixed-in clicks), in
 # chunks of CHUNK_FRAMES. aplay reads raw stdin in whole periods and blocks
 # until one is full, so a stream that only receives clicks sits on them and
@@ -62,9 +62,9 @@ MONITOR_URL = os.environ.get("MIDIR_AUDIO_URL", "http://127.0.0.1:3000/audio/liv
 MONITOR_PRIME_MS = 60
 MONITOR_MAX_MS = 250
 MONITOR_KEEP_MS = 100
-# The live input is usually far quieter than the clicks, so it is boosted (the UI slider changes it) and
-# kept from clipping by a soft knee: linear up to MONITOR_KNEE of full scale, smoothly rounded above it.
-MONITOR_GAIN = 4.0
+# The live input plays exactly as it arrives (gain 1). The UI knob can boost a quiet input; only then a soft
+# knee keeps it from clipping: linear up to MONITOR_KNEE of full scale, smoothly rounded above it.
+MONITOR_GAIN = 1.0
 MONITOR_KNEE = 0.6
 # Time from writing a click into the stream to hearing it: the ALSA buffer plus the
 # pipe backlog. Estimated from the sizes above; tune with MIDIR_CLICK_LATENCY_MS.
@@ -339,9 +339,12 @@ class Metronome:
         samples = array('h')
         samples.frombytes(self._monitor_pull(len(out)))
         gain = self._monitor_gain
+        # At or below unity the audio is passed on untouched (only scaled down when turned down); the soft
+        # knee comes in only when it is boosted.
         for i, v in enumerate(samples):
             if v:
-                total = out[i] + self._soft_clip(v * gain)
+                level = v * gain
+                total = out[i] + (self._soft_clip(level) if gain > 1.0 else int(level))
                 out[i] = -32768 if total < -32768 else 32767 if total > 32767 else total
 
     def _monitor_loop(self):

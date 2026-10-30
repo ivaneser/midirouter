@@ -27,7 +27,7 @@ export function pcmToFloat(bytes, carry = null) {
 
 // `button` may be null (the listen page has its own controls). Options:
 //   analyser  expose an AnalyserNode (this.analyser) that the sound passes through, for visualizations;
-//             the sound then also goes through a volume control (setVolume) and a limiter
+//             the sound then also goes through a volume control (setVolume); a limiter only acts when it is boosted
 //   mediaSession  play as media: on iPhones the silent switch then no longer mutes the sound
 //   retry     reconnect every couple of seconds when the stream drops or the router has no audio yet
 //   onState   (state, error) with state 'connecting' | 'live' | 'reconnecting' | 'stopped'
@@ -161,6 +161,8 @@ export class AudioListener {
             limiter.ratio.value = 20;
             limiter.attack.value = 0.003;
             limiter.release.value = 0.15;
+            this.limiter = limiter;
+            this._setLimiter(this.volume > 1);
             this.analyser.connect(this.gainNode);
             this.gainNode.connect(limiter);
             limiter.connect(context.destination);
@@ -172,6 +174,15 @@ export class AudioListener {
     setVolume(gain) {
         this.volume = gain;
         if (this.gainNode) this.gainNode.gain.setTargetAtTime(gain, this.context.currentTime, 0.02);
+        this._setLimiter(gain > 1);
+    }
+
+    // The limiter only acts when the sound is boosted; at or below normal volume it is neutral (ratio 1),
+    // so the audio plays as it arrives.
+    _setLimiter(on) {
+        if (!this.limiter) return;
+        this.limiter.threshold.value = on ? -6 : 0;
+        this.limiter.ratio.value = on ? 20 : 1;
     }
 
     _playAsMedia() {

@@ -18,7 +18,8 @@ export class MetronomeController {
     constructor(options = {}) {
         this.bpm = options.bpm || 120;
         this.beats = options.beats || 4;
-        this.volume = options.volume || 0.8;
+        // Click level: quiet next to the live audio that can play with it (MIDIR_METRONOME_VOLUME overrides).
+        this.volume = options.volume || Number(process.env.MIDIR_METRONOME_VOLUME) || 0.3;
         this.device = options.device || process.env.MIDIR_METRONOME_DEVICE || null;
         this.pythonPath = options.pythonPath || 'python3';
         this.metronomeScript = path.resolve(

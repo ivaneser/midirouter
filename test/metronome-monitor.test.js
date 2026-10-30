@@ -112,15 +112,38 @@ print(json.dumps({"silent_when_off": a == bytes(1024), "monitor_after_stop": met
     assert.equal(out.status, true);
 });
 
-test('a quiet input is boosted by default, so it can be heard next to the clicks', { skip: !python }, () => {
+test('the live input plays exactly as it arrives by default, even when it is loud', { skip: !python }, () => {
     const out = py(`
 met._monitor = True; met._monitor_primed = True
-met._monitor_push(${tone(2000)})
-a = array('h', [0] * 512); met._mix_monitor(a)
-print(json.dumps({"gain": met._monitor_gain, "v": a[0]}))
+met._monitor_push(array('h', [1000, -2500, 30000, -32768, 32767]).tobytes() * 200)
+a = array('h', [0] * 5); met._mix_monitor(a)
+print(json.dumps({"gain": met._monitor_gain, "out": list(a)}))
 `);
-    assert.equal(out.gain, 4);
-    assert.equal(out.v, 4000, '1000 boosted x4');
+    assert.equal(out.gain, 1);
+    assert.deepEqual(out.out, [1000, -2500, 30000, -32768, 32767], 'no boost, no limiter, no change');
+});
+
+test('turned down it scales the audio, turned up it boosts it with the soft knee', { skip: !python }, () => {
+    const out = py(`
+def run(gain):
+    mm = m.Metronome(120, alsa_device='null'); mm._monitor = True; mm._monitor_primed = True; mm._monitor_gain = gain
+    mm._monitor_push(array('h', [1000, 30000]).tobytes() * 200)
+    a = array('h', [0, 0]); mm._mix_monitor(a); return list(a)
+print(json.dumps({"half": run(0.5), "x2": run(2.0)}))
+`);
+    assert.deepEqual(out.half, [500, 15000]);
+    assert.equal(out.x2[0], 2000, 'quiet audio stays linear when boosted');
+    assert.ok(out.x2[1] < 32767 && out.x2[1] > 30000, `a loud peak is rounded off, not clipped: ${out.x2[1]}`);
+});
+
+test('the metronome clicks are quiet by default, so they do not drown the live audio', { skip: !python }, () => {
+    const out = py(`
+c = array('h'); c.frombytes(met._normal_click)
+print(json.dumps({"volume": m.VOLUME, "click_peak": max(abs(x) for x in c) / 32768}))
+`);
+    assert.equal(out.volume, 0.3);
+    assert.ok(out.click_peak < 0.32 && out.click_peak > 0.2, `click peak ${out.click_peak}`);
+    assert.equal(new MetronomeController().volume, 0.3);
 });
 
 test('the soft knee keeps loud boosted audio from clipping, and leaves quiet audio linear', { skip: !python }, () => {
