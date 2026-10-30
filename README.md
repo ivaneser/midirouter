@@ -183,7 +183,8 @@ the DAW or MIDI controls, and each device just opens its own stream (about 0.7 M
   so the listen page is reachable there (restart the access point to apply it).
 - **Noise filter:** the audio from the interface passes through one noise filter on the Pi, shared by everyone who
   listens (this page, the headphone jack, the main UI's Listen button), so it costs the same however many
-  listen. It is on by default (**Light**, an automatic noise gate) and is chosen in the main UI on port 3000,
+  listen. It learns the steady hiss and removes it (also while music plays), then mutes the pauses. It is on
+  by default (**Light**: about 6-8 dB less hiss; **Strong**: about 10-14 dB) and is chosen in the main UI on port 3000,
   in the **MIDI audio** section (Off / Light / Strong); the listen page has no controls. The choice is kept in
   `audio-settings.json`; `MIDIROUTER_AUDIO_FILTER=off|light|strong` sets the level it starts from. Analysis
   (mcpi) reads the untouched capture with `/audio/live?raw=1`.

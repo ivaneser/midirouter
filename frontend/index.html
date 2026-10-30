@@ -166,7 +166,7 @@
                             <output id="monitor-gain-value" class="midi-knob-value" for="monitor-gain">0 dB</output>
                         </label>
                     </span>
-                    <label class="audio-filter" title="Noise filter on the Pi's audio input, for everyone who listens (the listen page, the Pi's headphone jack, this Listen button). Light mutes the hiss between notes; Strong also reduces steady noise while music plays.">
+                    <label class="audio-filter" title="Noise filter on the Pi's audio input, for everyone who listens (the listen page, the Pi's headphone jack, this Listen button). Light takes about 6-8 dB off the steady hiss; Strong about 10-14 dB.">
                         <span>Noise</span>
                         <select id="audio-filter" aria-label="Noise filter of the audio input">
                             <option value="off">Off</option>
@@ -245,7 +245,7 @@
                 <h4>🔊 MIDI audio</h4>
                 <ul>
                     <li><strong>Listen</strong> — hear the audio interface live in this browser. <strong>Pi out</strong> — also play it on the Pi's headphone jack, together with the metronome; the knob sets its volume (0 dB plays it exactly as it is). A microphone near the speakers will howl.</li>
-                    <li><strong>Noise</strong> — a noise filter on the Pi's audio input, shared by everyone who listens (the listen page, the headphone jack and this page). <em>Light</em> mutes the hiss between notes; <em>Strong</em> also reduces steady noise while music plays (it can dull a drone held for more than about 20 seconds); <em>Off</em> plays the audio as it arrives.</li>
+                    <li><strong>Noise</strong> — a noise filter on the Pi's audio input, shared by everyone who listens (the listen page, the headphone jack and this page). It learns the steady hiss and takes it out, also while music plays, and mutes what is left in the pauses. <em>Light</em> takes about 6–8 dB off the hiss; <em>Strong</em> about 10–14 dB (a very steady, noise-like sound that lasts more than about 20 seconds can be dulled); <em>Off</em> plays the audio as it arrives. Held notes and chords are left alone.</li>
                     <li><strong>Listen page</strong> — open <code>http://&lt;pi-address&gt;/</code> on any phone or computer: one big play button with the voice level and a visualization around it. It has no controls; the filter is set here.</li>
                 </ul>
 
@@ -271,6 +271,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=86"></script>
+    <script type="module" src="/js/app.js?v=87"></script>
 </body>
 </html>
