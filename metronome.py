@@ -15,6 +15,7 @@ IPC Controls (via stdin)
     start         # Start playing clicks (audio-ready; actual clicks come via ``click``)
     stop          # Stop playing clicks (silence)
     monitor <1|0> # Mix the router's live audio input into the output (with the clicks) on/off
+    monitorgain <x># Gain of the monitored input (1 = as it is, default 4)
     bpm <n>       # Change BPM (stored for volume / accent calculations)
     beats <n>     # Change beats per measure
     click         # Play one metronome click immediately
@@ -61,6 +62,10 @@ MONITOR_URL = os.environ.get("MIDIR_AUDIO_URL", "http://127.0.0.1:3000/audio/liv
 MONITOR_PRIME_MS = 60
 MONITOR_MAX_MS = 250
 MONITOR_KEEP_MS = 100
+# The live input is usually far quieter than the clicks, so it is boosted (the UI slider changes it) and
+# kept from clipping by a soft knee: linear up to MONITOR_KNEE of full scale, smoothly rounded above it.
+MONITOR_GAIN = 4.0
+MONITOR_KNEE = 0.6
 # Time from writing a click into the stream to hearing it: the ALSA buffer plus the
 # pipe backlog. Estimated from the sizes above; tune with MIDIR_CLICK_LATENCY_MS.
 CLICK_LATENCY_MS = float(os.environ.get(
@@ -93,6 +98,7 @@ class Metronome:
     _monitor = False
     _monitor_primed = False
     _monitor_thread = None
+    _monitor_gain = MONITOR_GAIN
 
     def __init__(self, bpm: float, beats_per_bar: int = 4,
                  accent_beat: int = 1, volume: float = VOLUME,
@@ -319,12 +325,23 @@ class Metronome:
                 chunk += bytes(need - len(chunk))
             return chunk
 
+    @staticmethod
+    def _soft_clip(value: float) -> int:
+        """Linear below the knee, then a smooth curve that never passes full scale."""
+        knee = MONITOR_KNEE * 32767.0
+        magnitude = abs(value)
+        if magnitude > knee:
+            room = 32767.0 - knee
+            magnitude = knee + room * math.tanh((magnitude - knee) / room)
+        return int(math.copysign(magnitude, value))
+
     def _mix_monitor(self, out: "array"):
         samples = array('h')
         samples.frombytes(self._monitor_pull(len(out)))
+        gain = self._monitor_gain
         for i, v in enumerate(samples):
             if v:
-                total = out[i] + v
+                total = out[i] + self._soft_clip(v * gain)
                 out[i] = -32768 if total < -32768 else 32767 if total > 32767 else total
 
     def _monitor_loop(self):
@@ -412,6 +429,7 @@ class Metronome:
                 "volume": self.volume,
                 "device": self.alsa_device,
                 "monitor": self._monitor,
+                "monitor_gain": self._monitor_gain,
             }
 
     def _emit_click(self, is_accent: bool):
@@ -464,6 +482,11 @@ def read_commands(metronome: Metronome):
                 metronome._emit_click(is_accent)
             elif cmd == "monitor" and len(parts) >= 2:
                 metronome.set_monitor(parts[1].lower() in ('1', 'true', 'on', 'yes'))
+            elif cmd == "monitorgain" and len(parts) >= 2:
+                try:
+                    metronome._monitor_gain = max(0.0, min(32.0, float(parts[1])))
+                except ValueError:
+                    print(f"[metronome] Invalid monitorgain: {parts[1]}", flush=True)
             elif cmd == "bpm" and len(parts) >= 2:
                 try:
                     metronome.set_bpm(float(parts[1]))

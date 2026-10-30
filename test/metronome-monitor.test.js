@@ -21,6 +21,19 @@ ${code}
 }
 const tone = n => `array('h', [1000] * ${n}).tobytes()`;
 
+test('the controller sends the monitor gain and remembers it for a restart', () => {
+    const written = [];
+    const controller = new MetronomeController();
+    controller._process = { stdin: { write: text => written.push(text) } };
+    controller._pid = 1;
+    controller._running = true;
+    controller.setMonitorGain(4);
+    controller.setMonitorGain(99);
+    controller.setMonitorGain(-3);
+    assert.deepEqual(written, ['monitorgain 4\n', 'monitorgain 32\n', 'monitorgain 0\n'], 'limited to 0..32');
+    assert.equal(controller._monitorGain, 0);
+});
+
 test('the controller sends the monitor switch, remembers it and repeats it on a restart', () => {
     const written = [];
     const controller = new MetronomeController();
@@ -38,6 +51,7 @@ test('monitored audio is mixed into the output next to the clicks', { skip: !pyt
     const out = py(`
 met.set_monitor(True)
 met._monitor_stop.set()   # no router here: stop the reader thread
+met._monitor_gain = 1.0
 met._monitor_push(${tone(4410)})
 met._monitor_primed = True
 chunk = array('h'); chunk.frombytes(met._next_chunk())
@@ -51,6 +65,7 @@ print(json.dumps({"n": len(chunk), "first": chunk[0], "last": chunk[-1]}))
 test('the output stays silent until a small cushion is buffered, and rebuilds it after running dry', { skip: !python }, () => {
     const out = py(`
 met._monitor = True
+met._monitor_gain = 1.0
 met._monitor_push(${tone(100)})                       # 100 samples: less than the 60 ms cushion
 silent = array('h'); silent.frombytes(met._monitor_pull(512))
 met._monitor_push(${tone(4410)})                      # 100 ms
@@ -78,7 +93,7 @@ print(json.dumps({"ms": len(met._monitor_buf) / 2 / m.SAMPLE_RATE * 1000}))
 test('mixing saturates instead of wrapping around', { skip: !python }, () => {
     const out = py(`
 a = array('h', [30000] * 4); met._monitor_push(array('h', [30000] * 4).tobytes() * 100)
-met._monitor = True; met._monitor_primed = True
+met._monitor = True; met._monitor_primed = True; met._monitor_gain = 1.0
 met._mix_monitor(a)
 print(json.dumps({"v": a[0]}))
 `);
@@ -95,4 +110,40 @@ print(json.dumps({"silent_when_off": a == bytes(1024), "monitor_after_stop": met
     assert.equal(out.silent_when_off, true);
     assert.equal(out.monitor_after_stop, true);
     assert.equal(out.status, true);
+});
+
+test('a quiet input is boosted by default, so it can be heard next to the clicks', { skip: !python }, () => {
+    const out = py(`
+met._monitor = True; met._monitor_primed = True
+met._monitor_push(${tone(2000)})
+a = array('h', [0] * 512); met._mix_monitor(a)
+print(json.dumps({"gain": met._monitor_gain, "v": a[0]}))
+`);
+    assert.equal(out.gain, 4);
+    assert.equal(out.v, 4000, '1000 boosted x4');
+});
+
+test('the soft knee keeps loud boosted audio from clipping, and leaves quiet audio linear', { skip: !python }, () => {
+    const out = py(`
+f = m.Metronome._soft_clip
+print(json.dumps({"quiet": f(10000), "at_knee": f(0.6 * 32767), "loud": f(200000), "loud_neg": f(-200000),
+                  "monotonic": all(f(x) <= f(x + 500) for x in range(0, 40000, 500))}))
+`);
+    assert.equal(out.quiet, 10000);
+    assert.ok(Math.abs(out.at_knee - 0.6 * 32767) < 2);
+    assert.ok(out.loud <= 32767 && out.loud > 30000, `loud ${out.loud}`);
+    assert.equal(out.loud_neg, -out.loud);
+    assert.equal(out.monotonic, true);
+});
+
+test('the monitorgain command sets the gain', { skip: !python }, () => {
+    const out = py(`
+import io
+src = io.StringIO("monitorgain 8\\nmonitorgain oops\\nmonitorgain 99\\nquit\\n")
+old = sys.stdin; sys.stdin = src
+try: m.read_commands(met)
+finally: sys.stdin = old
+print(json.dumps({"gain": met._monitor_gain}))
+`);
+    assert.equal(out.gain, 32, 'the last valid value, limited to 32');
 });

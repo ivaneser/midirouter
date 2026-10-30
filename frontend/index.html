@@ -27,6 +27,7 @@
                 <button id="btn-connect" class="btn btn-primary">Connect</button>
                 <button id="btn-listen" class="btn btn-listen" aria-pressed="false" title="Hear the audio interface live">🔊 Listen</button>
                 <button id="btn-monitor" class="btn" aria-pressed="false" hidden title="Also play the live audio input on the Pi's headphone output, together with the metronome (a microphone near the speakers will howl)">🔈 Pi out</button>
+                <input id="monitor-gain" type="range" min="0" max="100" value="60" hidden aria-label="Pi out volume" title="Pi out volume: the middle plays the input as it is, the right end boosts a quiet input">
                 <button id="btn-panic" class="btn btn-danger" title="Release held notes on every MIDI output and channel">Panic</button>
                 <button id="btn-shutdown" class="btn btn-danger" title="Power off the Raspberry Pi">Power off</button>
             </div>
@@ -239,6 +240,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=77"></script>
+    <script type="module" src="/js/app.js?v=78"></script>
 </body>
 </html>

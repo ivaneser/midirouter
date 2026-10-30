@@ -105,6 +105,7 @@ export class MetronomeController {
             if (this._clickOffsetMs != null) {
                 this._process.stdin.write(`offset ${this._clickOffsetMs}\n`);
             }
+            if (this._monitorGain != null) this._process.stdin.write(`monitorgain ${this._monitorGain}\n`);
             if (this._monitor) this._process.stdin.write('monitor 1\n');
 
             let stdoutReady = false;
@@ -278,6 +279,21 @@ export class MetronomeController {
                 this._process.stdin.write(`monitor ${this._monitor ? 1 : 0}\n`);
             } catch (e) {
                 console.warn(`[METRONOME] Failed to set monitor: ${e.message}`);
+            }
+        }
+    }
+
+    /**
+     * Gain of the monitored input (1 = as it is). Remembered like the monitor switch.
+     * @param {number} gain
+     */
+    setMonitorGain(gain) {
+        this._monitorGain = Math.max(0, Math.min(32, Number(gain) || 0));
+        if (this._process && this._pid && this._running) {
+            try {
+                this._process.stdin.write(`monitorgain ${this._monitorGain}\n`);
+            } catch (e) {
+                console.warn(`[METRONOME] Failed to set monitor gain: ${e.message}`);
             }
         }
     }

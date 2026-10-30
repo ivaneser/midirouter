@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=71';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
-import { AudioListener } from './audio-listener.js?v=4';
+import { AudioListener, sliderToGain } from './audio-listener.js?v=4';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
 
@@ -188,8 +188,18 @@ let audioMonitor = false;
 monitorButton?.addEventListener('click', () => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor', on: !audioMonitor }));
 });
+// The slider position is the gain on the same scale as the listen page (middle = as it is, right = +24 dB).
+const monitorGain = document.getElementById('monitor-gain');
+const gainToSlider = gain => (gain <= 1 ? gain / 2 : 0.5 + (gain - 1) / 30) * 100;
+monitorGain?.addEventListener('input', () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor-gain', gain: sliderToGain(monitorGain.value / 100) }));
+});
 function showAudioMonitor(state) {
     if (!monitorButton) return;
+    if (monitorGain) {
+        monitorGain.hidden = state.audioOutAvailable === false;
+        if (Number.isFinite(state.audioMonitorGain) && document.activeElement !== monitorGain) monitorGain.value = String(Math.round(gainToSlider(state.audioMonitorGain)));
+    }
     audioMonitor = !!state.audioMonitor;
     monitorButton.hidden = state.audioOutAvailable === false;
     monitorButton.classList.toggle('active', audioMonitor);

@@ -183,6 +183,7 @@ class MIDIRouterWorker {
         // Calibration offsets (ms), tuned by ear: negative = earlier, positive = later.
         this.audioOffsetMs = -30;  // clip notes
         // Click latency compensation (ms) for the audio metronome, tuned by ear.
+        this._audioMonitorGain = 4;   // monitored input next to the clicks (+12 dB: the input is usually quiet)
         this.clickOffsetMs = 0;    // metronome clicks
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
@@ -228,6 +229,7 @@ class MIDIRouterWorker {
             const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(-200, Math.min(200, Math.round(+v))) : d);
             this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
             this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
+            if (Number.isFinite(+s.audioMonitorGain)) this._audioMonitorGain = Math.max(0, Math.min(32, +s.audioMonitorGain));
             const cs = s.clockSource;
             if (cs?.kind === 'internal') this._savedClockSource = { kind: 'internal' };
             else if (cs?.kind === 'external' && typeof cs.portName === 'string' && cs.portName) {
@@ -244,6 +246,7 @@ class MIDIRouterWorker {
             fs.writeFileSync(this._settingsPath(), JSON.stringify({
                 audioOffsetMs: this.audioOffsetMs,
                 clickOffsetMs: this.clickOffsetMs,
+                audioMonitorGain: this._audioMonitorGain,
                 clockSource: this._savedClockSource || undefined,
             }, null, 2) + '\n');
         } catch (e) {
@@ -257,6 +260,7 @@ class MIDIRouterWorker {
             this._loadConfig();
             this._loadSettings();
             this.metronomeCtrl.setClickOffset(this.clickOffsetMs);
+            this.metronomeCtrl.setMonitorGain(this._audioMonitorGain);
             if (NO_HARDWARE) {
                 console.log('[WORKER] MIDIR_NO_HARDWARE=1: skipping port enumeration and hot-plug');
             } else {
@@ -2236,6 +2240,14 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            // Gain of that monitored input (1 = as it is): a quiet input needs a boost to be heard next to the clicks.
+            case 'daw_audio_monitor_gain': {
+                this._audioMonitorGain = Math.max(0, Math.min(32, Number.isFinite(+msg.gain) ? +msg.gain : 1));
+                this.metronomeCtrl?.setMonitorGain(this._audioMonitorGain);
+                this._saveSettings();
+                this._broadcastState();
+                break;
+            }
             // Quantization grid (beats): accept only the allowed values; 0 = Off.
             case 'daw_quantize_grid': {
                 const beats = +msg.beats;
@@ -2502,6 +2514,7 @@ class MIDIRouterWorker {
         state.audioOffsetMs = this.audioOffsetMs;
         state.clickOffsetMs = this.clickOffsetMs;
         state.audioMonitor = !!this._audioMonitor;
+        state.audioMonitorGain = this._audioMonitorGain;
         state.audioOutAvailable = !!this._audioMetronomeAvailable;
         state.quantizeGrid = this.quantizeGrid;
         state.clipProgress = this._clipPlaybackProgress();

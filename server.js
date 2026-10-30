@@ -753,6 +753,10 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_audio_monitor', on: message.on === true });
                         break;
 
+                    case 'audio-monitor-gain':
+                        if (Number.isFinite(message.gain)) router.worker.postMessage({ type: 'daw_audio_monitor_gain', gain: message.gain });
+                        break;
+
                     case 'daw-set-scale':
                         // Session scale: all clips are refitted and incoming controller notes corrected.
                         if (!Number.isInteger(message.root) || message.root < 0 || message.root > 11) break;
