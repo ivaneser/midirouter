@@ -12,6 +12,7 @@ import { EventEmitter } from 'events';
 import { DeviceCatalog } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
 import { scaleById } from './frontend/js/scales.js';
+import { AudioCapture, serveLiveAudio } from './audio-capture.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
@@ -321,6 +322,9 @@ class MIDIRouterWorker {
 let wss;
 let keyboardInputOwner = null;
 const router = new MIDIRouterWorker();
+// The router owns the audio interface: the browser listens to it and mcpi gets its audio from here.
+// MIDIROUTER_AUDIO=off leaves the device alone (for another program that needs it).
+const audioCapture = new AudioCapture();
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 router.deviceChannels = deviceChannels;
 router.worker?.postMessage({ type: 'device_channels', channels: deviceChannels.channels });
@@ -421,6 +425,16 @@ function startServer() {
 
         if (cleanUrl === '/mcp') {
             handleMcpRequest(req, res);
+            return;
+        }
+
+        if (cleanUrl === '/audio/status') {
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+            res.end(JSON.stringify(audioCapture.status()));
+            return;
+        }
+        if (cleanUrl === '/audio/live') {
+            serveLiveAudio(audioCapture, req, res);
             return;
         }
 
@@ -852,6 +866,7 @@ function startServer() {
         });
     });
 
+    if (process.env.MIDIROUTER_AUDIO !== 'off') audioCapture.start();
     const systemStats = new SystemStats();
     setInterval(() => {
         if (wss?.clients.size) router._broadcast({ type: 'system-stats', stats: systemStats.sample() });
@@ -913,6 +928,7 @@ function startServer() {
         isShuttingDown = true;
         console.log('\n[SERVER] Shutting down...');
         router.cleanup();
+        audioCapture.stop();
 
         // Wait for clients to close, then fall back to a bounded force-exit.
         try {

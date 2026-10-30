@@ -79,7 +79,7 @@ export class PianoRoll {
         const clip = this.clips?.find(c => c.key === this.clip.value);
         const keep = this.selectedKey;
         this.selected = keep && clip ? clip.notes.find(n => n.channel === keep.channel && n.note === keep.note && n.start === keep.start) || null : null;
-        status.textContent = clip ? `${clip.notes.length} notes · ${clip.length} beats · Click to add, drag to move, drag the right edge to resize, double-click a note to remove it` : 'No recorded notes on this channel.';
+        status.textContent = clip ? 'Click to add, drag to move, drag the right edge to resize, double-click a note to remove it' : 'No recorded notes on this channel.';
         const position = document.getElementById('piano-roll-position');
         if (position) position.textContent = 'Stopped';
         if (!clip) return;

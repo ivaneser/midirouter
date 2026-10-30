@@ -12,6 +12,7 @@ export class DAWUI {
         this._initControls();
         this._initSessions();
         this._bindPadGestures();
+        this._bindTrackHeaders();
     }
 
     _triggerPad(t, s) {
@@ -59,6 +60,44 @@ export class DAWUI {
         };
         document.addEventListener('pointerup', (e) => finish(e, true));
         document.addEventListener('pointercancel', (e) => finish(e, false));
+    }
+
+    // The clip a track header shows in the piano roll: the one that is playing, else the first recorded one.
+    _trackClipToShow(t) {
+        const track = this.dawState?.tracks?.[t];
+        if (!track) return -1;
+        if (track.playing && Number.isInteger(track.activeSlot) && track.activeSlot >= 0) return track.activeSlot;
+        return (track.clips || []).findIndex(clip => clip?.notes > 0);
+    }
+
+    // Track headers are rebuilt on every DAW state update, so a plain click on one is lost whenever an
+    // update lands between press and release. Like the pads, the press is tracked on the grid and a
+    // release over the same header counts. A keyboard activation still arrives as a click (detail 0).
+    _bindTrackHeaders() {
+        const grid = document.getElementById('session-grid');
+        if (!grid) return;
+        const header = target => target?.closest?.('.session-track-label[data-track-header]');
+        const show = t => {
+            const slot = this._trackClipToShow(t);
+            if (slot >= 0) this.onClipSelect?.(t, slot);
+        };
+        const presses = new Map();   // pointerId -> track index
+        grid.addEventListener('pointerdown', e => {
+            const h = header(e.target);
+            if (h && (e.button === undefined || e.button === 0)) presses.set(e.pointerId, Number(h.dataset.trackHeader));
+        });
+        document.addEventListener('pointerup', e => {
+            const t = presses.get(e.pointerId);
+            if (t === undefined) return;
+            presses.delete(e.pointerId);
+            const under = e.clientX === undefined ? null : header(document.elementFromPoint?.(e.clientX, e.clientY));
+            if (under && Number(under.dataset.trackHeader) === t) show(t);
+        });
+        document.addEventListener('pointercancel', e => presses.delete(e.pointerId));
+        grid.addEventListener('click', e => {
+            const h = header(e.target);
+            if (h && e.detail === 0) show(Number(h.dataset.trackHeader));
+        });
     }
 
     // Sessions: save/load recordings (DAW clips) to/from disk.
@@ -574,14 +613,9 @@ export class DAWUI {
             label.type = 'button';
             label.className = 'session-track-label';
             label.textContent = `Track ${t + 1}`;
-            label.disabled = !ch.playing || !Number.isInteger(ch.activeSlot) || ch.activeSlot < 0;
-            label.title = label.disabled ? 'No playing clip on this track' : 'Show playing clip in piano roll';
-            label.addEventListener('click', () => {
-                const track = this.dawState?.tracks?.[t];
-                if (track?.playing && Number.isInteger(track.activeSlot) && track.activeSlot >= 0) {
-                    this.onClipSelect?.(t, track.activeSlot);
-                }
-            });
+            label.dataset.trackHeader = String(t);
+            label.disabled = this._trackClipToShow(t) < 0;
+            label.title = label.disabled ? 'No recorded clip on this track' : 'Show this track\'s clip in the piano roll';
             if (ch.channelAssigned && Number.isInteger(ch.channel) && ch.channel >= 1 && ch.channel <= 16) {
                 const channel = document.createElement('span');
                 channel.className = 'session-track-channel';

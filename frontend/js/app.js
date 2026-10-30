@@ -1,9 +1,10 @@
 /* === MIDI Router — auto-connect all to all === */
 
 import { DeviceManager } from './device-manager.js?v=71';
-import { DAWUI } from './daw-ui.js?v=60';
+import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
-import { PianoRoll } from './piano-roll.js?v=55';
+import { PianoRoll } from './piano-roll.js?v=56';
+import { AudioListener } from './audio-listener.js?v=2';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
 
@@ -29,6 +30,7 @@ let ws = null;
 // Initialize managers
 const deviceManager = new DeviceManager();
 const pianoRoll = new PianoRoll();
+const audioListener = new AudioListener(document.getElementById('btn-listen'), { log });
 const midiKeyboard = new MidiKeyboard(deviceManager);
 const dawUI = new DAWUI(deviceManager);
 dawUI.onClipSelect = (track, slot) => pianoRoll.selectClip(track, slot);
