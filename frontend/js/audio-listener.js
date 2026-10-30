@@ -61,7 +61,6 @@ export class AudioListener {
         this.retry = retry;
         this.onState = onState;
         this.mediaSession = mediaSession;
-        this.filter = 'off';   // noise filter of the stream: 'off' | 'light' | 'strong'
         this.volume = 1;
         this.analyser = null;
         this.active = false;
@@ -99,7 +98,6 @@ export class AudioListener {
                     this.log(`Audio: ${error.message}`);
                 }
             }
-            if (this.active && this._restart) { this._restart = false; continue; }   // a new filter: reconnect at once
             if (!this.active || !this.retry) break;
             this.level = 0;
             this.onState('reconnecting', this.error);
@@ -120,8 +118,7 @@ export class AudioListener {
     }
 
     async _stream() {
-        const url = this.filter === 'off' ? '/audio/live' : `/audio/live?filter=${this.filter}`;
-        const response = await fetch(url, { signal: this.controller.signal, cache: 'no-store' });
+        const response = await fetch('/audio/live', { signal: this.controller.signal, cache: 'no-store' });
         if (!response.ok) {
             const reason = (await response.json().catch(() => ({}))).error || `HTTP ${response.status}`;
             throw new Error(reason);
@@ -194,16 +191,6 @@ export class AudioListener {
     // [left, right] analysers of a stereo stream, or null for a mono one (the picture then uses the mix).
     stereoAnalysers() {
         return this.channels === 2 && this.sides ? this.sides : null;
-    }
-
-    // Noise reduction done by the router: 'off', 'light' (gate) or 'strong' (spectral + gate). Takes effect at once.
-    setFilter(level) {
-        if (level === this.filter) return;
-        this.filter = level;
-        if (this.active) {
-            this._restart = true;
-            this.controller?.abort();
-        }
     }
 
     // gain: 1 = the sound as it is; more boosts a quiet input.

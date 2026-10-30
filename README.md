@@ -181,6 +181,12 @@ the DAW or MIDI controls, and each device just opens its own stream (about 0.7 M
   Until then the page falls back to port 8080 and logs that.
 - The hotspot redirects all web traffic to the main UI; `wifi-ap/start-ap.sh` leaves `10.0.0.1:80` alone
   so the listen page is reachable there (restart the access point to apply it).
+- **Noise filter:** the audio from the interface passes through one noise filter on the Pi, shared by everyone who
+  listens (this page, the headphone jack, the main UI's Listen button), so it costs the same however many
+  listen. It is on by default (**Light**, an automatic noise gate) and is chosen in the main UI on port 3000,
+  in the **MIDI audio** section (Off / Light / Strong); the listen page has no controls. The choice is kept in
+  `audio-settings.json`; `MIDIROUTER_AUDIO_FILTER=off|light|strong` sets the level it starts from. Analysis
+  (mcpi) reads the untouched capture with `/audio/live?raw=1`.
 - `LISTEN_PORT=8080` picks another port, `LISTEN_PORT=off` turns the page off. `MIDIROUTER_AUDIO=off` stops
   the router from opening the audio interface at all.
 

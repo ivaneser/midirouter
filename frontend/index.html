@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=70">
+    <link rel="stylesheet" href="/css/style.css?v=73">
 </head>
 <body>
     <div id="app">
@@ -25,19 +25,6 @@
                 </div>
                 <span id="connection-status" class="status-indicator disconnected">● Disconnected</span>
                 <button id="btn-connect" class="btn btn-primary">Connect</button>
-                <button id="btn-listen" class="btn btn-listen" aria-pressed="false" title="Hear the audio interface live">🔊 Listen</button>
-                <span class="monitor-group">
-                    <button id="btn-monitor" class="btn" aria-pressed="false" hidden title="Also play the live audio input on the Pi's headphone output, together with the metronome (a microphone near the speakers will howl)">🔈 Pi out</button>
-                    <label id="monitor-gain-control" class="monitor-gain-control" hidden title="Pi out volume: drag up or down, double-click to reset. 0 dB plays the input exactly as it is; more boosts a quiet input.">
-                        <span id="monitor-gain-dial" class="midi-knob"><span class="midi-knob-face" aria-hidden="true"></span><input id="monitor-gain" class="midi-knob-input" aria-label="Pi out volume" type="range" min="0" max="100" step="1" value="50"></span>
-                        <output id="monitor-gain-value" class="midi-knob-value" for="monitor-gain">0 dB</output>
-                    </label>
-                    <select id="monitor-filter" class="monitor-filter" hidden aria-label="Pi out noise filter" title="Noise filter for Pi out: Light mutes the hiss between notes, Strong also reduces steady noise while music plays">
-                        <option value="off">Noise: off</option>
-                        <option value="light">Noise: light</option>
-                        <option value="strong">Noise: strong</option>
-                    </select>
-                </span>
                 <button id="btn-panic" class="btn btn-danger" title="Release held notes on every MIDI output and channel">Panic</button>
                 <button id="btn-shutdown" class="btn btn-danger" title="Power off the Raspberry Pi">Power off</button>
             </div>
@@ -164,6 +151,33 @@
             </div>
         </details>
 
+        <details class="collapsible-panel audio-details">
+            <summary class="collapsible-header">
+                <span class="arrow">▶</span>
+                MIDI audio
+            </summary>
+            <div class="config-panel-content">
+                <div class="audio-controls">
+                    <button id="btn-listen" class="btn btn-listen" aria-pressed="false" title="Hear the audio interface live">🔊 Listen</button>
+                    <span class="monitor-group">
+                        <button id="btn-monitor" class="btn" aria-pressed="false" hidden title="Also play the live audio input on the Pi's headphone output, together with the metronome (a microphone near the speakers will howl)">🔈 Pi out</button>
+                        <label id="monitor-gain-control" class="monitor-gain-control" hidden title="Pi out volume: drag up or down, double-click to reset. 0 dB plays the input exactly as it is; more boosts a quiet input.">
+                            <span id="monitor-gain-dial" class="midi-knob"><span class="midi-knob-face" aria-hidden="true"></span><input id="monitor-gain" class="midi-knob-input" aria-label="Pi out volume" type="range" min="0" max="100" step="1" value="50"></span>
+                            <output id="monitor-gain-value" class="midi-knob-value" for="monitor-gain">0 dB</output>
+                        </label>
+                    </span>
+                    <label class="audio-filter" title="Noise filter on the Pi's audio input, for everyone who listens (the listen page, the Pi's headphone jack, this Listen button). Light mutes the hiss between notes; Strong also reduces steady noise while music plays.">
+                        <span>Noise</span>
+                        <select id="audio-filter" aria-label="Noise filter of the audio input">
+                            <option value="off">Off</option>
+                            <option value="light" selected>Light</option>
+                            <option value="strong">Strong</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </details>
+
         <!-- Configuration Panel (collapsible) -->
         <details class="collapsible-panel config-details">
             <summary class="collapsible-header">
@@ -228,6 +242,13 @@
                     <li>Routing presets (Routing → Save / 📂 Load) store routing only and are separate from sessions.</li>
                 </ul>
 
+                <h4>🔊 MIDI audio</h4>
+                <ul>
+                    <li><strong>Listen</strong> — hear the audio interface live in this browser. <strong>Pi out</strong> — also play it on the Pi's headphone jack, together with the metronome; the knob sets its volume (0 dB plays it exactly as it is). A microphone near the speakers will howl.</li>
+                    <li><strong>Noise</strong> — a noise filter on the Pi's audio input, shared by everyone who listens (the listen page, the headphone jack and this page). <em>Light</em> mutes the hiss between notes; <em>Strong</em> also reduces steady noise while music plays (it can dull a drone held for more than about 20 seconds); <em>Off</em> plays the audio as it arrives.</li>
+                    <li><strong>Listen page</strong> — open <code>http://&lt;pi-address&gt;/</code> on any phone or computer: one big play button with the voice level and a visualization around it. It has no controls; the filter is set here.</li>
+                </ul>
+
                 <h4>🔌 MIDI Routing</h4>
                 <ul>
                     <li>All connected MIDI devices are routed to each other automatically; hot-plug is supported.</li>
@@ -250,6 +271,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=82"></script>
+    <script type="module" src="/js/app.js?v=86"></script>
 </body>
 </html>

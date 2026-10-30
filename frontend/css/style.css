@@ -160,8 +160,9 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .keyboard-velocity-control .midi-knob { width: 64px; height: 64px; flex-basis: 64px; }
 .monitor-group { display: inline-flex; align-items: center; gap: 8px; }
 .monitor-group:has(> [hidden]:first-child) { gap: 0; }
-.monitor-filter { width: auto; min-height: 36px; padding: 4px 8px; font-size: .8125rem; }
-.monitor-filter[hidden] { display: none; }
+.audio-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.audio-filter { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .8125rem; }
+.audio-filter select { width: auto; min-height: 36px; padding: 4px 8px; font-size: .8125rem; }
 .monitor-gain-control { display: inline-flex; align-items: center; gap: 6px; }
 .monitor-gain-control[hidden] { display: none; }
 .monitor-gain-control .midi-knob { width: 46px; height: 46px; flex-basis: 46px; }

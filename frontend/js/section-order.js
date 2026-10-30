@@ -1,7 +1,7 @@
 // Lets the page sections be reordered by dragging their grip; the order is kept by the router.
 const SECTIONS = {
     'daw-details': 'session', 'piano-roll-section': 'piano-roll', 'midi-keyboard-section': 'keyboard',
-    'clock-details': 'clock', 'devices-details': 'devices', 'config-details': 'config',
+    'clock-details': 'clock', 'devices-details': 'devices', 'audio-details': 'audio', 'config-details': 'config',
     'help-details': 'help', 'debug-panel': 'logs',
 };
 
@@ -12,10 +12,22 @@ export function sectionKey(el) {
     return null;
 }
 
-/** Order `keys` by a saved order; unknown/new keys keep their place after the known ones. */
+/** Order `keys` (the page's own order) by a saved order. A section the saved order does not know yet, such as a
+ *  newly added one, goes right after the section that precedes it in the page, so it appears where it was
+ *  placed rather than at the end; without such a neighbour it goes last. Saved keys that are gone are dropped. */
 export function applyOrder(keys, saved) {
-    const known = (saved || []).filter(key => keys.includes(key));
-    return [...known, ...keys.filter(key => !known.includes(key))];
+    const result = (saved || []).filter(key => keys.includes(key));
+    const known = new Set(result);
+    keys.forEach((key, index) => {
+        if (known.has(key)) return;
+        let at = result.length;
+        for (let i = index - 1; i >= 0; i--) {
+            const found = result.indexOf(keys[i]);
+            if (found >= 0) { at = found + 1; break; }
+        }
+        result.splice(at, 0, key);
+    });
+    return result;
 }
 
 export class SectionOrder {

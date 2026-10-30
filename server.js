@@ -14,6 +14,7 @@ import { createMcpServer } from './mcp-server.js';
 import { scaleById } from './frontend/js/scales.js';
 import { AudioCapture, serveLiveAudio } from './audio-capture.js';
 import { createListenServer, listenOnFirstFree } from './listen-server.js';
+import { AudioSettings } from './audio-settings.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
@@ -325,7 +326,8 @@ let keyboardInputOwner = null;
 const router = new MIDIRouterWorker();
 // The router owns the audio interface: the browser listens to it and mcpi gets its audio from here.
 // MIDIROUTER_AUDIO=off leaves the device alone (for another program that needs it).
-const audioCapture = new AudioCapture();
+const audioSettings = new AudioSettings(join(import.meta.dirname, 'audio-settings.json'), process.env.MIDIROUTER_AUDIO_FILTER);
+const audioCapture = new AudioCapture({ filter: audioSettings.filter });
 let listenServer = null;
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 router.deviceChannels = deviceChannels;
@@ -500,6 +502,7 @@ function startServer() {
         // Send the port list on connection
         ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
         ws.send(JSON.stringify({ type: 'ui-layout', order: uiLayout.order }));
+        ws.send(JSON.stringify({ type: 'audio-filter', level: audioSettings.filter }));
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('error', (err) => {
@@ -753,9 +756,15 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_audio_monitor', on: message.on === true });
                         break;
 
-                    case 'audio-monitor-filter':
-                        if (['off', 'light', 'strong'].includes(message.level)) router.worker.postMessage({ type: 'daw_audio_monitor_filter', level: message.level });
+                    case 'audio-filter': {
+                        // The noise filter of the incoming audio (shared by every listener); chosen on this UI only.
+                        const level = audioSettings.setFilter(message.level);
+                        if (level) {
+                            audioCapture.setFilterLevel(level);
+                            router._broadcast({ type: 'audio-filter', level });
+                        }
                         break;
+                    }
 
                     case 'audio-monitor-gain':
                         if (Number.isFinite(message.gain)) router.worker.postMessage({ type: 'daw_audio_monitor_gain', gain: message.gain });

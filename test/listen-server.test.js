@@ -12,6 +12,9 @@ function fakeCapture(state = 'live') {
     capture.frameBytes = 4;
     capture.listeners_ = 0;
     capture.snapshot = () => Buffer.alloc(0);
+    capture.filterLevel = 'light';
+    // The cleaned stream: here simply the chunks themselves.
+    capture.subscribeClean = handler => { capture.on('chunk', handler); return () => capture.off('chunk', handler); };
     capture.status = () => ({ state, device: 'plughw:CARD=H2n,DEV=0', sampleRate: 44100, channels: 1, error: null, listeners: capture.listeners_ });
     return capture;
 }

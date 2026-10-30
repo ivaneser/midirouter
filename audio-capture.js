@@ -1,6 +1,6 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { NoiseFilter, FILTER_LEVELS } from './audio-clean.js';
+import { NoiseFilter } from './audio-clean.js';
 
 // Small ALSA periods keep the capture delay low (about 23 ms per period) for live listening.
 const PERIOD_FRAMES = 1024;
@@ -27,6 +27,7 @@ export class AudioCapture extends EventEmitter {
         device = process.env.MIDIROUTER_AUDIO_DEVICE,
         sampleRate = 44100,
         channels = Number(process.env.MIDIROUTER_AUDIO_CHANNELS) === 1 ? 1 : 2,   // stereo, as the interface delivers it
+        filter = process.env.MIDIROUTER_AUDIO_FILTER,   // noise reduction of the listened stream: off | light (default) | strong
         ringSeconds = 30,
         spawnProcess = spawn,
         readCards = () => execFileSync('arecord', ['-l'], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }),
@@ -36,6 +37,9 @@ export class AudioCapture extends EventEmitter {
         super();
         this.configuredDevice = device || null;
         this.sampleRate = sampleRate;
+        this.filterLevel = ['off', 'light', 'strong'].includes(filter) ? filter : 'light';
+        this.cleanFilter = null;      // the one filter, alive while someone listens to the cleaned stream
+        this.cleanSubscribers = 0;
         this.channels = channels;
         this.frameBytes = 2 * channels;   // 16-bit samples, one per channel
         this.maxBytes = Math.round(ringSeconds * sampleRate) * this.frameBytes;
@@ -72,7 +76,7 @@ export class AudioCapture extends EventEmitter {
     }
 
     status() {
-        return { state: this.state, device: this.device, sampleRate: this.sampleRate, channels: this.channels, error: this.error, listeners: this.listeners_ };
+        return { state: this.state, device: this.device, sampleRate: this.sampleRate, channels: this.channels, filter: this.filterLevel, error: this.error, listeners: this.listeners_ };
     }
 
     // The most recent `seconds` of audio as little-endian 16-bit PCM, channels interleaved (less when not that much was captured).
@@ -80,6 +84,31 @@ export class AudioCapture extends EventEmitter {
         const wanted = Math.min(this.ringBytes, Math.max(0, Math.round(seconds * this.sampleRate)) * this.frameBytes);
         if (wanted === 0) return Buffer.alloc(0);
         return Buffer.concat(this.ring).subarray(this.ringBytes - wanted);
+    }
+
+    // The cleaned stream: the incoming audio through one noise filter, shared by every listener (the cost does not
+    // grow with their number). The filter exists while at least one listener uses it. Returns the unsubscribe function.
+    subscribeClean(onChunk) {
+        if (!this.cleanFilter && this.filterLevel !== 'off') this.cleanFilter = this._newFilter();
+        this.cleanSubscribers++;
+        this.on('clean', onChunk);
+        return () => {
+            this.off('clean', onChunk);
+            if (--this.cleanSubscribers <= 0) { this.cleanSubscribers = 0; this.cleanFilter = null; }   // forget the noise it had learnt
+        };
+    }
+
+    _newFilter() {
+        return new NoiseFilter({ level: this.filterLevel, sampleRate: this.sampleRate, channels: this.channels });
+    }
+
+    // Switch the noise filter while listeners are connected: they carry on without reconnecting (with the
+    // filter off they simply get the raw audio). The new filter starts learning the noise from scratch.
+    setFilterLevel(level) {
+        if (!['off', 'light', 'strong'].includes(level) || level === this.filterLevel) return;
+        this.filterLevel = level;
+        this.cleanFilter = this.cleanSubscribers > 0 && level !== 'off' ? this._newFilter() : null;
+        this.emit('status', this.status());
     }
 
     _retry() {
@@ -162,10 +191,14 @@ export class AudioCapture extends EventEmitter {
         this.ringBytes += chunk.length;
         while (this.ringBytes - this.ring[0].length >= this.maxBytes) this.ringBytes -= this.ring.shift().length;
         this.emit('chunk', chunk);
+        if (this.cleanSubscribers > 0) {
+            const cleaned = this.cleanFilter ? this.cleanFilter.process(chunk) : chunk;   // no filter: the audio as it is
+            if (cleaned.length) this.emit('clean', cleaned);
+        }
     }
 }
 
-// GET /audio/live[?backfill=seconds]: raw PCM (S16_LE, channels interleaved; rate in X-Sample-Rate, channel count in X-Channels). Optionally starts
+// GET /audio/live[?raw=1][&backfill=seconds]: PCM (S16_LE, channels interleaved; rate in X-Sample-Rate, channel count in X-Channels). Optionally starts
 // with the last `backfill` seconds, then follows the capture live. A client that cannot keep up
 // loses chunks instead of slowing the capture.
 export function serveLiveAudio(capture, req, res) {
@@ -176,35 +209,27 @@ export function serveLiveAudio(capture, req, res) {
         return;
     }
     const params = new URL(req.url, 'http://x').searchParams;
-    const backfill = Math.max(0, Math.min(Number(params.get('backfill')) || 0, capture.maxBytes / capture.frameBytes / capture.sampleRate));
-    // ?filter=light|strong: noise reduction for listening (a separate filter state per listener). Without it
-    // the stream is the raw capture, which is what analysis needs.
-    const level = params.get('filter');
-    if (level && level !== 'off' && !FILTER_LEVELS.includes(level)) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `unknown filter "${level}" (use ${['off', ...FILTER_LEVELS].join(', ')})` }));
-        return;
-    }
-    const filter = level && level !== 'off' ? new NoiseFilter({ level, sampleRate: capture.sampleRate, channels: capture.channels }) : null;
-    const send = chunk => {
-        const out = filter ? filter.process(chunk) : chunk;
-        if (out.length && res.writableLength < 262144) res.write(out);
-    };
+    // By default the stream is the noise-filtered capture. ?raw=1 is the untouched capture (what analysis needs;
+    // only it can start with ?backfill=seconds of recent audio).
+    const raw = params.get('raw') === '1';
+    const backfill = raw ? Math.max(0, Math.min(Number(params.get('backfill')) || 0, capture.maxBytes / capture.frameBytes / capture.sampleRate)) : 0;
+    const send = chunk => { if (res.writableLength < 262144) res.write(chunk); };
     res.writeHead(200, {
         'Content-Type': 'audio/L16',
         'X-Sample-Rate': String(capture.sampleRate),
         'X-Channels': String(capture.channels),
-        'X-Filter': filter ? level : 'off',
+        'X-Filter': raw ? 'off' : capture.filterLevel,   // as it was when this listener connected
         'Cache-Control': 'no-store',
     });
     res.flushHeaders();   // the player starts as soon as it has the headers, not with the first chunk
     res.socket?.setNoDelay(true);   // send every chunk at once: no waiting to fill a packet
     if (backfill > 0) send(capture.snapshot(backfill));
-    const onChunk = send;
-    capture.on('chunk', onChunk);
+    let unsubscribe;
+    if (raw) { capture.on('chunk', send); unsubscribe = () => capture.off('chunk', send); }
+    else unsubscribe = capture.subscribeClean(send);
     capture.listeners_++;
     res.once('close', () => {
-        capture.off('chunk', onChunk);
+        unsubscribe();
         capture.listeners_ = Math.max(0, capture.listeners_ - 1);
     });
 }

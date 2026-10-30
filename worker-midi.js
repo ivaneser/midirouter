@@ -184,7 +184,6 @@ class MIDIRouterWorker {
         this.audioOffsetMs = -30;  // clip notes
         // Click latency compensation (ms) for the audio metronome, tuned by ear.
         this._audioMonitorGain = 1;   // the monitored input plays as it is (the knob can boost a quiet one)
-        this._audioMonitorFilter = 'off';   // and unfiltered, unless a noise filter is chosen
         this.clickOffsetMs = 0;    // metronome clicks
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
@@ -231,7 +230,6 @@ class MIDIRouterWorker {
             this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
             this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
             if (Number.isFinite(+s.audioMonitorGain)) this._audioMonitorGain = Math.max(0, Math.min(32, +s.audioMonitorGain));
-            if (['off', 'light', 'strong'].includes(s.audioMonitorFilter)) this._audioMonitorFilter = s.audioMonitorFilter;
             const cs = s.clockSource;
             if (cs?.kind === 'internal') this._savedClockSource = { kind: 'internal' };
             else if (cs?.kind === 'external' && typeof cs.portName === 'string' && cs.portName) {
@@ -249,7 +247,6 @@ class MIDIRouterWorker {
                 audioOffsetMs: this.audioOffsetMs,
                 clickOffsetMs: this.clickOffsetMs,
                 audioMonitorGain: this._audioMonitorGain,
-                audioMonitorFilter: this._audioMonitorFilter,
                 clockSource: this._savedClockSource || undefined,
             }, null, 2) + '\n');
         } catch (e) {
@@ -264,7 +261,6 @@ class MIDIRouterWorker {
             this._loadSettings();
             this.metronomeCtrl.setClickOffset(this.clickOffsetMs);
             this.metronomeCtrl.setMonitorGain(this._audioMonitorGain);
-            this.metronomeCtrl.setMonitorFilter(this._audioMonitorFilter);
             if (NO_HARDWARE) {
                 console.log('[WORKER] MIDIR_NO_HARDWARE=1: skipping port enumeration and hot-plug');
             } else {
@@ -2252,14 +2248,6 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
-            // Noise reduction (done by the router) for that monitored input.
-            case 'daw_audio_monitor_filter': {
-                this._audioMonitorFilter = ['off', 'light', 'strong'].includes(msg.level) ? msg.level : 'off';
-                this.metronomeCtrl?.setMonitorFilter(this._audioMonitorFilter);
-                this._saveSettings();
-                this._broadcastState();
-                break;
-            }
             // Quantization grid (beats): accept only the allowed values; 0 = Off.
             case 'daw_quantize_grid': {
                 const beats = +msg.beats;
@@ -2527,7 +2515,6 @@ class MIDIRouterWorker {
         state.clickOffsetMs = this.clickOffsetMs;
         state.audioMonitor = !!this._audioMonitor;
         state.audioMonitorGain = this._audioMonitorGain;
-        state.audioMonitorFilter = this._audioMonitorFilter;
         state.audioOutAvailable = !!this._audioMetronomeAvailable;
         state.quantizeGrid = this.quantizeGrid;
         state.clipProgress = this._clipPlaybackProgress();

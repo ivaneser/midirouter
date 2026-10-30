@@ -148,7 +148,7 @@ test('GET /audio/live sends the backfill, then the live audio, and releases the 
     audio.start();
     processes[0].stdout.emit('data', Buffer.from(Array.from({ length: 200 }, (_, i) => i % 250)));   // 100 samples captured earlier
     setTimeout(() => processes[0].stdout.emit('data', samples(50)), 30);
-    const { response, body } = await get(audio, '/audio/live?backfill=0.05', 200);
+    const { response, body } = await get(audio, '/audio/live?raw=1&backfill=0.05', 200);
     assert.equal(response.headers.get('content-type'), 'audio/L16');
     assert.equal(response.headers.get('x-sample-rate'), '1000');
     assert.equal(response.headers.get('x-channels'), '1');
@@ -191,29 +191,123 @@ test('the ring still holds only the last second in stereo', t => {
     assert.equal(audio.snapshot(10).length % 4, 0);
 });
 
-test('GET /audio/live?filter=... filters per listener; without it the stream is the raw capture', async t => {
+// Steady white noise at about -60 dBFS rms, in chunks like arecord's.
+function feedNoise(processes, seconds, channels = 1) {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2147483648 - 1; };
+    const chunk = 4096, chunks = Math.ceil(seconds * 44100 / chunk);
+    for (let c = 0; c < chunks; c++) {
+        const buf = Buffer.alloc(chunk * 2 * channels);
+        for (let i = 0; i < chunk * channels; i++) buf.writeInt16LE(Math.round(0.001 * Math.sqrt(3) * rnd() * 32767), i * 2);
+        processes[0].stdout.emit('data', buf);
+    }
+}
+const rmsDbOf = buffers => {
+    const all = Buffer.concat(buffers); let sum = 0;
+    for (let i = 0; i < all.length / 2; i++) { const v = all.readInt16LE(i * 2) / 32768; sum += v * v; }
+    return 10 * Math.log10(sum / (all.length / 2) + 1e-12);
+};
+
+test('the listened stream is noise-filtered by default; the raw capture stays untouched', t => {
+    const { audio, processes } = capture({ sampleRate: 44100 });
+    t.after(() => audio.stop());
+    audio.start();
+    assert.equal(audio.filterLevel, 'light', 'on by default');
+    const raw = [], cleaned = [];
+    audio.on('chunk', c => raw.push(c));
+    audio.subscribeClean(c => cleaned.push(c));
+    feedNoise(processes, 14);
+    const lateRaw = raw.slice(-40), lateClean = cleaned.slice(-40);
+    t.diagnostic(`raw ${rmsDbOf(lateRaw).toFixed(1)} dBFS, cleaned ${rmsDbOf(lateClean).toFixed(1)} dBFS`);
+    assert.ok(rmsDbOf(lateRaw) - rmsDbOf(lateClean) > 9, 'steady noise is turned down in the cleaned stream');
+    assert.ok(Math.abs(rmsDbOf(lateRaw) + 60) < 2, 'the raw capture is not changed');
+});
+
+test('one filter serves every listener: its cost does not grow with their number', t => {
+    const { audio, processes } = capture({ sampleRate: 44100 });
+    t.after(() => audio.stop());
+    audio.start();
+    const heard = [[], [], []];
+    heard.forEach(list => audio.subscribeClean(c => list.push(c)));
+    let calls = 0;
+    const original = audio.cleanFilter.process.bind(audio.cleanFilter);
+    audio.cleanFilter.process = chunk => { calls++; return original(chunk); };
+    feedNoise(processes, 1);
+    const chunks = Math.ceil(44100 / 4096);
+    assert.equal(calls, chunks, 'each chunk is filtered once, however many listen');
+    assert.deepEqual(heard.map(list => Buffer.concat(list).length), [heard[0], heard[1], heard[2]].map(list => Buffer.concat(list).length));
+    assert.ok(Buffer.concat(heard[0]).equals(Buffer.concat(heard[1])) && Buffer.concat(heard[1]).equals(Buffer.concat(heard[2])), 'all hear the same');
+});
+
+test('the filter exists only while someone listens, and forgets what it learnt afterwards', t => {
+    const { audio, processes } = capture({ sampleRate: 44100 });
+    t.after(() => audio.stop());
+    audio.start();
+    assert.equal(audio.cleanFilter, null, 'no listener: nothing is filtered');
+    feedNoise(processes, 0.2);
+    const stop1 = audio.subscribeClean(() => {});
+    const stop2 = audio.subscribeClean(() => {});
+    const first = audio.cleanFilter;
+    assert.ok(first);
+    stop1();
+    assert.equal(audio.cleanFilter, first, 'still in use by the other listener');
+    stop2();
+    assert.equal(audio.cleanFilter, null, 'the last listener left');
+    audio.subscribeClean(() => {});
+    assert.notEqual(audio.cleanFilter, first, 'a new listener starts a fresh filter');
+});
+
+test('the filter level can be switched while listeners stay connected', t => {
+    const { audio, processes } = capture({ sampleRate: 44100 });
+    t.after(() => audio.stop());
+    audio.start();
+    const heard = [];
+    audio.subscribeClean(c => heard.push(c));
+    const statuses = [];
+    audio.on('status', s => statuses.push(s.filter));
+    audio.setFilterLevel('extreme');
+    assert.equal(audio.filterLevel, 'light', 'an unknown level is ignored');
+    audio.setFilterLevel('off');
+    assert.equal(audio.status().filter, 'off');
+    assert.equal(audio.cleanFilter, null);
+    const rawChunk = Buffer.alloc(2048, 5);
+    heard.length = 0;
+    processes[0].stdout.emit('data', rawChunk);
+    assert.ok(heard[0].equals(rawChunk), 'with the filter off the listeners get the audio as it is');
+    audio.setFilterLevel('strong');
+    assert.ok(audio.cleanFilter, 'a new filter takes over for the connected listeners');
+    assert.deepEqual([...new Set(statuses)], ['off', 'strong'], 'listeners of the status see each new level');
+});
+
+test('the filter level starts from the setting; an unknown one means light', () => {
+    assert.equal(new AudioCapture({ device: null, filter: 'strong' }).filterLevel, 'strong');
+    assert.equal(new AudioCapture({ device: null, filter: 'off' }).filterLevel, 'off');
+    assert.equal(new AudioCapture({ device: null, filter: 'extreme' }).filterLevel, 'light');
+    assert.equal(new AudioCapture({ device: null }).filterLevel, 'light');
+});
+
+test('GET /audio/live is the filtered stream; ?raw=1 is the untouched capture and the only one with a backfill', async t => {
     const { audio, processes } = capture({ channels: 2, sampleRate: 44100 });
     t.after(() => audio.stop());
     audio.start();
-    const loud = Buffer.alloc(4096 * 4, 0x20);
-    processes[0].stdout.emit('data', loud);   // the capture is live once it has data
+    processes[0].stdout.emit('data', Buffer.alloc(4096 * 4, 0x20));   // the capture is live once it has data
     const server = createServer((req, res) => serveLiveAudio(audio, req, res));
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const port = server.address().port;
     try {
-        for (const [query, header] of [['', 'off'], ['?filter=off', 'off'], ['?filter=light', 'light'], ['?filter=strong', 'strong']]) {
+        for (const [query, filterHeader] of [['', 'light'], ['?raw=1', 'off'], ['?raw=1&backfill=0.05', 'off']]) {
             const controller = new AbortController();
             const response = await fetch(`http://127.0.0.1:${port}/audio/live${query}`, { signal: controller.signal });
             assert.equal(response.status, 200, query);
-            assert.equal(response.headers.get('x-filter'), header, query);
+            assert.equal(response.headers.get('x-filter'), filterHeader, query);
+            assert.equal(response.headers.get('x-channels'), '2');
             controller.abort();
         }
-        const bad = await fetch(`http://127.0.0.1:${port}/audio/live?filter=extreme`);
-        assert.equal(bad.status, 400);
-        assert.match((await bad.json()).error, /unknown filter/);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        assert.equal(audio.cleanSubscribers, 0, 'closed connections release the filter');
+        assert.equal(audio.status().listeners, 0);
     } finally {
         server.closeAllConnections();
         server.close();
     }
-    assert.ok(loud.length > 0 && processes.length === 1);
 });
