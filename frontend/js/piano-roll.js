@@ -1,3 +1,5 @@
+import { SCALES, scaleById, isAllowed, nearestAllowed, fitNotesToScale } from './scales.js?v=2';
+
 const NS = 'http://www.w3.org/2000/svg';
 const pitches = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 export function noteName(note) { return `${pitches[note % 12]}${Math.floor(note / 12) - 1}`; }
@@ -12,6 +14,29 @@ export class PianoRoll {
         this.channel.addEventListener('change', () => { this.selectedClip = null; this.update(this.state); });
         this.clip.addEventListener('change', () => { this.selectedClip = null; this.render(); });
         this.section.addEventListener('toggle', () => this.render());
+        this.rootSelect = document.getElementById('piano-roll-root');
+        this.scaleSelect = document.getElementById('piano-roll-scale');
+        if (this.rootSelect && this.scaleSelect) {
+            pitches.forEach((name, i) => this.rootSelect.add(new Option(name, String(i))));
+            this.scaleSelect.add(new Option('No scale (all notes)', ''));
+            const groups = new Map();
+            for (const scale of SCALES) {
+                if (!groups.has(scale.group)) {
+                    const group = document.createElement('optgroup');
+                    group.label = scale.group;
+                    groups.set(scale.group, group);
+                    this.scaleSelect.add(group);
+                }
+                groups.get(scale.group).appendChild(new Option(scale.name, scale.id));
+            }
+            try {
+                this.rootSelect.value = localStorage.getItem('piano-roll-root') || '0';
+                this.scaleSelect.value = localStorage.getItem('piano-roll-scale') || '';
+            } catch { /* storage unavailable: start without a scale */ }
+            if (this.scaleSelect.selectedIndex < 0) this.scaleSelect.value = '';
+            this.rootSelect.addEventListener('change', () => this.scaleChanged());
+            this.scaleSelect.addEventListener('change', () => this.scaleChanged());
+        }
     }
 
     update(state) {
@@ -53,7 +78,9 @@ export class PianoRoll {
         const status = document.getElementById('piano-roll-status');
         view.replaceChildren();
         const clip = this.clips?.find(c => c.key === this.clip.value);
-        status.textContent = clip ? `${clip.notes.length} notes · ${clip.length} beats · Click to add, drag to move, drag the right edge to resize, double-click or Delete to remove` : 'No recorded notes on this channel.';
+        const keep = this.selectedKey;
+        this.selected = keep && clip ? clip.notes.find(n => n.channel === keep.channel && n.note === keep.note && n.start === keep.start) || null : null;
+        status.textContent = clip ? `${clip.notes.length} notes · ${clip.length} beats · Click to add, drag to move, drag the right edge to resize, double-click a note to remove it` : 'No recorded notes on this channel.';
         const position = document.getElementById('piano-roll-position');
         if (position) position.textContent = 'Stopped';
         if (!clip) return;
@@ -82,8 +109,11 @@ export class PianoRoll {
         const x = beat => left + beat / beats * (width - left);
         for (let pitch = high; pitch >= low; pitch--) {
             const y = top + (high - pitch) * row;
+            const allowed = isAllowed(pitch, this.root, this.scale);
             add('rect', { x: 0, y, width, height: row, fill: [1, 3, 6, 8, 10].includes(pitch % 12) ? '#131b22' : '#202b34' });
-            add('text', { x: 5, y: y + 13, fill: '#aab9c7', 'font-size': 11 }, noteName(pitch));
+            if (!allowed) add('rect', { x: 0, y, width, height: row, fill: '#0b0f13', opacity: 0.72, 'pointer-events': 'none' });
+            else if (this.scale && (pitch - this.root) % 12 === 0) add('rect', { x: 0, y, width: left - 2, height: row, fill: '#a6d477', opacity: 0.18, 'pointer-events': 'none' });
+            add('text', { x: 5, y: y + 13, fill: allowed ? '#aab9c7' : '#4d5963', 'font-size': 11, 'pointer-events': 'none' }, noteName(pitch));
         }
         const step = Math.max(1, Math.ceil(beats / 64));
         for (let beat = 0; beat <= beats; beat += step) {
@@ -99,7 +129,6 @@ export class PianoRoll {
             this.paintNote(entry, geometry);
             this.noteRects.push(entry);
             rect.addEventListener('pointerdown', e => this.beginDrag(e, entry, clip, geometry, svg));
-            rect.addEventListener('dblclick', e => { e.stopPropagation(); this.removeNote(clip, note); });
         }
         svg.addEventListener('click', e => {
             if (e.target.dataset?.note) return;
@@ -115,6 +144,28 @@ export class PianoRoll {
         this.beatToX = x;
         view.appendChild(svg);
         this.updateProgress(this.positions || []);
+    }
+
+    get root() { return Number(this.rootSelect?.value) || 0; }
+    get scale() { return scaleById(this.scaleSelect?.value); }
+
+    // A new root or scale: remember it and move the shown clip's notes onto it.
+    scaleChanged() {
+        try {
+            localStorage.setItem('piano-roll-root', this.rootSelect.value);
+            localStorage.setItem('piano-roll-scale', this.scaleSelect.value);
+        } catch { /* per-viewer convenience only */ }
+        const clip = this.clips?.find(c => c.key === this.clip.value);
+        const scale = this.scale;
+        if (clip && scale && clip.notes.some(n => !isAllowed(n.note, this.root, scale))) {
+            const fitted = fitNotesToScale(clip.notes, this.root, scale);
+            const others = clip.all.filter(n => !clip.notes.includes(n));
+            clip.all = [...others, ...fitted];
+            clip.notes = fitted;
+            this.select(null);
+            this.commit(clip);
+        }
+        this.render();
     }
 
     snapStep() {
@@ -134,6 +185,11 @@ export class PianoRoll {
         };
     }
 
+    select(note) {
+        this.selected = note;
+        this.selectedKey = note ? { channel: note.channel, note: note.note, start: note.start } : null;
+    }
+
     paintNote({ rect, note, title }, g) {
         const wide = (g.width - g.left) / g.beats;
         rect.setAttribute('x', g.left + Math.max(0, note.start) * wide);
@@ -148,11 +204,21 @@ export class PianoRoll {
         if (e.button !== 0) return;
         e.preventDefault();
         const note = entry.note;
+        // Two quick presses on the same note delete it. Detected here rather than with the
+        // browser's dblclick, which is lost when the roll is redrawn between the two clicks.
+        const now = performance.now();
+        const same = this.lastPress && this.lastPress.channel === note.channel && this.lastPress.note === note.note && this.lastPress.start === note.start;
+        if (same && now - this.lastPress.time < 400) {
+            this.lastPress = null;
+            this.removeNote(clip, note);
+            return;
+        }
+        this.lastPress = { channel: note.channel, note: note.note, start: note.start, time: now };
         const here = this.pointerPosition(e, g, svg);
         const wide = (g.width - g.left) / g.beats;
         const edge = g.left + (note.start + note.dur) * wide;
         const mode = here.px > edge - 8 && note.dur * wide > 16 ? 'resize' : 'move';
-        this.selected = note;
+        this.select(note);
         svg.focus({ preventScroll: true });
         entry.rect.setPointerCapture(e.pointerId);
         this.drag = { mode, entry, original: { start: note.start, dur: note.dur, note: note.note }, grab: here.beat - note.start, moved: false };
@@ -164,7 +230,7 @@ export class PianoRoll {
                 note.dur = Math.max(step, Math.min(snap(at.beat - note.start), clip.length - note.start));
             } else {
                 note.start = Math.max(0, Math.min(snap(at.beat - this.drag.grab), clip.length - step));
-                note.note = Math.max(0, Math.min(127, at.pitch));
+                note.note = nearestAllowed(Math.max(0, Math.min(127, at.pitch)), this.root, this.scale);
             }
             this.drag.moved = true;
             this.paintNote(entry, g);
@@ -175,9 +241,14 @@ export class PianoRoll {
             entry.rect.removeEventListener('pointercancel', finish);
             const { moved } = this.drag;
             this.drag = null;
-            if (moved) this.commit(clip);
-            else this.paintNote(entry, g);
-            if (this.state) this.update(this.state);
+            if (moved) {
+                this.lastPress = null;
+                this.select(note);
+                this.commit(clip);
+                if (this.state) this.update(this.state);
+            } else {
+                this.paintNote(entry, g);
+            }
         };
         entry.rect.addEventListener('pointermove', move);
         entry.rect.addEventListener('pointerup', finish);
@@ -188,12 +259,13 @@ export class PianoRoll {
     addNote(e, clip, g, svg) {
         const at = this.pointerPosition(e, g, svg);
         if (at.beat < 0 || at.beat >= clip.length || at.pitch < 0 || at.pitch > 127) return;
+        if (!isAllowed(at.pitch, this.root, this.scale)) return;
         const step = this.snapStep();
         const start = Math.min(Math.floor(at.beat / step) * step, clip.length - step);
         const note = { channel: Number(this.channel.value), note: at.pitch, start, dur: Math.min(Math.max(step, 0.5), clip.length - start), velocity: 100 };
         clip.all.push(note);
         clip.notes.push(note);
-        this.selected = note;
+        this.select(note);
         this.commit(clip);
         this.render();
     }
@@ -201,7 +273,7 @@ export class PianoRoll {
     removeNote(clip, note) {
         clip.all.splice(clip.all.indexOf(note), 1);
         clip.notes.splice(clip.notes.indexOf(note), 1);
-        if (this.selected === note) this.selected = null;
+        if (this.selected === note) this.select(null);
         this.commit(clip);
         this.render();
     }

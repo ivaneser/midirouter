@@ -805,6 +805,23 @@ class MIDIRouterWorker {
         }
     }
 
+    // The clip's notes were edited while it plays: re-schedule its pending note-ons from the beat it is at,
+    // so it neither stops nor jumps. Sounding notes finish on their own note-offs. Returns false when the
+    // clip needs a full restart instead (external clock, nothing left to play, or not playing).
+    _refreshPlayingClip(trackIdx, slot, now = performance.now()) {
+        const playback = this._trackPlayTimers?.get(trackIdx);
+        const clip = this.daw.tracks[trackIdx]?.clips[slot];
+        if (!playback || playback.slot !== slot || playback.externalClock || playback.originMs == null || !clip || clip.notes.length === 0) return false;
+        for (const timer of playback.noteOnTimers || []) {
+            clearTimeout(timer);
+            playback.timeouts.delete(timer);
+        }
+        playback.noteOnTimers?.clear();
+        playback.loopBeats = Math.max(1, Number(clip.length) || this.daw.loopLenBeats);
+        this._scheduleClipNotes(playback, clip, trackIdx, now);
+        return true;
+    }
+
     // A tempo change applies to the clips that are playing right now: each keeps its beat position
     // and carries on at the new speed, instead of waiting for the next cycle start.
     _retempoPlayingClips(now = performance.now()) {
@@ -2339,8 +2356,9 @@ class MIDIRouterWorker {
                 const keep = msg.keepLength ? track?.clips[slot]?.length || 0 : 0;
                 const channel = msg.channel ?? (track?.channelAssigned ? track.channel : msg.notes?.[0]?.channel ?? track?.channel);
                 if (!daw.setClipNotes(trackIdx, slot, msg.notes, channel, msg.bars, keep)) break;
-                // Replay a playing clip so it picks up the new notes from its start.
-                if (wasPlaying) this._startTrackPlayback(trackIdx, slot);
+                // A playing clip picks up the new notes: an edit keeps its beat position, any other write
+                // replays the clip from its start.
+                if (wasPlaying && !(msg.keepLength && this._refreshPlayingClip(trackIdx, slot))) this._startTrackPlayback(trackIdx, slot);
                 this._refreshPadLeds(trackIdx, slot);
                 this._broadcastState();
                 break;

@@ -3,7 +3,7 @@
 import { DeviceManager } from './device-manager.js?v=70';
 import { DAWUI } from './daw-ui.js?v=60';
 import { ConfigEditor } from './config-editor.js';
-import { PianoRoll } from './piano-roll.js?v=47';
+import { PianoRoll } from './piano-roll.js?v=52';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
 

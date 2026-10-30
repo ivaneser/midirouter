@@ -56,3 +56,29 @@ test('the transport keeps its beat position when the tempo changes', () => {
     const beat = (performance.now() - daw._playAnchorTime) / 1000 / daw._secondsPerBeat();
     assert.ok(Math.abs(beat - 4) < 0.05, `beat ${beat}`);
 });
+
+test('editing the notes of a playing clip re-times it in place, without stopping or restarting it', t => {
+    const { worker, playback, timers } = setup(t);
+    worker.daw.tracks[0].clips[0].notes.push({ start: 3, dur: 0.5, note: 67, velocity: 100, channel: 1 });
+    const now = performance.now();
+    playback.originMs = now - 500;   // one beat in
+    worker._scheduleClipNotes(playback, { length: 4, notes: worker.daw.tracks[0].clips[0].notes.slice(0, 2) }, 0, now);
+    const first = timers.splice(0);
+
+    assert.equal(worker._refreshPlayingClip(0, 0, now), true);
+    assert.ok(first.every(timer => timer.cleared), 'the old pending note-ons are replaced');
+    assert.equal(playback.originMs, now - 500, 'the clip keeps its position');
+    // Beat 3 is two beats (1000 ms) away, beat 2 one beat (500 ms), beat 0 after the wrap (1500 ms).
+    const delays = timers.map(timer => timer.delay).sort((x, y) => x - y);
+    assert.equal(delays.length, 3);
+    [500, 1000, 1500].forEach((want, i) => assert.ok(Math.abs(delays[i] - want) < 50, `delay ${delays[i]} vs ${want}`));
+});
+
+test('an emptied or external-clock clip asks for a full restart instead', t => {
+    const { worker, playback } = setup(t);
+    worker.daw.tracks[0].clips[0].notes = [];
+    assert.equal(worker._refreshPlayingClip(0, 0), false);
+    worker.daw.tracks[0].clips[0].notes = [{ start: 0, dur: 1, note: 60, velocity: 100, channel: 1 }];
+    playback.externalClock = true;
+    assert.equal(worker._refreshPlayingClip(0, 0), false);
+});
