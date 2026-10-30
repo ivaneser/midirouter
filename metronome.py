@@ -16,6 +16,7 @@ IPC Controls (via stdin)
     stop          # Stop playing clicks (silence)
     monitor <1|0> # Mix the router's live audio input into the output (with the clicks) on/off
     monitorgain <x># Gain of the monitored input (1 = as it is, default 1)
+    monitorfilter <off|light|strong>  # Noise reduction done by the router for the monitored audio
     bpm <n>       # Change BPM (stored for volume / accent calculations)
     beats <n>     # Change beats per measure
     click         # Play one metronome click immediately
@@ -100,6 +101,7 @@ class Metronome:
     _monitor_primed = False
     _monitor_thread = None
     _monitor_gain = MONITOR_GAIN
+    _monitor_filter = "off"
 
     def __init__(self, bpm: float, beats_per_bar: int = 4,
                  accent_beat: int = 1, volume: float = VOLUME,
@@ -304,6 +306,16 @@ class Metronome:
             print("[metronome] MONITOR off", flush=True)
         self._wake.set()
 
+    def set_monitor_filter(self, level: str):
+        """Noise reduction by the router for the monitored audio: off, light or strong. Reconnects the stream."""
+        if level not in ("off", "light", "strong") or level == self._monitor_filter:
+            return
+        self._monitor_filter = level
+        with self._monitor_lock:
+            self._monitor_buf.clear()   # no old unfiltered audio in front of the new
+            self._monitor_primed = False
+        print(f"[metronome] MONITOR filter: {level}", flush=True)
+
     def _monitor_push(self, data: bytes, channels: int = 2):
         """Add captured audio (S16_LE, `channels` interleaved; mono is centered). Keeps the cushion bounded."""
         if channels == 1:
@@ -361,8 +373,10 @@ class Metronome:
     def _monitor_loop(self):
         """Follow the router's live audio while monitoring; reconnect when it is not there yet."""
         while self._monitor and not self._monitor_stop.is_set():
+            level = self._monitor_filter
+            url = MONITOR_URL if level == "off" else f"{MONITOR_URL}?filter={level}"
             try:
-                with urllib.request.urlopen(MONITOR_URL, timeout=5) as response:
+                with urllib.request.urlopen(url, timeout=5) as response:
                     rate = int(response.headers.get("X-Sample-Rate", SAMPLE_RATE))
                     channels = int(response.headers.get("X-Channels", 1))
                     if rate != SAMPLE_RATE or channels not in (1, 2):
@@ -371,7 +385,7 @@ class Metronome:
                         continue
                     frame_bytes = 2 * channels
                     pending = b""
-                    while self._monitor and not self._monitor_stop.is_set():
+                    while self._monitor and not self._monitor_stop.is_set() and self._monitor_filter == level:
                         data = response.read(4096)
                         if not data:
                             break
@@ -382,6 +396,8 @@ class Metronome:
                             self._monitor_push(data[:usable], channels)
             except Exception as exc:   # router restarting, no audio device yet, ...
                 print(f"[metronome] MONITOR: {exc}", flush=True)
+            if self._monitor_filter != level:
+                continue   # a new filter: reconnect at once
             self._monitor_stop.wait(2)
 
     # -- control API -------------------------------------------------------
@@ -449,6 +465,7 @@ class Metronome:
                 "device": self.alsa_device,
                 "monitor": self._monitor,
                 "monitor_gain": self._monitor_gain,
+                "monitor_filter": self._monitor_filter,
             }
 
     def _emit_click(self, is_accent: bool):
@@ -501,6 +518,8 @@ def read_commands(metronome: Metronome):
                 metronome._emit_click(is_accent)
             elif cmd == "monitor" and len(parts) >= 2:
                 metronome.set_monitor(parts[1].lower() in ('1', 'true', 'on', 'yes'))
+            elif cmd == "monitorfilter" and len(parts) >= 2:
+                metronome.set_monitor_filter(parts[1].lower())
             elif cmd == "monitorgain" and len(parts) >= 2:
                 try:
                     metronome._monitor_gain = max(0.0, min(32.0, float(parts[1])))

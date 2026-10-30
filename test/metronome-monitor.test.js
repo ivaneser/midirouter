@@ -211,3 +211,56 @@ print(json.dumps({"channels": m.OUT_CHANNELS, "pipe_frames": m.PIPE_BYTES // (2 
     assert.equal(out.pipe_frames, 2048, 'the same 2048 frames of backlog as in mono');
     assert.ok(Math.abs(out.latency - (4096 + 2048) * 1000 / 44100) < 0.01, `latency ${out.latency}`);
 });
+
+test('the controller sends the noise filter, refuses unknown levels and remembers it for a restart', () => {
+    const written = [];
+    const controller = new MetronomeController();
+    controller._process = { stdin: { write: text => written.push(text) } };
+    controller._pid = 1;
+    controller._running = true;
+    controller.setMonitorFilter('light');
+    controller.setMonitorFilter('strong');
+    controller.setMonitorFilter('extreme');
+    assert.deepEqual(written, ['monitorfilter light\n', 'monitorfilter strong\n', 'monitorfilter off\n']);
+    assert.equal(controller._monitorFilter, 'off');
+});
+
+test('the monitor asks the router for the chosen noise filter and reconnects when it changes', { skip: !python }, () => {
+    const out = py(`
+import http.server, threading, time
+paths = []
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        paths.append(self.path)
+        self.send_response(200); self.send_header('X-Sample-Rate', '44100'); self.send_header('X-Channels', '2'); self.end_headers()
+        try:
+            for _ in range(400):
+                self.wfile.write(array('h', [100, -100] * 512).tobytes()); self.wfile.flush(); time.sleep(0.01)
+        except OSError: pass
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+m.MONITOR_URL = f'http://127.0.0.1:{srv.server_address[1]}/audio/live'
+met.set_monitor_filter('bogus')            # refused
+met.set_monitor(True); time.sleep(0.5)
+first = list(paths)
+met.set_monitor_filter('light'); time.sleep(0.6)
+met.set_monitor_filter('strong'); time.sleep(0.6)
+met.set_monitor_filter('off'); time.sleep(0.6)
+met.set_monitor(False); time.sleep(0.2); srv.shutdown()
+print(json.dumps({"first": first, "all": paths, "status": met.status()["monitor_filter"]}))
+`);
+    assert.deepEqual(out.first, ['/audio/live'], 'no filter parameter while it is off, and "bogus" is refused');
+    assert.deepEqual(out.all, ['/audio/live', '/audio/live?filter=light', '/audio/live?filter=strong', '/audio/live'], 'each change reconnects at once');
+    assert.equal(out.status, 'off');
+});
+
+test('the monitorfilter command sets the filter', { skip: !python }, () => {
+    const out = py(`
+import io
+old = sys.stdin; sys.stdin = io.StringIO("monitorfilter strong\\nquit\\n")
+try: m.read_commands(met)
+finally: sys.stdin = old
+print(json.dumps({"filter": met._monitor_filter}))
+`);
+    assert.equal(out.filter, 'strong');
+});

@@ -190,3 +190,30 @@ test('the ring still holds only the last second in stereo', t => {
     assert.ok(audio.ringBytes <= 1000 * 4 + 600 * 4, `ring ${audio.ringBytes}`);
     assert.equal(audio.snapshot(10).length % 4, 0);
 });
+
+test('GET /audio/live?filter=... filters per listener; without it the stream is the raw capture', async t => {
+    const { audio, processes } = capture({ channels: 2, sampleRate: 44100 });
+    t.after(() => audio.stop());
+    audio.start();
+    const loud = Buffer.alloc(4096 * 4, 0x20);
+    processes[0].stdout.emit('data', loud);   // the capture is live once it has data
+    const server = createServer((req, res) => serveLiveAudio(audio, req, res));
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+    try {
+        for (const [query, header] of [['', 'off'], ['?filter=off', 'off'], ['?filter=light', 'light'], ['?filter=strong', 'strong']]) {
+            const controller = new AbortController();
+            const response = await fetch(`http://127.0.0.1:${port}/audio/live${query}`, { signal: controller.signal });
+            assert.equal(response.status, 200, query);
+            assert.equal(response.headers.get('x-filter'), header, query);
+            controller.abort();
+        }
+        const bad = await fetch(`http://127.0.0.1:${port}/audio/live?filter=extreme`);
+        assert.equal(bad.status, 400);
+        assert.match((await bad.json()).error, /unknown filter/);
+    } finally {
+        server.closeAllConnections();
+        server.close();
+    }
+    assert.ok(loud.length > 0 && processes.length === 1);
+});

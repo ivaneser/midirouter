@@ -753,6 +753,10 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_audio_monitor', on: message.on === true });
                         break;
 
+                    case 'audio-monitor-filter':
+                        if (['off', 'light', 'strong'].includes(message.level)) router.worker.postMessage({ type: 'daw_audio_monitor_filter', level: message.level });
+                        break;
+
                     case 'audio-monitor-gain':
                         if (Number.isFinite(message.gain)) router.worker.postMessage({ type: 'daw_audio_monitor_gain', gain: message.gain });
                         break;

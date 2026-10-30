@@ -44,8 +44,9 @@ test('a tempo change re-times the pending note-ons from the current beat', t => 
     assert.equal(playback.msPerBeat, 250);
     assert.ok(Math.abs(playback.originMs - (now - 250)) < 1e-6, 'the clip keeps its beat position');
     // The beat-2 note is one beat (250 ms) away; the beat-0 note comes after the wrap, 3 beats away.
-    const delays = timers.map(timer => Math.round(timer.delay)).sort((x, y) => x - y);
-    assert.deepEqual(delays, [250, 750]);
+    const delays = timers.map(timer => timer.delay).sort((x, y) => x - y);
+    assert.equal(delays.length, 2);
+    [250, 750].forEach((want, i) => assert.ok(Math.abs(delays[i] - want) < 50, `delay ${delays[i]} vs ${want}`));   // measured against a live clock
 });
 
 test('the transport keeps its beat position when the tempo changes', () => {

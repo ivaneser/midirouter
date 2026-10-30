@@ -1,5 +1,6 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { NoiseFilter, FILTER_LEVELS } from './audio-clean.js';
 
 // Small ALSA periods keep the capture delay low (about 23 ms per period) for live listening.
 const PERIOD_FRAMES = 1024;
@@ -174,17 +175,32 @@ export function serveLiveAudio(capture, req, res) {
         res.end(JSON.stringify({ error: status.error || `audio capture ${status.state}`, state: status.state }));
         return;
     }
-    const backfill = Math.max(0, Math.min(Number(new URL(req.url, 'http://x').searchParams.get('backfill')) || 0, capture.maxBytes / capture.frameBytes / capture.sampleRate));
+    const params = new URL(req.url, 'http://x').searchParams;
+    const backfill = Math.max(0, Math.min(Number(params.get('backfill')) || 0, capture.maxBytes / capture.frameBytes / capture.sampleRate));
+    // ?filter=light|strong: noise reduction for listening (a separate filter state per listener). Without it
+    // the stream is the raw capture, which is what analysis needs.
+    const level = params.get('filter');
+    if (level && level !== 'off' && !FILTER_LEVELS.includes(level)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `unknown filter "${level}" (use ${['off', ...FILTER_LEVELS].join(', ')})` }));
+        return;
+    }
+    const filter = level && level !== 'off' ? new NoiseFilter({ level, sampleRate: capture.sampleRate, channels: capture.channels }) : null;
+    const send = chunk => {
+        const out = filter ? filter.process(chunk) : chunk;
+        if (out.length && res.writableLength < 262144) res.write(out);
+    };
     res.writeHead(200, {
         'Content-Type': 'audio/L16',
         'X-Sample-Rate': String(capture.sampleRate),
         'X-Channels': String(capture.channels),
+        'X-Filter': filter ? level : 'off',
         'Cache-Control': 'no-store',
     });
     res.flushHeaders();   // the player starts as soon as it has the headers, not with the first chunk
     res.socket?.setNoDelay(true);   // send every chunk at once: no waiting to fill a packet
-    if (backfill > 0) res.write(capture.snapshot(backfill));
-    const onChunk = chunk => { if (res.writableLength < 262144) res.write(chunk); };
+    if (backfill > 0) send(capture.snapshot(backfill));
+    const onChunk = send;
     capture.on('chunk', onChunk);
     capture.listeners_++;
     res.once('close', () => {

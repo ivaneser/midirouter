@@ -107,6 +107,7 @@ export class MetronomeController {
                 this._process.stdin.write(`offset ${this._clickOffsetMs}\n`);
             }
             if (this._monitorGain != null) this._process.stdin.write(`monitorgain ${this._monitorGain}\n`);
+            if (this._monitorFilter) this._process.stdin.write(`monitorfilter ${this._monitorFilter}\n`);
             if (this._monitor) this._process.stdin.write('monitor 1\n');
 
             let stdoutReady = false;
@@ -295,6 +296,21 @@ export class MetronomeController {
                 this._process.stdin.write(`monitorgain ${this._monitorGain}\n`);
             } catch (e) {
                 console.warn(`[METRONOME] Failed to set monitor gain: ${e.message}`);
+            }
+        }
+    }
+
+    /**
+     * Noise reduction (done by the router) for the monitored audio: 'off' | 'light' | 'strong'.
+     * @param {string} level
+     */
+    setMonitorFilter(level) {
+        this._monitorFilter = ['off', 'light', 'strong'].includes(level) ? level : 'off';
+        if (this._process && this._pid && this._running) {
+            try {
+                this._process.stdin.write(`monitorfilter ${this._monitorFilter}\n`);
+            } catch (e) {
+                console.warn(`[METRONOME] Failed to set monitor filter: ${e.message}`);
             }
         }
     }

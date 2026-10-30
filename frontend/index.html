@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=69">
+    <link rel="stylesheet" href="/css/style.css?v=70">
 </head>
 <body>
     <div id="app">
@@ -32,6 +32,11 @@
                         <span id="monitor-gain-dial" class="midi-knob"><span class="midi-knob-face" aria-hidden="true"></span><input id="monitor-gain" class="midi-knob-input" aria-label="Pi out volume" type="range" min="0" max="100" step="1" value="50"></span>
                         <output id="monitor-gain-value" class="midi-knob-value" for="monitor-gain">0 dB</output>
                     </label>
+                    <select id="monitor-filter" class="monitor-filter" hidden aria-label="Pi out noise filter" title="Noise filter for Pi out: Light mutes the hiss between notes, Strong also reduces steady noise while music plays">
+                        <option value="off">Noise: off</option>
+                        <option value="light">Noise: light</option>
+                        <option value="strong">Noise: strong</option>
+                    </select>
                 </span>
                 <button id="btn-panic" class="btn btn-danger" title="Release held notes on every MIDI output and channel">Panic</button>
                 <button id="btn-shutdown" class="btn btn-danger" title="Power off the Raspberry Pi">Power off</button>
@@ -245,6 +250,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=81"></script>
+    <script type="module" src="/js/app.js?v=82"></script>
 </body>
 </html>

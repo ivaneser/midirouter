@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=71';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
-import { AudioListener, sliderToGain } from './audio-listener.js?v=6';
+import { AudioListener, sliderToGain } from './audio-listener.js?v=7';
 import { attachMidiKnob } from './midi-knob.js?v=25';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
@@ -206,8 +206,16 @@ if (monitorGain) {
     }, { reset: 50 });
     gainReadout.textContent = gainText(sliderToGain(monitorGain.value / 100));
 }
+const monitorFilter = document.getElementById('monitor-filter');
+monitorFilter?.addEventListener('change', () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor-filter', level: monitorFilter.value }));
+});
 function showAudioMonitor(state) {
     if (!monitorButton) return;
+    if (monitorFilter) {
+        monitorFilter.hidden = state.audioOutAvailable === false;
+        if (state.audioMonitorFilter && document.activeElement !== monitorFilter) monitorFilter.value = state.audioMonitorFilter;
+    }
     if (gainControl) {
         gainControl.hidden = state.audioOutAvailable === false;
         if (Number.isFinite(state.audioMonitorGain) && document.activeElement !== monitorGain) {
