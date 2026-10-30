@@ -1829,6 +1829,21 @@ class MIDIRouterWorker {
         return real;
     }
 
+    // Moves an incoming controller note into the session scale. A note-off always releases the note its
+    // note-on actually sounded, even if the scale changed while the key was held.
+    _correctIncomingNote(deviceName, channel, note, isNoteOn) {
+        const held = this._heldNoteMap ||= new Map();
+        const key = `${deviceName}:${channel}:${note}`;
+        if (!isNoteOn) {
+            const sounding = held.get(key);
+            held.delete(key);
+            return sounding ?? note;
+        }
+        const corrected = this.daw.correctNote(note);
+        held.set(key, corrected);
+        return corrected;
+    }
+
     _recordPerformanceEvent(status, note, velocity, time, source = 'midi') {
         const recording = this.daw.recording;
         if (recording) {
@@ -1991,12 +2006,15 @@ class MIDIRouterWorker {
                 return;
             }
 
+            // The session scale corrects the note before it is recorded or routed on.
+            bytes[1] = this._correctIncomingNote(deviceName, channel, n, isNoteOn2 && vel > 0);
+
             // Every incoming performance note can be recorded, including notes
             // from a synth selected as clock master. controllerInputs tracks pad
             // learning; it must not gate recording during port enumeration/rebind.
             if (this.daw.recording) {
                 const sb = isNoteOff ? (0x80 | ((channel - 1) & 0x0f)) : (0x90 | ((channel - 1) & 0x0f));
-                this._recordPerformanceEvent(sb, n, vel, performance.now());
+                this._recordPerformanceEvent(sb, bytes[1], vel, performance.now());
             }
         }
 
@@ -2360,6 +2378,17 @@ class MIDIRouterWorker {
                 // replays the clip from its start.
                 if (wasPlaying && !(msg.keepLength && this._refreshPlayingClip(trackIdx, slot))) this._startTrackPlayback(trackIdx, slot);
                 this._refreshPadLeds(trackIdx, slot);
+                this._broadcastState();
+                break;
+            }
+            case 'daw_set_scale': {
+                if (!daw.setScale(msg.root, msg.scale)) break;
+                // Playing clips carry on with their refitted notes.
+                daw.tracks.forEach((track, trackIdx) => {
+                    const slot = daw.clipState[trackIdx];
+                    if (slot >= 0 && daw.playing && !this._refreshPlayingClip(trackIdx, slot)) this._startTrackPlayback(trackIdx, slot);
+                });
+                this._refreshPadLeds();
                 this._broadcastState();
                 break;
             }

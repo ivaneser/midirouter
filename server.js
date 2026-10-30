@@ -11,6 +11,7 @@ import { UiLayoutSettings } from './ui-layout.js';
 import { EventEmitter } from 'events';
 import { DeviceCatalog } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
+import { scaleById } from './frontend/js/scales.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
@@ -730,6 +731,13 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_set_clip', trackIdx, slot, notes: clean, keepLength: true });
                         break;
                     }
+
+                    case 'daw-set-scale':
+                        // Session scale: all clips are refitted and incoming controller notes corrected.
+                        if (!Number.isInteger(message.root) || message.root < 0 || message.root > 11) break;
+                        if (message.scale != null && !scaleById(message.scale)) break;
+                        router.worker.postMessage({ type: 'daw_set_scale', root: message.root, scale: message.scale ?? null });
+                        break;
 
                     case 'daw-track-arm':
                         router.worker.postMessage({ type: 'daw_arm_track', trackIdx: message.trackIdx });

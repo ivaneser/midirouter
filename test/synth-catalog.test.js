@@ -117,3 +117,14 @@ test('empty outputs list yields an empty card list', () => {
     assert.ok(Array.isArray(cards));
     assert.equal(cards.length, 0);
 });
+
+test('the Blofeld has a catalog of all 1024 preset names for the preset drop-down and list_presets', async () => {
+    const { DeviceCatalog } = await import('../device-catalog.js');
+    const { join } = await import('node:path');
+    const entry = new DeviceCatalog(join(import.meta.dirname, '..', 'device_maps')).forPort('Blofeld:Blofeld 36:0');
+    const presets = entry.presets.presets;
+    assert.equal(Object.keys(presets).length, entry.map.presetName.programs);
+    assert.equal(presets['1'].name, 'With Love');
+    assert.equal(presets['1024'].name, 'Zwitscher 1');
+    assert.ok(Object.values(presets).every(p => typeof p.name === 'string' && p.name.length));
+});

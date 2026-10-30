@@ -12,6 +12,7 @@
  */
 
 import { MidiClock } from './midi-clock.js';
+import { scaleById, nearestAllowed, fitNotesToScale } from './frontend/js/scales.js';
 
 const PPQ = 192;                 // pulses per quarter note (timing)
 const DEFAULT_SLOTS_PER_TRACK = 2;  // 2 clips per track by default
@@ -63,6 +64,10 @@ class DAWEngine {
         this._playAnchorTime = 0;           // performance.now() at the start of the current cycle
         this._currentBeat = 0;              // beats of the current cycle [0, loopLen)
         this._lastProgressBeat = null;
+
+        // Session scale: every clip and every incoming controller note is kept inside it.
+        this._scaleRoot = 0;
+        this._scaleId = null;
 
         // Metronome / click track
         this._metronomeEnabled = true;
@@ -673,6 +678,27 @@ class DAWEngine {
         return Math.max(bar, Math.ceil((beats - 0.25) / bar) * bar);
     }
 
+    // The session scale (root 0-11, scale id or null for none). A scale refits the notes of every clip to
+    // its nearest allowed notes. Returns false for an unknown scale or root.
+    setScale(root, id = null) {
+        if (!Number.isInteger(root) || root < 0 || root > 11) return false;
+        const scale = id == null ? null : scaleById(id);
+        if (id != null && !scale) return false;
+        this._scaleRoot = root;
+        this._scaleId = scale ? scale.id : null;
+        if (scale) {
+            for (const track of this.tracks) {
+                for (const clip of track.clips) clip.notes = fitNotesToScale(clip.notes, root, scale);
+            }
+        }
+        return true;
+    }
+
+    // A played note moved into the session scale (unchanged when there is none).
+    correctNote(note) {
+        return nearestAllowed(note, this._scaleRoot, scaleById(this._scaleId));
+    }
+
     // Explicit master loop length in bars. Locks the shared transport cycle to
     // exactly `bars` measures and resizes every clip so playback repeats for
     // the full master cycle. Returns false on invalid input.
@@ -1275,6 +1301,8 @@ class DAWEngine {
             masterLoopBars: this.masterLoopBars,
             metronomeEnabled: this._metronomeEnabled,
             metronomeBeatsPerMeasure: this._metronomeBeatsPerMeasure,
+            scaleRoot: this._scaleRoot,
+            scaleId: this._scaleId,
             sessionRecording: this.sessionRecording,
             midiClockEnabled: this._midiClockEnabled,
             clockSource: this.getClockSource(),
@@ -1298,6 +1326,7 @@ class DAWEngine {
             loopLenBeats: this.loopLenBeats,
             masterLoopBars: this.masterLoopBars,
             globalCycleLocked: this._globalCycleLocked,
+            scale: { root: this._scaleRoot, id: this._scaleId },
             midiClockEnabled: this._midiClockEnabled,
             metronome: {
                 enabled: this._metronomeEnabled,
@@ -1349,6 +1378,13 @@ class DAWEngine {
         // Restore an explicit master loop setting (bars), if persisted.
         this.masterLoopBars = Number.isInteger(data.masterLoopBars) && data.masterLoopBars >= 1
             ? data.masterLoopBars : null;
+        if (Number.isInteger(data.scale?.root) && data.scale.root >= 0 && data.scale.root <= 11 && (data.scale.id == null || scaleById(data.scale.id))) {
+            this._scaleRoot = data.scale.root;
+            this._scaleId = data.scale.id ?? null;
+        } else {
+            this._scaleRoot = 0;
+            this._scaleId = null;
+        }
         // Clock output is not a per-session setting: an old session must not switch it off.
         if (!this._externalClock) this._midiClockEnabled = true;
         const m = data.metronome || {};

@@ -1,4 +1,4 @@
-import { SCALES, scaleById, isAllowed, nearestAllowed, fitNotesToScale } from './scales.js?v=2';
+import { SCALES, scaleById, isAllowed, nearestAllowed } from './scales.js?v=2';
 
 const NS = 'http://www.w3.org/2000/svg';
 const pitches = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
@@ -29,11 +29,6 @@ export class PianoRoll {
                 }
                 groups.get(scale.group).appendChild(new Option(scale.name, scale.id));
             }
-            try {
-                this.rootSelect.value = localStorage.getItem('piano-roll-root') || '0';
-                this.scaleSelect.value = localStorage.getItem('piano-roll-scale') || '';
-            } catch { /* storage unavailable: start without a scale */ }
-            if (this.scaleSelect.selectedIndex < 0) this.scaleSelect.value = '';
             this.rootSelect.addEventListener('change', () => this.scaleChanged());
             this.scaleSelect.addEventListener('change', () => this.scaleChanged());
         }
@@ -44,6 +39,10 @@ export class PianoRoll {
         if (this.drag) return; // a state broadcast must not redraw under the user's pointer
         this.positions = state?.playing === false ? [] : state?.clipProgress || [];
         if (!this.section || !state) return;
+        if (this.scaleSelect && state.scaleId !== undefined) {
+            this.scaleSelect.value = state.scaleId || '';
+            this.rootSelect.value = String(state.scaleRoot ?? 0);
+        }
         if (this.selectedClip && !state.tracks?.[this.selectedClip.track]?.clips?.[this.selectedClip.slot]) this.selectedClip = null;
         const requested = this.selectedClip;
         if (requested) {
@@ -149,22 +148,9 @@ export class PianoRoll {
     get root() { return Number(this.rootSelect?.value) || 0; }
     get scale() { return scaleById(this.scaleSelect?.value); }
 
-    // A new root or scale: remember it and move the shown clip's notes onto it.
+    // The scale is a session setting: the router refits every clip and corrects incoming notes.
     scaleChanged() {
-        try {
-            localStorage.setItem('piano-roll-root', this.rootSelect.value);
-            localStorage.setItem('piano-roll-scale', this.scaleSelect.value);
-        } catch { /* per-viewer convenience only */ }
-        const clip = this.clips?.find(c => c.key === this.clip.value);
-        const scale = this.scale;
-        if (clip && scale && clip.notes.some(n => !isAllowed(n.note, this.root, scale))) {
-            const fitted = fitNotesToScale(clip.notes, this.root, scale);
-            const others = clip.all.filter(n => !clip.notes.includes(n));
-            clip.all = [...others, ...fitted];
-            clip.notes = fitted;
-            this.select(null);
-            this.commit(clip);
-        }
+        this.onEdit?.({ type: 'daw-set-scale', root: Number(this.rootSelect.value) || 0, scale: this.scaleSelect.value || null });
         this.render();
     }
 
