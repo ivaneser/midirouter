@@ -2334,7 +2334,11 @@ class MIDIRouterWorker {
             case 'daw_set_clip': {
                 const { trackIdx, slot } = msg;
                 const wasPlaying = daw.clipState[trackIdx] === slot && daw.playing;
-                if (!daw.setClipNotes(trackIdx, slot, msg.notes, msg.channel, msg.bars)) break;
+                const track = daw.tracks[trackIdx];
+                // keepLength: an edit of an existing clip (piano roll) must not shrink it.
+                const keep = msg.keepLength ? track?.clips[slot]?.length || 0 : 0;
+                const channel = msg.channel ?? (track?.channelAssigned ? track.channel : msg.notes?.[0]?.channel ?? track?.channel);
+                if (!daw.setClipNotes(trackIdx, slot, msg.notes, channel, msg.bars, keep)) break;
                 // Replay a playing clip so it picks up the new notes from its start.
                 if (wasPlaying) this._startTrackPlayback(trackIdx, slot);
                 this._refreshPadLeds(trackIdx, slot);

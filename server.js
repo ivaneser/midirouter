@@ -715,6 +715,22 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_clear_clip', trackIdx: message.trackIdx, slot: message.slot });
                         break;
 
+                    case 'daw-edit-clip': {
+                        // Piano roll edit: the clip's complete note list, written back at its current length.
+                        const { trackIdx, slot, notes } = message;
+                        if (!Number.isInteger(trackIdx) || !Number.isInteger(slot) || !Array.isArray(notes) || notes.length > 1024) break;
+                        const clean = [];
+                        for (const n of notes) {
+                            if (!Number.isInteger(n?.note) || n.note < 0 || n.note > 127 || !(n.start >= 0) || !(n.dur > 0)) continue;
+                            const velocity = Number.isInteger(n.velocity) ? Math.max(1, Math.min(127, n.velocity)) : 100;
+                            const note = { note: n.note, start: n.start, dur: n.dur, velocity };
+                            if (Number.isInteger(n.channel) && n.channel >= 1 && n.channel <= 16) note.channel = n.channel;
+                            clean.push(note);
+                        }
+                        router.worker.postMessage({ type: 'daw_set_clip', trackIdx, slot, notes: clean, keepLength: true });
+                        break;
+                    }
+
                     case 'daw-track-arm':
                         router.worker.postMessage({ type: 'daw_arm_track', trackIdx: message.trackIdx });
                         break;

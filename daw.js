@@ -540,7 +540,7 @@ class DAWEngine {
     // Fill a clip with authored notes ({note, start, dur, velocity} in beats). The track takes
     // `channel` (as a first recorded note would assign it) and the clip length is rounded up to
     // whole bars, at least `bars` when given. Returns the clip, or null when it does not exist.
-    setClipNotes(trackIdx, slot, notes, channel, bars) {
+    setClipNotes(trackIdx, slot, notes, channel, bars, minLength = 0) {
         const track = this.tracks[trackIdx];
         const clip = track?.clips[slot];
         if (!clip) return null;
@@ -551,7 +551,7 @@ class DAWEngine {
         const end = clip.notes.reduce((max, n) => Math.max(max, n.start + n.dur), 0);
         const bar = Math.max(1, this._metronomeBeatsPerMeasure);
         const wanted = Number.isInteger(bars) ? bars * bar : (this.masterLoopBars != null ? this.loopLenBeats : 0);
-        clip.length = Math.max(this._snapToBars(end), wanted);
+        clip.length = Math.max(this._snapToBars(end), wanted, minLength);
         track.channel = channel;
         track.channelAssigned = true;
         // A longer clip than the shared cycle extends the cycle unless an explicit master loop is set.

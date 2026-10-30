@@ -3,7 +3,7 @@
 import { DeviceManager } from './device-manager.js?v=70';
 import { DAWUI } from './daw-ui.js?v=60';
 import { ConfigEditor } from './config-editor.js';
-import { PianoRoll } from './piano-roll.js?v=46';
+import { PianoRoll } from './piano-roll.js?v=47';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
 
@@ -32,6 +32,7 @@ const pianoRoll = new PianoRoll();
 const midiKeyboard = new MidiKeyboard(deviceManager);
 const dawUI = new DAWUI(deviceManager);
 dawUI.onClipSelect = (track, slot) => pianoRoll.selectClip(track, slot);
+pianoRoll.onEdit = msg => dawUI._send(msg);
 const configEditor = new ConfigEditor({
     deviceManager,
     ws: null, // will be set after connection
@@ -45,6 +46,7 @@ const sectionOrder = new SectionOrder(document.getElementById('app'), order => s
 window.app = {
     deviceManager,
     dawUI,
+    pianoRoll,
     configEditor,
     ws: null,
     log

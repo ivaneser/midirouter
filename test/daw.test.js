@@ -564,3 +564,11 @@ test('resetAllClips keeps an explicit master loop', () => {
     assert.equal(daw.loopLenBeats, 16);
     assert.equal(daw._globalCycleLocked, true);
 });
+
+test('setClipNotes with minLength never shrinks the clip (piano roll edits)', () => {
+    const daw = new DAWEngine();
+    daw.setClipNotes(0, 0, [{ note: 60, start: 0, dur: 1, velocity: 100 }], 1, 2);
+    assert.equal(daw.tracks[0].clips[0].length, 8);
+    daw.setClipNotes(0, 0, [{ note: 62, start: 0, dur: 1, velocity: 100 }], 1, undefined, 8);
+    assert.equal(daw.tracks[0].clips[0].length, 8);
+});
