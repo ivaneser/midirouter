@@ -35,6 +35,7 @@ apt-get install -y \
     curl \
     git-core \
     jq \
+    libcap2-bin \
     supervisor \
     sudo
 
@@ -72,6 +73,19 @@ echo "📦 npm install..."
 cd "$PROJECT_DIR"
 npm install --production --quiet
 bash "${PROJECT_DIR}/setup-shutdown-permissions.sh" midi
+
+# Listen page: the router also serves a listen-only page for many devices (live sound with a
+# visualization) on port 80. Opening port 80 as a normal user needs a capability on node; without
+# it the page falls back to port 8080. (Re-run this script after a node upgrade: the capability
+# belongs to the binary.) The systemd unit (midirouter.service) grants the same permission itself.
+echo ""
+echo "🎧 Allowing the listen page to use port 80..."
+NODE_BIN="$(readlink -f "$(command -v node)")"
+if setcap 'cap_net_bind_service=+ep' "$NODE_BIN"; then
+    echo "✅ Listen page will be on port 80"
+else
+    echo "⚠️ Could not set the capability on $NODE_BIN — the listen page will use port 8080"
+fi
 
 # ==========================================
 # PREEMPT_RT KERNEL — for minimal latency
@@ -200,6 +214,7 @@ if supervisorctl status midirouter-worker &>/dev/null || pgrep -f "midirouter" >
     echo "✅ MIDI Router is running!"
     echo ""
     echo "🌐 Web interface: http://<IP_RASPBERRY_PI>:3000"
+    echo "🎧 Listen page:   http://<IP_RASPBERRY_PI>/   (port 8080 if port 80 is not permitted)"
     echo "📋 Worker logs:   sudo tail -f /var/log/midarouter-worker.out.log"
     echo "📋 Server logs:    sudo tail -f /var/log/midirouter-server.out.log"
     echo ""

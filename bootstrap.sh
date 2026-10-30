@@ -121,6 +121,7 @@ log "midirouter.service enabled and started"
 sleep 2
 if $SUDO systemctl is-active --quiet midirouter; then
     log "Server is running: http://<pi-ip>:3000"
+    log "Listen page (live sound for many devices): http://<pi-ip>/"
 else
     warn "Service not active — check: sudo journalctl -u midirouter.service -n 50"
 fi

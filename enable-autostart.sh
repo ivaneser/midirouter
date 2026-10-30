@@ -30,6 +30,7 @@ log "Enabling midirouter.service..."
 $REQ_SUDO systemctl enable --now midirouter.service
 
 log "Done. The router service is enabled and started; its worker manages the audio metronome."
+log "The listen page (live sound for many devices) is served on port 80: http://<pi-ip>/"
 log ""
 log "Check status:"
 log "  sudo systemctl status midirouter.service"
