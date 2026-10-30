@@ -9,10 +9,10 @@ test('16-bit little-endian samples become floats', () => {
     assert.equal(rest, null);
 });
 
-test('an odd trailing byte is carried into the next chunk', () => {
+test('a partial frame is carried into the next chunk (mono)', () => {
     const first = pcmToFloat(new Uint8Array([0x00, 0x40, 0x00]));
     assert.equal(first.samples.length, 1);
-    assert.equal(first.rest, 0x00);
+    assert.deepEqual([...first.rest], [0x00]);
     const second = pcmToFloat(new Uint8Array([0xc0]), first.rest);
     assert.deepEqual([...second.samples], [-0.5]);
     assert.equal(second.rest, null);
@@ -21,6 +21,26 @@ test('an odd trailing byte is carried into the next chunk', () => {
 test('silence has no peak and an empty chunk is harmless', () => {
     assert.equal(pcmToFloat(new Uint8Array([0, 0, 0, 0])).peak, 0);
     assert.equal(pcmToFloat(new Uint8Array([])).samples.length, 0);
+});
+
+test('stereo frames are split into left and right', () => {
+    // frames: (L 0.5, R -0.5), (L 0.25, R 0)
+    const { channels, peak, rest } = pcmToFloat(new Uint8Array([0x00, 0x40, 0x00, 0xc0, 0x00, 0x20, 0x00, 0x00]), null, 2);
+    assert.equal(channels.length, 2);
+    assert.deepEqual([...channels[0]], [0.5, 0.25]);
+    assert.deepEqual([...channels[1]], [-0.5, 0]);
+    assert.equal(peak, 0.5);
+    assert.equal(rest, null);
+});
+
+test('a stereo chunk that ends inside a frame carries the missing part over', () => {
+    const first = pcmToFloat(new Uint8Array([0x00, 0x40, 0x00, 0xc0, 0x00, 0x20]), null, 2);   // one frame + 2 bytes
+    assert.equal(first.channels[0].length, 1);
+    assert.deepEqual([...first.rest], [0x00, 0x20]);
+    const second = pcmToFloat(new Uint8Array([0x00, 0x00]), first.rest, 2);
+    assert.deepEqual([...second.channels[0]], [0.25]);
+    assert.deepEqual([...second.channels[1]], [0]);
+    assert.equal(second.rest, null);
 });
 
 test('the volume slider is unchanged sound in the middle and boosts up to +24 dB at the end', () => {

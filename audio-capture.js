@@ -25,6 +25,7 @@ export class AudioCapture extends EventEmitter {
     constructor({
         device = process.env.MIDIROUTER_AUDIO_DEVICE,
         sampleRate = 44100,
+        channels = Number(process.env.MIDIROUTER_AUDIO_CHANNELS) === 1 ? 1 : 2,   // stereo, as the interface delivers it
         ringSeconds = 30,
         spawnProcess = spawn,
         readCards = () => execFileSync('arecord', ['-l'], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }),
@@ -34,8 +35,9 @@ export class AudioCapture extends EventEmitter {
         super();
         this.configuredDevice = device || null;
         this.sampleRate = sampleRate;
-        this.channels = 1;
-        this.maxBytes = Math.round(ringSeconds * sampleRate) * 2;
+        this.channels = channels;
+        this.frameBytes = 2 * channels;   // 16-bit samples, one per channel
+        this.maxBytes = Math.round(ringSeconds * sampleRate) * this.frameBytes;
         this.spawnProcess = spawnProcess;
         this.readCards = readCards;
         this.retryMs = retryMs;
@@ -72,9 +74,9 @@ export class AudioCapture extends EventEmitter {
         return { state: this.state, device: this.device, sampleRate: this.sampleRate, channels: this.channels, error: this.error, listeners: this.listeners_ };
     }
 
-    // The most recent `seconds` of audio as little-endian 16-bit mono PCM (less when not that much was captured).
+    // The most recent `seconds` of audio as little-endian 16-bit PCM, channels interleaved (less when not that much was captured).
     snapshot(seconds) {
-        const wanted = Math.min(this.ringBytes, Math.max(0, Math.round(seconds * this.sampleRate)) * 2);
+        const wanted = Math.min(this.ringBytes, Math.max(0, Math.round(seconds * this.sampleRate)) * this.frameBytes);
         if (wanted === 0) return Buffer.alloc(0);
         return Buffer.concat(this.ring).subarray(this.ringBytes - wanted);
     }
@@ -104,7 +106,7 @@ export class AudioCapture extends EventEmitter {
         this.carry = null;
         let proc;
         try {
-            proc = this.spawnProcess('arecord', ['-t', 'raw', '-f', 'S16_LE', '-r', String(this.sampleRate), '-c', '1', '-D', device, `--period-size=${PERIOD_FRAMES}`, `--buffer-size=${PERIOD_FRAMES * 4}`], { stdio: ['ignore', 'pipe', 'pipe'] });
+            proc = this.spawnProcess('arecord', ['-t', 'raw', '-f', 'S16_LE', '-r', String(this.sampleRate), '-c', String(this.channels), '-D', device, `--period-size=${PERIOD_FRAMES}`, `--buffer-size=${PERIOD_FRAMES * 4}`], { stdio: ['ignore', 'pipe', 'pipe'] });
         } catch (error) {
             this.state = 'no-device';
             this.error = error.message;
@@ -149,9 +151,10 @@ export class AudioCapture extends EventEmitter {
         }
         let chunk = this.carry ? Buffer.concat([this.carry, data]) : data;
         this.carry = null;
-        if (chunk.length % 2) {   // keep whole 16-bit samples
-            this.carry = chunk.subarray(chunk.length - 1);
-            chunk = chunk.subarray(0, chunk.length - 1);
+        const partial = chunk.length % this.frameBytes;   // keep whole frames (one sample per channel)
+        if (partial) {
+            this.carry = chunk.subarray(chunk.length - partial);
+            chunk = chunk.subarray(0, chunk.length - partial);
         }
         if (!chunk.length) return;
         this.ring.push(chunk);
@@ -161,7 +164,7 @@ export class AudioCapture extends EventEmitter {
     }
 }
 
-// GET /audio/live[?backfill=seconds]: raw PCM (S16_LE mono, rate in X-Sample-Rate). Optionally starts
+// GET /audio/live[?backfill=seconds]: raw PCM (S16_LE, channels interleaved; rate in X-Sample-Rate, channel count in X-Channels). Optionally starts
 // with the last `backfill` seconds, then follows the capture live. A client that cannot keep up
 // loses chunks instead of slowing the capture.
 export function serveLiveAudio(capture, req, res) {
@@ -171,11 +174,11 @@ export function serveLiveAudio(capture, req, res) {
         res.end(JSON.stringify({ error: status.error || `audio capture ${status.state}`, state: status.state }));
         return;
     }
-    const backfill = Math.max(0, Math.min(Number(new URL(req.url, 'http://x').searchParams.get('backfill')) || 0, capture.maxBytes / 2 / capture.sampleRate));
+    const backfill = Math.max(0, Math.min(Number(new URL(req.url, 'http://x').searchParams.get('backfill')) || 0, capture.maxBytes / capture.frameBytes / capture.sampleRate));
     res.writeHead(200, {
         'Content-Type': 'audio/L16',
         'X-Sample-Rate': String(capture.sampleRate),
-        'X-Channels': '1',
+        'X-Channels': String(capture.channels),
         'Cache-Control': 'no-store',
     });
     res.flushHeaders();   // the player starts as soon as it has the headers, not with the first chunk

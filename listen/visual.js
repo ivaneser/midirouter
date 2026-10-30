@@ -35,8 +35,10 @@ export class BeatDetector {
 }
 
 // canvas: full-window canvas. getAnalyser: () => AnalyserNode | null (the picture idles when there is none).
+// getStereo: () => [left, right] analysers, or null; the two mirrored halves of the kaleidoscope then follow the
+// left and right channels.
 // getHole: () => radius in CSS px of the circle in the middle that stays free. onFrame({ level, hue, pulse }).
-export function startVisual(canvas, { getAnalyser, getHole = () => 90, onFrame = () => {} }) {
+export function startVisual(canvas, { getAnalyser, getStereo = () => null, getHole = () => 90, onFrame = () => {} }) {
     const ctx = canvas.getContext('2d');
     let width = 0, height = 0, dpr = 1;
     const resize = () => {
@@ -54,7 +56,7 @@ export function startVisual(canvas, { getAnalyser, getHole = () => 90, onFrame =
 
     const beats = new BeatDetector();
     const particles = [];
-    let freq = null, wave = null, node = null;
+    let freq = null, wave = null, node = null, freqLeft = null, freqRight = null, sides = null;
     let hue = 280, bass = 0, mid = 0, treble = 0, level = 0, pulse = 0, rotation = 0, time = 0, last = performance.now(), running = true;
 
     function frame(now) {
@@ -69,6 +71,13 @@ export function startVisual(canvas, { getAnalyser, getHole = () => 90, onFrame =
             freq = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
             wave = analyser ? new Uint8Array(analyser.fftSize) : null;
         }
+        const stereo = getStereo();
+        if (stereo !== sides) {
+            sides = stereo;
+            freqLeft = stereo ? new Uint8Array(stereo[0].frequencyBinCount) : null;
+            freqRight = stereo ? new Uint8Array(stereo[1].frequencyBinCount) : null;
+        }
+        if (stereo) { stereo[0].getByteFrequencyData(freqLeft); stereo[1].getByteFrequencyData(freqRight); }
         let rms = 0;
         if (analyser) {
             analyser.getByteFrequencyData(freq);
@@ -121,9 +130,10 @@ export function startVisual(canvas, { getAnalyser, getHole = () => 90, onFrame =
         const breath = 0.06 + 0.04 * Math.sin(time / 900);   // keeps a quiet shape alive in silence
         for (let k = 0; k < segments; k++) {
             for (const mirror of [1, -1]) {
+                const data = (mirror > 0 ? freqLeft : freqRight) || freq;   // each half follows its own channel
                 for (let i = 0; i < bars; i++) {
-                    const bin = freq ? 1 + Math.floor(Math.pow(i / bars, 1.7) * 300) : 0;
-                    const amplitude = Math.min(1, (freq ? freq[bin] / 255 : 0) + breath);
+                    const bin = data ? 1 + Math.floor(Math.pow(i / bars, 1.7) * 300) : 0;
+                    const amplitude = Math.min(1, (data ? data[bin] / 255 : 0) + breath);
                     const angle = rotation * 6 + (k / segments) * Math.PI * 2 + mirror * (i / bars) * (Math.PI / segments);
                     const from = holeRadius + 6;
                     const to = from + amplitude * reach * (0.35 + pulse * 0.45);

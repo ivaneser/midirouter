@@ -30,6 +30,7 @@ function capture(options = {}) {
     const calls = [];
     const audio = new AudioCapture({
         device: null,
+        channels: 1,   // most tests count mono samples; stereo has its own tests
         readCards: () => CARDS,
         retryMs: 10,
         sampleRate: 1000,
@@ -150,8 +151,42 @@ test('GET /audio/live sends the backfill, then the live audio, and releases the 
     const { response, body } = await get(audio, '/audio/live?backfill=0.05', 200);
     assert.equal(response.headers.get('content-type'), 'audio/L16');
     assert.equal(response.headers.get('x-sample-rate'), '1000');
+    assert.equal(response.headers.get('x-channels'), '1');
     assert.equal(body.length, 200, '50 backfilled samples, then 50 live ones');
     assert.deepEqual([...body.subarray(0, 4)], [100, 101, 102, 103], 'the backfill is the newest captured audio');
     await new Promise(resolve => setTimeout(resolve, 30));
     assert.equal(audio.status().listeners, 0);
+});
+
+test('the capture is stereo by default, as the interface delivers it', t => {
+    const calls = [];
+    const audio = new AudioCapture({ device: null, readCards: () => CARDS, spawnProcess: (command, args) => { calls.push(args); return fakeProcess(); } });
+    t.after(() => audio.stop());
+    assert.equal(audio.channels, 2);
+    assert.equal(audio.status().channels, 2);
+    audio.start();
+    assert.deepEqual(calls[0].slice(6, 8), ['-c', '2']);
+});
+
+test('stereo audio is kept in whole frames, and a snapshot counts frames, not samples', t => {
+    const { audio, processes } = capture({ channels: 2, sampleRate: 1000, ringSeconds: 1 });
+    t.after(() => audio.stop());
+    audio.start();
+    const out = processes[0].stdout;
+    out.emit('data', Buffer.alloc(100 * 4, 1));                 // 100 frames
+    out.emit('data', Buffer.alloc(50 * 4 + 3, 2));              // 50 frames and three bytes of the next one
+    assert.equal(audio.ringBytes, 150 * 4, 'only whole frames are kept');
+    out.emit('data', Buffer.alloc(1, 2));                       // the missing byte completes the frame
+    assert.equal(audio.ringBytes, 151 * 4);
+    assert.equal(audio.snapshot(0.05).length, 50 * 4, '50 ms of 1 kHz stereo is 50 frames');
+    assert.equal(audio.snapshot(0.05).length % 4, 0);
+});
+
+test('the ring still holds only the last second in stereo', t => {
+    const { audio, processes } = capture({ channels: 2, sampleRate: 1000, ringSeconds: 1 });
+    t.after(() => audio.stop());
+    audio.start();
+    for (let i = 0; i < 5; i++) processes[0].stdout.emit('data', Buffer.alloc(600 * 4, i));
+    assert.ok(audio.ringBytes <= 1000 * 4 + 600 * 4, `ring ${audio.ringBytes}`);
+    assert.equal(audio.snapshot(10).length % 4, 0);
 });

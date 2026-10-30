@@ -19,7 +19,7 @@ ${code}
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout.trim().split('\n').pop());
 }
-const tone = n => `array('h', [1000] * ${n}).tobytes()`;
+const tone = n => `array('h', [1000] * ${n * 2}).tobytes()`;   // n stereo frames (left and right 1000)
 
 test('the controller sends the monitor gain and remembers it for a restart', () => {
     const written = [];
@@ -57,7 +57,7 @@ met._monitor_primed = True
 chunk = array('h'); chunk.frombytes(met._next_chunk())
 print(json.dumps({"n": len(chunk), "first": chunk[0], "last": chunk[-1]}))
 `);
-    assert.equal(out.n, 512);
+    assert.equal(out.n, 1024, '512 stereo frames');
     assert.equal(out.first, 1000);
     assert.equal(out.last, 1000);
 });
@@ -73,7 +73,7 @@ heard = array('h'); heard.frombytes(met._monitor_pull(512))
 met._monitor_buf.clear()
 met._monitor_push(${tone(300)})                       # ran dry: 300 samples then silence
 tail = array('h'); tail.frombytes(met._monitor_pull(512))
-print(json.dumps({"silent": max(abs(x) for x in silent), "heard": heard[0], "padded_zero": tail[400],
+print(json.dumps({"silent": max(abs(x) for x in silent), "heard": heard[0], "padded_zero": tail[800],
                   "primed_again": met._monitor_primed}))
 `);
     assert.equal(out.silent, 0);
@@ -85,7 +85,7 @@ print(json.dumps({"silent": max(abs(x) for x in silent), "heard": heard[0], "pad
 test('a backlog is trimmed to a short cushion instead of growing the delay', { skip: !python }, () => {
     const out = py(`
 met._monitor_push(${tone(44100)})                     # one second piled up
-print(json.dumps({"ms": len(met._monitor_buf) / 2 / m.SAMPLE_RATE * 1000}))
+print(json.dumps({"ms": len(met._monitor_buf) / 4 / m.SAMPLE_RATE * 1000}))
 `);
     assert.ok(out.ms <= 110 && out.ms >= 90, `kept ${out.ms} ms`);
 });
@@ -105,7 +105,7 @@ test('the clicks still work with monitoring off, and monitoring keeps the stream
 a = met._next_chunk()
 met.set_monitor(True); met._monitor_stop.set()
 met.stop()   # the metronome stops, monitoring does not
-print(json.dumps({"silent_when_off": a == bytes(1024), "monitor_after_stop": met._monitor, "status": met.status()["monitor"]}))
+print(json.dumps({"silent_when_off": a == bytes(2048), "monitor_after_stop": met._monitor, "status": met.status()["monitor"]}))
 `);
     assert.equal(out.silent_when_off, true);
     assert.equal(out.monitor_after_stop, true);
@@ -115,12 +115,12 @@ print(json.dumps({"silent_when_off": a == bytes(1024), "monitor_after_stop": met
 test('the live input plays exactly as it arrives by default, even when it is loud', { skip: !python }, () => {
     const out = py(`
 met._monitor = True; met._monitor_primed = True
-met._monitor_push(array('h', [1000, -2500, 30000, -32768, 32767]).tobytes() * 200)
-a = array('h', [0] * 5); met._mix_monitor(a)
+met._monitor_push(array('h', [1000, -2500, 30000, -32768, 32767, 5]).tobytes() * 200)
+a = array('h', [0] * 6); met._mix_monitor(a)
 print(json.dumps({"gain": met._monitor_gain, "out": list(a)}))
 `);
     assert.equal(out.gain, 1);
-    assert.deepEqual(out.out, [1000, -2500, 30000, -32768, 32767], 'no boost, no limiter, no change');
+    assert.deepEqual(out.out, [1000, -2500, 30000, -32768, 32767, 5], 'no boost, no limiter, no change');
 });
 
 test('turned down it scales the audio, turned up it boosts it with the soft knee', { skip: !python }, () => {
@@ -169,4 +169,45 @@ finally: sys.stdin = old
 print(json.dumps({"gain": met._monitor_gain}))
 `);
     assert.equal(out.gain, 32, 'the last valid value, limited to 32');
+});
+
+test('the left and right of the live audio stay on their own sides', { skip: !python }, () => {
+    const out = py(`
+met._monitor = True; met._monitor_primed = True
+met._monitor_push(array('h', [1000, -3000]).tobytes() * 600)      # left 1000, right -3000
+c = array('h'); c.frombytes(met._next_chunk())
+print(json.dumps({"left": c[0], "right": c[1], "left_last": c[-2], "right_last": c[-1]}))
+`);
+    assert.deepEqual([out.left, out.right, out.left_last, out.right_last], [1000, -3000, 1000, -3000]);
+});
+
+test('a mono stream is centered: the same on both sides', { skip: !python }, () => {
+    const out = py(`
+met._monitor_push(array('h', [100, 200, 300]).tobytes(), 1)
+met._monitor_primed = True
+a = array('h'); a.frombytes(met._monitor_pull(3))
+print(json.dumps(list(a)))
+`);
+    assert.deepEqual(out, [100, 100, 200, 200, 300, 300]);
+});
+
+test('a click is centered: the same on both sides', { skip: !python }, () => {
+    const out = py(`
+import time
+met._playing = True; met._last_write_done = time.monotonic(); met._emit_click(False)
+c = array('h'); c.frombytes(met._next_chunk())
+print(json.dumps({"n": len(c), "same": all(c[i] == c[i + 1] for i in range(0, len(c), 2)), "heard": max(abs(x) for x in c) > 1000}))
+`);
+    assert.equal(out.n, 1024);
+    assert.equal(out.same, true);
+    assert.equal(out.heard, true);
+});
+
+test('the output stream is stereo and keeps the old buffering time, so click calibration still holds', { skip: !python }, () => {
+    const out = py(`
+print(json.dumps({"channels": m.OUT_CHANNELS, "pipe_frames": m.PIPE_BYTES // (2 * m.OUT_CHANNELS), "latency": m.CLICK_LATENCY_MS}))
+`);
+    assert.equal(out.channels, 2);
+    assert.equal(out.pipe_frames, 2048, 'the same 2048 frames of backlog as in mono');
+    assert.ok(Math.abs(out.latency - (4096 + 2048) * 1000 / 44100) < 0.01, `latency ${out.latency}`);
 });

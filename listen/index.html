@@ -99,6 +99,7 @@
         // The picture leaves the button's circle free and its level ring follows the voice.
         startVisual(document.getElementById('stage'), {
             getAnalyser: () => listener.analyser,
+            getStereo: () => listener.stereoAnalysers(),
             getHole: () => play.getBoundingClientRect().width / 2 + 18,
             onFrame: ({ level, hue }) => {
                 root.style.setProperty('--level', level.toFixed(3));

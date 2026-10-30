@@ -1,36 +1,37 @@
-// Listens to the router's audio interface: GET /audio/live is raw 16-bit mono PCM, played as it
+// Listens to the router's audio interface: GET /audio/live is raw 16-bit PCM (stereo, interleaved), played as it
 // arrives through Web Audio with a small buffer (about 120 ms) to ride out network jitter.
 const TARGET_AHEAD = 0.12;   // seconds of audio kept queued
 const MAX_AHEAD = 0.5;       // beyond this the player is lagging: drop chunks to catch up
 const RETRY_MS = 2000;
 
-// Little-endian 16-bit samples from a byte chunk. An odd trailing byte is returned in `rest` to join the next chunk.
-export function pcmToFloat(bytes, carry = null) {
+// Little-endian 16-bit samples from a byte chunk of interleaved channels: one Float32Array per channel.
+// A trailing partial frame comes back in `rest` (a Uint8Array, or null) to start the next chunk.
+export function pcmToFloat(bytes, carry = null, channels = 1) {
     let data = bytes;
-    if (carry !== null) {
-        data = new Uint8Array(bytes.length + 1);
-        data[0] = carry;
-        data.set(bytes, 1);
+    if (carry && carry.length) {
+        data = new Uint8Array(carry.length + bytes.length);
+        data.set(carry, 0);
+        data.set(bytes, carry.length);
     }
-    const whole = data.length - (data.length % 2);
-    const samples = new Float32Array(whole / 2);
+    const frameBytes = 2 * channels;
+    const frames = Math.floor(data.length / frameBytes);
+    const out = Array.from({ length: channels }, () => new Float32Array(frames));
     let peak = 0;
-    for (let i = 0; i < samples.length; i++) {
-        let value = data[i * 2] | (data[i * 2 + 1] << 8);
-        if (value >= 0x8000) value -= 0x10000;
-        samples[i] = value / 32768;
-        const magnitude = Math.abs(samples[i]);
-        if (magnitude > peak) peak = magnitude;
+    for (let i = 0; i < frames; i++) {
+        for (let c = 0; c < channels; c++) {
+            const at = i * frameBytes + c * 2;
+            let value = data[at] | (data[at + 1] << 8);
+            if (value >= 0x8000) value -= 0x10000;
+            const sample = value / 32768;
+            out[c][i] = sample;
+            const magnitude = Math.abs(sample);
+            if (magnitude > peak) peak = magnitude;
+        }
     }
-    return { samples, peak, rest: whole < data.length ? data[whole] : null };
+    const used = frames * frameBytes;
+    return { channels: out, samples: out[0], peak, rest: used < data.length ? data.slice(used) : null };
 }
 
-// `button` may be null (the listen page has its own controls). Options:
-//   analyser  expose an AnalyserNode (this.analyser) that the sound passes through, for visualizations;
-//             the sound then also goes through a volume control (setVolume); a limiter only acts when it is boosted
-//   mediaSession  play as media: on iPhones the silent switch then no longer mutes the sound
-//   retry     reconnect every couple of seconds when the stream drops or the router has no audio yet
-//   onState   (state, error) with state 'connecting' | 'live' | 'reconnecting' | 'stopped'
 // Volume slider position 0..1 -> gain: 0..1 up to the middle (unchanged sound), then up to x16 (+24 dB)
 // for a quiet input.
 export function sliderToGain(position) {
@@ -123,6 +124,7 @@ export class AudioListener {
             throw new Error(reason);
         }
         const rate = Number(response.headers.get('X-Sample-Rate')) || 44100;
+        this.channels = Math.max(1, Math.min(2, Number(response.headers.get('X-Channels')) || 1));
         this.next = 0;
         this.error = null;
         const reader = response.body.getReader();
@@ -136,10 +138,10 @@ export class AudioListener {
                 first = false;
                 this.onState('live', null);
             }
-            const { samples, peak, rest } = pcmToFloat(value, carry);
-            carry = rest;
-            this.level = Math.max(peak, this.level * 0.85);
-            if (samples.length) this._play(samples, rate);
+            const chunk = pcmToFloat(value, carry, this.channels);
+            carry = chunk.rest;
+            this.level = Math.max(chunk.peak, this.level * 0.85);
+            if (chunk.samples.length) this._play(chunk.channels, rate);
         }
     }
 
@@ -163,11 +165,32 @@ export class AudioListener {
             limiter.release.value = 0.15;
             this.limiter = limiter;
             this._setLimiter(this.volume > 1);
+            // Left and right analysed on their own (they only listen: their output is muted).
+            const splitter = context.createChannelSplitter(2);
+            const mute = context.createGain();
+            mute.gain.value = 0;
+            mute.connect(context.destination);
+            this.sides = [0, 1].map(channel => {
+                const side = context.createAnalyser();
+                side.fftSize = this.analyser.fftSize;
+                side.smoothingTimeConstant = this.analyser.smoothingTimeConstant;
+                side.minDecibels = this.analyser.minDecibels;
+                side.maxDecibels = this.analyser.maxDecibels;
+                splitter.connect(side, channel);
+                side.connect(mute);
+                return side;
+            });
+            this.analyser.connect(splitter);
             this.analyser.connect(this.gainNode);
             this.gainNode.connect(limiter);
             limiter.connect(context.destination);
         }
         this.output = this.analyser || this.context.destination;
+    }
+
+    // [left, right] analysers of a stereo stream, or null for a mono one (the picture then uses the mix).
+    stereoAnalysers() {
+        return this.channels === 2 && this.sides ? this.sides : null;
     }
 
     // gain: 1 = the sound as it is; more boosts a quiet input.
@@ -194,10 +217,10 @@ export class AudioListener {
         } catch { /* the sound still plays, only the silent switch may mute it */ }
     }
 
-    _play(samples, rate) {
+    _play(channels, rate) {
         const context = this.context;
-        const buffer = context.createBuffer(1, samples.length, rate);
-        buffer.copyToChannel(samples, 0);
+        const buffer = context.createBuffer(channels.length, channels[0].length, rate);
+        channels.forEach((samples, index) => buffer.copyToChannel(samples, index));
         const now = context.currentTime;
         if (this.next < now + 0.02) this.next = now + TARGET_AHEAD;   // first chunk, or an underrun: queue a fresh cushion
         if (this.next - now > MAX_AHEAD) return;                       // too far behind: skip this chunk

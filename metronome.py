@@ -48,13 +48,14 @@ VOLUME      = 0.3        # click level (peak, 1.0 = full scale): quiet next to t
 # chunks of CHUNK_FRAMES. aplay reads raw stdin in whole periods and blocks
 # until one is full, so a stream that only receives clicks sits on them and
 # then plays them in bursts. A continuous feed avoids that.
-PERIOD_FRAMES = 512                       # aplay period (1024 bytes S16_LE mono)
+OUT_CHANNELS  = 2                         # stereo output: the clicks play on both sides, the live audio keeps its sides
+PERIOD_FRAMES = 512                       # aplay period (frames)
 BUFFER_FRAMES = 4096                      # ~93 ms ALSA buffer (constant latency)
 CHUNK_FRAMES  = 512                       # feeder write size (~11.6 ms)
-PIPE_BYTES    = 4096                      # small pipe => writes block at real time
+PIPE_BYTES    = 8192                      # small pipe => writes block at real time (2048 stereo frames, as before in mono)
 F_SETPIPE_SZ  = 1031                    # Linux fcntl constant
 MAX_ACTIVE_CLICKS = 8
-# Monitoring: the router's live audio input (GET /audio/live, 44.1 kHz mono S16_LE) is mixed into the
+# Monitoring: the router's live audio input (GET /audio/live, 44.1 kHz S16_LE, stereo) is mixed into the
 # output. The capture device and the output run on different clocks, so a small cushion is kept:
 # playback starts once MONITOR_PRIME_MS is buffered, and when more than MONITOR_MAX_MS piles up the
 # oldest audio is dropped (a rare tiny skip instead of a growing delay).
@@ -70,7 +71,7 @@ MONITOR_KNEE = 0.6
 # pipe backlog. Estimated from the sizes above; tune with MIDIR_CLICK_LATENCY_MS.
 CLICK_LATENCY_MS = float(os.environ.get(
     "MIDIR_CLICK_LATENCY_MS",
-    (BUFFER_FRAMES + PIPE_BYTES // 2) * 1000.0 / SAMPLE_RATE))
+    (BUFFER_FRAMES + PIPE_BYTES // (2 * OUT_CHANNELS)) * 1000.0 / SAMPLE_RATE))
 # Tuned by ear from the UI: negative = click earlier, positive = later.
 CLICK_OFFSET_MS = 0.0
 
@@ -149,7 +150,7 @@ class Metronome:
                "-D", self.alsa_device,
                "-r", str(SAMPLE_RATE),
                "-f", "S16_LE",
-               "-c", "1",
+               "-c", str(OUT_CHANNELS),
                "-t", "raw",
                f"--period-size={PERIOD_FRAMES}",
                f"--buffer-size={BUFFER_FRAMES}"]
@@ -171,7 +172,7 @@ class Metronome:
         (which makes near-simultaneous queueing audible as pairs).
         """
         with self._lock:
-            out = array('h', bytes(CHUNK_FRAMES * 2))
+            out = array('h', bytes(CHUNK_FRAMES * 2 * OUT_CHANNELS))   # interleaved
             ref_time = self._last_write_done
             still = []
             for clip in self._active:
@@ -184,8 +185,10 @@ class Metronome:
                     continue
                 n = min(CHUNK_FRAMES - off, len(samples) - pos)
                 for i in range(n):
-                    v = out[off + i] + samples[pos + i]
-                    out[off + i] = max(-32768, min(32767, v))
+                    value = samples[pos + i]
+                    j = (off + i) * OUT_CHANNELS
+                    for channel in range(OUT_CHANNELS):   # a click is centered: the same on both sides
+                        out[j + channel] = max(-32768, min(32767, out[j + channel] + value))
                 clip[1] = pos + n
                 if clip[1] < len(samples):
                     still.append(clip)
@@ -301,21 +304,28 @@ class Metronome:
             print("[metronome] MONITOR off", flush=True)
         self._wake.set()
 
-    def _monitor_push(self, data: bytes):
-        """Add captured audio (S16_LE mono). Keeps the cushion bounded."""
+    def _monitor_push(self, data: bytes, channels: int = 2):
+        """Add captured audio (S16_LE, `channels` interleaved; mono is centered). Keeps the cushion bounded."""
+        if channels == 1:
+            mono = array('h')
+            mono.frombytes(data)
+            stereo = array('h', bytes(len(mono) * 4))
+            stereo[0::2] = mono
+            stereo[1::2] = mono
+            data = stereo.tobytes()
         with self._monitor_lock:
             self._monitor_buf += data
-            limit = int(SAMPLE_RATE * MONITOR_MAX_MS / 1000) * 2
+            limit = int(SAMPLE_RATE * MONITOR_MAX_MS / 1000) * 4
             if len(self._monitor_buf) > limit:
-                keep = int(SAMPLE_RATE * MONITOR_KEEP_MS / 1000) * 2
+                keep = int(SAMPLE_RATE * MONITOR_KEEP_MS / 1000) * 4
                 del self._monitor_buf[:len(self._monitor_buf) - keep]
 
     def _monitor_pull(self, frames: int) -> bytes:
-        """The next `frames` samples of monitored audio, padded with silence when it ran short."""
-        need = frames * 2
+        """The next `frames` stereo frames of monitored audio, padded with silence when it ran short."""
+        need = frames * 4
         with self._monitor_lock:
             if not self._monitor_primed:
-                if len(self._monitor_buf) < int(SAMPLE_RATE * MONITOR_PRIME_MS / 1000) * 2:
+                if len(self._monitor_buf) < int(SAMPLE_RATE * MONITOR_PRIME_MS / 1000) * 4:
                     return bytes(need)
                 self._monitor_primed = True
             chunk = bytes(self._monitor_buf[:need])
@@ -336,8 +346,9 @@ class Metronome:
         return int(math.copysign(magnitude, value))
 
     def _mix_monitor(self, out: "array"):
+        """Add the monitored audio to the interleaved stereo chunk `out`."""
         samples = array('h')
-        samples.frombytes(self._monitor_pull(len(out)))
+        samples.frombytes(self._monitor_pull(len(out) // OUT_CHANNELS))
         gain = self._monitor_gain
         # At or below unity the audio is passed on untouched (only scaled down when turned down); the soft
         # knee comes in only when it is boosted.
@@ -353,17 +364,22 @@ class Metronome:
             try:
                 with urllib.request.urlopen(MONITOR_URL, timeout=5) as response:
                     rate = int(response.headers.get("X-Sample-Rate", SAMPLE_RATE))
-                    if rate != SAMPLE_RATE:
-                        print(f"[metronome] MONITOR: stream is {rate} Hz, expected {SAMPLE_RATE}", flush=True)
+                    channels = int(response.headers.get("X-Channels", 1))
+                    if rate != SAMPLE_RATE or channels not in (1, 2):
+                        print(f"[metronome] MONITOR: stream is {rate} Hz / {channels} ch, expected {SAMPLE_RATE} Hz mono or stereo", flush=True)
                         self._monitor_stop.wait(5)
                         continue
+                    frame_bytes = 2 * channels
+                    pending = b""
                     while self._monitor and not self._monitor_stop.is_set():
-                        data = response.read(2048)
+                        data = response.read(4096)
                         if not data:
                             break
-                        if len(data) % 2:
-                            data = data[:-1]   # whole samples only
-                        self._monitor_push(data)
+                        data = pending + data
+                        usable = len(data) - len(data) % frame_bytes   # whole frames only
+                        pending = data[usable:]
+                        if usable:
+                            self._monitor_push(data[:usable], channels)
             except Exception as exc:   # router restarting, no audio device yet, ...
                 print(f"[metronome] MONITOR: {exc}", flush=True)
             self._monitor_stop.wait(2)

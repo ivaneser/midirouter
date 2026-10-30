@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=71';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
-import { AudioListener, sliderToGain } from './audio-listener.js?v=5';
+import { AudioListener, sliderToGain } from './audio-listener.js?v=6';
 import { attachMidiKnob } from './midi-knob.js?v=25';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';

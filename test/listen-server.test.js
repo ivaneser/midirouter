@@ -6,8 +6,10 @@ import { createListenServer, listenOnFirstFree } from '../listen-server.js';
 
 function fakeCapture(state = 'live') {
     const capture = new EventEmitter();
-    capture.maxBytes = 88200;
+    capture.maxBytes = 88200 * 2;
     capture.sampleRate = 44100;
+    capture.channels = 2;
+    capture.frameBytes = 4;
     capture.listeners_ = 0;
     capture.snapshot = () => Buffer.alloc(0);
     capture.status = () => ({ state, device: 'plughw:CARD=H2n,DEV=0', sampleRate: 44100, channels: 1, error: null, listeners: capture.listeners_ });
@@ -46,6 +48,7 @@ test('the audio status and the live stream come from the same capture', async ()
         const response = await fetch(`${base}/audio/live`, { signal: controller.signal });
         assert.equal(response.status, 200);
         assert.equal(response.headers.get('x-sample-rate'), '44100');
+        assert.equal(response.headers.get('x-channels'), '2');
         controller.abort();
     });
 });
