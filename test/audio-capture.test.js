@@ -4,12 +4,16 @@ import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { AudioCapture, pickCaptureDevice, serveLiveAudio } from '../audio-capture.js';
 
-const CARDS = ` 0 [Headphones     ]: bcm2835_headphonls - bcm2835 Headphones
-                      bcm2835 Headphones
- 1 [H2n            ]: USB-Audio - H2n
-                      ZOOM Corporation H2n at usb-0000:01:00.0-1.2, full speed
- 2 [MicroFreak     ]: USB-Audio - MicroFreak
-                      Arturia MicroFreak at usb-0000:01:00.0-1.3, full speed
+// `arecord -l` lists only the cards that can record.
+const CARDS = `**** List of CAPTURE Hardware Devices ****
+card 1: Blofeld [Blofeld], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 2: H2n [H2n], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 3: mk2 [LPK25 mk2], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
 `;
 
 function fakeProcess() {
@@ -38,11 +42,13 @@ function capture(options = {}) {
 
 const samples = n => Buffer.alloc(n * 2, 1);
 
-test('the capture device is the attached USB interface, never a synth card', () => {
+test('the capture device is the recording interface, never an instrument', () => {
     assert.equal(pickCaptureDevice(CARDS), 'plughw:CARD=H2n,DEV=0');
-    assert.equal(pickCaptureDevice(' 2 [MicroFreak     ]: USB-Audio - MicroFreak\n'), null);
+    assert.equal(pickCaptureDevice('card 1: Blofeld [Blofeld], device 0: USB Audio [USB Audio]\n'), null);
+    assert.equal(pickCaptureDevice('card 0: Headphones [bcm2835 Headphones], device 0: x\n'), null);
     assert.equal(pickCaptureDevice(''), null);
-    assert.equal(pickCaptureDevice(' 3 [CODEC          ]: USB-Audio - USB Audio CODEC\n 1 [H2n            ]: USB-Audio - H2n\n'), 'plughw:CARD=CODEC,DEV=0');
+    assert.equal(pickCaptureDevice('card 3: CODEC [USB Audio CODEC], device 0: USB Audio\ncard 2: H2n [H2n], device 0: USB Audio\n'), 'plughw:CARD=CODEC,DEV=0');
+    assert.equal(pickCaptureDevice('card 4: H2n [H2n], device 1: USB Audio\n'), 'plughw:CARD=H2n,DEV=1', 'the device number is kept');
 });
 
 test('arecord is started with small periods for a low delay', t => {

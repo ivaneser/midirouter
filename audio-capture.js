@@ -1,20 +1,21 @@
-import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { spawn, execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
-// Cards whose USB audio is a tiny passthrough codec of a synth: capturing them makes arecord crash-loop.
 // Small ALSA periods keep the capture delay low (about 23 ms per period) for live listening.
 const PERIOD_FRAMES = 1024;
 
-const SYNTH_CARDS = new Set(['MK3', 'kit', 'C20', 'MicroFreak']);
+// Instruments that show up as USB sound cards (many have no recording input, and a synth's passthrough
+// codec makes arecord crash-loop): never the capture device.
+const INSTRUMENT_CARDS = /blofeld|microfreak|craft|nts|preenfm|lpk|launchkey|nanopad|\bmk[23]?\b|\bkit\b|\bc20\b/i;
 
-// The ALSA capture device for the attached USB audio interface, read from /proc/asound/cards
-// (the same choice mcpi made): a "codec" card first, then any USB card that is not a synth.
-export function pickCaptureDevice(cardsText) {
-    const cards = [...String(cardsText).matchAll(/^\s*\d+\s+\[(\w+)\s*\]:\s+(?:USB-Audio|usb)\s*-\s*(.+)$/gim)]
-        .map(([, short, description]) => ({ short, description }));
-    const found = cards.find(c => /codec/i.test(c.description)) || cards.find(c => !SYNTH_CARDS.has(c.short));
-    return found ? `plughw:CARD=${found.short},DEV=0` : null;
+// The ALSA capture device for the attached audio interface, from `arecord -l`, which lists only the
+// cards that can record: a "codec" interface first, then any card that is not an instrument.
+export function pickCaptureDevice(arecordList) {
+    const cards = [...String(arecordList).matchAll(/^card\s+\d+:\s+(\w+)\s+\[([^\]]*)\],\s+device\s+(\d+)/gim)]
+        .map(([, short, description, device]) => ({ short, description, device }));
+    const usable = cards.filter(c => !INSTRUMENT_CARDS.test(`${c.short} ${c.description}`) && !/^(headphones|vc4)/i.test(c.short));
+    const found = usable.find(c => /codec/i.test(c.description)) || usable[0];
+    return found ? `plughw:CARD=${found.short},DEV=${found.device}` : null;
 }
 
 // Owns the audio interface. Captures continuously with arecord into a rolling buffer; the browser
@@ -26,7 +27,7 @@ export class AudioCapture extends EventEmitter {
         sampleRate = 44100,
         ringSeconds = 30,
         spawnProcess = spawn,
-        readCards = () => readFileSync('/proc/asound/cards', 'utf8'),
+        readCards = () => execFileSync('arecord', ['-l'], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }),
         retryMs = 3000,
         stallMs = 3000,
     } = {}) {
