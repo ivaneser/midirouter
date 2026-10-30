@@ -26,16 +26,41 @@ export function pcmToFloat(bytes, carry = null) {
 }
 
 // `button` may be null (the listen page has its own controls). Options:
-//   analyser  expose an AnalyserNode (this.analyser) that the sound passes through, for visualizations
+//   analyser  expose an AnalyserNode (this.analyser) that the sound passes through, for visualizations;
+//             the sound then also goes through a volume control (setVolume) and a limiter
+//   mediaSession  play as media: on iPhones the silent switch then no longer mutes the sound
 //   retry     reconnect every couple of seconds when the stream drops or the router has no audio yet
 //   onState   (state, error) with state 'connecting' | 'live' | 'reconnecting' | 'stopped'
+// Volume slider position 0..1 -> gain: 0..1 up to the middle (unchanged sound), then up to x16 (+24 dB)
+// for a quiet input.
+export function sliderToGain(position) {
+    const p = Math.max(0, Math.min(1, position));
+    return p <= 0.5 ? p * 2 : 1 + (p - 0.5) * 2 * 15;
+}
+
+// One second of silence as a WAV file, played in a loop to put iOS into its "media" audio mode, where the
+// ring/silent switch no longer mutes Web Audio.
+function silentWavUrl() {
+    const rate = 8000, samples = rate, bytes = new Uint8Array(44 + samples);
+    const view = new DataView(bytes.buffer);
+    const text = (at, value) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
+    text(0, 'RIFF'); view.setUint32(4, 36 + samples, true); text(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate, true); view.setUint16(32, 1, true); view.setUint16(34, 8, true);
+    text(36, 'data'); view.setUint32(40, samples, true);
+    bytes.fill(128, 44);   // 8-bit PCM silence
+    return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+}
+
 export class AudioListener {
-    constructor(button, { log = () => {}, analyser = false, retry = false, onState = () => {} } = {}) {
+    constructor(button, { log = () => {}, analyser = false, retry = false, onState = () => {}, mediaSession = false } = {}) {
         this.button = button;
         this.log = log;
         this.wantAnalyser = analyser;
         this.retry = retry;
         this.onState = onState;
+        this.mediaSession = mediaSession;
+        this.volume = 1;
         this.analyser = null;
         this.active = false;
         this.level = 0;
@@ -50,6 +75,7 @@ export class AudioListener {
         this._render();
         this.onState('connecting', null);
         try {
+            if (this.mediaSession) this._playAsMedia();
             // Created synchronously so it happens inside the tap that started the playback.
             this.context ||= new AudioContext({ latencyHint: 'interactive' });
             this._ensureOutput();
@@ -85,6 +111,7 @@ export class AudioListener {
         this.controller = null;
         this.active = false;
         this.level = 0;
+        this.silent?.pause();
         this._render();
         if (wasActive) this.onState('stopped', this.error);
     }
@@ -118,12 +145,42 @@ export class AudioListener {
 
     _ensureOutput() {
         if (this.wantAnalyser && !this.analyser) {
-            this.analyser = this.context.createAnalyser();
+            const context = this.context;
+            this.analyser = context.createAnalyser();
             this.analyser.fftSize = 1024;
             this.analyser.smoothingTimeConstant = 0.6;
-            this.analyser.connect(this.context.destination);
+            // Quiet sound should show: the range the pictures use is -85..-25 dBFS.
+            this.analyser.minDecibels = -85;
+            this.analyser.maxDecibels = -25;
+            // The picture follows the sound as it arrives; the volume control and limiter come after it.
+            this.gainNode = context.createGain();
+            this.gainNode.gain.value = this.volume;
+            const limiter = context.createDynamicsCompressor();
+            limiter.threshold.value = -6;
+            limiter.knee.value = 3;
+            limiter.ratio.value = 20;
+            limiter.attack.value = 0.003;
+            limiter.release.value = 0.15;
+            this.analyser.connect(this.gainNode);
+            this.gainNode.connect(limiter);
+            limiter.connect(context.destination);
         }
         this.output = this.analyser || this.context.destination;
+    }
+
+    // gain: 1 = the sound as it is; more boosts a quiet input.
+    setVolume(gain) {
+        this.volume = gain;
+        if (this.gainNode) this.gainNode.gain.setTargetAtTime(gain, this.context.currentTime, 0.02);
+    }
+
+    _playAsMedia() {
+        try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* not supported */ }
+        try {
+            this.silent ||= Object.assign(new Audio(silentWavUrl()), { loop: true });
+            this.silent.setAttribute('playsinline', '');
+            this.silent.play().catch(() => {});
+        } catch { /* the sound still plays, only the silent switch may mute it */ }
     }
 
     _play(samples, rate) {

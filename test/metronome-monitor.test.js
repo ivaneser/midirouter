@@ -1,0 +1,98 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { MetronomeController } from '../metronome-controller.js';
+
+const python = spawnSync('python3', ['--version']).status === 0;
+
+// Runs a snippet against metronome.py's Metronome class (no audio device is opened).
+function py(code) {
+    const result = spawnSync('python3', ['-c', `
+import sys, json
+sys.path.insert(0, ${JSON.stringify(join(import.meta.dirname, '..'))})
+import metronome as m
+from array import array
+met = m.Metronome(120, alsa_device='null')
+${code}
+`], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout.trim().split('\n').pop());
+}
+const tone = n => `array('h', [1000] * ${n}).tobytes()`;
+
+test('the controller sends the monitor switch, remembers it and repeats it on a restart', () => {
+    const written = [];
+    const controller = new MetronomeController();
+    controller._process = { stdin: { write: text => written.push(text) } };
+    controller._pid = 1;
+    controller._running = true;
+    controller.setMonitor(true);
+    controller.setMonitor(false);
+    assert.deepEqual(written, ['monitor 1\n', 'monitor 0\n']);
+    controller.setMonitor(true);
+    assert.equal(controller._monitor, true, 'kept for the next start of the process');
+});
+
+test('monitored audio is mixed into the output next to the clicks', { skip: !python }, () => {
+    const out = py(`
+met.set_monitor(True)
+met._monitor_stop.set()   # no router here: stop the reader thread
+met._monitor_push(${tone(4410)})
+met._monitor_primed = True
+chunk = array('h'); chunk.frombytes(met._next_chunk())
+print(json.dumps({"n": len(chunk), "first": chunk[0], "last": chunk[-1]}))
+`);
+    assert.equal(out.n, 512);
+    assert.equal(out.first, 1000);
+    assert.equal(out.last, 1000);
+});
+
+test('the output stays silent until a small cushion is buffered, and rebuilds it after running dry', { skip: !python }, () => {
+    const out = py(`
+met._monitor = True
+met._monitor_push(${tone(100)})                       # 100 samples: less than the 60 ms cushion
+silent = array('h'); silent.frombytes(met._monitor_pull(512))
+met._monitor_push(${tone(4410)})                      # 100 ms
+heard = array('h'); heard.frombytes(met._monitor_pull(512))
+met._monitor_buf.clear()
+met._monitor_push(${tone(300)})                       # ran dry: 300 samples then silence
+tail = array('h'); tail.frombytes(met._monitor_pull(512))
+print(json.dumps({"silent": max(abs(x) for x in silent), "heard": heard[0], "padded_zero": tail[400],
+                  "primed_again": met._monitor_primed}))
+`);
+    assert.equal(out.silent, 0);
+    assert.equal(out.heard, 1000);
+    assert.equal(out.padded_zero, 0);
+    assert.equal(out.primed_again, false, 'after running dry it waits for the cushion again');
+});
+
+test('a backlog is trimmed to a short cushion instead of growing the delay', { skip: !python }, () => {
+    const out = py(`
+met._monitor_push(${tone(44100)})                     # one second piled up
+print(json.dumps({"ms": len(met._monitor_buf) / 2 / m.SAMPLE_RATE * 1000}))
+`);
+    assert.ok(out.ms <= 110 && out.ms >= 90, `kept ${out.ms} ms`);
+});
+
+test('mixing saturates instead of wrapping around', { skip: !python }, () => {
+    const out = py(`
+a = array('h', [30000] * 4); met._monitor_push(array('h', [30000] * 4).tobytes() * 100)
+met._monitor = True; met._monitor_primed = True
+met._mix_monitor(a)
+print(json.dumps({"v": a[0]}))
+`);
+    assert.equal(out.v, 32767);
+});
+
+test('the clicks still work with monitoring off, and monitoring keeps the stream open without the metronome', { skip: !python }, () => {
+    const out = py(`
+a = met._next_chunk()
+met.set_monitor(True); met._monitor_stop.set()
+met.stop()   # the metronome stops, monitoring does not
+print(json.dumps({"silent_when_off": a == bytes(1024), "monitor_after_stop": met._monitor, "status": met.status()["monitor"]}))
+`);
+    assert.equal(out.silent_when_off, true);
+    assert.equal(out.monitor_after_stop, true);
+    assert.equal(out.status, true);
+});

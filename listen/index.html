@@ -35,6 +35,10 @@
         #status { position: fixed; left: 50%; transform: translateX(-50%); top: calc(50% + var(--size) / 2 + 36px); width: max-content; max-width: 92vw; box-sizing: border-box; margin: 0; font-weight: 600; font-size: clamp(14px, 2.6vmin, 20px); letter-spacing: .1em; text-transform: uppercase; text-align: center;
             color: hsl(var(--hue) 100% 84%); text-shadow: 0 0 14px hsl(var(--hue) 100% 60%); min-height: 1.4em; padding: 6px 18px; border-radius: 999px;
             background: rgba(5, 1, 15, .6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+        .volume { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(22px, env(safe-area-inset-bottom)); width: min(340px, 84vw); display: flex; align-items: center; gap: 12px;
+            padding: 10px 16px; border-radius: 999px; background: rgba(5, 1, 15, .6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-size: 18px; }
+        .volume input { flex: 1; min-width: 0; height: 28px; margin: 0; background: transparent; accent-color: hsl(var(--hue) 100% 66%); touch-action: pan-y; }
+        .volume small { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: hsl(var(--hue) 100% 84%); font-size: 12px; }
         #full { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: 44px; height: 44px; border-radius: 50%;
             border: 1px solid rgba(255, 255, 255, .25); background: rgba(5, 1, 15, .5); color: #fff; font-size: 20px; cursor: pointer; }
         #full[hidden] { display: none; }
@@ -54,9 +58,14 @@
         <p id="status" role="status">Tap to listen</p>
     </main>
     <button id="full" type="button" aria-label="Full screen" title="Full screen">⛶</button>
+    <label class="volume" title="Volume: the middle is the sound as it is, the right end boosts a quiet input">
+        <span aria-hidden="true">🔈</span>
+        <input id="vol" type="range" min="0" max="100" value="50" aria-label="Volume">
+        <small id="vol-label">100%</small>
+    </label>
 
     <script type="module">
-        import { AudioListener } from '/audio-listener.js';
+        import { AudioListener, sliderToGain } from '/audio-listener.js';
         import { startVisual } from '/visual.js';
 
         const root = document.documentElement;
@@ -64,16 +73,19 @@
         const status = document.getElementById('status');
         const labels = { connecting: 'Connecting…', live: 'Live', reconnecting: 'Waiting for the sound…', stopped: 'Tap to listen' };
 
+        let state = 'stopped', quietMs = 0, quietShown = false;
         let wake = null;
         const keepAwake = async () => { try { wake = await navigator.wakeLock?.request('screen'); } catch { /* optional */ } };
         const letSleep = () => { wake?.release?.().catch(() => {}); wake = null; };
 
         const listener = new AudioListener(null, {
             analyser: true,
+            mediaSession: true,   // iPhones: play as media so the silent switch does not mute it
             retry: true,   // many devices stay open for hours: reconnect by themselves
-            onState: (state, error) => {
-                status.textContent = state === 'reconnecting' && error ? `${labels[state]}  ${error}` : labels[state];
-                const on = state !== 'stopped';
+            onState: (next, error) => {
+                state = next; quietMs = 0; quietShown = false;
+                status.textContent = next === 'reconnecting' && error ? `${labels[next]}  ${error}` : labels[next];
+                const on = next !== 'stopped';
                 play.classList.toggle('on', on);
                 play.setAttribute('aria-pressed', String(on));
                 play.setAttribute('aria-label', on ? 'Stop' : 'Play live sound');
@@ -91,8 +103,26 @@
             onFrame: ({ level, hue }) => {
                 root.style.setProperty('--level', level.toFixed(3));
                 root.style.setProperty('--hue', hue.toFixed(1));
+                // Connected but nothing audible coming in: say so, so it does not look like a phone problem.
+                if (listener.active && state === 'live') {
+                    quietMs = level < 0.02 ? quietMs + 16 : 0;
+                    const quiet = quietMs > 2500;
+                    if (quiet !== quietShown) { quietShown = quiet; status.textContent = quiet ? 'Live · no sound coming in' : labels.live; }
+                }
             },
         });
+
+        // Volume: the middle plays the sound as it is, further right boosts a quiet input (up to +24 dB).
+        const vol = document.getElementById('vol'), volLabel = document.getElementById('vol-label');
+        try { vol.value = localStorage.getItem('listen-volume') ?? vol.value; } catch { /* storage unavailable */ }
+        const applyVolume = () => {
+            const gain = sliderToGain(vol.value / 100);
+            listener.setVolume(gain);
+            volLabel.textContent = `${Math.round(gain * 100)}%`;
+            try { localStorage.setItem('listen-volume', vol.value); } catch { /* optional */ }
+        };
+        vol.addEventListener('input', applyVolume);
+        applyVolume();
 
         const full = document.getElementById('full');
         if (!document.fullscreenEnabled) full.hidden = true;

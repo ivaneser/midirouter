@@ -28,6 +28,7 @@ input[type="checkbox"] { width: 24px; min-height: 24px; accent-color: var(--acce
 .btn-green { background: var(--accent); border-color: var(--accent); color: #172412; }
 .btn-listen { position: relative; overflow: hidden; background-image: linear-gradient(90deg, rgba(166,212,119,.55) calc(var(--level, 0) * 100%), transparent 0); }
 .btn-listen.active { border-color: #a6d477; }
+#btn-monitor.active { background: #26402a; border-color: #a6d477; color: #d8f5b5; }
 .btn-danger, .btn-red { background: #35272b; border-color: #634149; color: #ffb7ba; }
 .btn-orange { background: transparent; color: var(--muted); }
 .header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 4px 0 24px; }

@@ -748,6 +748,11 @@ function startServer() {
                         break;
                     }
 
+                    case 'audio-monitor':
+                        // Play the live audio input on the Pi's headphone output (with the metronome).
+                        router.worker.postMessage({ type: 'daw_audio_monitor', on: message.on === true });
+                        break;
+
                     case 'daw-set-scale':
                         // Session scale: all clips are refitted and incoming controller notes corrected.
                         if (!Number.isInteger(message.root) || message.root < 0 || message.root > 11) break;

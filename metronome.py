@@ -14,6 +14,7 @@ IPC Controls (via stdin)
 ------------------------
     start         # Start playing clicks (audio-ready; actual clicks come via ``click``)
     stop          # Stop playing clicks (silence)
+    monitor <1|0> # Mix the router's live audio input into the output (with the clicks) on/off
     bpm <n>       # Change BPM (stored for volume / accent calculations)
     beats <n>     # Change beats per measure
     click         # Play one metronome click immediately
@@ -32,6 +33,7 @@ import sys
 import threading
 import json
 import time
+import urllib.request
 
 # ---------------------------------------------------------------------------
 # Audio constants
@@ -51,6 +53,14 @@ CHUNK_FRAMES  = 512                       # feeder write size (~11.6 ms)
 PIPE_BYTES    = 4096                      # small pipe => writes block at real time
 F_SETPIPE_SZ  = 1031                    # Linux fcntl constant
 MAX_ACTIVE_CLICKS = 8
+# Monitoring: the router's live audio input (GET /audio/live, 44.1 kHz mono S16_LE) is mixed into the
+# output. The capture device and the output run on different clocks, so a small cushion is kept:
+# playback starts once MONITOR_PRIME_MS is buffered, and when more than MONITOR_MAX_MS piles up the
+# oldest audio is dropped (a rare tiny skip instead of a growing delay).
+MONITOR_URL = os.environ.get("MIDIR_AUDIO_URL", "http://127.0.0.1:3000/audio/live")
+MONITOR_PRIME_MS = 60
+MONITOR_MAX_MS = 250
+MONITOR_KEEP_MS = 100
 # Time from writing a click into the stream to hearing it: the ALSA buffer plus the
 # pipe backlog. Estimated from the sizes above; tune with MIDIR_CLICK_LATENCY_MS.
 CLICK_LATENCY_MS = float(os.environ.get(
@@ -79,6 +89,11 @@ def _default_alsa_device():
 
 
 class Metronome:
+    # Defaults for the monitor state, so a Metronome built without __init__ (as the tests do) still works.
+    _monitor = False
+    _monitor_primed = False
+    _monitor_thread = None
+
     def __init__(self, bpm: float, beats_per_bar: int = 4,
                  accent_beat: int = 1, volume: float = VOLUME,
                  alsa_device: str = None):
@@ -97,6 +112,13 @@ class Metronome:
         self._scheduled = set()     # threading.Timer objects for predicted clicks
         self._last_write_done = 0.0  # monotonic time last chunk write finished (feeder thread only)
         self._wake = threading.Event()
+        # Monitoring of the live input (see MONITOR_*).
+        self._monitor = False
+        self._monitor_buf = bytearray()
+        self._monitor_lock = threading.Lock()
+        self._monitor_primed = False
+        self._monitor_stop = threading.Event()
+        self._monitor_thread = None
 
         # Cached waveform for fast per-click emission.
         self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
@@ -162,6 +184,8 @@ class Metronome:
                 if clip[1] < len(samples):
                     still.append(clip)
             self._active = still
+        if self._monitor:
+            self._mix_monitor(out)
         return out.tobytes()
 
     def _feed_loop(self):
@@ -170,8 +194,8 @@ class Metronome:
         proc = None
         while self._running:
             with self._lock:
-                playing = self._playing
-                if not playing:
+                playing = self._playing or self._monitor
+                if not self._playing:
                     self._active = []
             if not playing:
                 if proc is not None:
@@ -246,6 +270,84 @@ class Metronome:
         for timer in pending:
             timer.cancel()
 
+    # -- monitoring of the live input -----------------------------------------
+    def set_monitor(self, on: bool):
+        """Start or stop mixing the router's live audio into the output."""
+        if on:
+            if self._monitor:
+                return
+            self._monitor = True
+            self._monitor_stop.clear()
+            with self._monitor_lock:
+                self._monitor_buf.clear()
+                self._monitor_primed = False
+            if self._monitor_thread is None or not self._monitor_thread.is_alive():
+                self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+                self._monitor_thread.start()
+            print(f"[metronome] MONITOR on ({MONITOR_URL})", flush=True)
+        else:
+            if not self._monitor:
+                return
+            self._monitor = False
+            self._monitor_stop.set()
+            with self._monitor_lock:
+                self._monitor_buf.clear()
+            print("[metronome] MONITOR off", flush=True)
+        self._wake.set()
+
+    def _monitor_push(self, data: bytes):
+        """Add captured audio (S16_LE mono). Keeps the cushion bounded."""
+        with self._monitor_lock:
+            self._monitor_buf += data
+            limit = int(SAMPLE_RATE * MONITOR_MAX_MS / 1000) * 2
+            if len(self._monitor_buf) > limit:
+                keep = int(SAMPLE_RATE * MONITOR_KEEP_MS / 1000) * 2
+                del self._monitor_buf[:len(self._monitor_buf) - keep]
+
+    def _monitor_pull(self, frames: int) -> bytes:
+        """The next `frames` samples of monitored audio, padded with silence when it ran short."""
+        need = frames * 2
+        with self._monitor_lock:
+            if not self._monitor_primed:
+                if len(self._monitor_buf) < int(SAMPLE_RATE * MONITOR_PRIME_MS / 1000) * 2:
+                    return bytes(need)
+                self._monitor_primed = True
+            chunk = bytes(self._monitor_buf[:need])
+            del self._monitor_buf[:need]
+            if len(chunk) < need:
+                self._monitor_primed = False   # ran dry: build the cushion up again
+                chunk += bytes(need - len(chunk))
+            return chunk
+
+    def _mix_monitor(self, out: "array"):
+        samples = array('h')
+        samples.frombytes(self._monitor_pull(len(out)))
+        for i, v in enumerate(samples):
+            if v:
+                total = out[i] + v
+                out[i] = -32768 if total < -32768 else 32767 if total > 32767 else total
+
+    def _monitor_loop(self):
+        """Follow the router's live audio while monitoring; reconnect when it is not there yet."""
+        while self._monitor and not self._monitor_stop.is_set():
+            try:
+                with urllib.request.urlopen(MONITOR_URL, timeout=5) as response:
+                    rate = int(response.headers.get("X-Sample-Rate", SAMPLE_RATE))
+                    if rate != SAMPLE_RATE:
+                        print(f"[metronome] MONITOR: stream is {rate} Hz, expected {SAMPLE_RATE}", flush=True)
+                        self._monitor_stop.wait(5)
+                        continue
+                    while self._monitor and not self._monitor_stop.is_set():
+                        data = response.read(2048)
+                        if not data:
+                            break
+                        if len(data) % 2:
+                            data = data[:-1]   # whole samples only
+                        self._monitor_push(data)
+            except Exception as exc:   # router restarting, no audio device yet, ...
+                print(f"[metronome] MONITOR: {exc}", flush=True)
+            self._monitor_stop.wait(2)
+
     # -- control API -------------------------------------------------------
     def start(self):
         with self._lock:
@@ -270,6 +372,10 @@ class Metronome:
 
     def quit(self):
         print("[metronome] QUIT", flush=True)
+        self._monitor = False
+        stop_monitor = getattr(self, "_monitor_stop", None)
+        if stop_monitor is not None:
+            stop_monitor.set()
         self._cancel_scheduled()
         with self._lock:
             self._running = False
@@ -305,6 +411,7 @@ class Metronome:
                 "accent": self.accent,
                 "volume": self.volume,
                 "device": self.alsa_device,
+                "monitor": self._monitor,
             }
 
     def _emit_click(self, is_accent: bool):
@@ -355,6 +462,8 @@ def read_commands(metronome: Metronome):
                 # The controller sends the is_accent flag as an optional arg.
                 is_accent = len(parts) >= 2 and parts[1].lower() in ('1', 'true', 'yes')
                 metronome._emit_click(is_accent)
+            elif cmd == "monitor" and len(parts) >= 2:
+                metronome.set_monitor(parts[1].lower() in ('1', 'true', 'on', 'yes'))
             elif cmd == "bpm" and len(parts) >= 2:
                 try:
                     metronome.set_bpm(float(parts[1]))

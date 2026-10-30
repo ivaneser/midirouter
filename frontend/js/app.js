@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=71';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
-import { AudioListener } from './audio-listener.js?v=3';
+import { AudioListener } from './audio-listener.js?v=4';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
 
@@ -182,8 +182,23 @@ function showSystemStats(stats) {
     footer.hidden = !Object.values(text).some(Boolean);
 }
 
+// "Pi out": the live audio input also plays on the Pi's headphone jack, with the metronome.
+const monitorButton = document.getElementById('btn-monitor');
+let audioMonitor = false;
+monitorButton?.addEventListener('click', () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-monitor', on: !audioMonitor }));
+});
+function showAudioMonitor(state) {
+    if (!monitorButton) return;
+    audioMonitor = !!state.audioMonitor;
+    monitorButton.hidden = state.audioOutAvailable === false;
+    monitorButton.classList.toggle('active', audioMonitor);
+    monitorButton.setAttribute('aria-pressed', String(audioMonitor));
+}
+
 function handleMessage(msg) {
     if (msg.type === 'time-sync') return handleTimeSync(msg);
+    if (msg.type === 'daw_state' && msg.payload) showAudioMonitor(msg.payload);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
     if (msg.type === 'daw_state' && msg.payload?.deviceControls) deviceManager.updateDeviceControls(msg.payload.deviceControls, msg.payload.deviceControlsRev);
     if (msg.type === 'daw_state' && msg.payload?.devicePresets) deviceManager.updateDevicePresets(msg.payload.devicePresets);

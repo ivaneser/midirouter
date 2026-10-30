@@ -105,6 +105,7 @@ export class MetronomeController {
             if (this._clickOffsetMs != null) {
                 this._process.stdin.write(`offset ${this._clickOffsetMs}\n`);
             }
+            if (this._monitor) this._process.stdin.write('monitor 1\n');
 
             let stdoutReady = false;
             let stderrLines = [];
@@ -261,6 +262,22 @@ export class MetronomeController {
                 this._process.stdin.write(`offset ${this._clickOffsetMs}\n`);
             } catch (e) {
                 console.warn(`[METRONOME] Failed to set click offset: ${e.message}`);
+            }
+        }
+    }
+
+    /**
+     * Mix the router's live audio input into this process's output (the Pi's headphone jack) next to
+     * the clicks. Remembered, so a restarted process picks it up again.
+     * @param {boolean} on
+     */
+    setMonitor(on) {
+        this._monitor = !!on;
+        if (this._process && this._pid && this._running) {
+            try {
+                this._process.stdin.write(`monitor ${this._monitor ? 1 : 0}\n`);
+            } catch (e) {
+                console.warn(`[METRONOME] Failed to set monitor: ${e.message}`);
             }
         }
     }

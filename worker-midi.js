@@ -2229,6 +2229,13 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            // Live audio input mixed into the Pi's headphone output together with the metronome.
+            case 'daw_audio_monitor': {
+                this._audioMonitor = !!msg.on && this._audioMetronomeAvailable;
+                this.metronomeCtrl?.setMonitor(this._audioMonitor);
+                this._broadcastState();
+                break;
+            }
             // Quantization grid (beats): accept only the allowed values; 0 = Off.
             case 'daw_quantize_grid': {
                 const beats = +msg.beats;
@@ -2494,6 +2501,8 @@ class MIDIRouterWorker {
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
         state.audioOffsetMs = this.audioOffsetMs;
         state.clickOffsetMs = this.clickOffsetMs;
+        state.audioMonitor = !!this._audioMonitor;
+        state.audioOutAvailable = !!this._audioMetronomeAvailable;
         state.quantizeGrid = this.quantizeGrid;
         state.clipProgress = this._clipPlaybackProgress();
         parentPort?.postMessage({ type: 'daw_state', state });
