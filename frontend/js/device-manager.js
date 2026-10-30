@@ -27,6 +27,7 @@ export class DeviceManager {
         this.programs = new Map();
         this.presetNames = new Map();
         this.presetCounts = new Map();
+        this.presetCatalogs = new Map();   // baseKey -> { number: name } from device_maps/presets, when the device has one
     }
 
     async loadPresetCount(dev) {
@@ -37,6 +38,23 @@ export class DeviceManager {
             const map = await (await fetch(`/device_maps/${file}.json`)).json();
             if (map.presetName?.programs > 128) this.presetCounts.set(deviceChannelKey(dev.name), map.presetName.programs);
         } catch (_) { /* keep 128 presets */ }
+    }
+
+    // Factory preset names shipped for a device (device_maps/presets), for the preset drop-down.
+    async loadPresetCatalog(dev) {
+        const model = classifySynthPortName(dev.name).model;
+        const file = MAP_FILES[model];
+        const key = deviceChannelKey(dev.name);
+        if (!file || this.presetCatalogs.has(key)) return;
+        this.presetCatalogs.set(key, {});
+        try {
+            const response = await fetch(`/device_maps/presets/${file}.json`);
+            if (!response.ok) return;
+            const names = {};
+            for (const [number, preset] of Object.entries((await response.json()).presets || {})) names[number] = preset.name;
+            this.presetCatalogs.set(key, names);
+            this.refreshPresetLabels();
+        } catch (_) { /* no catalog: numbers and names learned from the device */ }
     }
 
     updatePresetName({ target, channel, program, name }) {
@@ -87,12 +105,34 @@ export class DeviceManager {
         this.refreshPresetLabels();
     }
 
+    // The preset drop-down lists every program of the device; a program shows its name when one is
+    // known (factory catalog, or reported by the device / saved with the session).
     refreshPresetLabels() {
-        document.querySelectorAll?.('.device-program-name').forEach(label => {
-            const key = `${label.dataset.baseKey || label.dataset.deviceKey}:${this.channelForKey(label.dataset.deviceKey, label.dataset.part)}`;
+        document.querySelectorAll?.('.device-program-name').forEach(select => {
+            const baseKey = select.dataset.baseKey || select.dataset.deviceKey;
+            const key = `${baseKey}:${this.channelForKey(select.dataset.deviceKey, select.dataset.part)}`;
             const program = this.programs.get(key);
-            label.textContent = program == null ? '—' : this.presetNames.get(`${key}:${program}`) || String(program + 1);
-            label.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
+            const count = this.presetCounts.get(baseKey) || 128;
+            if (select.children.length !== count + 1) {
+                select.replaceChildren();
+                const none = document.createElement('option');
+                none.value = '';
+                none.textContent = '—';
+                select.appendChild(none);
+                for (let index = 0; index < count; index++) {
+                    const option = document.createElement('option');
+                    option.value = String(index);
+                    select.appendChild(option);
+                }
+            }
+            const catalog = this.presetCatalogs.get(baseKey) || {};
+            for (let index = 0; index < count; index++) {
+                const name = this.presetNames.get(`${key}:${index}`) || catalog[String(index + 1)];
+                const text = name ? `${index + 1} · ${name}` : String(index + 1);
+                if (select.children[index + 1].textContent !== text) select.children[index + 1].textContent = text;
+            }
+            select.value = program == null ? '' : String(program);
+            select.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
         });
     }
 
@@ -271,16 +311,31 @@ export class DeviceManager {
         const unitKey = this.unitKey(dev, part);
         const baseKey = deviceChannelKey(dev.name);
         this.loadPresetCount(dev);
+        this.loadPresetCatalog(dev);
         const presets = document.createElement('div');
         presets.className = 'device-program-controls';
-        const presetLabel = document.createElement('output');
+        const presetLabel = document.createElement('select');
         presetLabel.className = 'device-program-name';
         presetLabel.dataset.deviceKey = unitKey;
         presetLabel.dataset.baseKey = baseKey;
         if (part) presetLabel.dataset.part = String(part);
         presetLabel.setAttribute('aria-label', `${label} preset`);
-        presetLabel.setAttribute('aria-live', 'polite');
         const programKey = () => `${baseKey}:${this.channelForDevice(dev, part)}`;
+        const selectProgram = program => {
+            if (window.app?.ws?.readyState !== WebSocket.OPEN) { this.refreshPresetLabels(); return; }
+            const key = programKey();
+            window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev, part), index: program }));
+            this.programs.set(key, program);
+            // Clear cached names until this selection is confirmed by the device.
+            this.presetNames.delete(`${key}:${program}`);
+            this.refreshPresetLabels();
+            this._discardControls(el, dev, part);
+            presets.title = `Last requested preset: ${program + 1}`;
+        };
+        presetLabel.addEventListener('change', () => {
+            const program = Number(presetLabel.value);
+            if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
+        });
         for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
             const button = document.createElement('button');
             button.type = 'button';
@@ -289,15 +344,7 @@ export class DeviceManager {
             button.setAttribute('aria-label', `${label}: ${description}`);
             button.addEventListener('click', () => {
                 if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
-                const key = programKey();
-                const program = Math.max(0, Math.min(this.presetCounts.get(baseKey) - 1 || 127, (this.programs.get(key) ?? 0) + step));
-                window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev, part), index: program }));
-                this.programs.set(key, program);
-                // Clear cached names until this selection is confirmed by the device.
-                this.presetNames.delete(`${key}:${program}`);
-                this.refreshPresetLabels();
-                this._discardControls(el, dev, part);
-                presets.title = `Last requested preset: ${program + 1}`;
+                selectProgram(Math.max(0, Math.min(this.presetCounts.get(baseKey) - 1 || 127, (this.programs.get(programKey()) ?? 0) + step)));
             });
             if (step > 0) presets.appendChild(presetLabel);
             presets.appendChild(button);
@@ -312,7 +359,7 @@ export class DeviceManager {
             if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
             const channelNumber = this.channelForDevice(dev, part);
             const program = this.programs.get(programKey());
-            if (program == null) window.app?.log?.('No preset selected on this channel yet: pick one with ‹ › first, then ↺ can reload it.');
+            if (program == null) window.app?.log?.('No preset selected on this channel yet: pick one from the list first, then ↺ can reload it.');
             window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
             this._discardControls(el, dev, part);
         });
