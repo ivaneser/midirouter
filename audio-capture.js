@@ -25,7 +25,7 @@ export function pickCaptureDevice(arecordList) {
 export class AudioCapture extends EventEmitter {
     constructor({
         device = process.env.MIDIROUTER_AUDIO_DEVICE,
-        sampleRate = 44100,
+        sampleRate = Number(process.env.MIDIROUTER_AUDIO_RATE) || 48000,   // 48 kHz: what Opus runs at, so no resampling
         channels = Number(process.env.MIDIROUTER_AUDIO_CHANNELS) === 1 ? 1 : 2,   // stereo, as the interface delivers it
         filter = process.env.MIDIROUTER_AUDIO_FILTER,   // noise reduction of the listened stream: off | light (default) | strong
         ringSeconds = 30,
