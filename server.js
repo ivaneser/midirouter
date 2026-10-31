@@ -18,6 +18,7 @@ import { AudioSettings } from './audio-settings.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
+import { PresetStore } from './preset-store.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
@@ -31,6 +32,7 @@ class MIDIRouterWorker {
         this.isReady = false;
         this.events = new EventEmitter();
         this.dawState = null;          // last daw_state payload (clips, transport, device presets/controls)
+        this.presetStore = new PresetStore(join(import.meta.dirname, 'device_maps', 'learned'));
         this.presetNames = new Map();  // `${deviceKey}:${channel}:${program}` -> name reported by the device
     }
 
@@ -100,6 +102,10 @@ class MIDIRouterWorker {
                 this.presetNames.set(`${deviceChannelKey(msg.target)}:${msg.channel}:${msg.program}`, msg.name);
                 this.events.emit('preset-name', msg);
                 this._broadcast(msg);
+                break;
+            case 'preset-learned':
+                // A name or sound a device sent: keep it, and let the open pages show the new name.
+                if (this.presetStore?.learn(msg) && msg.name) this._broadcast({ type: 'preset-learned', file: msg.file, program: msg.program, name: msg.name });
                 break;
             case 'ports-enumerated':
                 this.inputs.clear();

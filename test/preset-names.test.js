@@ -51,7 +51,25 @@ test('Craft Synth announces its patch name by itself: nothing is sent, the name 
     assert.equal(names.request(target, 10, 5), null);
     const data = [240, 0, 33, 7, 104, 2, 0, ...Array(32).fill(1), 247];
     assert.equal(names.receive(target, data), null, 'the data broadcast is not a name');
-    const announce = [240, 0, 33, 7, 104, 3, 5, ...Buffer.from('Wobble Bass'), 247];
+    const announce = [240, 0, 33, 7, 104, 3, 5, 11, ...Buffer.from('Wobble Bass'), 247];
     assert.deepEqual(names.receive(target, announce), { target, channel: 10, program: 5, name: 'Wobble Bass' });
     assert.equal(names.receive(target, announce), null);
+});
+
+test('learn() reads names and sounds nobody asked for, with the program the message carries', () => {
+    const names = new PresetNames(directory);
+    const craft = 'Craft Synth 2.0:Craft Synth 2.0 MIDI 1 40:0';
+    const data = [240, 0, 33, 7, 104, 2, 0, 7, ...Array(40).fill(9), 247];
+    assert.deepEqual(names.learn(craft, data), { file: 'modal_craft_synth_v2', program: 7, dump: data });
+    const name = [240, 0, 33, 7, 104, 3, 7, 11, ...Buffer.from('Tearout Arp'), 247];
+    assert.deepEqual(names.learn(craft, name), { file: 'modal_craft_synth_v2', program: 7, name: 'Tearout Arp' });
+    assert.equal(names.learn('Unknown synth', name), null);
+
+    const blofeld = 'Waldorf Blofeld:Waldorf Blofeld MIDI 1 24:0';
+    const reply = [240, 62, 19, 0, 16, 2, 44, ...Array(383).fill(0), 0, 247];
+    [...'Fat Bass'].forEach((c, i) => { reply[370 + i] = c.charCodeAt(0); });
+    const learned = names.learn(blofeld, reply);
+    assert.equal(learned.program, 2 * 128 + 44);
+    assert.equal(learned.name, 'Fat Bass');
+    assert.equal(learned.dump.length, reply.length);
 });

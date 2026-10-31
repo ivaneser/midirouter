@@ -245,6 +245,9 @@ function handleMessage(msg) {
         case 'preset-name':
             deviceManager.updatePresetName(msg);
             break;
+        case 'preset-learned':
+            deviceManager.updateLearnedPreset(msg);
+            break;
         case 'device-control':
             deviceManager.applyRemoteControl(msg);
             break;

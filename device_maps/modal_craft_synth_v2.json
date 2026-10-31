@@ -1,6 +1,6 @@
 {
   "manufacturer": "Modal Electronics",
-  "presetName": {"match": ["craft synth"], "programs": 128, "reply": {"prefix": [240, 0, 33, 7, null, 3], "nameOffset": 7, "nameLength": null}},
+  "presetName": {"match": ["craft synth"], "programs": 128, "reply": {"prefix": [240, 0, 33, 7, null, 3], "programOffset": 6, "nameOffset": 8, "nameLength": null}, "dump": {"prefix": [240, 0, 33, 7, null, 2], "programOffset": 7}},
   "model": "Craft Synth 2.0",
   "type": "analog polyphonic synth",
   "midi_version": "1.x",

@@ -1893,6 +1893,11 @@ class MIDIRouterWorker {
 
     _onIncomingMessage(deviceName, deltaTime, bytes) {
         if (bytes[0] === 0xf0 && bytes.length > 6) console.log(`[SYSEX] in from ${deviceName} (${bytes.length} bytes): ${bytes.map(x => x.toString(16).padStart(2, '0')).join(' ')}`);
+        if (bytes[0] === 0xf0) {
+            this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
+            const learned = this._presetNames.learn(deviceName, bytes);
+            if (learned) parentPort?.postMessage({ type: 'preset-learned', ...learned });
+        }
         if (bytes[0] === 0xf0 && this._presetNames) {
             const preset = this._presetNames.receive(deviceName, bytes);
             if (preset) {

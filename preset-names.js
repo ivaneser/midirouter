@@ -9,7 +9,7 @@ export class PresetNames {
         this.sequence = 0;
         for (const file of readdirSync(directory).filter(f => f.endsWith('.json'))) {
             const profile = JSON.parse(readFileSync(`${directory}/${file}`, 'utf8')).presetName;
-            if (profile) this.profiles.push(profile);
+            if (profile) this.profiles.push({ ...profile, file: file.replace(/\.json$/, '') });
         }
     }
 
@@ -32,6 +32,40 @@ export class PresetNames {
     bankInfo(target) {
         const profile = this.profiles.find(p => p.match.some(name => target.toLowerCase().includes(name.toLowerCase())));
         return profile?.programs > 128 ? { programs: profile.programs, cc: profile.bankSelectCc ?? 0 } : null;
+    }
+
+    // Anything a device sends that carries a preset's name or sound, whether or not we asked for it (the
+    // synth's own buttons, a dump request from elsewhere): { file, program, name?, dump? } or null.
+    // `file` is the device map the profile belongs to; `program` is the full index (bank * 128 + program).
+    learn(source, bytes) {
+        if (bytes[0] !== 0xf0 || bytes.at(-1) !== 0xf7) return null;
+        const profile = this.profiles.find(p => p.match.some(name => source.toLowerCase().includes(name.toLowerCase())));
+        if (!profile) return null;
+        const matches = (format, minimum = 0) => format && bytes.length >= minimum && format.prefix.every((b, i) => b === null || b === bytes[i]);
+        const programOf = format => format.programOffset == null || bytes[format.programOffset] == null ? null
+            : (format.bankOffset != null ? bytes[format.bankOffset] << 7 : 0) + bytes[format.programOffset];
+        const reply = profile.reply;
+        const out = { file: profile.file };
+        if (matches(reply, reply.nameOffset + 2)) {
+            const program = programOf(reply);
+            const name = this._nameOf(reply, bytes);
+            if (program != null && name) {
+                out.program = program;
+                out.name = name;
+                if (!profile.dump) out.dump = bytes.slice();   // the same message is the whole sound
+            }
+        }
+        if (matches(profile.dump, (profile.dump?.programOffset ?? 0) + 2)) {
+            const program = programOf(profile.dump);
+            if (program != null) { out.program = program; out.dump = bytes.slice(); }
+        }
+        return out.program == null ? null : out;
+    }
+
+    _nameOf(reply, bytes) {
+        const length = reply.nameLength ?? Math.max(0, bytes.length - 1 - reply.nameOffset);
+        return String.fromCharCode(...bytes.slice(reply.nameOffset, reply.nameOffset + length))
+            .split('\0')[0].replace(/[^\x20-\x7e]/g, '').trim();
     }
 
     receive(source, bytes) {

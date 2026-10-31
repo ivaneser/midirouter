@@ -9,3 +9,5 @@ ui-layout.json
 ui-layout.json.tmp
 audio-settings.json
 audio-settings.json.tmp
+# preset names and sounds learned from the devices (per machine)
+device_maps/learned/

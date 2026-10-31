@@ -27,6 +27,7 @@ export class DeviceManager {
         this.programs = new Map();
         this.presetNames = new Map();
         this.presetCounts = new Map();
+        this.presetFiles = new Map();      // baseKey -> device map file name
         this.presetCatalogs = new Map();   // baseKey -> { number: name } from device_maps/presets, when the device has one
     }
 
@@ -47,14 +48,32 @@ export class DeviceManager {
         const key = deviceChannelKey(dev.name);
         if (!file || this.presetCatalogs.has(key)) return;
         this.presetCatalogs.set(key, {});
-        try {
-            const response = await fetch(`/device_maps/presets/${file}.json`);
-            if (!response.ok) return;
-            const names = {};
-            for (const [number, preset] of Object.entries((await response.json()).presets || {})) names[number] = preset.name;
-            this.presetCatalogs.set(key, names);
-            this.refreshPresetLabels();
-        } catch (_) { /* no catalog: numbers and names learned from the device */ }
+        this.presetFiles.set(key, file);
+        const names = {};
+        // Shipped names first, then what this machine learned from the device (which wins).
+        for (const url of [`/device_maps/presets/${file}.json`, `/device_maps/learned/${file}.json`]) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) continue;
+                for (const [number, preset] of Object.entries((await response.json()).presets || {})) names[number] = preset.name;
+            } catch (_) { /* no catalog: numbers and names learned from the device */ }
+        }
+        if (!Object.keys(names).length) return;
+        this.presetCatalogs.set(key, names);
+        this.refreshPresetLabels();
+    }
+
+    // The device sent a preset name: it replaces what the list showed for that preset.
+    updateLearnedPreset({ file, program, name }) {
+        if (typeof name !== 'string' || !name) return;
+        for (const [key, deviceFile] of this.presetFiles) {
+            if (deviceFile !== file) continue;
+            (this.presetCatalogs.get(key) || this.presetCatalogs.set(key, {}).get(key))[String(program + 1)] = name;
+            for (const entry of [...this.presetNames.keys()]) {
+                if (entry.startsWith(`${key}:`) && entry.endsWith(`:${program}`)) this.presetNames.delete(entry);
+            }
+        }
+        this.refreshPresetLabels();
     }
 
     updatePresetName({ target, channel, program, name }) {
