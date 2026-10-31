@@ -3,7 +3,7 @@
 // the MIDI tools it used to offer live in mcp-server.js.
 export const DEFAULT_UPSTREAM_TOOLS = [
     'record_audio', 'analyze_audio', 'start_recording', 'stop_recording', 'record_song',
-    'profile_patch', 'profile_attached_synth', 'probe_patch_params',
+    'profile_patch', 'profile_attached_synth', 'profile_device', 'probe_patch_params',
     'list_patch_sounds', 'get_patch_sound', 'get_patch_sample', 'refresh_patch_sample', 'render_patch_sample',
     'mcpi_guide',
 ];
