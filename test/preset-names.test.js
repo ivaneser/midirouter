@@ -44,3 +44,14 @@ test('Blofeld name requests carry bank and program; the 16-character name is rea
     assert.equal(names.receive(target, wrongProgram), null);
     assert.deepEqual(names.receive(target, reply), { target, channel: 3, program: 300, name: 'Fat Bass' });
 });
+
+test('Craft Synth announces its patch name by itself: nothing is sent, the name broadcast labels the selection', () => {
+    const names = new PresetNames(directory);
+    const target = 'Craft Synth 2.0:Craft Synth 2.0 MIDI 1 40:0';
+    assert.equal(names.request(target, 10, 5), null);
+    const data = [240, 0, 33, 7, 104, 2, 0, ...Array(32).fill(1), 247];
+    assert.equal(names.receive(target, data), null, 'the data broadcast is not a name');
+    const announce = [240, 0, 33, 7, 104, 3, 5, ...Buffer.from('Wobble Bass'), 247];
+    assert.deepEqual(names.receive(target, announce), { target, channel: 10, program: 5, name: 'Wobble Bass' });
+    assert.equal(names.receive(target, announce), null);
+});
