@@ -164,7 +164,7 @@ export class AudioListener {
                     let peak = 0;
                     for (const sample of channels[0]) peak = Math.max(peak, Math.abs(sample));
                     this.level = Math.max(peak, this.level * 0.85);
-                    this._play(channels, rate);
+                    this._play(channels, data.sampleRate || rate);
                 } finally { data.close(); }
             },
             error: error => { failed = error; this.controller?.abort(); },

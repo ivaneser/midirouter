@@ -93,7 +93,7 @@ async function head(capture, opus, path) {
     const controller = new AbortController();
     try {
         const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { signal: controller.signal });
-        const info = { codec: response.headers.get('x-codec'), bitrate: response.headers.get('x-bitrate'), type: response.headers.get('content-type') };
+        const info = { codec: response.headers.get('x-codec'), bitrate: response.headers.get('x-bitrate'), rate: response.headers.get('x-sample-rate'), type: response.headers.get('content-type') };
         controller.abort();
         return info;
     } finally {
@@ -105,7 +105,7 @@ async function head(capture, opus, path) {
 test('/audio/live?codec=opus is Opus when available, otherwise the raw stream', async () => {
     const capture = fakeCapture();
     const opus = new OpusBroadcast(capture, { quality: 'opus-96' });
-    assert.deepEqual(await head(capture, opus, '/audio/live?codec=opus'), { codec: 'opus', bitrate: '96000', type: 'application/octet-stream' });
+    assert.deepEqual(await head(capture, opus, '/audio/live?codec=opus'), { codec: 'opus', bitrate: '96000', rate: '48000', type: 'application/octet-stream' });
     assert.equal((await head(capture, opus, '/audio/live')).codec, 'pcm', 'a client that did not ask gets PCM');
     assert.equal((await head(capture, opus, '/audio/live?codec=opus&raw=1')).codec, 'pcm', 'raw capture for analysis is never compressed');
     opus.setQuality('pcm');

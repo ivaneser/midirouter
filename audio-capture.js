@@ -220,7 +220,7 @@ export function serveLiveAudio(capture, req, res, opus = null) {
         'Content-Type': useOpus ? 'application/octet-stream' : 'audio/L16',
         'X-Codec': useOpus ? 'opus' : 'pcm',
         ...(useOpus ? { 'X-Bitrate': String(opus.bitrate) } : {}),
-        'X-Sample-Rate': String(capture.sampleRate),
+        'X-Sample-Rate': String(useOpus ? 48000 : capture.sampleRate),   // Opus is always 48 kHz (a 44.1 kHz capture is resampled)
         'X-Channels': String(capture.channels),
         'X-Filter': raw ? 'off' : capture.filterLevel,   // as it was when this listener connected
         'Cache-Control': 'no-store',
