@@ -201,7 +201,7 @@ export class AudioCapture extends EventEmitter {
 // GET /audio/live[?raw=1][&backfill=seconds]: PCM (S16_LE, channels interleaved; rate in X-Sample-Rate, channel count in X-Channels). Optionally starts
 // with the last `backfill` seconds, then follows the capture live. A client that cannot keep up
 // loses chunks instead of slowing the capture.
-export function serveLiveAudio(capture, req, res) {
+export function serveLiveAudio(capture, req, res, opus = null) {
     const status = capture.status();
     if (status.state !== 'live') {
         res.writeHead(503, { 'Content-Type': 'application/json' });
@@ -214,8 +214,12 @@ export function serveLiveAudio(capture, req, res) {
     const raw = params.get('raw') === '1';
     const backfill = raw ? Math.max(0, Math.min(Number(params.get('backfill')) || 0, capture.maxBytes / capture.frameBytes / capture.sampleRate)) : 0;
     const send = chunk => { if (res.writableLength < 262144) res.write(chunk); };
+    // ?codec=opus asks for the Opus stream (the browser can decode it); the server's stream quality decides whether it is used.
+    const useOpus = !raw && params.get('codec') === 'opus' && opus?.available;
     res.writeHead(200, {
-        'Content-Type': 'audio/L16',
+        'Content-Type': useOpus ? 'application/octet-stream' : 'audio/L16',
+        'X-Codec': useOpus ? 'opus' : 'pcm',
+        ...(useOpus ? { 'X-Bitrate': String(opus.bitrate) } : {}),
         'X-Sample-Rate': String(capture.sampleRate),
         'X-Channels': String(capture.channels),
         'X-Filter': raw ? 'off' : capture.filterLevel,   // as it was when this listener connected
@@ -225,8 +229,23 @@ export function serveLiveAudio(capture, req, res) {
     res.socket?.setNoDelay(true);   // send every chunk at once: no waiting to fill a packet
     if (backfill > 0) send(capture.snapshot(backfill));
     let unsubscribe;
-    if (raw) { capture.on('chunk', send); unsubscribe = () => capture.off('chunk', send); }
-    else unsubscribe = capture.subscribeClean(send);
+    if (useOpus) {
+        // Opus listeners get the packets as they are encoded; a change to or from raw PCM ends the stream so the player reconnects.
+        const offPackets = opus.subscribe(send);
+        const onQuality = () => { if (!opus.available) res.end(); };
+        opus.on('quality', onQuality);
+        unsubscribe = () => { offPackets(); opus.off('quality', onQuality); };
+    } else if (raw) { capture.on('chunk', send); unsubscribe = () => capture.off('chunk', send); }
+    else {
+        unsubscribe = capture.subscribeClean(send);
+        // A switch to Opus ends a raw PCM stream so the player reconnects with the new format.
+        if (opus && params.get('codec') === 'opus') {
+            const onQuality = () => { if (opus.available) res.end(); };
+            opus.on('quality', onQuality);
+            const off = unsubscribe;
+            unsubscribe = () => { off(); opus.off('quality', onQuality); };
+        }
+    }
     capture.listeners_++;
     res.once('close', () => {
         unsubscribe();

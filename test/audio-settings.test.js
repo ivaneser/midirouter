@@ -18,7 +18,7 @@ test('a chosen level is saved and wins over the fallback after a restart', () =>
     const path = file();
     const settings = new AudioSettings(path, 'light');
     assert.equal(settings.setFilter('strong'), 'strong');
-    assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { filter: 'strong' });
+    assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { filter: 'strong', quality: 'opus-96' });
     assert.equal(new AudioSettings(path, 'off').filter, 'strong');
 });
 
@@ -37,4 +37,15 @@ test('a damaged or foreign settings file is ignored', () => {
     assert.equal(new AudioSettings(path, 'strong').filter, 'strong');
     writeFileSync(path, JSON.stringify({ filter: 'loud' }));
     assert.equal(new AudioSettings(path, 'off').filter, 'off');
+});
+
+test('the stream quality defaults to Opus 96, is saved, and unknown values are refused', () => {
+    const path = file();
+    const settings = new AudioSettings(path);
+    assert.equal(settings.quality, 'opus-96');
+    assert.equal(settings.setQuality('opus-32'), 'opus-32');
+    assert.equal(settings.setQuality('mp3'), null);
+    assert.equal(settings.quality, 'opus-32');
+    assert.equal(new AudioSettings(path).quality, 'opus-32');
+    assert.equal(new AudioSettings(path).filter, 'light', 'the filter is kept next to it');
 });

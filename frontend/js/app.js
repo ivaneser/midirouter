@@ -4,7 +4,7 @@ import { DeviceManager } from './device-manager.js?v=71';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
-import { AudioListener, sliderToGain } from './audio-listener.js?v=8';
+import { AudioListener, sliderToGain } from './audio-listener.js?v=9';
 import { attachMidiKnob } from './midi-knob.js?v=25';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
 import { SectionOrder } from './section-order.js?v=1';
@@ -31,7 +31,7 @@ let ws = null;
 // Initialize managers
 const deviceManager = new DeviceManager();
 const pianoRoll = new PianoRoll();
-const audioListener = new AudioListener(document.getElementById('btn-listen'), { log });
+const audioListener = new AudioListener(document.getElementById('btn-listen'), { log, retry: true });
 const midiKeyboard = new MidiKeyboard(deviceManager);
 const dawUI = new DAWUI(deviceManager);
 dawUI.onClipSelect = (track, slot) => pianoRoll.selectClip(track, slot);
@@ -206,6 +206,22 @@ if (monitorGain) {
     }, { reset: 50 });
     gainReadout.textContent = gainText(sliderToGain(monitorGain.value / 100));
 }
+// The stream format and quality: one central setting for every listener, chosen here.
+const audioQuality = document.getElementById('audio-quality');
+audioQuality?.addEventListener('change', () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-quality', quality: audioQuality.value }));
+});
+// The listening buffer belongs to this browser (its Wi-Fi), so it is remembered here and not on the Pi.
+const audioBuffer = document.getElementById('audio-buffer');
+if (audioBuffer) {
+    try { audioBuffer.value = localStorage.getItem('audio-buffer') || 'auto'; } catch { /* storage unavailable */ }
+    if (!audioBuffer.value) audioBuffer.value = 'auto';
+    audioListener.setBuffer(audioBuffer.value);
+    audioBuffer.addEventListener('change', () => {
+        audioListener.setBuffer(audioBuffer.value);
+        try { localStorage.setItem('audio-buffer', audioBuffer.value); } catch { /* optional */ }
+    });
+}
 // The noise filter of the Pi's audio input: one central setting, chosen here (the listen page has no controls).
 const audioFilter = document.getElementById('audio-filter');
 audioFilter?.addEventListener('change', () => {
@@ -230,6 +246,7 @@ function showAudioMonitor(state) {
 function handleMessage(msg) {
     if (msg.type === 'time-sync') return handleTimeSync(msg);
     if (msg.type === 'audio-filter' && audioFilter) audioFilter.value = msg.level;
+    if (msg.type === 'audio-quality' && audioQuality) audioQuality.value = msg.quality;
     if (msg.type === 'daw_state' && msg.payload) showAudioMonitor(msg.payload);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
     if (msg.type === 'daw_state' && msg.payload?.deviceControls) deviceManager.updateDeviceControls(msg.payload.deviceControls, msg.payload.deviceControlsRev);

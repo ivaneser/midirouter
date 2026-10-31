@@ -11,7 +11,7 @@ const FILES = {
     '/audio-listener.js': ['frontend/js/audio-listener.js', 'application/javascript; charset=utf-8'],
 };
 
-export function createListenServer({ capture, root = import.meta.dirname }) {
+export function createListenServer({ capture, opus = null, root = import.meta.dirname }) {
     return createServer(async (req, res) => {
         const path = req.url.split('?')[0];
         if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -20,7 +20,7 @@ export function createListenServer({ capture, root = import.meta.dirname }) {
             return;
         }
         if (path === '/audio/live') {
-            serveLiveAudio(capture, req, res);
+            serveLiveAudio(capture, req, res, opus);
             return;
         }
         if (path === '/audio/status') {

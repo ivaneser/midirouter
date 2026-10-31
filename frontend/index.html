@@ -174,6 +174,26 @@
                             <option value="strong">Strong</option>
                         </select>
                     </label>
+                    <label class="audio-filter" title="How the Pi sends the audio to everyone who listens (this page and the listen page). Opus is compressed: much less Wi-Fi traffic for the same sound, 128 kbit/s is nearly transparent, 32 kbit/s is for a weak connection. Raw is uncompressed (about 1.5 Mbit/s per listener). A browser that cannot decode Opus gets the raw stream.">
+                        <span>Stream</span>
+                        <select id="audio-quality" aria-label="Audio stream format and quality">
+                            <option value="opus-128">Opus 128 kbit/s</option>
+                            <option value="opus-96" selected>Opus 96 kbit/s</option>
+                            <option value="opus-64">Opus 64 kbit/s</option>
+                            <option value="opus-32">Opus 32 kbit/s</option>
+                            <option value="pcm">Raw (uncompressed)</option>
+                        </select>
+                    </label>
+                    <label class="audio-filter" title="Delay kept in this browser to ride out Wi-Fi jitter. Auto starts at 120 ms, grows after a dropout and shrinks again when the connection is calm. A fixed value is steadier but cannot adapt.">
+                        <span>Buffer</span>
+                        <select id="audio-buffer" aria-label="Listening buffer of this browser">
+                            <option value="auto" selected>Auto</option>
+                            <option value="60">60 ms</option>
+                            <option value="120">120 ms</option>
+                            <option value="250">250 ms</option>
+                            <option value="500">500 ms</option>
+                        </select>
+                    </label>
                 </div>
             </div>
         </details>
@@ -246,6 +266,7 @@
                 <ul>
                     <li><strong>Listen</strong> — hear the audio interface live in this browser. <strong>Pi out</strong> — also play it on the Pi's headphone jack, together with the metronome; the knob sets its volume (0 dB plays it exactly as it is). A microphone near the speakers will howl.</li>
                     <li><strong>Noise</strong> — a noise filter on the Pi's audio input, shared by everyone who listens (the listen page, the headphone jack and this page). It learns the steady hiss and takes it out, also while music plays, and mutes what is left in the pauses. <em>Light</em> takes about 6–8 dB off the hiss; <em>Strong</em> about 10–14 dB (a very steady, noise-like sound that lasts more than about 20 seconds can be dulled); <em>Off</em> plays the audio as it arrives. Held notes and chords are left alone.</li>
+                    <li><strong>Stream and Buffer</strong> — <em>Stream</em> is how the Pi sends the audio to every listener: Opus is encoded once on the Pi and shared, so it needs a fraction of the Wi-Fi traffic of the raw stream (96 kbit/s instead of about 1500). Pick a lower bitrate for a weak connection. <em>Buffer</em> is the delay this browser keeps against Wi-Fi hiccups; Auto adapts to the connection (the listen page always uses Auto).</li>
                     <li><strong>Listen page</strong> — open <code>http://&lt;pi-address&gt;/</code> on any phone or computer: one big play button with the voice level and a visualization around it. It has no controls; the filter is set here.</li>
                 </ul>
 

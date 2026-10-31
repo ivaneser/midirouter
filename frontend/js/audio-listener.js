@@ -1,7 +1,9 @@
 // Listens to the router's audio interface: GET /audio/live is raw 16-bit PCM (stereo, interleaved), played as it
 // arrives through Web Audio with a small buffer (about 120 ms) to ride out network jitter.
-const TARGET_AHEAD = 0.12;   // seconds of audio kept queued
-const MAX_AHEAD = 0.5;       // beyond this the player is lagging: drop chunks to catch up
+const TARGET_AHEAD = 0.12;   // seconds of audio kept queued (the start value of the automatic buffer)
+const MIN_AHEAD = 0.08, MAX_CUSHION = 0.5;   // the automatic buffer stays between these
+const CALM_MS = 20000;       // this long without a dropout and the automatic buffer shrinks a little
+const MAX_LAG = 0.4;         // lagging this far beyond the cushion: drop chunks to catch up
 const RETRY_MS = 2000;
 
 // Little-endian 16-bit samples from a byte chunk of interleaved channels: one Float32Array per channel.
@@ -62,6 +64,8 @@ export class AudioListener {
         this.onState = onState;
         this.mediaSession = mediaSession;
         this.volume = 1;
+        this.cushion = TARGET_AHEAD;
+        this.autoBuffer = true;
         this.analyser = null;
         this.active = false;
         this.level = 0;
@@ -98,6 +102,7 @@ export class AudioListener {
                     this.log(`Audio: ${error.message}`);
                 }
             }
+            if (this._fallback && this.active) { this._fallback = false; continue; }
             if (!this.active || !this.retry) break;
             this.level = 0;
             this.onState('reconnecting', this.error);
@@ -117,8 +122,20 @@ export class AudioListener {
         if (wasActive) this.onState('stopped', this.error);
     }
 
+    // 'auto' (grows after a dropout, shrinks when the connection is calm) or a fixed number of milliseconds.
+    setBuffer(mode) {
+        const ms = Number(mode);
+        this.autoBuffer = !(ms > 0);
+        this.cushion = this.autoBuffer ? TARGET_AHEAD : Math.min(MAX_CUSHION, Math.max(0.04, ms / 1000));
+    }
+
+    // Opus needs the browser's AudioDecoder; without it, or after it failed once, the raw stream is used.
+    _canOpus() {
+        return !this.rawOnly && typeof AudioDecoder !== 'undefined' && typeof EncodedAudioChunk !== 'undefined';
+    }
+
     async _stream() {
-        const response = await fetch('/audio/live', { signal: this.controller.signal, cache: 'no-store' });
+        const response = await fetch(this._canOpus() ? '/audio/live?codec=opus' : '/audio/live', { signal: this.controller.signal, cache: 'no-store' });
         if (!response.ok) {
             const reason = (await response.json().catch(() => ({}))).error || `HTTP ${response.status}`;
             throw new Error(reason);
@@ -128,9 +145,68 @@ export class AudioListener {
         this.next = 0;
         this.error = null;
         const reader = response.body.getReader();
+        this._animate();
+        if (response.headers.get('X-Codec') === 'opus') await this._readOpus(reader, rate);
+        else await this._readPcm(reader, rate);
+    }
+
+    async _readOpus(reader, rate) {
+        let failed = null;
+        const decoder = new AudioDecoder({
+            output: data => {
+                try {
+                    const frames = data.numberOfFrames;
+                    const channels = Array.from({ length: data.numberOfChannels }, (_, plane) => {
+                        const samples = new Float32Array(frames);
+                        data.copyTo(samples, { planeIndex: plane, format: 'f32-planar' });
+                        return samples;
+                    });
+                    let peak = 0;
+                    for (const sample of channels[0]) peak = Math.max(peak, Math.abs(sample));
+                    this.level = Math.max(peak, this.level * 0.85);
+                    this._play(channels, rate);
+                } finally { data.close(); }
+            },
+            error: error => { failed = error; this.controller?.abort(); },
+        });
+        decoder.configure({ codec: 'opus', sampleRate: rate, numberOfChannels: this.channels });
+        let buffer = new Uint8Array(0), stamp = 0, first = true;
+        try {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (first) { first = false; this.onState('live', null); }
+                const joined = new Uint8Array(buffer.length + value.length);
+                joined.set(buffer, 0);
+                joined.set(value, buffer.length);
+                let at = 0;
+                while (joined.length - at >= 2) {
+                    const size = (joined[at] << 8) | joined[at + 1];
+                    if (joined.length - at - 2 < size) break;
+                    if (decoder.decodeQueueSize < 20) {   // a stalled decoder drops packets instead of piling them up
+                        decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: stamp, data: joined.subarray(at + 2, at + 2 + size) }));
+                    }
+                    stamp += 20000;
+                    at += 2 + size;
+                }
+                buffer = joined.slice(at);
+            }
+        } catch (error) {
+            if (failed) {   // the browser cannot decode this: carry on with the raw stream
+                this.log(`Opus: ${failed.message}, using raw audio`);
+                this.rawOnly = true;
+                this._fallback = true;
+                return;
+            }
+            throw error;
+        } finally {
+            try { decoder.close(); } catch { /* already closed */ }
+        }
+    }
+
+    async _readPcm(reader, rate) {
         let carry = null;
         let first = true;
-        this._animate();
         for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -222,8 +298,17 @@ export class AudioListener {
         const buffer = context.createBuffer(channels.length, channels[0].length, rate);
         channels.forEach((samples, index) => buffer.copyToChannel(samples, index));
         const now = context.currentTime;
-        if (this.next < now + 0.02) this.next = now + TARGET_AHEAD;   // first chunk, or an underrun: queue a fresh cushion
-        if (this.next - now > MAX_AHEAD) return;                       // too far behind: skip this chunk
+        if (this.next < now + 0.02) {   // first chunk, or an underrun: queue a fresh cushion
+            if (this.next > 0 && this.autoBuffer) {   // a dropout: the automatic buffer grows
+                this.cushion = Math.min(MAX_CUSHION, this.cushion * 1.5);
+                this.lastDropout = performance.now();
+            }
+            this.next = now + this.cushion;
+        } else if (this.autoBuffer && this.cushion > MIN_AHEAD && performance.now() - (this.lastDropout ?? (this.lastDropout = performance.now())) > CALM_MS) {
+            this.cushion = Math.max(MIN_AHEAD, this.cushion * 0.9);   // calm for a while: a little less delay
+            this.lastDropout = performance.now();
+        }
+        if (this.next - now > this.cushion + MAX_LAG) return;          // too far behind: skip this chunk
         const source = context.createBufferSource();
         source.buffer = buffer;
         source.connect(this.output);

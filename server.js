@@ -16,6 +16,7 @@ import { AudioCapture, serveLiveAudio } from './audio-capture.js';
 import { serveRecording } from './audio-record.js';
 import { createListenServer, listenOnFirstFree } from './listen-server.js';
 import { AudioSettings } from './audio-settings.js';
+import { OpusBroadcast } from './audio-opus.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
@@ -335,6 +336,7 @@ const router = new MIDIRouterWorker();
 // MIDIROUTER_AUDIO=off leaves the device alone (for another program that needs it).
 const audioSettings = new AudioSettings(join(import.meta.dirname, 'audio-settings.json'), process.env.MIDIROUTER_AUDIO_FILTER);
 const audioCapture = new AudioCapture({ filter: audioSettings.filter });
+const opusBroadcast = new OpusBroadcast(audioCapture, { quality: audioSettings.quality });
 let listenServer = null;
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 router.deviceChannels = deviceChannels;
@@ -445,7 +447,7 @@ function startServer() {
             return;
         }
         if (cleanUrl === '/audio/live') {
-            serveLiveAudio(audioCapture, req, res);
+            serveLiveAudio(audioCapture, req, res, opusBroadcast);
             return;
         }
         if (cleanUrl === '/audio/record') {
@@ -514,6 +516,7 @@ function startServer() {
         ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
         ws.send(JSON.stringify({ type: 'ui-layout', order: uiLayout.order }));
         ws.send(JSON.stringify({ type: 'audio-filter', level: audioSettings.filter }));
+        ws.send(JSON.stringify({ type: 'audio-quality', quality: audioSettings.quality }));
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('error', (err) => {
@@ -777,6 +780,15 @@ function startServer() {
                         break;
                     }
 
+                    case 'audio-quality': {
+                        // How the audio travels to listeners (raw PCM or Opus at a bitrate), for everyone who listens.
+                        const quality = audioSettings.setQuality(message.quality);
+                        if (quality) {
+                            opusBroadcast.setQuality(quality);
+                            router._broadcast({ type: 'audio-quality', quality });
+                        }
+                        break;
+                    }
                     case 'audio-monitor-gain':
                         if (Number.isFinite(message.gain)) router.worker.postMessage({ type: 'daw_audio_monitor_gain', gain: message.gain });
                         break;
@@ -905,7 +917,7 @@ function startServer() {
     // A separate listen-only page for many devices: port 80 (LISTEN_PORT overrides, "off" disables).
     // Without the permission to open port 80 it falls back to 8080.
     if (process.env.LISTEN_PORT !== 'off') {
-        listenServer = createListenServer({ capture: audioCapture });
+        listenServer = createListenServer({ capture: audioCapture, opus: opusBroadcast });
         const wanted = process.env.LISTEN_PORT ? [Number(process.env.LISTEN_PORT)] : [80, 8080];
         listenOnFirstFree(listenServer, wanted).then(port => {
             if (!port) console.warn(`[LISTEN] Could not open ${wanted.join(' or ')} for the listen page`);
