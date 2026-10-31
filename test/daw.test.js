@@ -557,12 +557,24 @@ test('resetAllClips in auto mode puts the loop back to one bar and unlocks it fo
     assert.equal(daw._globalCycleLocked, false);
 });
 
-test('resetAllClips keeps an explicit master loop', () => {
+test('resetAllClips also drops an explicit master loop: one bar until the first take', () => {
     const daw = new DAWEngine();
     daw.setMasterLoopBars(4);
     daw.resetAllClips();
-    assert.equal(daw.loopLenBeats, 16);
-    assert.equal(daw._globalCycleLocked, true);
+    assert.equal(daw.masterLoopBars, null);
+    assert.equal(daw.loopLenBeats, 4);
+    assert.equal(daw._globalCycleLocked, false);
+    assert.ok(daw.tracks.every(t => t.clips.every(c => c.length === 4)));
+});
+
+test('msUntilNextBar is the time to the next bar line, not the loop end', () => {
+    const daw = new DAWEngine();
+    daw.setMasterLoopBars(15);
+    daw.playing = true;
+    daw._playAnchorTime = 1000;
+    const spb = daw._secondsPerBeat() * 1000;
+    assert.ok(Math.abs(daw.msUntilNextBar(1000 + 5.5 * spb) - 2.5 * spb) < 1);
+    assert.equal(daw.msUntilNextBar(1000 + 8 * spb), 0);
 });
 
 test('setClipNotes with minLength never shrinks the clip (piano roll edits)', () => {

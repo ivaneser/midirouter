@@ -1431,9 +1431,9 @@ class MIDIRouterWorker {
                 this._stopTrackPlayback(trackIdx);
             } else {
                 // A take that was just recorded plays at once from its own beat 0.
-                // A manual launch of a stored clip waits for the next cycle start.
+                // A manual launch of a stored clip waits for the next bar line, not the end of the whole loop.
                 const immediate = boundarySwitch || result.action === 'record-stop';
-                const delayMs = immediate || !this.daw.playing ? 0 : this.daw.msUntilPhase(0, gridNow);
+                const delayMs = immediate || !this.daw.playing ? 0 : this.daw.msUntilNextBar(gridNow);
                 this._lastActivated = { trackIdx, slot };
                 if (delayMs > 5) {
                     this._schedulePendingStart(trackIdx, slot, gridNow + delayMs, delayMs);

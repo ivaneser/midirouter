@@ -503,14 +503,12 @@ class DAWEngine {
     resetAllClips() {
         this._stopRecording();
         this.sessionRecording = false;
-        // With an explicit master loop the emptied clips keep the full cycle
-        // length so the next take repeats for the selected number of bars.
-        // In auto mode the cycle goes back to one bar and unlocks: the next first take sets it.
-        if (this.masterLoopBars == null) {
-            this.loopLenBeats = this._snapToBars(0);
-            this._globalCycleLocked = false;
-        }
-        const resetLength = this.masterLoopBars != null ? this.loopLenBeats : this._snapToBars(0);
+        // The loop goes back to one bar and unlocks, even after an explicit master loop length:
+        // the first take recorded after the reset sets it again.
+        this.masterLoopBars = null;
+        this.loopLenBeats = this._snapToBars(0);
+        this._globalCycleLocked = false;
+        const resetLength = this.loopLenBeats;
         for (const track of this.tracks) {
             for (const clip of track.clips) {
                 clip.notes = [];
@@ -668,6 +666,16 @@ class DAWEngine {
         const ahead = (((cyclePos - phase) % cycle) + cycle) % cycle; // beats since phase
         if (ahead * spb * 1000 < 5) return 0;
         return (cycle - ahead) * spb * 1000;
+    }
+
+    // Milliseconds from `now` until the next bar line of the transport (0 when stopped or already on one).
+    msUntilNextBar(now = performance.now()) {
+        if (!this.playing) return 0;
+        const spb = this._secondsPerBeat();
+        const bar = Math.max(1, this._metronomeBeatsPerMeasure);
+        const pos = ((now - this._playAnchorTime) / 1000 / spb) % bar;
+        const ahead = (bar - pos) % bar;
+        return ahead * spb * 1000 < 5 ? 0 : ahead * spb * 1000;
     }
 
     // Whole bars, rounded up. A quarter beat of tolerance absorbs the few ms by
