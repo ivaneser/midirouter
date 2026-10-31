@@ -13,6 +13,7 @@ import { DeviceCatalog } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
 import { scaleById } from './frontend/js/scales.js';
 import { AudioCapture, serveLiveAudio } from './audio-capture.js';
+import { serveRecording } from './audio-record.js';
 import { createListenServer, listenOnFirstFree } from './listen-server.js';
 import { AudioSettings } from './audio-settings.js';
 import { createUpstream } from './mcp-upstream.js';
@@ -445,6 +446,10 @@ function startServer() {
         }
         if (cleanUrl === '/audio/live') {
             serveLiveAudio(audioCapture, req, res);
+            return;
+        }
+        if (cleanUrl === '/audio/record') {
+            serveRecording(audioCapture, req, res);
             return;
         }
 
