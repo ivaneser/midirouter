@@ -87,8 +87,8 @@ test('getControlsForModel("korg-nts-1") returns 29 controls after fetching /devi
     assert.equal(controls.length, 29, 'matches actual map count (29 sliders+dropdowns)');
     // First control from the JSON must be intact.
     assert.deepEqual(core(controls[0]), {
-        cc: 14, name: 'Volume EG Type', min: 0, max: 5, type: 'dropdown',
-        options: ['ADSR', 'AHR', 'AR', 'AR loop', 'Open'], category: 'osc'
+        cc: 14, name: 'Volume EG Type', min: 0, max: 4, type: 'dropdown',
+        options: ['ADSR', 'AHR', 'AR', 'AR loop', 'Open'], values: [0, 38, 90, 64, 115], category: 'osc'
     });
 });
 
@@ -610,4 +610,25 @@ test('Blofeld controls are arranged by signal flow without dropping any control'
     assert.deepEqual(filterEnv.groups[0].controls.map(c => c.cc), [95, 96, 97, 98, 99, 100]);
     const osc1 = stages[0].modules[0];
     assert.deepEqual(osc1.groups.map(group => group.label), ['Pitch', 'Tone', 'FM']);
+});
+
+
+test('NTS-1 type dropdowns send the CC value of their zone, and read it back as the same option', async () => {
+    const { dropdownRaw, dropdownIndex } = await import(new URL(CATALOG_PATH, import.meta.url).href);
+    const controls = await getControlsForModel('korg-nts-1');
+    const osc = controls.find(control => control.cc === 53);
+    assert.deepEqual(osc.options.map((_, i) => dropdownRaw(osc, i)), [0, 25, 50, 75, 115]);
+    assert.equal(osc.options[dropdownIndex(osc, 60)], 'Square');
+    const filter = controls.find(control => control.cc === 42);
+    assert.equal(filter.options[dropdownIndex(filter, dropdownRaw(filter, 6))], 'Off');
+    const reverb = controls.find(control => control.cc === 90);
+    assert.equal(reverb.options.length, 10);
+    for (const control of controls.filter(c => c.type === 'dropdown' && c.values)) {
+        assert.equal(control.values.length, control.options.length, `${control.name}: a value for every option`);
+        assert.equal(control.max, control.options.length - 1, `${control.name}: max is the last option`);
+        control.options.forEach((_, i) => assert.equal(dropdownIndex(control, dropdownRaw(control, i)), i, `${control.name} option ${i}`));
+    }
+    const plain = { min: 0, options: ['a', 'b'] };
+    assert.equal(dropdownRaw(plain, 1), 1);
+    assert.equal(dropdownIndex(plain, 1), 1);
 });

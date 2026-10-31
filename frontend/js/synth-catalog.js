@@ -180,6 +180,7 @@ export function renderControlDefinition(def) {
             // Value semantics for dropdowns: the selected OPTION index.
             if (def.min != null) attrs['data-min'] = String(def.min);
             if (def.max != null) attrs['data-max'] = String(def.max);
+            if (Array.isArray(def.values)) attrs['data-values'] = JSON.stringify(def.values);
             return {
                 tag: 'select',
                 attrs,
@@ -205,6 +206,24 @@ export function renderControlDefinition(def) {
                 label: { text: String(def.name), useTextContent: true },
             };
     }
+}
+
+/**
+ * Dropdown options and CC values. Most synths take the option number, but some (the NTS-1) spread their
+ * types over 0..127; such a control lists the CC value to send for each option in `values`.
+ */
+export function dropdownRaw(def, index) {
+    const value = Array.isArray(def?.values) ? def.values[index] : undefined;
+    return Number.isFinite(value) ? value : index + Number(def?.min || 0);
+}
+
+// Option shown for a CC value: the option whose value is nearest (the synth takes whole ranges of values).
+export function dropdownIndex(def, raw) {
+    const values = Array.isArray(def?.values) ? def.values : null;
+    if (!values?.length) return raw - Number(def?.min || 0);
+    let best = 0;
+    values.forEach((value, index) => { if (Math.abs(value - raw) < Math.abs(values[best] - raw)) best = index; });
+    return best;
 }
 
 /**

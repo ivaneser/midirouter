@@ -13,6 +13,8 @@ import {
     renderControlDefinition,
     MULTITIMBRAL_PARTS,
     MAP_FILES,
+    dropdownRaw,
+    dropdownIndex,
 } from './synth-catalog.js?v=25';
 
 export class DeviceManager {
@@ -109,7 +111,7 @@ export class DeviceManager {
                     input.value = String(display);
                     input.dispatchEvent(new Event('knob-sync'));
                 } else if (input.type === 'checkbox') input.checked = display > 0;
-                else if (input.tagName === 'SELECT') input.selectedIndex = display - min;
+                else if (input.tagName === 'SELECT') input.selectedIndex = dropdownIndex({ min, values: input.dataset.values ? JSON.parse(input.dataset.values) : null }, display);
             }
         }
     }
@@ -599,7 +601,7 @@ export class DeviceManager {
         if (savedValue !== undefined) {
             if (input.type === 'range') input.value = String(savedValue);
             else if (input.type === 'checkbox') input.checked = savedValue > 0;
-            else input.selectedIndex = savedValue - Number(definition.min || 0);
+            else input.selectedIndex = dropdownIndex(definition, savedValue);
         }
         if (input.type === 'range') {
             row.className += ' synth-control-knob';
@@ -623,7 +625,7 @@ export class DeviceManager {
             input.addEventListener('change', () => {
                 const value = input.type === 'checkbox'
                     ? (input.checked ? 127 : 0)
-                    : input.selectedIndex + Number(definition.min || 0);
+                    : dropdownRaw(definition, input.selectedIndex);
                 sendValue(value);
             });
             row.appendChild(input);

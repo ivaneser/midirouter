@@ -8,7 +8,7 @@
       "cc": 14,
       "name": "Volume EG Type",
       "min": 0,
-      "max": 5,
+      "max": 4,
       "type": "dropdown",
       "options": [
         "ADSR",
@@ -25,7 +25,14 @@
         "64": "AR Loop (acoustic)",
         "90": "AR (acoustic)",
         "115": "Open"
-      }
+      },
+      "values": [
+        0,
+        38,
+        90,
+        64,
+        115
+      ]
     },
     {
       "cc": 16,
@@ -129,7 +136,7 @@
     },
     {
       "cc": 33,
-      "name": "Mix",
+      "name": "Delay Mix",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -159,7 +166,7 @@
     },
     {
       "cc": 36,
-      "name": "FX Dry/Wet",
+      "name": "Reverb Mix",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -192,7 +199,16 @@
         "85": "Highpass 2-pole",
         "104": "Highpass 4-pole",
         "120": "Thru"
-      }
+      },
+      "values": [
+        0,
+        28,
+        47,
+        66,
+        85,
+        104,
+        120
+      ]
     },
     {
       "cc": 43,
@@ -223,7 +239,8 @@
       "type": "slider",
       "unit": "%",
       "category": "sweep",
-      "description": "Cutoff sweep depth: 0-62 up, 63 none, 64-127 down"
+      "description": "Cutoff sweep depth: 0-62 up, 63 none, 64-127 down",
+      "center": 63
     },
     {
       "cc": 46,
@@ -256,7 +273,14 @@
         "50": "Square",
         "75": "VPM",
         "105": "Noise"
-      }
+      },
+      "values": [
+        0,
+        25,
+        50,
+        75,
+        115
+      ]
     },
     {
       "cc": 54,
@@ -282,13 +306,15 @@
       "cc": 88,
       "name": "FX Mod Type",
       "min": 0,
-      "max": 3,
+      "max": 5,
       "type": "dropdown",
       "options": [
+        "Off",
         "Chorus",
         "Ensemble",
-        "Phase",
-        "Flanger"
+        "Phaser",
+        "Flanger",
+        "Fuzz"
       ],
       "category": "fx_mod",
       "description": "Modulation FX type. Probe 2025-10-03: 0-21 is dry (Off), then 5 wet zones of ~21.3: ~22-42 chorus/ensemble family, ~43-63 (more voices), ~64-84 comb (lowest centroid = phaser), ~85-105 flanger family, ~106-127 clipping (max RMS, lowest centroid = fuzz). Names follow manual order (OFF, Chorus, Ensemble, Phaser, Flanger, Soft Clip, Hard Clip, Sine Fold, Fuzz); the 9 names collapse into 6 CC zones, so middle identities are approximate.",
@@ -299,18 +325,28 @@
         "74": "Phaser*",
         "95": "Flanger*",
         "116": "Clipping (fuzz family)*"
-      }
+      },
+      "values": [
+        0,
+        32,
+        53,
+        74,
+        95,
+        116
+      ]
     },
     {
       "cc": 89,
       "name": "FX Delay Type",
       "min": 0,
-      "max": 3,
+      "max": 5,
       "type": "dropdown",
       "options": [
+        "Off",
         "Stereo",
         "Mono",
-        "PingPong",
+        "Ping Pong",
+        "High Pass",
         "Tape"
       ],
       "category": "fx_delay",
@@ -323,20 +359,33 @@
         "84": "High Pass",
         "105": "unknown (unnamed in source - One/*BPM/Doubling region)",
         "127": "Tape"
-      }
+      },
+      "values": [
+        0,
+        21,
+        42,
+        63,
+        84,
+        127
+      ]
     },
     {
       "cc": 90,
       "name": "FX Reverb Type",
       "min": 0,
-      "max": 4,
+      "max": 9,
       "type": "dropdown",
       "options": [
         "Hall",
+        "Smooth",
+        "Arena",
         "Plate",
+        "Room",
+        "Early",
         "Space",
         "Riser",
-        "Submarine"
+        "Submarine",
+        "Horror"
       ],
       "category": "fx_reverb",
       "description": "Reverb type. Manual lists 11 (OFF + 10); 'OFF' is not CC-addressable (CC90=0 is already wet). 10 zones of ~12.8 in manual order. Probe 2025-10-03: lowest centroids at the top (104-116 Submarine / 117-127 Horror confirmed by measurement); dense early-reflection spike around ~80 (Early/Space region); others approximate.",
@@ -351,13 +400,25 @@
         "91": "Riser*",
         "104": "Submarine",
         "117": "Horror"
-      }
+      },
+      "values": [
+        0,
+        13,
+        26,
+        39,
+        52,
+        65,
+        78,
+        91,
+        104,
+        117
+      ]
     },
     {
       "cc": 117,
-      "name": "Arp Pattern Length",
+      "name": "Arp Pattern",
       "min": 0,
-      "max": 8,
+      "max": 9,
       "type": "dropdown",
       "options": [
         "Up",
@@ -365,10 +426,11 @@
         "Up-Down",
         "Down-Up",
         "Conv",
-        "Inv",
-        "Random",
-        "Seq",
-        "User"
+        "Div",
+        "Conv-Div",
+        "Div-Conv",
+        "Rand",
+        "Stoch"
       ],
       "category": "arp",
       "description": "Arpeggiator pattern",
@@ -383,13 +445,25 @@
         "84": "Div-conv",
         "96": "Rand",
         "127": "Stoch"
-      }
+      },
+      "values": [
+        0,
+        12,
+        24,
+        36,
+        48,
+        60,
+        72,
+        84,
+        96,
+        127
+      ]
     },
     {
       "cc": 118,
       "name": "Arp Intervals",
       "min": 0,
-      "max": 7,
+      "max": 5,
       "type": "dropdown",
       "options": [
         "Oct",
@@ -408,7 +482,15 @@
         "63": "Aug",
         "84": "Min",
         "127": "Dim"
-      }
+      },
+      "values": [
+        0,
+        21,
+        42,
+        63,
+        84,
+        127
+      ]
     },
     {
       "cc": 119,

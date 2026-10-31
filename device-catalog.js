@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { classifySynthPortName, MAP_FILES, flattenControls } from './frontend/js/synth-catalog.js';
+import { classifySynthPortName, MAP_FILES, flattenControls, dropdownRaw, dropdownIndex } from './frontend/js/synth-catalog.js';
 
 const normalize = text => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -86,7 +86,9 @@ export function encodeControlValue(control, value) {
     const low = control.type === 'toggle' ? 0 : Number(control.min ?? 0);
     const high = control.type === 'toggle' ? 127 : Number(control.max ?? 127);
     const clamped = Math.max(low, Math.min(high, Math.round(display)));
-    const raw = Math.max(0, Math.min(127, clamped + offsetOf(control)));
+    const raw = control.type === 'dropdown' && Array.isArray(control.values)
+        ? dropdownRaw(control, clamped - Number(control.min || 0))
+        : Math.max(0, Math.min(127, clamped + offsetOf(control)));
     return { display: clamped, raw };
 }
 
@@ -96,7 +98,8 @@ export function decodeControlValue(control, raw) {
     if (control.type === 'toggle') return raw > 0;
     const display = raw - offsetOf(control);
     if (control.type === 'dropdown') {
-        return { value: display, option: (control.options || [])[display - Number(control.min || 0)] };
+        const index = dropdownIndex(control, display);
+        return { value: index + Number(control.min || 0), option: (control.options || [])[index] };
     }
     return display;
 }
