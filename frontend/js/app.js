@@ -211,6 +211,10 @@ const audioQuality = document.getElementById('audio-quality');
 audioQuality?.addEventListener('change', () => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-quality', quality: audioQuality.value }));
 });
+const audioPacking = document.getElementById('audio-packing');
+audioPacking?.addEventListener('change', () => {
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'audio-packing', packing: audioPacking.value }));
+});
 // The listening buffer belongs to this browser (its Wi-Fi), so it is remembered here and not on the Pi.
 const audioBuffer = document.getElementById('audio-buffer');
 if (audioBuffer) {
@@ -247,6 +251,7 @@ function handleMessage(msg) {
     if (msg.type === 'time-sync') return handleTimeSync(msg);
     if (msg.type === 'audio-filter' && audioFilter) audioFilter.value = msg.level;
     if (msg.type === 'audio-quality' && audioQuality) audioQuality.value = msg.quality;
+    if (msg.type === 'audio-packing' && audioPacking) audioPacking.value = msg.packing;
     if (msg.type === 'daw_state' && msg.payload) showAudioMonitor(msg.payload);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
     if (msg.type === 'daw_state' && msg.payload?.deviceControls) deviceManager.updateDeviceControls(msg.payload.deviceControls, msg.payload.deviceControlsRev);

@@ -51,6 +51,7 @@ export class OpusBroadcast extends EventEmitter {
         super();
         this.capture = capture;
         this.quality = quality;
+        this.packing = 2;   // frames per network write (see PACKING_FRAMES)
         this.encoder = null;
         this.pending = Buffer.alloc(0);
         this.count = 0;
@@ -87,6 +88,10 @@ export class OpusBroadcast extends EventEmitter {
     _start() {
         this.encoder = new OpusScript(OPUS_RATE, this.capture.channels, OpusScript.Application.AUDIO);
         if (this.bitrate) this.encoder.setBitrate(this.bitrate);
+        // Tuned for music at a steady rate: music mode, the most thorough search, bitrate kept near the target (constrained VBR).
+        for (const [ctl, value] of [[4024, 3002], [4010, 10], [4006, 1], [4020, 1]]) {
+            try { this.encoder.encoderCTL(ctl, value); } catch { /* an option this build lacks */ }
+        }
         this.pending = Buffer.alloc(0);
         this.resampler = this.capture.sampleRate === OPUS_RATE ? null : new Resampler(this.capture.sampleRate, OPUS_RATE, this.capture.channels);
         this.unsubscribeCapture = this.capture.subscribeClean(chunk => this._feed(chunk));

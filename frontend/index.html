@@ -184,6 +184,14 @@
                             <option value="pcm">Raw (uncompressed)</option>
                         </select>
                     </label>
+                    <label class="audio-filter" title="How the Pi packs the Opus stream, for everyone who listens. Low sends every 20 ms (least delay); Balanced and Efficient send 40 or 60 ms at a time: fewer Wi-Fi packets, so more phones fit on the network, at 20-40 ms more delay.">
+                        <span>Packets</span>
+                        <select id="audio-packing" aria-label="Opus packet size">
+                            <option value="low">Low delay</option>
+                            <option value="balanced" selected>Balanced</option>
+                            <option value="efficient">Efficient</option>
+                        </select>
+                    </label>
                     <label class="audio-filter" title="Delay kept in this browser to ride out Wi-Fi jitter. Auto starts at 120 ms, grows after a dropout and shrinks again when the connection is calm. A fixed value is steadier but cannot adapt.">
                         <span>Buffer</span>
                         <select id="audio-buffer" aria-label="Listening buffer of this browser">

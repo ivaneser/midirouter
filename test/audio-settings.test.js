@@ -18,7 +18,7 @@ test('a chosen level is saved and wins over the fallback after a restart', () =>
     const path = file();
     const settings = new AudioSettings(path, 'light');
     assert.equal(settings.setFilter('strong'), 'strong');
-    assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { filter: 'strong', quality: 'opus-96' });
+    assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { filter: 'strong', quality: 'opus-96', packing: 'balanced' });
     assert.equal(new AudioSettings(path, 'off').filter, 'strong');
 });
 
@@ -48,4 +48,13 @@ test('the stream quality defaults to Opus 96, is saved, and unknown values are r
     assert.equal(settings.quality, 'opus-32');
     assert.equal(new AudioSettings(path).quality, 'opus-32');
     assert.equal(new AudioSettings(path).filter, 'light', 'the filter is kept next to it');
+});
+
+test('packet packing defaults to balanced, is saved, and unknown values are refused', () => {
+    const path = file();
+    const settings = new AudioSettings(path);
+    assert.equal(settings.packing, 'balanced');
+    assert.equal(settings.setPacking('efficient'), 'efficient');
+    assert.equal(settings.setPacking('huge'), null);
+    assert.equal(new AudioSettings(path).packing, 'efficient');
 });

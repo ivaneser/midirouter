@@ -111,3 +111,26 @@ test('/audio/live?codec=opus is Opus when available, otherwise the raw stream', 
     opus.setQuality('pcm');
     assert.equal((await head(capture, opus, '/audio/live?codec=opus')).codec, 'pcm');
 });
+
+test('packets are grouped per network write by the packing setting, and still parse as framed packets', async () => {
+    const capture = fakeCapture();
+    const opus = new OpusBroadcast(capture, { quality: 'opus-96' });
+    opus.packing = 3;
+    const server = createServer((req, res) => serveLiveAudio(capture, req, res, opus));
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const controller = new AbortController();
+    try {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/audio/live?codec=opus`, { signal: controller.signal });
+        const reader = response.body.getReader();
+        capture.emit("clean", tone(960 * 3));
+        const { value } = await reader.read();
+        let at = 0, frames = 0;
+        while (at + 2 <= value.length) { at += 2 + ((value[at] << 8) | value[at + 1]); frames++; }
+        assert.equal(at, value.length, 'whole packets only');
+        assert.equal(frames, 3, 'three 20 ms frames in one write');
+        controller.abort();
+    } finally {
+        server.closeAllConnections();
+        server.close();
+    }
+});

@@ -231,7 +231,12 @@ export function serveLiveAudio(capture, req, res, opus = null) {
     let unsubscribe;
     if (useOpus) {
         // Opus listeners get the packets as they are encoded; a change to or from raw PCM ends the stream so the player reconnects.
-        const offPackets = opus.subscribe(send);
+        // Several 20 ms frames go out in one write when so configured: fewer Wi-Fi packets per second.
+        let batch = [];
+        const offPackets = opus.subscribe(packet => {
+            batch.push(packet);
+            if (batch.length >= opus.packing) { const out = batch.length === 1 ? batch[0] : Buffer.concat(batch); batch = []; send(out); }
+        });
         const onQuality = () => { if (!opus.available) res.end(); };
         opus.on('quality', onQuality);
         unsubscribe = () => { offPackets(); opus.off('quality', onQuality); };

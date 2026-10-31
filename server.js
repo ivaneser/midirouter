@@ -15,7 +15,7 @@ import { scaleById } from './frontend/js/scales.js';
 import { AudioCapture, serveLiveAudio } from './audio-capture.js';
 import { serveRecording } from './audio-record.js';
 import { createListenServer, listenOnFirstFree } from './listen-server.js';
-import { AudioSettings } from './audio-settings.js';
+import { AudioSettings, PACKING_FRAMES } from './audio-settings.js';
 import { OpusBroadcast } from './audio-opus.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
@@ -337,6 +337,7 @@ const router = new MIDIRouterWorker();
 const audioSettings = new AudioSettings(join(import.meta.dirname, 'audio-settings.json'), process.env.MIDIROUTER_AUDIO_FILTER);
 const audioCapture = new AudioCapture({ filter: audioSettings.filter });
 const opusBroadcast = new OpusBroadcast(audioCapture, { quality: audioSettings.quality });
+opusBroadcast.packing = PACKING_FRAMES[audioSettings.packing];
 let listenServer = null;
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 router.deviceChannels = deviceChannels;
@@ -517,6 +518,7 @@ function startServer() {
         ws.send(JSON.stringify({ type: 'ui-layout', order: uiLayout.order }));
         ws.send(JSON.stringify({ type: 'audio-filter', level: audioSettings.filter }));
         ws.send(JSON.stringify({ type: 'audio-quality', quality: audioSettings.quality }));
+        ws.send(JSON.stringify({ type: 'audio-packing', packing: audioSettings.packing }));
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
 
         ws.on('error', (err) => {
@@ -786,6 +788,15 @@ function startServer() {
                         if (quality) {
                             opusBroadcast.setQuality(quality);
                             router._broadcast({ type: 'audio-quality', quality });
+                        }
+                        break;
+                    }
+                    case 'audio-packing': {
+                        // Frames per network write: less delay, or fewer Wi-Fi packets (for everyone who listens).
+                        const packing = audioSettings.setPacking(message.packing);
+                        if (packing) {
+                            opusBroadcast.packing = PACKING_FRAMES[packing];
+                            router._broadcast({ type: 'audio-packing', packing });
                         }
                         break;
                     }
