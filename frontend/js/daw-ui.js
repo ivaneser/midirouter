@@ -698,6 +698,8 @@ export class DAWUI {
                 block.appendChild(slot);
             }
 
+            block.appendChild(this._buildMixKnobs(t, ch));
+
             // "+" below the clip column: append one more empty clip to this track
             const addRow = document.createElement('div');
             addRow.className = 'track-controls-row';
@@ -726,7 +728,6 @@ export class DAWUI {
             });
             addRow.appendChild(removeClipBtn);
             block.appendChild(addRow);
-            block.appendChild(this._buildMixKnobs(t, ch));
 
             grid.appendChild(block);
         }
