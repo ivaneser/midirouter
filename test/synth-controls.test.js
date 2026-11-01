@@ -596,7 +596,7 @@ test('Blofeld is one group card with a separate card, channel and controls per p
 test('Blofeld controls are arranged by signal flow without dropping any control', async () => {
     const { buildStages } = await import('../frontend/js/synth-stages.js');
     const controls = await getControlsForModel('waldorf-blofeld');
-    assert.equal(controls.length, 69);
+    assert.equal(controls.length, 71);
     assert.ok(controls.layout, 'the map layout travels with the controls');
     const stages = buildStages(controls, controls.layout);
     assert.deepEqual(stages.map(stage => stage.title), ['Sound source', 'Filters', 'Amplifier and effects', 'Envelopes', 'Modulation', 'Arpeggiator']);

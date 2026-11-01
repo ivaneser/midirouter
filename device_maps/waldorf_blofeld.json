@@ -749,6 +749,25 @@
       "type": "slider",
       "unit": "%",
       "category": "fx"
+    },
+    {
+      "cc": 7,
+      "name": "Part Volume",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "unit": "%",
+      "category": "mix",
+      "default": 100
+    },
+    {
+      "cc": 10,
+      "name": "Part Pan",
+      "min": -64,
+      "max": 63,
+      "type": "slider",
+      "category": "mix",
+      "center": 0
     }
   ],
   "ui": {
@@ -913,6 +932,11 @@
         "title": "Amplifier and effects",
         "hint": "Final level, how hard you play it, and the two effects.",
         "modules": [
+          {
+            "title": "Part mix",
+            "section": "global",
+            "category": "mix"
+          },
           {
             "title": "Amplifier",
             "section": "global",
