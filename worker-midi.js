@@ -1992,13 +1992,8 @@ class MIDIRouterWorker {
 
         if (control?.kind === 'pad') {
             const eventTime = performance.now();
+            // A clip pad only launches or stops clips: pressing it must not also be recorded as a note.
             this._handleMappedPad(control.pad, control.pressed ? 127 : 0, eventTime);
-            // Pad input doubles as a performance note: keep pad triggering, but
-            // feed the same timestamped MIDI event through the DAW's recording
-            // gate.  That gate rejects events before recording.startTime.
-            if (isNoteOn2 || isNoteOff) {
-                this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2] ?? 0, eventTime);
-            }
             return;
         } else if (control?.kind === 'transport') {
             this._handleProfileTransport(control.action, control.ppressed);

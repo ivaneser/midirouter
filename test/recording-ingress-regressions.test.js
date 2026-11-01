@@ -21,7 +21,7 @@ test('overdub-arm count-in uses project contents from before arming the target c
     assert.equal(daw.recording.startBeat, 0);
 });
 
-test('mapped pad Note On/Off messages reach the active recording path', (t) => {
+test('a mapped clip pad launches clips only: its Note On/Off is never recorded as a note', (t) => {
     const daw = new DAWEngine({ tempo: 120 });
     daw.setRecordMode('none');
     daw.armTrack(0);
@@ -38,20 +38,12 @@ test('mapped pad Note On/Off messages reach the active recording path', (t) => {
     worker.controllerEngine = {
         inputEvent: () => ({ kind: 'pad', pad: { trackIdx: 1, slot: 0 }, pressed: true, consume: true }),
     };
-    worker._handleMappedPad = () => {};
+    const pressed = [];
+    worker._handleMappedPad = (pad, velocity) => pressed.push([pad, velocity]);
 
-    // Even though the controller path handles pad actions first, the DAW must
-    // still reject any MIDI timestamp before the red Record transition.
-    daw.recording.startTime = performance.now() + 1000;
-    worker._onIncomingMessage('Test Pad Controller', 0, [0x90, 63, 100]);
-    worker._onIncomingMessage('Test Pad Controller', 0, [0x80, 63, 0]);
-    assert.equal(daw.tracks[0].clips[0].notes.length, 0);
-
-    daw.recording.startTime = performance.now() - 100;
     worker._onIncomingMessage('Test Pad Controller', 0, [0x90, 64, 100]);
     worker._onIncomingMessage('Test Pad Controller', 0, [0x80, 64, 0]);
 
-    assert.equal(daw.tracks[0].clips[0].notes.length, 1);
-    assert.equal(daw.tracks[0].clips[0].notes[0].note, 64);
-    assert.equal(daw.tracks[0].clips[0].notes[0].velocity, 100);
+    assert.equal(pressed.length, 2, 'the pad still launches clips');
+    assert.equal(daw.tracks[0].clips[0].notes.length, 0, 'but is not recorded as a note');
 });
