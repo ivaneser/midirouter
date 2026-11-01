@@ -602,3 +602,16 @@ test('loopBridgedNotes: a note ending at the loop end while the same note starts
     const gap = note(60, 3, 0.5);
     assert.equal(loopBridgedNotes([startsAtLoopStart, gap], 4).size, 0);
 });
+
+test('track volume and pan are CC 7 and CC 10 on the track channel, kept in state and saved', () => {
+    const daw = new DAWEngine();
+    assert.deepEqual(daw.setTrackMix(2, 'volume', 90), [0xB2, 7, 90]);
+    assert.deepEqual(daw.setTrackMix(2, 'pan', 200), [0xB2, 10, 127]);
+    assert.equal(daw.setTrackMix(2, 'reverb', 10), null);
+    assert.equal(daw.setTrackMix(99, 'pan', 10), null);
+    const state = daw.getState().tracks[2];
+    assert.equal(state.volume, 90);
+    assert.equal(state.pan, 127);
+    assert.equal(daw.getState().tracks[0].volume, 100);
+    assert.equal(daw.getState().tracks[0].pan, 64);
+});

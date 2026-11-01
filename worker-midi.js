@@ -2384,6 +2384,11 @@ class MIDIRouterWorker {
                     this._broadcastState();
                 }
                 break;
+            case 'daw_track_mix': {
+                const bytes = daw.setTrackMix(msg.trackIdx, msg.kind, msg.value);
+                if (bytes) this._sendToSynthOutputs(bytes, 'track mix');
+                break;
+            }
             case 'daw_add_track':
                 daw.addTrack();
                 this._broadcastState();

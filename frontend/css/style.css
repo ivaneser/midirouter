@@ -111,6 +111,13 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .session-slot.overdub { background: #4d392b; border-color: #cb9467; color: #ffe0c0; }
 .session-slot.armed { border-color: var(--red); }
 .session-slot.clip-start, .session-slot.flash { border-color: #b4e480; filter: brightness(1.2); }
+.track-mix-row { display: flex; justify-content: space-around; gap: 4px; padding: 6px 0 4px; }
+.track-mix-knob { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; }
+.track-mix-knob .midi-knob { width: 40px; height: 40px; flex-basis: 40px; }
+.track-mix-knob .midi-knob-face { inset: 8px; }
+.track-mix-knob .midi-knob-face::after { top: 3px; height: 8px; }
+.track-mix-knob .midi-knob-value { font-size: .7rem; min-width: 0; }
+.track-mix-label { color: #8fa1b0; font-size: .625rem; letter-spacing: .04em; }
 .track-controls-row { display: flex; gap: 6px; }
 .track-controls-row button { flex: 1; min-width: 0; min-height: 44px; padding: 6px; border-style: dashed; background: transparent; color: #a9bac8; font-size: 1.1rem; font-weight: 400; }
 .track-block-add { align-self: stretch; min-height: 220px; justify-content: center; align-items: center; background: transparent; border-style: dashed; }
