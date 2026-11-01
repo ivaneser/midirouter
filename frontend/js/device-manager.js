@@ -158,7 +158,6 @@ export class DeviceManager {
             const groups = this.presetGroups.get(baseKey);
             const group = groups ? select.dataset.group || '' : '';
             const shown = this.programsInGroup(baseKey, group, count);
-            if (program != null && program < count && !shown.includes(program)) { shown.push(program); shown.sort((a, b) => a - b); }   // the chosen preset stays listed
             const signature = `${count}|${group}|${shown.length}|${shown[0]}|${shown[shown.length - 1]}`;
             if (select._signature !== signature) {
                 select._signature = signature;
@@ -179,7 +178,7 @@ export class DeviceManager {
                 const text = name ? `${index + 1} · ${name}` : String(index + 1);
                 if (select.children[position + 1].textContent !== text) select.children[position + 1].textContent = text;
             });
-            select.value = program == null ? '' : String(program);
+            select.value = program == null || !shown.includes(program) ? '' : String(program);   // a preset outside the shown group is not listed
             select.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
         });
     }
