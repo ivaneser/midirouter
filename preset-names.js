@@ -4,7 +4,13 @@ import { deviceChannelKey } from './frontend/js/device-channels.js';
 // Controller messages that precede a Program Change for the preset `index` (bank * 128 + program).
 export function bankSelectMessages(bank, channel, index) {
     const status = 0xB0 | (channel - 1);
-    return [...(bank.prefix || []).map(({ cc, value }) => [status, cc, value]), [status, bank.cc, index >> 7]];
+    return [...(bank.prefix || []).map(({ cc, value }) => [status, cc, value]), [status, bank.cc, presetPosition(bank, index).bank]];
+}
+
+// Bank number and Program Change number of a preset index; a bank holds `size` presets (128, or 32 for DX7 banks).
+export function presetPosition(bank, index) {
+    const size = bank?.size || 128;
+    return { bank: Math.floor(index / size), program: index % size };
 }
 
 // Read-only SysEx adapters. No patch upload or arbitrary command discovery.
@@ -38,7 +44,7 @@ export class PresetNames {
     bankInfo(target) {
         const profile = this.profiles.find(p => p.match.some(name => target.toLowerCase().includes(name.toLowerCase())));
         // `prefix` lists Controller messages that must precede the bank number (PreenFM2: CC 0 picks the bank type).
-        return profile?.programs > 128 ? { programs: profile.programs, cc: profile.bankSelectCc ?? 0, ...(profile.bankSelectPrefix ? { prefix: profile.bankSelectPrefix } : {}) } : null;
+        return profile?.programs > 128 ? { programs: profile.programs, cc: profile.bankSelectCc ?? 0, ...(profile.bankSelectPrefix ? { prefix: profile.bankSelectPrefix } : {}), ...(profile.bankSize ? { size: profile.bankSize } : {}) } : null;
     }
 
     // Anything a device sends that carries a preset's name or sound, whether or not we asked for it (the

@@ -871,7 +871,8 @@
         "cc": 0,
         "value": 2
       }
-    ]
+    ],
+    "bankSize": 32
   },
-  "note": "PreenFM2 is 4-timbre multitimbral (channels 1-4). Presets: Bank Select CC 0 (2 = DX7 banks 0-127; 3 = DX7 banks 128-255) then CC 32 (bank number), then Program Change; per midi.guide. CC labels follow midi.guide."
+  "note": "PreenFM2 is 4-timbre multitimbral (channels 1-4). Presets: Bank Select CC 0 (2 = DX7 banks 0-127; 3 = DX7 banks 128-255) then CC 32 (bank number), then Program Change; per midi.guide. CC labels follow midi.guide. A DX7 bank holds 32 voices, so preset N is bank N div 32, program N mod 32 (checked on hardware: Program Change above 31 does nothing)."
 }

@@ -5,7 +5,7 @@ import { DAWEngine, loopBridgedNotes, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
-import { PresetNames, bankSelectMessages } from './preset-names.js';
+import { PresetNames, bankSelectMessages, presetPosition } from './preset-names.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
 import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine, matches } from './controller-engine.js';
@@ -2676,8 +2676,8 @@ class MIDIRouterWorker {
         const bank = this._presetNames.bankInfo(target);
         if (!output || !Number.isInteger(index) || index < 0 || index >= (bank?.programs ?? 128)) return false;
         if (bank) for (const bytes of bankSelectMessages(bank, channel, index)) output.sendMessage(Buffer.from(bytes));
-        output.sendMessage(Buffer.from([0xC0 | (channel - 1), index & 127]));
-        console.log(`[MIDI] [PRESET] ${target} ch${channel} -> preset ${index}${bank ? ` (bank ${index >> 7} via CC${bank.cc}, program ${index & 127})` : ''}`);
+        output.sendMessage(Buffer.from([0xC0 | (channel - 1), presetPosition(bank, index).program]));
+        console.log(`[MIDI] [PRESET] ${target} ch${channel} -> preset ${index}${bank ? ` (bank ${presetPosition(bank, index).bank} via CC${bank.cc}, program ${presetPosition(bank, index).program})` : ''}`);
         this._rememberDeviceProgram(target, channel, index, name);
         // The synth loaded a fresh sound, so earlier knob tweaks on this channel no longer apply.
         this._forgetDeviceControls(target, channel);
@@ -2711,7 +2711,7 @@ class MIDIRouterWorker {
         const other = index + 1 < total ? index + 1 : index - 1;
         if (output && other >= 0) {
             if (bank) for (const bytes of bankSelectMessages(bank, channel, other)) output.sendMessage(Buffer.from(bytes));
-            output.sendMessage(Buffer.from([0xC0 | (channel - 1), other & 127]));
+            output.sendMessage(Buffer.from([0xC0 | (channel - 1), presetPosition(bank, other).program]));
         }
         setTimeout(() => {
             try { if (this._sendPreset(target, channel, index, name)) this._broadcastState(); }
