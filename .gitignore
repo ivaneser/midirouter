@@ -11,3 +11,5 @@ audio-settings.json
 audio-settings.json.tmp
 # preset names and sounds learned from the devices (per machine)
 device_maps/learned/
+# presets the user saved for instruments without their own (per machine)
+user_presets/

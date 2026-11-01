@@ -21,6 +21,7 @@ import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
 import { PresetStore } from './preset-store.js';
+import { UserPresetStore } from './user-presets.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const FRONTEND_DIR = join(import.meta.dirname, 'frontend');
@@ -36,6 +37,7 @@ class MIDIRouterWorker {
         this.dawState = null;          // last daw_state payload (clips, transport, device presets/controls)
         this.presetStore = new PresetStore(join(import.meta.dirname, 'device_maps', 'learned'));
         this.presetNames = new Map();  // `${deviceKey}:${channel}:${program}` -> name reported by the device
+        this.userPresets = new UserPresetStore(join(import.meta.dirname, 'user_presets'));   // sounds saved for instruments without presets
     }
 
     async init() {
@@ -308,6 +310,38 @@ class MIDIRouterWorker {
         this._broadcast({ type: 'device-control', target, channel, cc, value });
     }
 
+    // The CC values set on one instrument channel since it was last cleared (knobs, graphs, pads, the MCP server).
+    touchedControls(target, channel) {
+        const key = deviceChannelKey(target);
+        return (this.dawState?.deviceControls || []).filter(c => deviceChannelKey(c.target) === key && c.channel === channel);
+    }
+
+    forgetControls(target, channel) {
+        const key = deviceChannelKey(target);
+        if (this.dawState?.deviceControls) this.dawState.deviceControls = this.dawState.deviceControls.filter(c => !(deviceChannelKey(c.target) === key && c.channel === channel));
+        this.worker?.postMessage({ type: 'forget_controls', target, channel });
+    }
+
+    // Save the CCs touched on this channel as a named preset. Returns the preset id, or null when nothing was touched.
+    saveUserPreset({ file, target, channel, name, group }) {
+        const controls = this.touchedControls(target, channel).map(({ cc, value }) => ({ cc, value }));
+        const id = this.userPresets.save(file, { name, group, controls });
+        if (id) this._broadcast({ type: 'user-presets', file, presets: this.userPresets.list(file) });
+        return id;
+    }
+
+    // Send a saved preset's CCs. What was touched before is forgotten, so the next save starts from this sound.
+    loadUserPreset({ file, target, channel, id }) {
+        const preset = this.userPresets.get(file, id);
+        if (!preset || !Number.isInteger(channel) || channel < 1 || channel > 16) return false;
+        this.forgetControls(target, channel);
+        for (const { cc, value } of preset.controls) {
+            this._sendMidiToTarget([0xB0 | (channel - 1), cc, value], target);
+            this.noteControl(target, channel, cc, value);
+        }
+        return true;
+    }
+
     // Cleanup on close
     cleanup() {
         console.log('[SERVER] Shutting down worker...');
@@ -517,6 +551,7 @@ function startServer() {
         ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
         ws.send(JSON.stringify({ type: 'ui-layout', order: uiLayout.order }));
         ws.send(JSON.stringify({ type: 'audio-filter', level: audioSettings.filter }));
+        for (const file of ['korg_nts1']) ws.send(JSON.stringify({ type: 'user-presets', file, presets: router.userPresets.list(file) }));
         ws.send(JSON.stringify({ type: 'audio-quality', quality: audioSettings.quality }));
         ws.send(JSON.stringify({ type: 'audio-packing', packing: audioSettings.packing }));
         ws.send(JSON.stringify({ type: 'devices', ...router.getPorts() }));
@@ -782,6 +817,21 @@ function startServer() {
                         break;
                     }
 
+                    case 'user-preset-save': {
+                        if (typeof message.target !== 'string' || !router.saveUserPreset(message)) {
+                            ws.send(JSON.stringify({ type: 'user-preset-error', message: 'Nothing to save: move a control first, and give the preset a name.' }));
+                        }
+                        break;
+                    }
+                    case 'user-preset-load':
+                        if (typeof message.target === 'string') router.loadUserPreset(message);
+                        break;
+                    case 'user-preset-delete':
+                        if (router.userPresets.remove(message.file, String(message.id))) router._broadcast({ type: 'user-presets', file: message.file, presets: router.userPresets.list(message.file) });
+                        break;
+                    case 'user-preset-clear':
+                        if (typeof message.target === 'string' && Number.isInteger(message.channel)) router.forgetControls(message.target, message.channel);
+                        break;
                     case 'audio-quality': {
                         // How the audio travels to listeners (raw PCM or Opus at a bitrate), for everyone who listens.
                         const quality = audioSettings.setQuality(message.quality);

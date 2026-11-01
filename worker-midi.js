@@ -1,7 +1,7 @@
 /* === MIDI Router — all-to-all passthrough + DAW / Clip mode === */
 import midi from '@julusian/midi';
 import { parentPort } from 'worker_threads';
-import { DAWEngine, noteOn, noteOff } from './daw.js';
+import { DAWEngine, loopBridgedNotes, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
@@ -753,6 +753,8 @@ class MIDIRouterWorker {
                     + ((Math.round(note.start * 24) % playback.loopTicks) + playback.loopTicks) % playback.loopTicks
                     + offsetTicks),
             }));
+            const bridged = loopBridgedNotes(clip.notes, loopBeats);
+            clip.notes.forEach((note, index) => { if (bridged.has(note)) playback.noteEvents[index].bridged = true; });
             playback.pendingNoteOffs = new Map();
             this._trackPlayTimers.set(trackIdx, playback);
             this._tickExternalClipPlayback(currentTick);
@@ -781,6 +783,7 @@ class MIDIRouterWorker {
         const { originMs, loopBeats, msPerBeat, schedule } = playback;
         const audioOffset = playback.audioOffsetMs || 0;
         const loopMs = loopBeats * msPerBeat;
+        const bridged = loopBridgedNotes(clip.notes, loopBeats);
         for (const note of clip.notes) {
             // Each event is stored relative to the clip's own beat 0, repeats every clip.length.
             const eventOffset = ((note.start % loopBeats) + loopBeats) % loopBeats;
@@ -792,6 +795,13 @@ class MIDIRouterWorker {
             const fire = () => {
                 if (playback.stopAtMs != null && nextAt >= playback.stopAtMs) return;
                 this._sendToSynthOutputs(noteOn(channel - 1, note.note, note.velocity > 0 ? note.velocity : 80));
+                if (bridged.has(note)) {
+                    // Its note-off would land on the next pass's note-on of the same note: leave it out.
+                    (playback.held ??= new Set()).add(key);   // still sounding: a stop must release it
+                    nextAt += loopMs;
+                    schedule(fire, nextAt - performance.now(), true);
+                    return;
+                }
                 playback.active.set(key, (playback.active.get(key) || 0) + 1);
                 schedule(() => {
                     this._sendToSynthOutputs(noteOff(channel - 1, note.note));
@@ -950,7 +960,7 @@ class MIDIRouterWorker {
             clearTimeout(playback.stopTimer);
             clearInterval(playback.interval);
             for (const timer of playback.timeouts) clearTimeout(timer);
-            for (const key of playback.active.keys()) {
+            for (const key of new Set([...playback.active.keys(), ...(playback.held || [])])) {
                 const [channel, note] = key.split(':').map(Number);
                 this._sendToSynthOutputs(noteOff(channel - 1, note));
             }
@@ -1018,6 +1028,7 @@ class MIDIRouterWorker {
                 const channel = Math.max(1, event.channel || 1);
                 const key = `${channel}:${event.note}`;
                 this._sendToSynthOutputs(noteOn(channel - 1, event.note, event.velocity > 0 ? event.velocity : 80));
+                if (event.bridged) { (playback.held ??= new Set()).add(key); continue; }   // no note-off at the loop end: the next pass retriggers it
                 playback.active.set(key, (playback.active.get(key) || 0) + 1);
                 const offTick = tick + event.durationTicks;
                 const scheduled = playback.pendingNoteOffs.get(offTick) || [];
@@ -2883,6 +2894,8 @@ if (parentPort) {
         worker._deviceChannels = msg.channels && typeof msg.channels === 'object' ? msg.channels : {};
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
+    } else if (msg.type === 'forget_controls') {
+        if (typeof msg.target === 'string' && Number.isInteger(msg.channel)) worker._forgetDeviceControls(msg.target, msg.channel);
     } else if (msg.type === 'select_preset') {
         if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
             try {

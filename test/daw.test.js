@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { DAWEngine, noteOn, noteOff } from '../daw.js';
+import { DAWEngine, loopBridgedNotes, noteOn, noteOff } from '../daw.js';
 import { ControllerEngine } from '../controller-engine.js';
 import { MIDIRouterWorker } from '../worker-midi.js';
 
@@ -583,4 +583,22 @@ test('setClipNotes with minLength never shrinks the clip (piano roll edits)', ()
     assert.equal(daw.tracks[0].clips[0].length, 8);
     daw.setClipNotes(0, 0, [{ note: 62, start: 0, dur: 1, velocity: 100 }], 1, undefined, 8);
     assert.equal(daw.tracks[0].clips[0].length, 8);
+});
+
+test('loopBridgedNotes: a note ending at the loop end while the same note starts at the loop start loses its note-off', () => {
+    const note = (n, start, dur, channel = 1) => ({ note: n, start, dur, channel, velocity: 100 });
+    const endsAtLoopEnd = note(60, 3, 1);
+    const startsAtLoopStart = note(60, 0, 1);
+    const otherPitchEnd = note(64, 3, 1);
+    const otherChannelEnd = note(60, 3, 1, 2);
+    const early = note(60, 1, 1);
+    const bridged = loopBridgedNotes([startsAtLoopStart, early, endsAtLoopEnd, otherPitchEnd, otherChannelEnd], 4);
+    assert.ok(bridged.has(endsAtLoopEnd), 'the ending note');
+    assert.ok(!bridged.has(otherPitchEnd) && !bridged.has(otherChannelEnd) && !bridged.has(early), 'different pitch/channel or not at the end');
+    // a note held for the whole loop bridges to itself
+    const whole = note(48, 0, 4);
+    assert.ok(loopBridgedNotes([whole], 4).has(whole));
+    // a gap before the loop end keeps the note-off
+    const gap = note(60, 3, 0.5);
+    assert.equal(loopBridgedNotes([startsAtLoopStart, gap], 4).size, 0);
 });

@@ -33,6 +33,22 @@ function noteOff(channel, note) {
     return [0x80 | (channel & 0x0f), note & 0x7f, 0];
 }
 
+// Notes of a looping clip whose note-off sits on the loop boundary while the same note (same channel and
+// pitch, possibly the note itself) starts again at the loop start. Sending that note-off would cut the
+// note that begins at the same moment, so these notes are played without it: the new pass retriggers them.
+function loopBridgedNotes(notes, loopBeats, tolerance = 0.06) {
+    const wrap = beat => ((beat % loopBeats) + loopBeats) % loopBeats;
+    const startsAtLoopStart = new Set();
+    for (const note of notes) {
+        const start = wrap(note.start);
+        if (start < tolerance || loopBeats - start < tolerance) startsAtLoopStart.add(`${Math.max(1, note.channel || 1)}:${note.note}`);
+    }
+    return new Set(notes.filter(note => {
+        const end = wrap(note.start) + (note.dur || 0.25);
+        return end >= loopBeats - tolerance && startsAtLoopStart.has(`${Math.max(1, note.channel || 1)}:${note.note}`);
+    }));
+}
+
 class DAWEngine {
     constructor(opts = {}) {
         this.tempo = opts.tempo || 120;          // BPM
@@ -1455,4 +1471,4 @@ class DAWEngine {
     }
 }
 
-export { DAWEngine, noteOn, noteOff, PPQ, DEFAULT_SLOTS_PER_TRACK };
+export { DAWEngine, loopBridgedNotes, noteOn, noteOff, PPQ, DEFAULT_SLOTS_PER_TRACK };

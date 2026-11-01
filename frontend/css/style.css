@@ -140,10 +140,10 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .device-item > .device-item-name { flex: 1 1 160px; width: auto; }
 .device-item > .synth-controls { flex: 1 1 100%; min-width: 0; }
 .device-program-controls { display: flex; gap: 4px; }
-.device-program-group { align-self: center; width: 96px; min-height: 44px; font-size: .75rem; }
-.device-program-group[hidden] { display: none; }
-.device-program-name { align-self: center; width: 150px; min-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: var(--accent); }
-@media (max-width: 480px) { .device-program-name { width: 104px; } .device-program-group { width: 72px; } }
+.device-program-group, .user-preset-group { align-self: center; width: 96px; min-height: 44px; font-size: .75rem; }
+.device-program-group[hidden], .user-preset-group[hidden] { display: none; }
+.device-program-name, .user-preset-name { align-self: center; width: 150px; min-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: var(--accent); }
+@media (max-width: 480px) { .device-program-name, .user-preset-name { width: 104px; } .device-program-group, .user-preset-group { width: 72px; } }
 .piano-roll-toolbar { display: flex; flex-wrap: wrap; gap: 16px; }
 .piano-roll-toolbar label { display: flex; align-items: center; gap: 8px; }
 .piano-roll-view { overflow: auto; max-height: 440px; border-radius: 8px; }

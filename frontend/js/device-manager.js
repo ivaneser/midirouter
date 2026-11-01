@@ -17,6 +17,9 @@ import {
     dropdownIndex,
 } from './synth-catalog.js?v=25';
 
+// Instruments without presets of their own: the user saves the CCs they set as named presets (stored on the router).
+const USER_PRESET_FILES = { 'korg-nts-1': 'korg_nts1' };
+
 export class DeviceManager {
     constructor() {
         this.inputs = [];   // [{id, name}]
@@ -30,6 +33,8 @@ export class DeviceManager {
         this.presetNames = new Map();
         this.presetCounts = new Map();
         this.presetFiles = new Map();      // baseKey -> device map file name
+        this.userPresets = new Map();      // file -> { id: { name, group, controls } } saved on the router
+        this.userPresetChosen = new Map(); // `${target}:${channel}` -> id of the preset last loaded
         this.presetGroups = new Map();     // baseKey -> { number: group } (sound categories), when the catalog has them
         this.presetCatalogs = new Map();   // baseKey -> { number: name } from device_maps/presets, when the device has one
     }
@@ -75,6 +80,110 @@ export class DeviceManager {
         const groups = this.presetGroups.get(baseKey);
         const all = Array.from({ length: count }, (_, index) => index);
         return !group || !groups ? all : all.filter(index => groups[String(index + 1)] === group);
+    }
+
+    // Preset controls of an instrument without presets: group and preset drop-downs over the sounds the user
+    // saved (a sound is the CCs touched since it was last cleared), with save, delete and clear buttons.
+    _fillUserPresetControls(presets, el, dev, part, label, file) {
+        const unitKey = this.unitKey(dev, part);
+        const channel = () => this.channelForDevice(dev, part);
+        const chosenKey = () => `${dev.id}:${channel()}`;
+        const online = () => {
+            if (window.app?.ws?.readyState === WebSocket.OPEN) return true;
+            window.app?.log?.('Connect to the router to use presets.');
+            return false;
+        };
+        const group = document.createElement('select');
+        group.className = 'user-preset-group';
+        group.dataset.file = file;
+        group.setAttribute('aria-label', `${label} preset group`);
+        group.title = 'Show only presets of this group';
+        const storage = `user-preset-group:${unitKey}`;
+        try { group.dataset.group = localStorage.getItem(storage) || ''; } catch { /* storage unavailable */ }
+        const name = document.createElement('select');
+        name.className = 'user-preset-name';
+        name.dataset.file = file;
+        name.setAttribute('aria-label', `${label} preset`);
+        name.title = 'Your saved sounds for this instrument';
+        name.chosenKey = chosenKey;
+        name.dataset.group = group.dataset.group || '';
+        group.addEventListener('change', () => {
+            group.dataset.group = group.value;
+            name.dataset.group = group.value;
+            try { localStorage.setItem(storage, group.value); } catch { /* optional */ }
+            this.refreshUserPresets();
+        });
+        name.addEventListener('change', () => {
+            if (name.value === '' || !online()) { this.refreshUserPresets(); return; }
+            this.userPresetChosen.set(chosenKey(), name.value);
+            window.app.ws.send(JSON.stringify({ type: 'user-preset-load', file, target: dev.id, channel: channel(), id: name.value }));
+        });
+        const button = (text, title, onClick, className = '') => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = text;
+            b.title = title;
+            if (className) b.className = className;
+            b.setAttribute('aria-label', `${label}: ${title}`);
+            b.addEventListener('click', onClick);
+            return b;
+        };
+        const current = () => this.userPresets.get(file)?.[this.userPresetChosen.get(chosenKey())];
+        const save = button('💾', 'Save the controls you moved as a preset', () => {
+            if (!online()) return;
+            const presetName = window.prompt('Preset name', current()?.name || '');
+            if (!presetName?.trim()) return;
+            const presetGroup = window.prompt('Group (for example Pad, Bass, FX)', current()?.group || group.dataset.group || 'Misc');
+            if (presetGroup === null) return;
+            this._pendingUserPreset = { file, key: chosenKey(), name: presetName.trim().toLowerCase() };
+            window.app.ws.send(JSON.stringify({ type: 'user-preset-save', file, target: dev.id, channel: channel(), name: presetName, group: presetGroup }));
+        });
+        const remove = button('🗑', 'Delete the selected preset', () => {
+            const id = this.userPresetChosen.get(chosenKey()) || name.value;
+            const preset = this.userPresets.get(file)?.[id];
+            if (!preset || !online() || !window.confirm(`Delete preset "${preset.name}"?`)) return;
+            this.userPresetChosen.delete(chosenKey());
+            window.app.ws.send(JSON.stringify({ type: 'user-preset-delete', file, id }));
+        });
+        const clear = button('↺', 'Forget the controls moved so far: the next preset you save starts from nothing', () => {
+            if (!online()) return;
+            window.app.ws.send(JSON.stringify({ type: 'user-preset-clear', target: dev.id, channel: channel() }));
+            this._discardControls(el, dev, part);
+        }, 'device-program-reset');
+        for (const child of [group, name, save, remove, clear]) presets.appendChild(child);
+        this.refreshUserPresets();
+    }
+
+    // The saved presets of an instrument changed (saved, deleted, or sent on connect).
+    updateUserPresets({ file, presets }) {
+        this.userPresets.set(file, presets || {});
+        const pending = this._pendingUserPreset;
+        if (pending?.file === file) {
+            const id = Object.keys(presets || {}).find(key => presets[key].name.toLowerCase() === pending.name);
+            if (id) this.userPresetChosen.set(pending.key, id);
+            this._pendingUserPreset = null;
+        }
+        this.refreshUserPresets();
+    }
+
+    refreshUserPresets() {
+        document.querySelectorAll?.('.user-preset-group').forEach(select => {
+            const saved = this.userPresets.get(select.dataset.file) || {};
+            const groups = [...new Set(Object.values(saved).map(preset => preset.group))].sort((a, b) => a.localeCompare(b));
+            if (select.dataset.group && !groups.includes(select.dataset.group)) select.dataset.group = '';
+            select.replaceChildren(new Option('All', ''), ...groups.map(groupName => new Option(groupName, groupName)));
+            select.value = select.dataset.group || '';
+            select.hidden = groups.length === 0;
+        });
+        document.querySelectorAll?.('.user-preset-name').forEach(select => {
+            const saved = this.userPresets.get(select.dataset.file) || {};
+            const group = select.dataset.group || '';
+            const shown = Object.keys(saved).filter(id => !group || saved[id].group === group)
+                .sort((a, b) => saved[a].name.localeCompare(saved[b].name));
+            select.replaceChildren(new Option(shown.length ? '—' : 'No saved presets', ''), ...shown.map(id => new Option(saved[id].name, id)));
+            const chosen = this.userPresetChosen.get(select.chosenKey?.());
+            select.value = chosen && shown.includes(chosen) ? chosen : '';   // a preset outside the shown group is not listed
+        });
     }
 
     // The device sent a preset name: it replaces what the list showed for that preset.
@@ -361,75 +470,79 @@ export class DeviceManager {
         this.loadPresetCatalog(dev);
         const presets = document.createElement('div');
         presets.className = 'device-program-controls';
-        const groupSelect = document.createElement('select');
-        groupSelect.className = 'device-program-group';
-        groupSelect.dataset.baseKey = baseKey;
-        groupSelect.hidden = true;   // shown once the device's catalog has sound groups
-        groupSelect.setAttribute('aria-label', `${label} preset group`);
-        groupSelect.title = 'Show only presets of this sound group';
-        const groupStorage = `preset-group:${unitKey}`;
-        try { groupSelect.dataset.group = localStorage.getItem(groupStorage) || ''; } catch { /* storage unavailable */ }
-        const presetLabel = document.createElement('select');
-        presetLabel.className = 'device-program-name';
-        presetLabel.dataset.deviceKey = unitKey;
-        presetLabel.dataset.baseKey = baseKey;
-        if (part) presetLabel.dataset.part = String(part);
-        presetLabel.setAttribute('aria-label', `${label} preset`);
-        const programKey = () => `${baseKey}:${this.channelForDevice(dev, part)}`;
-        const selectProgram = program => {
-            if (window.app?.ws?.readyState !== WebSocket.OPEN) { this.refreshPresetLabels(); return; }
-            const key = programKey();
-            window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev, part), index: program }));
-            this.programs.set(key, program);
-            // Clear cached names until this selection is confirmed by the device.
-            this.presetNames.delete(`${key}:${program}`);
-            this.refreshPresetLabels();
-            this._discardControls(el, dev, part);
-            presets.title = `Last requested preset: ${program + 1}`;
-        };
-        groupSelect.addEventListener('change', () => {
-            groupSelect.dataset.group = groupSelect.value;
-            presetLabel.dataset.group = groupSelect.value;
-            try { localStorage.setItem(groupStorage, groupSelect.value); } catch { /* optional */ }
-            this.refreshPresetLabels();
-        });
-        presetLabel.dataset.group = groupSelect.dataset.group || '';
-        presetLabel.addEventListener('change', () => {
-            const program = Number(presetLabel.value);
-            if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
-        });
-        presets.appendChild(groupSelect);
-        for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = text;
-            button.title = `${description} (${step > 0 ? '+1' : '−1'})`;
-            button.setAttribute('aria-label', `${label}: ${description}`);
-            button.addEventListener('click', () => {
-                if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
-                const list = this.programsInGroup(baseKey, presetLabel.dataset.group);
-                const current = this.programs.get(programKey()) ?? 0;
-                const next = (step > 0 ? list.find(index => index > current) : [...list].reverse().find(index => index < current)) ?? (step > 0 ? list.at(-1) : list[0]);
-                if (next != null) selectProgram(next);
+        const userPresetFile = USER_PRESET_FILES[classifySynthPortName(dev.name).model];
+        if (userPresetFile) this._fillUserPresetControls(presets, el, dev, part, label, userPresetFile);
+        else {
+            const groupSelect = document.createElement('select');
+            groupSelect.className = 'device-program-group';
+            groupSelect.dataset.baseKey = baseKey;
+            groupSelect.hidden = true;   // shown once the device's catalog has sound groups
+            groupSelect.setAttribute('aria-label', `${label} preset group`);
+            groupSelect.title = 'Show only presets of this sound group';
+            const groupStorage = `preset-group:${unitKey}`;
+            try { groupSelect.dataset.group = localStorage.getItem(groupStorage) || ''; } catch { /* storage unavailable */ }
+            const presetLabel = document.createElement('select');
+            presetLabel.className = 'device-program-name';
+            presetLabel.dataset.deviceKey = unitKey;
+            presetLabel.dataset.baseKey = baseKey;
+            if (part) presetLabel.dataset.part = String(part);
+            presetLabel.setAttribute('aria-label', `${label} preset`);
+            const programKey = () => `${baseKey}:${this.channelForDevice(dev, part)}`;
+            const selectProgram = program => {
+                if (window.app?.ws?.readyState !== WebSocket.OPEN) { this.refreshPresetLabels(); return; }
+                const key = programKey();
+                window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: this.channelForDevice(dev, part), index: program }));
+                this.programs.set(key, program);
+                // Clear cached names until this selection is confirmed by the device.
+                this.presetNames.delete(`${key}:${program}`);
+                this.refreshPresetLabels();
+                this._discardControls(el, dev, part);
+                presets.title = `Last requested preset: ${program + 1}`;
+            };
+            groupSelect.addEventListener('change', () => {
+                groupSelect.dataset.group = groupSelect.value;
+                presetLabel.dataset.group = groupSelect.value;
+                try { localStorage.setItem(groupStorage, groupSelect.value); } catch { /* optional */ }
+                this.refreshPresetLabels();
             });
-            if (step > 0) presets.appendChild(presetLabel);
-            presets.appendChild(button);
+            presetLabel.dataset.group = groupSelect.dataset.group || '';
+            presetLabel.addEventListener('change', () => {
+                const program = Number(presetLabel.value);
+                if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
+            });
+            presets.appendChild(groupSelect);
+            for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = text;
+                button.title = `${description} (${step > 0 ? '+1' : '−1'})`;
+                button.setAttribute('aria-label', `${label}: ${description}`);
+                button.addEventListener('click', () => {
+                    if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
+                    const list = this.programsInGroup(baseKey, presetLabel.dataset.group);
+                    const current = this.programs.get(programKey()) ?? 0;
+                    const next = (step > 0 ? list.find(index => index > current) : [...list].reverse().find(index => index < current)) ?? (step > 0 ? list.at(-1) : list[0]);
+                    if (next != null) selectProgram(next);
+                });
+                if (step > 0) presets.appendChild(presetLabel);
+                presets.appendChild(button);
+            }
+            const reset = document.createElement('button');
+            reset.type = 'button';
+            reset.className = 'device-program-reset';
+            reset.textContent = '↺';
+            reset.title = 'Reload this preset and discard all knob changes';
+            reset.setAttribute('aria-label', `${label}: reload preset, discard changes`);
+            reset.addEventListener('click', async () => {
+                if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
+                const channelNumber = this.channelForDevice(dev, part);
+                const program = this.programs.get(programKey());
+                if (program == null) window.app?.log?.('No preset selected on this channel yet: pick one from the list first, then ↺ can reload it.');
+                window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
+                this._discardControls(el, dev, part);
+            });
+            presets.appendChild(reset);
         }
-        const reset = document.createElement('button');
-        reset.type = 'button';
-        reset.className = 'device-program-reset';
-        reset.textContent = '↺';
-        reset.title = 'Reload this preset and discard all knob changes';
-        reset.setAttribute('aria-label', `${label}: reload preset, discard changes`);
-        reset.addEventListener('click', async () => {
-            if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
-            const channelNumber = this.channelForDevice(dev, part);
-            const program = this.programs.get(programKey());
-            if (program == null) window.app?.log?.('No preset selected on this channel yet: pick one from the list first, then ↺ can reload it.');
-            window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
-            this._discardControls(el, dev, part);
-        });
-        presets.appendChild(reset);
         el.appendChild(presets);
         const channel = document.createElement('select');
         channel.className = 'device-midi-channel';

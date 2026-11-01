@@ -1,6 +1,6 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=73';
+import { DeviceManager } from './device-manager.js?v=74';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
@@ -269,6 +269,12 @@ function handleMessage(msg) {
             break;
         case 'preset-learned':
             deviceManager.updateLearnedPreset(msg);
+            break;
+        case 'user-presets':
+            deviceManager.updateUserPresets(msg);
+            break;
+        case 'user-preset-error':
+            log(msg.message);
             break;
         case 'device-control':
             deviceManager.applyRemoteControl(msg);
