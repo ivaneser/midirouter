@@ -310,6 +310,20 @@ class MIDIRouterWorker {
         this._broadcast({ type: 'device-control', target, channel, cc, value });
     }
 
+    // NRPN writes [{ nrpn, raw }] to one instrument channel. The worker sends and remembers them for the
+    // session; the copy here keeps get_device_state current until the worker's next state arrives.
+    sendNrpn(target, channel, writes) {
+        this.worker?.postMessage({ type: 'nrpn_send', target, channel, writes });
+        const state = this.dawState ??= {};
+        const nrpns = state.deviceNrpns ??= [];
+        const key = deviceChannelKey(target);
+        for (const { nrpn, raw } of writes) {
+            const known = nrpns.find(n => deviceChannelKey(n.target) === key && n.channel === channel && n.nrpn === nrpn);
+            if (known) known.raw = raw;
+            else nrpns.push({ target, channel, nrpn, raw });
+        }
+    }
+
     // The CC values set on one instrument channel since it was last cleared (knobs, graphs, pads, the MCP server).
     touchedControls(target, channel) {
         const key = deviceChannelKey(target);
@@ -401,6 +415,7 @@ const mcp = createMcpServer({
         return true;
     },
     sendMidi: (target, bytes) => router._sendMidiToTarget(bytes, target),
+    sendNrpn: (target, channel, writes) => router.sendNrpn(target, channel, writes),
     noteControl: (target, channel, cc, value) => router.noteControl(target, channel, cc, value),
     selectPreset: (target, channel, index) => {
         router.presetNames.delete(`${deviceChannelKey(target)}:${channel}:${index}`);

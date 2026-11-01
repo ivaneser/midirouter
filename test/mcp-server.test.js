@@ -208,3 +208,54 @@ test('daw_set_clip accepts an optional channel per note', async () => {
     assert.equal(daw.pop().notes[1].channel, 9);
     assert.ok((await call('daw_set_clip', { track: 0, slot: 1, channel: 1, notes: [{ note: 60, start: 0, duration: 1, channel: 17 }] })).error);
 });
+
+const PFM = { id: 'PreenFM mk2:PreenFM mk2 MIDI 1 36:0', name: 'PreenFM mk2:PreenFM mk2 MIDI 1 36:0' };
+
+// Mirrors the router: NRPN writes go to the worker and land in the shared DAW state.
+function setupPfm() {
+    const nrpn = [];
+    const env = setup({
+        getOutputs: () => [FREAK, PFM], getParts: () => [{ part: 1 }],
+        sendNrpn: (target, channel, writes) => {
+            nrpn.push([target, channel, writes]);
+            const list = env.state.deviceNrpns ??= [];
+            for (const { nrpn: number, raw } of writes) {
+                const known = list.find(n => n.channel === channel && n.nrpn === number);
+                if (known) known.raw = raw; else list.push({ target, channel, nrpn: number, raw });
+            }
+        },
+    });
+    return { ...env, nrpn };
+}
+
+test('set_nrpn_parameters encodes PreenFM2 values in the firmware numbering and scaling', async () => {
+    const { call, nrpn, sent } = setupPfm();
+    const ok = await call('set_nrpn_parameters', { device: 'PreenFM', values: { 'Op 3 Shape': 'Saw', 'Op 1 Frequency': 2.5, 'Matrix 1 Multiplier': -1.5, 'LFO 1 Phase': 0.25, 'Play Mode': 'Unison' } });
+    assert.deepEqual(ok.data.applied.map(a => a.nrpn), [52, 46, 117, 196, 216]);
+    // Op 3 Shape is row 13 encoder 0 (Saw = 1); Op 1 Frequency 2.5 -> 250; multiplier (-1.5 + 10) * 100 = 850;
+    // LFO phases follow the step sequencers in NRPN numbering (49 * 4 = 196); Play Mode starts at 1 (Poly).
+    assert.deepEqual(nrpn, [[PFM.id, 3, [{ nrpn: 52, raw: 1 }, { nrpn: 46, raw: 250 }, { nrpn: 117, raw: 850 }, { nrpn: 196, raw: 25 }, { nrpn: 216, raw: 2 }]]]);
+    assert.equal(sent.length, 0, 'NRPNs do not go through the plain CC path');
+    const state = await call('get_device_state', { device: 'PreenFM' });
+    assert.equal(state.data.nrpnValues['Op 1 Frequency'], 2.5);
+    assert.equal(state.data.nrpnValues['Matrix 1 Multiplier'], -1.5);
+    const params = await call('get_device_nrpn_params', { device: 'PreenFM', category: 'operators' });
+    assert.equal(params.data.parameters.find(p => p.name === 'Op 3 Shape').value.option, 'Saw');
+    assert.equal((await call('list_devices', {})).data.find(d => d.model === 'PreenFM2').nrpnControls, 201);
+});
+
+test('set_nrpn_parameters checks every name first, clamps values and writes the patch name', async () => {
+    const { call, nrpn } = setupPfm();
+    assert.ok((await call('set_nrpn_parameters', { device: 'PreenFM', values: { 'IM 1': 2, 'No Such Thing': 1 } })).error);
+    assert.equal(nrpn.length, 0);
+    assert.ok((await call('set_nrpn_parameters', { device: 'MicroFreak', values: { x: 1 } })).error);
+    const clamped = await call('set_nrpn_parameters', { device: 'PreenFM', values: { 'IM 1': 99 } });
+    assert.equal(clamped.data.applied[0].value, 16);
+    const named = await call('set_nrpn_parameters', { device: 'PreenFM', values: { 'Patch Name': 'Glass EP' } });
+    assert.equal(named.data.applied[0].value, 'Glass EP');
+    const writes = nrpn.pop()[2];
+    assert.equal(writes.length, 12);
+    assert.deepEqual(writes[0], { nrpn: 228, raw: 'G'.charCodeAt(0) });
+    assert.deepEqual(writes[11], { nrpn: 239, raw: 32 });
+    assert.equal((await call('get_device_state', { device: 'PreenFM' })).data.nrpnValues['Patch Name'], 'Glass EP');
+});

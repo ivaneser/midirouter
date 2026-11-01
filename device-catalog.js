@@ -46,12 +46,13 @@ export function resolveOutput(outputs, query) {
         : `no connected output matches "${wanted}". Connected outputs: ${names || 'none'}`);
 }
 
-// A control by CC number or by name ("filter_cutoff", "Filter Cutoff" and "cutoff" all match).
-export function findControl(controls, ref) {
+// A control by CC number (or NRPN number with key 'nrpn') or by name ("filter_cutoff",
+// "Filter Cutoff" and "cutoff" all match).
+export function findControl(controls, ref, key = 'cc') {
     if (typeof ref === 'number' || /^\d+$/.test(String(ref).trim())) {
-        const cc = Number(ref);
-        const control = controls.find(c => c.cc === cc);
-        if (!control) throw new Error(`no control with CC ${cc}`);
+        const number = Number(ref);
+        const control = controls.find(c => c[key] === number);
+        if (!control) throw new Error(`no control with ${key.toUpperCase()} ${number}`);
         return control;
     }
     const wanted = normalize(ref);
@@ -90,6 +91,52 @@ export function encodeControlValue(control, value) {
         ? dropdownRaw(control, clamped - Number(control.min || 0))
         : Math.max(0, Math.min(127, clamped + offsetOf(control)));
     return { display: clamped, raw };
+}
+
+// NRPN parameters of a map (controls_nrpn.parameters entries that carry an nrpn number).
+export function nrpnControls(map) {
+    return (map?.controls_nrpn?.parameters || []).filter(p => Number.isInteger(p.nrpn));
+}
+
+// Turn a user value into NRPN writes [{ nrpn, raw }] (raw is 14-bit). Values are in the synth's
+// units: sliders with a scale are sent as (value - min) * scale, other sliders and dropdowns as
+// the value itself; text is one character code per consecutive NRPN, padded with spaces.
+export function encodeNrpnValue(control, value) {
+    if (control.type === 'text') {
+        const text = String(value ?? '');
+        if (!/^[\x20-\x7E]*$/.test(text)) throw new Error(`"${control.name}" takes plain ASCII text`);
+        const display = text.slice(0, control.maxLength).padEnd(control.maxLength, ' ');
+        return { display: display.trimEnd(), writes: [...display].map((ch, i) => ({ nrpn: control.nrpn + i, raw: ch.charCodeAt(0) })) };
+    }
+    let display;
+    if (control.type === 'dropdown' && typeof value === 'string' && !/^-?\d+(\.\d+)?$/.test(value.trim())) {
+        const index = (control.options || []).findIndex(o => normalize(o) === normalize(value));
+        if (index < 0) throw new Error(`"${control.name}" options: ${(control.options || []).join(', ')}`);
+        display = index + Number(control.min || 0);
+    } else {
+        display = Number(value);
+    }
+    if (!Number.isFinite(display)) throw new Error(`value for "${control.name}" must be a number`);
+    const min = Number(control.min ?? 0);
+    const clamped = Math.max(min, Math.min(Number(control.max ?? 16383), display));
+    const raw = control.scale ? Math.round((clamped - min) * control.scale) : Math.round(clamped);
+    if (raw < 0 || raw > 16383) throw new Error(`"${control.name}" value is outside the NRPN range`);
+    const shown = control.scale ? Math.round((min + raw / control.scale) * control.scale) / control.scale : raw;
+    if (control.type === 'dropdown') return { display: { value: shown, option: control.options?.[shown - min] }, writes: [{ nrpn: control.nrpn, raw }] };
+    return { display: shown, writes: [{ nrpn: control.nrpn, raw }] };
+}
+
+// Remembered raw NRPN values (Map nrpn -> raw) back to the value encodeNrpnValue displayed.
+export function decodeNrpnValue(control, raws) {
+    if (control.type === 'text') {
+        const codes = Array.from({ length: control.maxLength }, (_, i) => raws.get(control.nrpn + i));
+        return codes.some(code => code === undefined) ? undefined : String.fromCharCode(...codes).trimEnd();
+    }
+    const raw = raws.get(control.nrpn);
+    if (raw === undefined) return undefined;
+    const min = Number(control.min ?? 0);
+    const value = control.scale ? Math.round((min + raw / control.scale) * control.scale) / control.scale : raw;
+    return control.type === 'dropdown' ? { value, option: control.options?.[value - min] } : value;
 }
 
 // Raw CC byte back to what the UI displays.

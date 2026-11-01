@@ -133,3 +133,37 @@ test('selecting or reloading a sound drops the remembered knob values of that ch
     worker._forgetDeviceControls(synth, 2);
     assert.equal(worker._deviceControls.size, 0);
 });
+
+test('NRPN values are saved with the session, re-sent after the sounds load and dropped on a new preset', t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const directory = mkdtempSync(join(tmpdir(), 'session-nrpn-'));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    worker.daw = new DAWEngine();
+    worker._sessionsDir = () => directory;
+    worker._listSessions = () => {};
+    const sent = [];
+    worker.outputs = new Map([['PreenFM mk2:PreenFM mk2 MIDI 1 36:0', { sendMessage: bytes => sent.push([...bytes]) }]]);
+    worker._rememberDeviceProgram('PreenFM mk2:PreenFM mk2 MIDI 1 36:0', 1, 5);
+    worker._sendNrpn('PreenFM mk2:PreenFM mk2 MIDI 1 36:0', 1, 196, 250);
+    assert.deepEqual(sent, [[0xB0, 99, 1], [0xB0, 98, 68], [0xB0, 6, 1], [0xB0, 38, 122]]);
+    assert.equal(worker._deviceControls, undefined, 'the four CCs of an NRPN are not knob values');
+    worker._saveSession('fm');
+    const saved = JSON.parse(readFileSync(join(directory, 'fm.json'), 'utf8'));
+    assert.deepEqual(saved.deviceNrpns, [{ target: 'PreenFM mk2:PreenFM mk2 MIDI 1 36:0', channel: 1, nrpn: 196, raw: 250 }]);
+
+    sent.length = 0;
+    worker.outputs = new Map([['PreenFM mk2:PreenFM mk2 MIDI 1 40:0', { sendMessage: bytes => sent.push([...bytes]) }]]);
+    for (const method of ['_stopAllClipPlayback', '_clearStaleRecordingFeedback', '_refreshPadLeds', '_syncPadClock', '_broadcastState']) worker[method] = () => {};
+    worker._loadSession('fm');
+    assert.ok(sent.every(bytes => (bytes[0] & 0xF0) !== 0xB0 || bytes[1] === 0 || bytes[1] === 32), 'no NRPN before the sound has loaded');
+    t.mock.timers.tick(5000);
+    assert.deepEqual(sent.slice(-4), [[0xB0, 99, 1], [0xB0, 98, 68], [0xB0, 6, 1], [0xB0, 38, 122]]);
+    assert.equal([...worker._deviceNrpns.values()][0].target, 'PreenFM mk2:PreenFM mk2 MIDI 1 40:0');
+
+    worker._restoreDeviceNrpns([{ target: 'PreenFM mk2:PreenFM mk2 MIDI 1 40:0', channel: 1, nrpn: 20000, raw: 1 }]);
+    assert.equal(worker._deviceNrpns.size, 0, 'invalid entries are dropped');
+    worker._sendNrpn('PreenFM mk2:PreenFM mk2 MIDI 1 40:0', 1, 44, 1);
+    worker._forgetDeviceControls('PreenFM mk2:PreenFM mk2 MIDI 1 40:0', 1);
+    assert.equal(worker._deviceNrpns.size, 0, 'a new preset forgets the NRPN edits');
+});

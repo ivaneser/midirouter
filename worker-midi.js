@@ -2524,6 +2524,7 @@ class MIDIRouterWorker {
         state.devicePresets = [...(this._devicePrograms?.values() || [])];
         state.deviceControls = [...(this._deviceControls?.values() || [])];
         state.deviceControlsRev = this._deviceControlsRev || 0;
+        state.deviceNrpns = [...(this._deviceNrpns?.values() || [])];
         // Include the current clock master selection so UI reflects reality.
         state.clockMasterSource = this._clockMaster.source;
         state.clockSenders = [...(this._clockSenders || [])].filter(name => this.inputs.has(name));
@@ -2719,10 +2720,43 @@ class MIDIRouterWorker {
         }, 150);
     }
 
-    // Drop the remembered knob values of one channel (a preset reload discards them).
+    // Last 14-bit value written to each NRPN parameter (PreenFM2 patch editing over MCP), saved with the
+    // session like the CC values. Kept apart from them: the four CCs of an NRPN write are not knob values.
+    _rememberDeviceNrpn(target, channel, nrpn, raw) {
+        this._deviceNrpns ??= new Map();
+        this._deviceNrpns.set(`${deviceChannelKey(target)}:${channel}:${nrpn}`, { target, channel, nrpn, raw });
+    }
+
+    // One NRPN write: number MSB/LSB (CC 99/98), then value MSB/LSB (CC 6/38).
+    _sendNrpn(target, channel, nrpn, raw) {
+        const output = this.outputs.get(target);
+        if (output) {
+            const status = 0xB0 | (channel - 1);
+            for (const bytes of [[status, 99, nrpn >> 7], [status, 98, nrpn & 127], [status, 6, raw >> 7], [status, 38, raw & 127]]) {
+                output.sendMessage(Buffer.from(bytes));
+            }
+        }
+        this._rememberDeviceNrpn(target, channel, nrpn, raw);
+    }
+
+    // Drop the remembered knob and NRPN values of one channel (a preset reload discards them).
     _forgetDeviceControls(target, channel) {
         const prefix = `${deviceChannelKey(target)}:${channel}:`;
         for (const key of [...(this._deviceControls?.keys() || [])]) if (key.startsWith(prefix)) this._deviceControls.delete(key);
+        for (const key of [...(this._deviceNrpns?.keys() || [])]) if (key.startsWith(prefix)) this._deviceNrpns.delete(key);
+    }
+
+    _restoreDeviceNrpns(nrpns) {
+        this._deviceNrpns = new Map();
+        for (const n of Array.isArray(nrpns) ? nrpns : []) {
+            if (typeof n?.target !== 'string' || !Number.isInteger(n.channel) || n.channel < 1 || n.channel > 16 ||
+                !Number.isInteger(n.nrpn) || n.nrpn < 0 || n.nrpn > 16383 || !Number.isInteger(n.raw) || n.raw < 0 || n.raw > 16383) continue;
+            const candidates = [...this.outputs.keys()].filter(name => deviceChannelKey(name) === deviceChannelKey(n.target));
+            const target = this.outputs.has(n.target) ? n.target : candidates.length === 1 ? candidates[0] : null;
+            if (!target) { this._rememberDeviceNrpn(n.target, n.channel, n.nrpn, n.raw); continue; }
+            try { this._sendNrpn(target, n.channel, n.nrpn, n.raw); }
+            catch (error) { console.error(`[MIDI] Session NRPN restore failed for ${target}:`, error.message); }
+        }
     }
 
     _restoreDeviceControls(controls) {
@@ -2795,6 +2829,7 @@ class MIDIRouterWorker {
             const data = this.daw.toData();
             data.devicePresets = [...(this._devicePrograms?.values() || [])];
             data.deviceControls = [...(this._deviceControls?.values() || [])];
+            data.deviceNrpns = [...(this._deviceNrpns?.values() || [])];
             // Parts of multitimbral instruments (Blofeld) with their MIDI channels.
             data.deviceParts = Object.fromEntries(Object.entries(this._deviceChannels || {}).filter(([key]) => key.includes('#')));
             const notes = data.tracks.reduce(
@@ -2825,10 +2860,14 @@ class MIDIRouterWorker {
             if (data.deviceParts && typeof data.deviceParts === 'object') parentPort?.postMessage({ type: 'session-device-parts', parts: data.deviceParts });
             const wait = this._restoreDevicePrograms(data.devicePresets);
             const token = this._restoreToken;
+            const restoreEdits = () => {
+                this._restoreDeviceControls(data.deviceControls);
+                this._restoreDeviceNrpns(data.deviceNrpns);
+            };
             if (wait > 0) {
-                // Knob values go out after the last sound has loaded; loading a sound would reset them.
-                setTimeout(() => { if (token === this._restoreToken) this._restoreDeviceControls(data.deviceControls); }, wait).unref?.();
-            } else this._restoreDeviceControls(data.deviceControls);
+                // Knob and NRPN values go out after the last sound has loaded; loading a sound would reset them.
+                setTimeout(() => { if (token === this._restoreToken) { restoreEdits(); this._broadcastState(); } }, wait).unref?.();
+            } else restoreEdits();
             this._transportPlaying = false;
             this._clearStaleRecordingFeedback();
             this._refreshPadLeds();
@@ -2895,6 +2934,15 @@ if (parentPort) {
         worker._deviceChannels = msg.channels && typeof msg.channels === 'object' ? msg.channels : {};
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
+    } else if (msg.type === 'nrpn_send') {
+        // NRPN writes from the MCP server: [{ nrpn, raw }] on one channel, remembered for the session.
+        if (worker.outputs.has(msg.target) && Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16 && Array.isArray(msg.writes)) {
+            try {
+                for (const { nrpn, raw } of msg.writes) {
+                    if (Number.isInteger(nrpn) && nrpn >= 0 && nrpn <= 16383 && Number.isInteger(raw) && raw >= 0 && raw <= 16383) worker._sendNrpn(msg.target, msg.channel, nrpn, raw);
+                }
+            } catch (e) { console.error(`[MIDI] NRPN send failed for ${msg.target}:`, e.message); }
+        }
     } else if (msg.type === 'forget_controls') {
         if (typeof msg.target === 'string' && Number.isInteger(msg.channel)) worker._forgetDeviceControls(msg.target, msg.channel);
     } else if (msg.type === 'select_preset') {
