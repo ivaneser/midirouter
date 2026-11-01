@@ -39,7 +39,7 @@ function makeWorker(tempo = 120) {
 // ---------------------------------------------------------------------------
 // Stopped-transport count-in regression (restored from the original version of the file).
 // Checks:
-//   - future startTime = base + 8 * spb (TWO full bars from the trigger);
+//   - startTime = the press itself (no count-in);
 //   - MIDI before the start is ignored;
 //   - Note On exactly at startTime and Note Off 250 ms later are accepted;
 //   - note.start = 0 (clip-local, beat 0.0), dur = 0.5 (250 ms at tempo 120).
@@ -63,13 +63,12 @@ test('count-in regression: future start boundary, pre-start MIDI ignored, Note O
     assert.equal(r1.action, 'record', 'armed empty pad starts recording');
     assert.ok(daw.recording, 'precondition: recording is active');
 
-    // Count-in start — future next-bar boundary (stopped transport → two full
-    // measures delay from trigger moment).
-    const expectedStartTime = base + 8 * msPerBeat; // two measures later
+    // No count-in: with the transport stopped the pad press starts it, so the take begins at the press.
+    const expectedStartTime = base;
     assert.equal(
         daw.recording.startTime,
         expectedStartTime,
-        'stopped-transport count-in start must be a future bar boundary',
+        'stopped-transport recording starts at the press, without a count-in',
     );
 
     // Pre-start MIDI (timestamp before startTime) is ignored.
@@ -281,13 +280,16 @@ test('count-in: controller Play stops transport immediately, cancels pending cou
     const origOnMetronomeStop = daw._onMetronomeStop;
     daw._onMetronomeStop = () => { metronomeStopped.push(true); };
 
+    // The transport runs, so the take waits for the next bar line: that wait is the pending start.
+    worker.handleDawControl({ type: 'daw_start_transport' });
+    daw.armTrack(0);
     const baseTime = performance.now();
-    const r1 = worker._triggerPad(0, 0, baseTime);
+    const r1 = worker._triggerPad(0, 0, baseTime, { countIn: true });
     assert.equal(r1.action, 'record', 'empty pad starts recording');
     assert.ok(daw.recording, 'precondition: recording is active');
-    assert.equal(daw._countInRunning, true, '_countInRunning must be set during count-in');
+    assert.equal(daw._countInRunning, true, '_countInRunning must be set while the start is pending');
 
-    // --- Press Play immediately DURING the count-in (before timer fires). ---
+    // --- Press Play right after the pad press (before timer fires). ---
     const beforeStop = performance.now();
     worker._handleProfileTransport('play', true);
 
@@ -326,7 +328,7 @@ test('count-in: controller Play stops transport immediately, cancels pending cou
 // recording starts exactly after two bars. During that time MIDI is not captured;
 // after the timer expires — it is recorded.
 // ---------------------------------------------------------------------------
-test('play-before-pad: two-bar count-in before recording begins', async (t) => {
+test('play-before-pad: recording begins on the next bar line', async (t) => {
     const worker = makeWorker(300);  // tempo=300 → 200 ms/beat; meter=1 → bar=1 beat ≈ 200 ms
     const daw = worker.daw;
     daw.setMetronomeBeatsPerMeasure(1);
@@ -382,10 +384,10 @@ test('play-before-pad: two-bar count-in before recording begins', async (t) => {
     assert.ok(daw.recording != null, 'recording session exists (armRecording created it)');
 
     // The recording startTime must be two bars in the future.
-    const barMs = 2 * daw._metronomeBeatsPerMeasure * daw._secondsPerBeat() * 1000; // 400 ms at tempo=300, meter=1
+    const barMs = daw._metronomeBeatsPerMeasure * daw._secondsPerBeat() * 1000; // 200 ms at tempo=300, meter=1
     assert.ok(
-        daw.recording.startTime > baseTime + barMs - 50,
-        'recording startTime is two bars in the future',
+        daw.recording.startTime > baseTime && daw.recording.startTime <= baseTime + barMs + 50,
+        'recording starts on the next bar line (within one bar), not after a count-in',
     );
 
     // Pre-count-in MIDI (before startTime) must be ignored.

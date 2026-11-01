@@ -212,7 +212,7 @@ class DAWEngine {
         const sinceAnchor = (gridNow - this._metronomeAnchorTime) / spbMs;
         let nextBar = Math.ceil(sinceAnchor / bar) * bar;
         if ((this._metronomeAnchorTime + nextBar * spbMs) - gridNow < 5) nextBar += bar;
-        const countInEnd = this._metronomeAnchorTime + (nextBar + 2 * bar) * spbMs;
+        const countInEnd = this._metronomeAnchorTime + nextBar * spbMs;   // the take starts on the metronome's next bar line
         this._preRecordTwoBarRemainingBeats = null;
         this.playing = true;
         this._currentBeat = 0;
@@ -797,17 +797,13 @@ class DAWEngine {
                 // Subsequent pad on non-empty project → snap to next bar boundary.
                 const recStarted = this._recStartedTransport;
                 this._recStartedTransport = false;
-                if (!projectWasEmptyBeforeArm || recStarted) {
-                    const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
-                    const nextBar = Math.ceil((curBeat - 1e-9) / bar) * bar;
-                    let delayMs = (nextBar - curBeat) * spb * 1000;
-                    // If pressed within 5 ms of the boundary, start immediately.
-                    if (delayMs <= 5) delayMs = 0;
-                    startTime = now + delayMs;
-                } else {
-                    // First pad on empty project → two full bars count-in.
-                    startTime = now + 2 * bar * spb * 1000;
-                }
+                // Recording always starts on the next bar line, never after a count-in.
+                const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
+                const nextBar = Math.ceil((curBeat - 1e-9) / bar) * bar;
+                let delayMs = (nextBar - curBeat) * spb * 1000;
+                // If pressed within 5 ms of the boundary, start immediately.
+                if (delayMs <= 5) delayMs = 0;
+                startTime = now + delayMs;
             } else {
                 const curBeat = ((now - this._playAnchorTime) / 1000) / spb;
                 // Only align to bar boundary when this pad press is the one that
@@ -824,8 +820,8 @@ class DAWEngine {
                     // without waiting for the next bar.
                     if (delayMs <= 5) delayMs = 0;
                     // First take while the transport already runs (e.g. external clock):
-                    // one two-bar count-in on the bar line, then recording starts.
-                    startTime = now + delayMs + 2 * bar * spb * 1000;
+                    // recording starts on the next bar line.
+                    startTime = now + delayMs;
                     this._countInRunning = true;
                     this._countInGeneration++;
                 } else {
@@ -841,11 +837,8 @@ class DAWEngine {
                     startTime = now + delayMs;
                 }
             }
-        } else if (options.countIn || this.tracks[trackIdx].armed) {
-            // Controller recording can request a two-bar count-in while the
-            // transport is stopped. The worker starts transport at pad press.
-            startTime = now + 2 * bar * this._secondsPerBeat() * 1000;
         }
+        // Transport stopped: the worker starts it at the press, so the press is bar 1 and the take begins at once.
         if (options.immediate) {
             startTime = now;
             startBeat = this.playing ? (now - this._playAnchorTime) / this._secondsPerBeatMs() : 0;

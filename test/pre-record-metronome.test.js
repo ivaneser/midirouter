@@ -147,7 +147,7 @@ test('pre-record scheduler emits accent note 60 (C4) on first beat of measure, n
 // Count-in: a pad starts transport while the take waits for the next bar
 // ---------------------------------------------------------------------------
 
-test('triggering an empty clip starts transport and keeps the count-in metronome active', async () => {
+test('triggering an empty clip starts transport and keeps the metronome active', async () => {
     const { daw, events } = makeDawWithCapturedEvents();
     const worker = Object.create(MIDIRouterWorker.prototype);
     worker.daw = daw;
@@ -171,8 +171,8 @@ test('triggering an empty clip starts transport and keeps the count-in metronome
         assert.equal(result.action, 'record', 'empty clip trigger must begin recording');
         assert.ok(daw.recording != null, 'triggering an empty clip must create daw.recording');
         assert.ok(daw.playing, 'pad should start the transport for count-in');
-        assert.ok(daw.recording.startTime >= now + 3900,
-            'the take should begin two full measures after the pad press');
+        assert.ok(daw.recording.startTime >= now && daw.recording.startTime <= now + 2100,
+            'the take should begin on the metronome\'s next bar line, within one measure of the press');
         assert.ok(daw._metronomeTimer != null, 'audio metronome should stay active through count-in');
         assert.ok(events.length > 0, 'internal metronome visualization events should continue');
     } finally {

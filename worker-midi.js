@@ -1314,7 +1314,15 @@ class MIDIRouterWorker {
         }
     }
 
-    _scheduleRecordingStop({ stopTransport = false, now = performance.now() } = {}) {
+    // A new clip recorded under a loop length set by hand ends by itself when that many bars are full.
+    _scheduleAutoRecordingStop() {
+        const recording = this.daw.recording;
+        if (!recording || !recording.clipWasEmpty || this.daw.masterLoopBars == null) return false;
+        const boundaryTime = recording.startTime + this.daw.loopLenBeats * this.daw._secondsPerBeat() * 1000;
+        return this._scheduleRecordingStop({ boundaryTime });
+    }
+
+    _scheduleRecordingStop({ stopTransport = false, now = performance.now(), boundaryTime: fixedBoundary = null } = {}) {
         const recording = this.daw.recording;
         if (!recording) return false;
         if (this._recordingStopTimer) clearTimeout(this._recordingStopTimer);
@@ -1324,7 +1332,8 @@ class MIDIRouterWorker {
         // Bar line in beat-grid time; the performer hears it audioOffsetMs later.
         const gridNow = this.daw._pressTime(now);
         let boundaryTime = gridNow + bar * spb * 1000;
-        if (this.daw.playing) {
+        if (fixedBoundary != null) boundaryTime = fixedBoundary;
+        else if (this.daw.playing) {
             const currentBeat = Math.max(0, ((gridNow - this.daw._playAnchorTime) / 1000) / spb);
             const nextBar = Math.ceil((currentBeat - 1e-9) / bar) * bar;
             let delayMs = (nextBar - currentBeat) * spb * 1000;
@@ -1474,10 +1483,6 @@ class MIDIRouterWorker {
                 this.daw.setMetronome(true);
                 // Flag count-in BEFORE startTransport so the bar-delayed timer
                 // fires inside startTransport (which stops/restarts metronome).
-                if (wasEmptyProject) {
-                    this.daw._countInRunning = true;
-                    console.log('[DAW] Count-in started: 2 bars before recording');
-                }
                 this.daw.startTransport();
                 this._transportPlaying = true;
 
@@ -1490,6 +1495,7 @@ class MIDIRouterWorker {
             // with the transport beat grid (otherwise the stop boundary is off by that gap).
             const anchorDrift = this.daw._playAnchorTime - gridNow;
             if (this.daw.recording && anchorDrift > 0) this.daw.recording.startTime += anchorDrift;
+            if (result.action === 'record') this._scheduleAutoRecordingStop();
             if (result.action === 'overdub' && this.daw.clipState[trackIdx] !== slot) {
                 this._startOverdubPlayback(trackIdx, slot, gridNow);
             }
