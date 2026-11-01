@@ -881,10 +881,6 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_add_track' });
                         break;
 
-                    case 'daw-track-mix':
-                        router.worker.postMessage({ type: 'daw_track_mix', trackIdx: message.trackIdx, kind: message.kind, value: message.value });
-                        break;
-
                     case 'daw-remove-clip':
                         router.worker.postMessage({ type: 'daw_remove_clip', trackIdx: message.trackIdx });
                         break;

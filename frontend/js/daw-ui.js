@@ -1,7 +1,5 @@
 /* === DAW / Clip UI — Ableton Session View style === */
 
-import { attachMidiKnob } from './midi-knob.js?v=25';
-
 export class DAWUI {
     constructor(deviceManager) {
         this.deviceManager = deviceManager;
@@ -599,8 +597,6 @@ export class DAWUI {
         if (!this.dawState) { console.warn('[DAWUI] dawState is null, skipping render'); return; }
         if (!Array.isArray(this.dawState.tracks)) { console.warn('[DAWUI] tracks is not array:', typeof this.dawState.tracks); return; }
         
-        // A knob being dragged must survive the state updates that keep arriving: draw once it is released.
-        if (this._mixDrag) { this._renderAfterDrag = true; return; }
         grid.innerHTML = '';
         if (sceneNamesDiv) sceneNamesDiv.innerHTML = '';
 
@@ -698,8 +694,6 @@ export class DAWUI {
                 block.appendChild(slot);
             }
 
-            block.appendChild(this._buildMixKnobs(t, ch));
-
             // "+" below the clip column: append one more empty clip to this track
             const addRow = document.createElement('div');
             addRow.className = 'track-controls-row';
@@ -747,54 +741,6 @@ export class DAWUI {
         addTrackBlock.appendChild(addTrackBtn);
         grid.appendChild(addTrackBlock);
         this._updateClipProgress(this.dawState.clipProgress);
-    }
-
-    // Volume (CC 7) and pan (CC 10) of one track, sent on the track's MIDI channel.
-    _buildMixKnobs(t, track) {
-        const row = document.createElement('div');
-        row.className = 'track-mix-row';
-        const make = (kind, label, fallback, options) => {
-            const cell = document.createElement('div');
-            cell.className = 'track-mix-knob';
-            const dial = document.createElement('span');
-            dial.className = 'midi-knob' + (kind === 'pan' ? ' bipolar' : '');
-            const face = document.createElement('span');
-            face.className = 'midi-knob-face';
-            face.setAttribute('aria-hidden', 'true');
-            dial.appendChild(face);
-            const input = document.createElement('input');
-            input.type = 'range';
-            input.min = '0';
-            input.max = '127';
-            input.value = String(Number.isInteger(track[kind]) ? track[kind] : fallback);
-            input.className = 'midi-knob-input';
-            input.setAttribute('aria-label', `Track ${t + 1} ${label}`);
-            dial.appendChild(input);
-            const readout = document.createElement('output');
-            readout.className = 'midi-knob-value';
-            const name = document.createElement('span');
-            name.className = 'track-mix-label';
-            name.textContent = label;
-            cell.append(dial, readout, name);
-            attachMidiKnob(input, dial, readout, value => {
-                track[kind] = value;
-                this._send({ type: 'daw-track-mix', trackIdx: t, kind, value });
-            }, options);
-            input.addEventListener('pointerdown', () => {
-                this._mixDrag = true;
-                const release = () => {
-                    document.removeEventListener('pointerup', release);
-                    document.removeEventListener('pointercancel', release);
-                    this._mixDrag = false;
-                    if (this._renderAfterDrag) { this._renderAfterDrag = false; this._renderGrid(); }
-                };
-                document.addEventListener('pointerup', release);
-                document.addEventListener('pointercancel', release);
-            });
-            return cell;
-        };
-        row.append(make('volume', 'Vol', 100, { reset: 100 }), make('pan', 'Pan', 64, { center: 64 }));
-        return row;
     }
 
     _renderTrackControls() {

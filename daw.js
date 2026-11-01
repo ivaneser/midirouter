@@ -17,8 +17,6 @@ import { scaleById, nearestAllowed, fitNotesToScale } from './frontend/js/scales
 const PPQ = 192;                 // pulses per quarter note (timing)
 const DEFAULT_SLOTS_PER_TRACK = 2;  // 2 clips per track by default
 const DEFAULT_TRACK_COUNT = 6;      // 6 tracks by default (MIDI channels 1..6)
-const DEFAULT_TRACK_VOLUME = 100;
-const DEFAULT_TRACK_PAN = 64;
 const MAX_TRACKS = 16;              // one track per MIDI channel
 const MAX_SLOTS_PER_TRACK = 16;
 
@@ -150,9 +148,7 @@ class DAWEngine {
             clips: this._makeClips(),
             armed: false,
             muted: false,
-            soloed: false,
-            volume: DEFAULT_TRACK_VOLUME,   // CC 7 on the track's channel
-            pan: DEFAULT_TRACK_PAN          // CC 10 on the track's channel
+            soloed: false
         };
     }
 
@@ -1161,16 +1157,6 @@ class DAWEngine {
         track.channelAssigned = false;
     }
     
-    // Per-track mix: volume is CC 7, pan is CC 10, both sent on the track's MIDI channel.
-    // Returns the CC message to send, or null for an unknown track or control.
-    setTrackMix(trackIdx, kind, value) {
-        const track = this.tracks[trackIdx];
-        if ((kind !== 'volume' && kind !== 'pan') || !track || !Number.isFinite(value)) return null;
-        const level = Math.max(0, Math.min(127, Math.round(value)));
-        track[kind] = level;
-        return [0xB0 | ((track.channel - 1) & 0x0f), kind === 'volume' ? 7 : 10, level];
-    }
-
     muteTrack(trackIdx) {
         const track = this.tracks[trackIdx];
         if (!track) return;
@@ -1324,8 +1310,6 @@ class DAWEngine {
             armed: t.armed,
             muted: t.muted,
             soloed: t.soloed,
-            volume: t.volume,
-            pan: t.pan,
         }));
         return {
             tempo: this.tempo,
@@ -1380,8 +1364,6 @@ class DAWEngine {
                 armed: t.armed,
                 muted: t.muted,
                 soloed: t.soloed,
-                volume: t.volume,
-                pan: t.pan,
                 clips: t.clips.map((c) => ({
                     length: c.length,
                     phase: c.phase || 0,
@@ -1442,8 +1424,6 @@ class DAWEngine {
             track.armed = !!td.armed;
             track.muted = !!td.muted;
             track.soloed = !!td.soloed;
-            track.volume = Number.isInteger(td.volume) ? Math.max(0, Math.min(127, td.volume)) : DEFAULT_TRACK_VOLUME;
-            track.pan = Number.isInteger(td.pan) ? Math.max(0, Math.min(127, td.pan)) : DEFAULT_TRACK_PAN;
             // The saved track defines its own clip count.
             track.clips = this._makeClips(Math.max(1, Math.min(MAX_SLOTS_PER_TRACK, td.clips.length)));
             const savedChannel = Number.isInteger(td.channel) && td.channel >= 1 && td.channel <= 16
