@@ -5,7 +5,7 @@ import { DAWEngine, loopBridgedNotes, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
-import { PresetNames } from './preset-names.js';
+import { PresetNames, bankSelectMessages } from './preset-names.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
 import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine, matches } from './controller-engine.js';
@@ -2675,7 +2675,7 @@ class MIDIRouterWorker {
         this._presetNames ??= new PresetNames(path.join(__dirname, 'device_maps'));
         const bank = this._presetNames.bankInfo(target);
         if (!output || !Number.isInteger(index) || index < 0 || index >= (bank?.programs ?? 128)) return false;
-        if (bank) output.sendMessage(Buffer.from([0xB0 | (channel - 1), bank.cc, index >> 7]));
+        if (bank) for (const bytes of bankSelectMessages(bank, channel, index)) output.sendMessage(Buffer.from(bytes));
         output.sendMessage(Buffer.from([0xC0 | (channel - 1), index & 127]));
         console.log(`[MIDI] [PRESET] ${target} ch${channel} -> preset ${index}${bank ? ` (bank ${index >> 7} via CC${bank.cc}, program ${index & 127})` : ''}`);
         this._rememberDeviceProgram(target, channel, index, name);
@@ -2710,7 +2710,7 @@ class MIDIRouterWorker {
         const total = bank?.programs ?? 128;
         const other = index + 1 < total ? index + 1 : index - 1;
         if (output && other >= 0) {
-            if (bank) output.sendMessage(Buffer.from([0xB0 | (channel - 1), bank.cc, other >> 7]));
+            if (bank) for (const bytes of bankSelectMessages(bank, channel, other)) output.sendMessage(Buffer.from(bytes));
             output.sendMessage(Buffer.from([0xC0 | (channel - 1), other & 127]));
         }
         setTimeout(() => {

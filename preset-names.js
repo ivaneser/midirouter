@@ -1,6 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
 
+// Controller messages that precede a Program Change for the preset `index` (bank * 128 + program).
+export function bankSelectMessages(bank, channel, index) {
+    const status = 0xB0 | (channel - 1);
+    return [...(bank.prefix || []).map(({ cc, value }) => [status, cc, value]), [status, bank.cc, index >> 7]];
+}
+
 // Read-only SysEx adapters. No patch upload or arbitrary command discovery.
 export class PresetNames {
     constructor(directory) {
@@ -16,7 +22,7 @@ export class PresetNames {
     // `program` is the full preset index: bank * 128 + Program Change number.
     request(target, channel, program) {
         const profile = this.profiles.find(p => p.match.some(name => target.toLowerCase().includes(name.toLowerCase())));
-        if (!profile) return null;
+        if (!profile?.request && !profile?.reply) return null;   // a synth that cannot report names
         const sequence = this.sequence++ % 128;
         const values = { program: program & 127, bank: program >> 7, channel: channel - 1, sequence };
         // Some synths (Craft Synth) cannot be asked: they announce the name by themselves when the preset
@@ -31,7 +37,8 @@ export class PresetNames {
     // Preset count and bank-select CC for a port, or null when it only has 128 presets.
     bankInfo(target) {
         const profile = this.profiles.find(p => p.match.some(name => target.toLowerCase().includes(name.toLowerCase())));
-        return profile?.programs > 128 ? { programs: profile.programs, cc: profile.bankSelectCc ?? 0 } : null;
+        // `prefix` lists Controller messages that must precede the bank number (PreenFM2: CC 0 picks the bank type).
+        return profile?.programs > 128 ? { programs: profile.programs, cc: profile.bankSelectCc ?? 0, ...(profile.bankSelectPrefix ? { prefix: profile.bankSelectPrefix } : {}) } : null;
     }
 
     // Anything a device sends that carries a preset's name or sound, whether or not we asked for it (the
@@ -45,6 +52,7 @@ export class PresetNames {
         const programOf = format => format.programOffset == null || bytes[format.programOffset] == null ? null
             : (format.bankOffset != null ? bytes[format.bankOffset] << 7 : 0) + bytes[format.programOffset];
         const reply = profile.reply;
+        if (!reply) return null;
         const out = { file: profile.file };
         if (matches(reply, reply.nameOffset + 2)) {
             const program = programOf(reply);

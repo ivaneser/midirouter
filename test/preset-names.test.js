@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PresetNames } from '../preset-names.js';
+import { PresetNames, bankSelectMessages } from '../preset-names.js';
 
 const directory = new URL('../device_maps/', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const target = 'Arturia MicroFreak:Arturia MicroFreak MIDI 1 20:0';
@@ -72,4 +72,14 @@ test('learn() reads names and sounds nobody asked for, with the program the mess
     assert.equal(learned.program, 2 * 128 + 44);
     assert.equal(learned.name, 'Fat Bass');
     assert.equal(learned.dump.length, reply.length);
+});
+
+test('PreenFM2 presets: DX7 bank type CC 0 = 2, then bank number CC 32, then Program Change; no name requests', () => {
+    const names = new PresetNames(new URL('../device_maps', import.meta.url).pathname);
+    const target = 'PreenFM mk2:PreenFM mk2 MIDI 1 36:0';
+    const bank = names.bankInfo(target);
+    assert.equal(bank.programs, 1024);
+    assert.deepEqual(bankSelectMessages(bank, 3, 300), [[0xB2, 0, 2], [0xB2, 32, 2]]);
+    assert.equal(names.request(target, 3, 300), null, 'the synth cannot be asked for a preset name');
+    assert.deepEqual(bankSelectMessages({ cc: 0 }, 1, 130), [[0xB0, 0, 1]]);
 });

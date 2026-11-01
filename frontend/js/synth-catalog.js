@@ -32,7 +32,7 @@ export const MAP_FILES = {
 
 // Multitimbral instruments: each part listens on its own MIDI channel and is shown as its own
 // card under the instrument.
-export const MULTITIMBRAL_PARTS = { 'waldorf-blofeld': 16 };
+export const MULTITIMBRAL_PARTS = { 'waldorf-blofeld': 16, 'preenfm2': 4 };
 
 // A map lists its controls in `controls`, or split over several `controls_<section>` arrays.
 export function flattenControls(map) {

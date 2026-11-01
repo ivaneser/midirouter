@@ -9,98 +9,513 @@
       "cc": 16,
       "name": "Algorithm",
       "min": 0,
-      "max": 28,
-      "type": "dropdown",
-      "options": [
-        "Alg 0-28"
-      ],
+      "max": 127,
+      "type": "slider",
       "category": "algorithm"
     },
     {
-      "cc": 22,
-      "name": "Volume",
+      "cc": 17,
+      "name": "Mod Index 1",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "%",
-      "category": "amp",
-      "primary": true
+      "category": "modindex"
     },
     {
-      "cc": 23,
-      "name": "Pan",
+      "cc": 18,
+      "name": "Mod Index 2",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "pan",
-      "center": 64,
-      "category": "amp"
+      "category": "modindex"
+    },
+    {
+      "cc": 19,
+      "name": "Mod Index 3",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "modindex"
+    },
+    {
+      "cc": 20,
+      "name": "Mod Index 4",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "modindex"
+    },
+    {
+      "cc": 21,
+      "name": "Mod Index 5",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "modindex"
     },
     {
       "cc": 50,
-      "name": "Op 1 Frequency (Carrier)",
+      "name": "Op 1 Frequency",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "freq",
-      "category": "operator_1"
+      "category": "operators"
     },
     {
-      "cc": 62,
-      "name": "Mod Op Env Attack (all mod ops)",
+      "cc": 51,
+      "name": "Op 2 Frequency",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "time",
-      "category": "mod_env"
+      "category": "operators"
     },
     {
-      "cc": 63,
-      "name": "Mod Op Env Release (all mod ops)",
+      "cc": 52,
+      "name": "Op 3 Frequency",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "time",
-      "category": "mod_env"
+      "category": "operators"
+    },
+    {
+      "cc": 53,
+      "name": "Op 4 Frequency",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "operators"
+    },
+    {
+      "cc": 54,
+      "name": "Op 5 Frequency",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "operators"
+    },
+    {
+      "cc": 55,
+      "name": "Op 6 Frequency",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "operators"
+    },
+    {
+      "cc": 22,
+      "name": "Mix 1",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "level"
+    },
+    {
+      "cc": 23,
+      "name": "Pan 1",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "pan",
+      "center": 64
+    },
+    {
+      "cc": 24,
+      "name": "Mix 2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "level"
+    },
+    {
+      "cc": 25,
+      "name": "Pan 2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "pan",
+      "center": 64
+    },
+    {
+      "cc": 26,
+      "name": "Mix 3",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "level"
+    },
+    {
+      "cc": 27,
+      "name": "Pan 3",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "pan",
+      "center": 64
+    },
+    {
+      "cc": 28,
+      "name": "Mix 4",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "level"
+    },
+    {
+      "cc": 29,
+      "name": "Pan 4",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "mixer",
+      "unit": "pan",
+      "center": 64
+    },
+    {
+      "cc": 74,
+      "name": "Op 1 Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 75,
+      "name": "Op 2 Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 76,
+      "name": "Op 3 Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 77,
+      "name": "Op 4 Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 78,
+      "name": "Op 5 Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 79,
+      "name": "Op 6 Env Attack",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 82,
+      "name": "Op 1 Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 83,
+      "name": "Op 2 Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 84,
+      "name": "Op 3 Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 85,
+      "name": "Op 4 Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 86,
+      "name": "Op 5 Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 87,
+      "name": "Op 6 Env Release",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "envelopes",
+      "unit": "time"
     },
     {
       "cc": 80,
-      "name": "Carrier Env Attack (all carriers)",
+      "name": "Carrier Env Attack (all)",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "time",
-      "category": "car_env"
+      "category": "envelopes",
+      "unit": "time"
     },
     {
       "cc": 81,
-      "name": "Carrier Env Release (all carriers)",
+      "name": "Carrier Env Release (all)",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "time",
-      "category": "car_env"
+      "category": "envelopes",
+      "unit": "time"
+    },
+    {
+      "cc": 70,
+      "name": "Filter Type",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "filter"
+    },
+    {
+      "cc": 71,
+      "name": "Filter Param 1",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "filter"
+    },
+    {
+      "cc": 72,
+      "name": "Filter Param 2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "filter"
+    },
+    {
+      "cc": 73,
+      "name": "Filter Gain",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "filter"
+    },
+    {
+      "cc": 56,
+      "name": "LFO 1 Frequency",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 88,
+      "name": "LFO 1 Phase",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 91,
+      "name": "LFO 1 Bias",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo",
+      "center": 64
+    },
+    {
+      "cc": 94,
+      "name": "LFO 1 Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 57,
+      "name": "LFO 2 Frequency",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 89,
+      "name": "LFO 2 Phase",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 92,
+      "name": "LFO 2 Bias",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo",
+      "center": 64
+    },
+    {
+      "cc": 95,
+      "name": "LFO 2 Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 58,
+      "name": "LFO 3 Frequency",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 90,
+      "name": "LFO 3 Phase",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 93,
+      "name": "LFO 3 Bias",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo",
+      "center": 64
+    },
+    {
+      "cc": 96,
+      "name": "LFO 3 Shape",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "lfo"
+    },
+    {
+      "cc": 46,
+      "name": "Matrix Row 1 Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "matrix",
+      "center": 64
+    },
+    {
+      "cc": 47,
+      "name": "Matrix Row 2 Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "matrix",
+      "center": 64
+    },
+    {
+      "cc": 48,
+      "name": "Matrix Row 3 Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "matrix",
+      "center": 64
+    },
+    {
+      "cc": 49,
+      "name": "Matrix Row 4 Amount",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "matrix",
+      "center": 64
+    },
+    {
+      "cc": 1,
+      "name": "Modulation Wheel",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "performance"
+    },
+    {
+      "cc": 115,
+      "name": "Performance 1",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "performance"
+    },
+    {
+      "cc": 116,
+      "name": "Performance 2",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "performance"
+    },
+    {
+      "cc": 117,
+      "name": "Performance 3",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "performance"
     },
     {
       "cc": 97,
       "name": "Arp Clock",
       "min": 0,
-      "max": 2,
-      "type": "dropdown",
-      "options": [
-        "Off",
-        "Free",
-        "Sync"
-      ],
+      "max": 127,
+      "type": "slider",
       "category": "arp"
     },
     {
       "cc": 98,
-      "name": "Arp Direction",
+      "name": "Arp Tempo",
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "direction",
       "category": "arp"
     },
     {
@@ -108,14 +523,7 @@
       "name": "Arp Octave",
       "min": 0,
       "max": 127,
-      "type": "dropdown",
-      "options": [
-        "-2",
-        "-1",
-        "0",
-        "+1",
-        "+2"
-      ],
+      "type": "slider",
       "category": "arp"
     },
     {
@@ -124,7 +532,22 @@
       "min": 0,
       "max": 127,
       "type": "slider",
-      "unit": "pattern",
+      "category": "arp"
+    },
+    {
+      "cc": 101,
+      "name": "Arp Division",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "arp"
+    },
+    {
+      "cc": 102,
+      "name": "Arp Duration",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
       "category": "arp"
     }
   ],
@@ -337,6 +760,7 @@
     "stages": [
       {
         "title": "Sound source",
+        "hint": "The algorithm wires six operators together; modulation indexes say how strongly one operator bends the next, and operator frequencies set the harmonic ratios.",
         "modules": [
           {
             "title": "Algorithm",
@@ -346,47 +770,84 @@
             ]
           },
           {
-            "title": "Operator 1",
+            "title": "Modulation indexes",
             "section": "cc",
             "categories": [
-              "operator_1"
+              "modindex"
+            ]
+          },
+          {
+            "title": "Operator frequencies",
+            "section": "cc",
+            "categories": [
+              "operators"
             ]
           }
         ]
       },
       {
         "title": "Envelopes",
+        "hint": "Attack and release of each operator: carriers shape loudness, modulators shape brightness over time.",
         "modules": [
           {
-            "title": "Modulator envelope",
+            "title": "Operator envelopes",
             "section": "cc",
             "categories": [
-              "mod_env"
-            ]
-          },
-          {
-            "title": "Carrier envelope",
-            "section": "cc",
-            "categories": [
-              "car_env"
+              "envelopes"
             ]
           }
         ]
       },
       {
-        "title": "Amp",
+        "title": "Mixer and filter",
+        "hint": "Level and pan of the carrier voices, then the filter.",
         "modules": [
           {
-            "title": "Amp",
+            "title": "Mixer",
             "section": "cc",
             "categories": [
-              "amp"
+              "mixer"
+            ]
+          },
+          {
+            "title": "Filter",
+            "section": "cc",
+            "categories": [
+              "filter"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Modulation",
+        "hint": "Three LFOs, the modulation matrix amounts and the performance controllers.",
+        "modules": [
+          {
+            "title": "LFOs",
+            "section": "cc",
+            "categories": [
+              "lfo"
+            ]
+          },
+          {
+            "title": "Matrix",
+            "section": "cc",
+            "categories": [
+              "matrix"
+            ]
+          },
+          {
+            "title": "Performance",
+            "section": "cc",
+            "categories": [
+              "performance"
             ]
           }
         ]
       },
       {
         "title": "Arpeggiator",
+        "hint": "Plays held notes as a pattern.",
         "modules": [
           {
             "title": "Arpeggiator",
@@ -398,5 +859,19 @@
         ]
       }
     ]
-  }
+  },
+  "presetName": {
+    "match": [
+      "preenfm"
+    ],
+    "programs": 1024,
+    "bankSelectCc": 32,
+    "bankSelectPrefix": [
+      {
+        "cc": 0,
+        "value": 2
+      }
+    ]
+  },
+  "note": "PreenFM2 is 4-timbre multitimbral (channels 1-4). Presets: Bank Select CC 0 (2 = DX7 banks 0-127; 3 = DX7 banks 128-255) then CC 32 (bank number), then Program Change; per midi.guide. CC labels follow midi.guide."
 }
