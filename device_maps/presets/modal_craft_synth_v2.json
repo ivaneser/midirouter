@@ -1,0 +1,262 @@
+{
+ "model": "Craft Synth 2.0",
+ "source": "mcpi patch_sounds/craftsynth20 (built-in preset names, profiled with profile_patch); number = 1-based built-in preset; group = sound category from the preset name",
+ "presets": {
+  "1": {
+   "name": "Apron Pad",
+   "group": "Pads"
+  },
+  "2": {
+   "name": "Cpt Crunch Bass",
+   "group": "Bass"
+  },
+  "3": {
+   "name": "All PPL Chord",
+   "group": "Chords"
+  },
+  "4": {
+   "name": "Brain Warp Lead",
+   "group": "Leads"
+  },
+  "5": {
+   "name": "Falspread Chord",
+   "group": "Chords"
+  },
+  "6": {
+   "name": "User Patch 05",
+   "group": "Misc"
+  },
+  "7": {
+   "name": "User Patch 06",
+   "group": "Misc"
+  },
+  "8": {
+   "name": "Tearout Arp",
+   "group": "Arps"
+  },
+  "9": {
+   "name": "Cosmic Ray",
+   "group": "Misc"
+  },
+  "10": {
+   "name": "Larry's Bass",
+   "group": "Bass"
+  },
+  "11": {
+   "name": "145 Chord",
+   "group": "Chords"
+  },
+  "12": {
+   "name": "Loop Finding",
+   "group": "Misc"
+  },
+  "13": {
+   "name": "User Patch 12",
+   "group": "Misc"
+  },
+  "14": {
+   "name": "Tape String Lead",
+   "group": "Leads"
+  },
+  "15": {
+   "name": "Hype Arp",
+   "group": "Arps"
+  },
+  "16": {
+   "name": "Proxima Pad",
+   "group": "Pads"
+  },
+  "17": {
+   "name": "FMvelope Bass",
+   "group": "Bass"
+  },
+  "18": {
+   "name": "Hefty Bass",
+   "group": "Bass"
+  },
+  "19": {
+   "name": "90s Mystics Pad",
+   "group": "Pads"
+  },
+  "20": {
+   "name": "Mirage Pad",
+   "group": "Pads"
+  },
+  "21": {
+   "name": "Flute Organ Lead",
+   "group": "Leads"
+  },
+  "22": {
+   "name": "Howells Lead",
+   "group": "Leads"
+  },
+  "23": {
+   "name": "Roy's Rave Arp",
+   "group": "Arps"
+  },
+  "24": {
+   "name": "Huckabee Arp",
+   "group": "Arps"
+  },
+  "25": {
+   "name": "Infiltrate Bass",
+   "group": "Bass"
+  },
+  "26": {
+   "name": "Leffaus Bass",
+   "group": "Bass"
+  },
+  "27": {
+   "name": "Lo-Fi Chords",
+   "group": "Chords"
+  },
+  "28": {
+   "name": "Proxima Pad",
+   "group": "Pads"
+  },
+  "29": {
+   "name": "Ochre Lead",
+   "group": "Leads"
+  },
+  "30": {
+   "name": "Sync Swim Lead",
+   "group": "Leads"
+  },
+  "31": {
+   "name": "Brick Arch Arp",
+   "group": "Arps"
+  },
+  "32": {
+   "name": "Thumper Arp",
+   "group": "Arps"
+  },
+  "33": {
+   "name": "Butterfly Bass",
+   "group": "Bass"
+  },
+  "34": {
+   "name": "Lucky Bell Bass",
+   "group": "Bass"
+  },
+  "35": {
+   "name": "Futuretro Chord",
+   "group": "Chords"
+  },
+  "36": {
+   "name": "Fractal Pad",
+   "group": "Pads"
+  },
+  "37": {
+   "name": "Flustered Lead",
+   "group": "Leads"
+  },
+  "38": {
+   "name": "Phonograph Lead",
+   "group": "Leads"
+  },
+  "39": {
+   "name": "Glass Arp",
+   "group": "Arps"
+  },
+  "40": {
+   "name": "Unfolding Arp",
+   "group": "Arps"
+  },
+  "41": {
+   "name": "Organ Bass",
+   "group": "Bass"
+  },
+  "42": {
+   "name": "Pointer Bass",
+   "group": "Bass"
+  },
+  "43": {
+   "name": "Resident Fun",
+   "group": "Misc"
+  },
+  "44": {
+   "name": "Venice Pad",
+   "group": "Pads"
+  },
+  "45": {
+   "name": "Softboi Lead",
+   "group": "Leads"
+  },
+  "46": {
+   "name": "Space Dust Lead",
+   "group": "Leads"
+  },
+  "47": {
+   "name": "Data Transit Arp",
+   "group": "Arps"
+  },
+  "48": {
+   "name": "Pancake Arp",
+   "group": "Arps"
+  },
+  "49": {
+   "name": "Grimer",
+   "group": "Bass"
+  },
+  "50": {
+   "name": "Karussel Lead",
+   "group": "Leads"
+  },
+  "51": {
+   "name": "T Refresh Pad",
+   "group": "Pads"
+  },
+  "52": {
+   "name": "9OH Chord",
+   "group": "Chords"
+  },
+  "53": {
+   "name": "Sodapop Lead",
+   "group": "Leads"
+  },
+  "54": {
+   "name": "Wayfairing Lead",
+   "group": "Leads"
+  },
+  "55": {
+   "name": "Teddy Arp",
+   "group": "Arps"
+  },
+  "56": {
+   "name": "Karussel Lead",
+   "group": "Leads"
+  },
+  "57": {
+   "name": "Basic Sub Bass",
+   "group": "Bass"
+  },
+  "58": {
+   "name": "Basic Perc Bass",
+   "group": "Bass"
+  },
+  "59": {
+   "name": "Basic Pad",
+   "group": "Pads"
+  },
+  "60": {
+   "name": "Basic Chord",
+   "group": "Chords"
+  },
+  "61": {
+   "name": "Basic Lead",
+   "group": "Leads"
+  },
+  "62": {
+   "name": "Basic Pluck",
+   "group": "Misc"
+  },
+  "63": {
+   "name": "Basic Arp",
+   "group": "Arps"
+  },
+  "64": {
+   "name": "Init Patch",
+   "group": "Misc"
+  }
+ }
+}

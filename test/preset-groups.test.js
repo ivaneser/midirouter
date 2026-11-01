@@ -32,3 +32,11 @@ test('programsInGroup filters by group, and "All" or a device without groups lis
     assert.deepEqual(manager.programsInGroup('dev', ''), [0, 1, 2, 3, 4, 5]);
     assert.deepEqual(manager.programsInGroup('other', 'Pads', 3), [0, 1, 2]);
 });
+
+test('Craft Synth presets are grouped too, with Misc for the ones that fit nowhere', () => {
+    const craft = JSON.parse(readFileSync(new URL('../device_maps/presets/modal_craft_synth_v2.json', import.meta.url), 'utf8'));
+    assert.equal(Object.keys(craft.presets).length, 64);
+    assert.equal(craft.presets['10'].group, 'Bass');   // Larry's Bass
+    assert.equal(craft.presets['64'].group, 'Misc');   // Init Patch
+    assert.ok(Object.values(craft.presets).every(preset => preset.group));
+});
