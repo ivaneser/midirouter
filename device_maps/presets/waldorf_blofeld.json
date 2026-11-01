@@ -1,3078 +1,4102 @@
 {
  "model": "Blofeld",
- "source": "mcpi config/synths/blofeld-presets.json (names read from the device and profiled with profile_patch); number = 1-based global preset (bank*128+program+1)",
+ "source": "mcpi config/synths/blofeld-presets.json (names read from the device and profiled with profile_patch); number = 1-based global preset (bank*128+program+1); group = sound category assigned from preset name, factory bank layout and the acoustic profile",
  "presets": {
   "1": {
-   "name": "With Love"
+   "name": "With Love",
+   "group": "Misc"
   },
   "2": {
-   "name": "ScaramangAtmo"
+   "name": "ScaramangAtmo",
+   "group": "Pads"
   },
   "3": {
-   "name": "Handy"
+   "name": "Handy",
+   "group": "Misc"
   },
   "4": {
-   "name": "Angels Cry"
+   "name": "Angels Cry",
+   "group": "Strings & Choir"
   },
   "5": {
-   "name": "Chorus"
+   "name": "Chorus",
+   "group": "Strings & Choir"
   },
   "6": {
-   "name": "ModWheelOrganSCD"
+   "name": "ModWheelOrganSCD",
+   "group": "Organ"
   },
   "7": {
-   "name": "SyncMush"
+   "name": "SyncMush",
+   "group": "Leads"
   },
   "8": {
-   "name": "Yummi"
+   "name": "Yummi",
+   "group": "Misc"
   },
   "9": {
-   "name": "Pussy Galore"
+   "name": "Pussy Galore",
+   "group": "Misc"
   },
   "10": {
-   "name": "Clinics"
+   "name": "Clinics",
+   "group": "Misc"
   },
   "11": {
-   "name": "CtrlAltDel"
+   "name": "CtrlAltDel",
+   "group": "Misc"
   },
   "12": {
-   "name": "Tines&Bars"
+   "name": "Tines&Bars",
+   "group": "Bells"
   },
   "13": {
-   "name": "Unstable"
+   "name": "Unstable",
+   "group": "FX"
   },
   "14": {
-   "name": "Deepspace 9"
+   "name": "Deepspace 9",
+   "group": "Pads"
   },
   "15": {
-   "name": "DrivingLicnsDocT"
+   "name": "DrivingLicnsDocT",
+   "group": "Misc"
   },
   "16": {
-   "name": "FlangedHeavenSCD"
+   "name": "FlangedHeavenSCD",
+   "group": "FX"
   },
   "17": {
-   "name": "Heaven"
+   "name": "Heaven",
+   "group": "Misc"
   },
   "18": {
-   "name": "Hmm, lecker"
+   "name": "Hmm, lecker",
+   "group": "Misc"
   },
   "19": {
-   "name": "Horse Trip"
+   "name": "Horse Trip",
+   "group": "Misc"
   },
   "20": {
-   "name": "Inversion"
+   "name": "Inversion",
+   "group": "Misc"
   },
   "21": {
-   "name": "JMX vs. DeLeon"
+   "name": "JMX vs. DeLeon",
+   "group": "Misc"
   },
   "22": {
-   "name": "LA Woman"
+   "name": "LA Woman",
+   "group": "Misc"
   },
   "23": {
-   "name": "Minor Chords"
+   "name": "Minor Chords",
+   "group": "Chords & Stabs"
   },
   "24": {
-   "name": "MoogSolo 2"
+   "name": "MoogSolo 2",
+   "group": "Leads"
   },
   "25": {
-   "name": "OhMyLord"
+   "name": "OhMyLord",
+   "group": "Misc"
   },
   "26": {
-   "name": "PPG Bells"
+   "name": "PPG Bells",
+   "group": "Bells"
   },
   "27": {
-   "name": "PPGesus"
+   "name": "PPGesus",
+   "group": "Misc"
   },
   "28": {
-   "name": "Quadratur"
+   "name": "Quadratur",
+   "group": "Leads"
   },
   "29": {
-   "name": "RingmodFart"
+   "name": "RingmodFart",
+   "group": "FX"
   },
   "30": {
-   "name": "SchnoerkelosDocT"
+   "name": "SchnoerkelosDocT",
+   "group": "Misc"
   },
   "31": {
-   "name": "Schulze?"
+   "name": "Schulze?",
+   "group": "Misc"
   },
   "32": {
-   "name": "shArp"
+   "name": "shArp",
+   "group": "Misc"
   },
   "33": {
-   "name": "Space Echo"
+   "name": "Space Echo",
+   "group": "Pads"
   },
   "34": {
-   "name": "Synthline"
+   "name": "Synthline",
+   "group": "Misc"
   },
   "35": {
-   "name": "Taken!"
+   "name": "Taken!",
+   "group": "Misc"
   },
   "36": {
-   "name": "TouchyBuggerDocT"
+   "name": "TouchyBuggerDocT",
+   "group": "Misc"
   },
   "37": {
-   "name": "UpperWarp"
+   "name": "UpperWarp",
+   "group": "Misc"
   },
   "38": {
-   "name": "WhatYouSay?"
+   "name": "WhatYouSay?",
+   "group": "Misc"
   },
   "39": {
-   "name": "WT mess"
+   "name": "WT mess",
+   "group": "Misc"
   },
   "40": {
-   "name": "10VoicePS3100SCD"
+   "name": "10VoicePS3100SCD",
+   "group": "Strings & Choir"
   },
   "41": {
-   "name": "ArcoStrings"
+   "name": "ArcoStrings",
+   "group": "Strings & Choir"
   },
   "42": {
-   "name": "Blocked"
+   "name": "Blocked",
+   "group": "Misc"
   },
   "43": {
-   "name": "Blolitzer"
+   "name": "Blolitzer",
+   "group": "Misc"
   },
   "44": {
-   "name": "BloodyFeld"
+   "name": "BloodyFeld",
+   "group": "Misc"
   },
   "45": {
-   "name": "BloSync"
+   "name": "BloSync",
+   "group": "Leads"
   },
   "46": {
-   "name": "Blovachord"
+   "name": "Blovachord",
+   "group": "Chords & Stabs"
   },
   "47": {
-   "name": "Boele Keys"
+   "name": "Boele Keys",
+   "group": "Keys"
   },
   "48": {
-   "name": "Bonker Bass"
+   "name": "Bonker Bass",
+   "group": "Bass"
   },
   "49": {
-   "name": "Camel Saw"
+   "name": "Camel Saw",
+   "group": "Leads"
   },
   "50": {
-   "name": "Cream S+H"
+   "name": "Cream S+H",
+   "group": "Misc"
   },
   "51": {
-   "name": "CS4O RingMod"
+   "name": "CS4O RingMod",
+   "group": "FX"
   },
   "52": {
-   "name": "DalaiDelayMa SCD"
+   "name": "DalaiDelayMa SCD",
+   "group": "Misc"
   },
   "53": {
-   "name": "Dirty Organ"
+   "name": "Dirty Organ",
+   "group": "Organ"
   },
   "54": {
-   "name": "Dr.Blo"
+   "name": "Dr.Blo",
+   "group": "Misc"
   },
   "55": {
-   "name": "Driven"
+   "name": "Driven",
+   "group": "Misc"
   },
   "56": {
-   "name": "Euro Clubber"
+   "name": "Euro Clubber",
+   "group": "Misc"
   },
   "57": {
-   "name": "Flangelized"
+   "name": "Flangelized",
+   "group": "Strings & Choir"
   },
   "58": {
-   "name": "Funky Bass"
+   "name": "Funky Bass",
+   "group": "Bass"
   },
   "59": {
-   "name": "Goldfinger Pad T"
+   "name": "Goldfinger Pad T",
+   "group": "Pads"
   },
   "60": {
-   "name": "HardSaw"
+   "name": "HardSaw",
+   "group": "Leads"
   },
   "61": {
-   "name": "Heimweh"
+   "name": "Heimweh",
+   "group": "Misc"
   },
   "62": {
-   "name": "Honey House"
+   "name": "Honey House",
+   "group": "Misc"
   },
   "63": {
-   "name": "Horny Bass"
+   "name": "Horny Bass",
+   "group": "Winds"
   },
   "64": {
-   "name": "HP PPG"
+   "name": "HP PPG",
+   "group": "Misc"
   },
   "65": {
-   "name": "Hyper"
+   "name": "Hyper",
+   "group": "Misc"
   },
   "66": {
-   "name": "I'm Evil"
+   "name": "I'm Evil",
+   "group": "Leads"
   },
   "67": {
-   "name": "InfinitesimaDocT"
+   "name": "InfinitesimaDocT",
+   "group": "Misc"
   },
   "68": {
-   "name": "Jankorgel"
+   "name": "Jankorgel",
+   "group": "Organ"
   },
   "69": {
-   "name": "Leading"
+   "name": "Leading",
+   "group": "Leads"
   },
   "70": {
-   "name": "Maximum Zorin"
+   "name": "Maximum Zorin",
+   "group": "Misc"
   },
   "71": {
-   "name": "MeetInTheSky SCD"
+   "name": "MeetInTheSky SCD",
+   "group": "Pads"
   },
   "72": {
-   "name": "Meridian"
+   "name": "Meridian",
+   "group": "Misc"
   },
   "73": {
-   "name": "Messing"
+   "name": "Messing",
+   "group": "Misc"
   },
   "74": {
-   "name": "Minimal Bass JL"
+   "name": "Minimal Bass JL",
+   "group": "Bass"
   },
   "75": {
-   "name": "Morph Bass"
+   "name": "Morph Bass",
+   "group": "Bass"
   },
   "76": {
-   "name": "Moving"
+   "name": "Moving",
+   "group": "Misc"
   },
   "77": {
-   "name": "NearlyInTune SCD"
+   "name": "NearlyInTune SCD",
+   "group": "Misc"
   },
   "78": {
-   "name": "Neocrest"
+   "name": "Neocrest",
+   "group": "Misc"
   },
   "79": {
-   "name": "Octopussy Pad"
+   "name": "Octopussy Pad",
+   "group": "Pads"
   },
   "80": {
-   "name": "Organella"
+   "name": "Organella",
+   "group": "Organ"
   },
   "81": {
-   "name": "Partyhupe"
+   "name": "Partyhupe",
+   "group": "Winds"
   },
   "82": {
-   "name": "Pastry"
+   "name": "Pastry",
+   "group": "Misc"
   },
   "83": {
-   "name": "Persecutor"
+   "name": "Persecutor",
+   "group": "Misc"
   },
   "84": {
-   "name": "Phalanx"
+   "name": "Phalanx",
+   "group": "Misc"
   },
   "85": {
-   "name": "Pick It Up!"
+   "name": "Pick It Up!",
+   "group": "Guitar"
   },
   "86": {
-   "name": "Pienzchen"
+   "name": "Pienzchen",
+   "group": "Misc"
   },
   "87": {
-   "name": "Pigs X-Mod"
+   "name": "Pigs X-Mod",
+   "group": "Misc"
   },
   "88": {
-   "name": "PlainBass"
+   "name": "PlainBass",
+   "group": "Bass"
   },
   "89": {
-   "name": "PolterBlofeldSCD"
+   "name": "PolterBlofeldSCD",
+   "group": "Misc"
   },
   "90": {
-   "name": "Poly Lead"
+   "name": "Poly Lead",
+   "group": "Chords & Stabs"
   },
   "91": {
-   "name": "PPG Piano"
+   "name": "PPG Piano",
+   "group": "Keys"
   },
   "92": {
-   "name": "PPG T40 like TEK"
+   "name": "PPG T40 like TEK",
+   "group": "Misc"
   },
   "93": {
-   "name": "PredictaBass WMF"
+   "name": "PredictaBass WMF",
+   "group": "Bass"
   },
   "94": {
-   "name": "Pressure"
+   "name": "Pressure",
+   "group": "Misc"
   },
   "95": {
-   "name": "Principia"
+   "name": "Principia",
+   "group": "Misc"
   },
   "96": {
-   "name": "Pure"
+   "name": "Pure",
+   "group": "Misc"
   },
   "97": {
-   "name": "Reset"
+   "name": "Reset",
+   "group": "Misc"
   },
   "98": {
-   "name": "Ricochet2008 SCD"
+   "name": "Ricochet2008 SCD",
+   "group": "Misc"
   },
   "99": {
-   "name": "RingThemBellsSCD"
+   "name": "RingThemBellsSCD",
+   "group": "Bells"
   },
   "100": {
-   "name": "Robotic"
+   "name": "Robotic",
+   "group": "FX"
   },
   "101": {
-   "name": "Saw Orgy"
+   "name": "Saw Orgy",
+   "group": "Leads"
   },
   "102": {
-   "name": "Seq 1"
+   "name": "Seq 1",
+   "group": "Sequences & Arps"
   },
   "103": {
-   "name": "Seven Ties"
+   "name": "Seven Ties",
+   "group": "Misc"
   },
   "104": {
-   "name": "S&Hatmo"
+   "name": "S&Hatmo",
+   "group": "Pads"
   },
   "105": {
-   "name": "Sobstuff"
+   "name": "Sobstuff",
+   "group": "Misc"
   },
   "106": {
-   "name": "Soft Brass 2DocT"
+   "name": "Soft Brass 2DocT",
+   "group": "Winds"
   },
   "107": {
-   "name": "SpatialDrive1SCD"
+   "name": "SpatialDrive1SCD",
+   "group": "Misc"
   },
   "108": {
-   "name": "SpatialDrive2SCD"
+   "name": "SpatialDrive2SCD",
+   "group": "Leads"
   },
   "109": {
-   "name": "Stenzelized"
+   "name": "Stenzelized",
+   "group": "Misc"
   },
   "110": {
-   "name": "Stop Bass"
+   "name": "Stop Bass",
+   "group": "Bass"
   },
   "111": {
-   "name": "SunOfTheDogs WMF"
+   "name": "SunOfTheDogs WMF",
+   "group": "Misc"
   },
   "112": {
-   "name": "Supersaw"
+   "name": "Supersaw",
+   "group": "Leads"
   },
   "113": {
-   "name": "Tabloid"
+   "name": "Tabloid",
+   "group": "Misc"
   },
   "114": {
-   "name": "Telenovela"
+   "name": "Telenovela",
+   "group": "Misc"
   },
   "115": {
-   "name": "Thrill Arp"
+   "name": "Thrill Arp",
+   "group": "Sequences & Arps"
   },
   "116": {
-   "name": "Utmost"
+   "name": "Utmost",
+   "group": "Misc"
   },
   "117": {
-   "name": "Variator"
+   "name": "Variator",
+   "group": "Leads"
   },
   "118": {
-   "name": "Wave Mayhem DocT"
+   "name": "Wave Mayhem DocT",
+   "group": "Misc"
   },
   "119": {
-   "name": "WavEpiano"
+   "name": "WavEpiano",
+   "group": "Keys"
   },
   "120": {
-   "name": "West Wave"
+   "name": "West Wave",
+   "group": "Misc"
   },
   "121": {
-   "name": "AfterConcert SCD"
+   "name": "AfterConcert SCD",
+   "group": "Misc"
   },
   "122": {
-   "name": "AnalogBass"
+   "name": "AnalogBass",
+   "group": "Bass"
   },
   "123": {
-   "name": "Barbarie BrassST"
+   "name": "Barbarie BrassST",
+   "group": "Winds"
   },
   "124": {
-   "name": "Basster Keaton"
+   "name": "Basster Keaton",
+   "group": "Bass"
   },
   "125": {
-   "name": "Bend Me"
+   "name": "Bend Me",
+   "group": "Misc"
   },
   "126": {
-   "name": "Bioshock"
+   "name": "Bioshock",
+   "group": "Misc"
   },
   "127": {
-   "name": "Blubber"
+   "name": "Blubber",
+   "group": "Misc"
   },
   "128": {
-   "name": "Diving Echos TEK"
+   "name": "Diving Echos TEK",
+   "group": "Leads"
   },
   "129": {
-   "name": "Flups Bass"
+   "name": "Flups Bass",
+   "group": "Bass"
   },
   "130": {
-   "name": "Goonraker"
+   "name": "Goonraker",
+   "group": "Misc"
   },
   "131": {
-   "name": "microQ Plus"
+   "name": "microQ Plus",
+   "group": "Misc"
   },
   "132": {
-   "name": "MiniMoogThnd TEK"
+   "name": "MiniMoogThnd TEK",
+   "group": "Misc"
   },
   "133": {
-   "name": "Octa Bass"
+   "name": "Octa Bass",
+   "group": "Bass"
   },
   "134": {
-   "name": "Porno Bass"
+   "name": "Porno Bass",
+   "group": "Bass"
   },
   "135": {
-   "name": "ReSolotion"
+   "name": "ReSolotion",
+   "group": "Leads"
   },
   "136": {
-   "name": "Roadies Keyb TEK"
+   "name": "Roadies Keyb TEK",
+   "group": "Keys"
   },
   "137": {
-   "name": "Spynett"
+   "name": "Spynett",
+   "group": "Misc"
   },
   "138": {
-   "name": "Tines"
+   "name": "Tines",
+   "group": "Bells"
   },
   "139": {
-   "name": "Velo Drive"
+   "name": "Velo Drive",
+   "group": "Keys"
   },
   "140": {
-   "name": "Vangelibells SCD"
+   "name": "Vangelibells SCD",
+   "group": "Bells"
   },
   "141": {
-   "name": "Bellflutes"
+   "name": "Bellflutes",
+   "group": "Bells"
   },
   "142": {
-   "name": "Bellissimo"
+   "name": "Bellissimo",
+   "group": "Bells"
   },
   "143": {
-   "name": "Bells'E.Piano RZ"
+   "name": "Bells'E.Piano RZ",
+   "group": "Bells"
   },
   "144": {
-   "name": "Cheap Organ"
+   "name": "Cheap Organ",
+   "group": "Organ"
   },
   "145": {
-   "name": "Chorgany"
+   "name": "Chorgany",
+   "group": "Organ"
   },
   "146": {
-   "name": "Combuder Orgs SK"
+   "name": "Combuder Orgs SK",
+   "group": "Organ"
   },
   "147": {
-   "name": "Crunge Organ"
+   "name": "Crunge Organ",
+   "group": "Organ"
   },
   "148": {
-   "name": "DeepHouse"
+   "name": "DeepHouse",
+   "group": "Keys"
   },
   "149": {
-   "name": "Dirty Organ1 WMF"
+   "name": "Dirty Organ1 WMF",
+   "group": "Organ"
   },
   "150": {
-   "name": "Driven Keys"
+   "name": "Driven Keys",
+   "group": "Keys"
   },
   "151": {
-   "name": "Dull Bells"
+   "name": "Dull Bells",
+   "group": "Bells"
   },
   "152": {
-   "name": "DX-ClassiQ"
+   "name": "DX-ClassiQ",
+   "group": "Keys"
   },
   "153": {
-   "name": "DX-Pipe"
+   "name": "DX-Pipe",
+   "group": "Organ"
   },
   "154": {
-   "name": "Easy Piano"
+   "name": "Easy Piano",
+   "group": "Keys"
   },
   "155": {
-   "name": "ElectricOrgan"
+   "name": "ElectricOrgan",
+   "group": "Organ"
   },
   "156": {
-   "name": "ElectricPiano"
+   "name": "ElectricPiano",
+   "group": "Keys"
   },
   "157": {
-   "name": "Fat Sine Keys"
+   "name": "Fat Sine Keys",
+   "group": "Keys"
   },
   "158": {
-   "name": "FM KeysMelody"
+   "name": "FM KeysMelody",
+   "group": "Keys"
   },
   "159": {
-   "name": "FM Roads"
+   "name": "FM Roads",
+   "group": "Keys"
   },
   "160": {
-   "name": "Full Organ"
+   "name": "Full Organ",
+   "group": "Organ"
   },
   "161": {
-   "name": "Glockenspiel"
+   "name": "Glockenspiel",
+   "group": "Bells"
   },
   "162": {
-   "name": "GS-Piano"
+   "name": "GS-Piano",
+   "group": "Keys"
   },
   "163": {
-   "name": "Harpsi"
+   "name": "Harpsi",
+   "group": "Keys"
   },
   "164": {
-   "name": "Hippy Freuds"
+   "name": "Hippy Freuds",
+   "group": "Keys"
   },
   "165": {
-   "name": "House"
+   "name": "House",
+   "group": "Keys"
   },
   "166": {
-   "name": "Jazz Creeper"
+   "name": "Jazz Creeper",
+   "group": "Keys"
   },
   "167": {
-   "name": "LA-Pipe"
+   "name": "LA-Pipe",
+   "group": "Organ"
   },
   "168": {
-   "name": "LoFi Organ"
+   "name": "LoFi Organ",
+   "group": "Organ"
   },
   "169": {
-   "name": "Lounge Morph"
+   "name": "Lounge Morph",
+   "group": "Keys"
   },
   "170": {
-   "name": "Lower Steam"
+   "name": "Lower Steam",
+   "group": "Keys"
   },
   "171": {
-   "name": "Marimboid"
+   "name": "Marimboid",
+   "group": "Bells"
   },
   "172": {
-   "name": "Modern House"
+   "name": "Modern House",
+   "group": "Keys"
   },
   "173": {
-   "name": "Modern Keys"
+   "name": "Modern Keys",
+   "group": "Keys"
   },
   "174": {
-   "name": "Noise Toys"
+   "name": "Noise Toys",
+   "group": "Keys"
   },
   "175": {
-   "name": "Ode to Joy"
+   "name": "Ode to Joy",
+   "group": "Keys"
   },
   "176": {
-   "name": "Oil Well"
+   "name": "Oil Well",
+   "group": "Keys"
   },
   "177": {
-   "name": "Organ #2"
+   "name": "Organ #2",
+   "group": "Organ"
   },
   "178": {
-   "name": "Quad-Square"
+   "name": "Quad-Square",
+   "group": "Keys"
   },
   "179": {
-   "name": "Reso Organ"
+   "name": "Reso Organ",
+   "group": "Organ"
   },
   "180": {
-   "name": "ResOrgan"
+   "name": "ResOrgan",
+   "group": "Organ"
   },
   "181": {
-   "name": "Rhodos Corso WMF"
+   "name": "Rhodos Corso WMF",
+   "group": "Keys"
   },
   "182": {
-   "name": "RhodosFlango WMF"
+   "name": "RhodosFlango WMF",
+   "group": "Keys"
   },
   "183": {
-   "name": "Rodesque"
+   "name": "Rodesque",
+   "group": "Keys"
   },
   "184": {
-   "name": "Schwebend"
+   "name": "Schwebend",
+   "group": "Keys"
   },
   "185": {
-   "name": "Shed"
+   "name": "Shed",
+   "group": "Keys"
   },
   "186": {
-   "name": "Sick FM"
+   "name": "Sick FM",
+   "group": "Keys"
   },
   "187": {
-   "name": "SpaceChimes"
+   "name": "SpaceChimes",
+   "group": "Bells"
   },
   "188": {
-   "name": "The Oily Way"
+   "name": "The Oily Way",
+   "group": "Keys"
   },
   "189": {
-   "name": "Thin Organ"
+   "name": "Thin Organ",
+   "group": "Organ"
   },
   "190": {
-   "name": "Troubadour"
+   "name": "Troubadour",
+   "group": "Keys"
   },
   "191": {
-   "name": "Wartz Piano1"
+   "name": "Wartz Piano1",
+   "group": "Keys"
   },
   "192": {
-   "name": "Wooden E"
+   "name": "Wooden E",
+   "group": "Keys"
   },
   "193": {
-   "name": "Wurlitzer104b HM"
+   "name": "Wurlitzer104b HM",
+   "group": "Keys"
   },
   "194": {
-   "name": "Yamlitzer"
+   "name": "Yamlitzer",
+   "group": "Keys"
   },
   "195": {
-   "name": "7th Sense"
+   "name": "7th Sense",
+   "group": "Misc"
   },
   "196": {
-   "name": "80sFM Analog"
+   "name": "80sFM Analog",
+   "group": "Misc"
   },
   "197": {
-   "name": "Aggreppo"
+   "name": "Aggreppo",
+   "group": "Misc"
   },
   "198": {
-   "name": "Analog Lute"
+   "name": "Analog Lute",
+   "group": "Guitar"
   },
   "199": {
-   "name": "Analog Quest"
+   "name": "Analog Quest",
+   "group": "Misc"
   },
   "200": {
-   "name": "Aphazing"
+   "name": "Aphazing",
+   "group": "Misc"
   },
   "201": {
-   "name": "Bell like"
+   "name": "Bell like",
+   "group": "Bells"
   },
   "202": {
-   "name": "BestOfThe80s"
+   "name": "BestOfThe80s",
+   "group": "Misc"
   },
   "203": {
-   "name": "Blakes 7 Str"
+   "name": "Blakes 7 Str",
+   "group": "Misc"
   },
   "204": {
-   "name": "B-Lead"
+   "name": "B-Lead",
+   "group": "Leads"
   },
   "205": {
-   "name": "Bounty Synth"
+   "name": "Bounty Synth",
+   "group": "Misc"
   },
   "206": {
-   "name": "Brass Comp"
+   "name": "Brass Comp",
+   "group": "Winds"
   },
   "207": {
-   "name": "Brass-lead"
+   "name": "Brass-lead",
+   "group": "Winds"
   },
   "208": {
-   "name": "Brassy House"
+   "name": "Brassy House",
+   "group": "Winds"
   },
   "209": {
-   "name": "Bright Sync"
+   "name": "Bright Sync",
+   "group": "Leads"
   },
   "210": {
-   "name": "Brownies"
+   "name": "Brownies",
+   "group": "Leads"
   },
   "211": {
-   "name": "CareFull"
+   "name": "CareFull",
+   "group": "Misc"
   },
   "212": {
-   "name": "Caspoly"
+   "name": "Caspoly",
+   "group": "Chords & Stabs"
   },
   "213": {
-   "name": "Chamber High"
+   "name": "Chamber High",
+   "group": "Misc"
   },
   "214": {
-   "name": "Chamber Low"
+   "name": "Chamber Low",
+   "group": "Misc"
   },
   "215": {
-   "name": "Chord-Hose"
+   "name": "Chord-Hose",
+   "group": "Chords & Stabs"
   },
   "216": {
-   "name": "Chord Revival SK"
+   "name": "Chord Revival SK",
+   "group": "Chords & Stabs"
   },
   "217": {
-   "name": "Classic Dance"
+   "name": "Classic Dance",
+   "group": "Misc"
   },
   "218": {
-   "name": "Classic Synth"
+   "name": "Classic Synth",
+   "group": "Misc"
   },
   "219": {
-   "name": "Clavinetro"
+   "name": "Clavinetro",
+   "group": "Keys"
   },
   "220": {
-   "name": "Clock&Bells"
+   "name": "Clock&Bells",
+   "group": "Bells"
   },
   "221": {
-   "name": "Combi Saws"
+   "name": "Combi Saws",
+   "group": "Misc"
   },
   "222": {
-   "name": "Compromise K"
+   "name": "Compromise K",
+   "group": "Misc"
   },
   "223": {
-   "name": "Concertino"
+   "name": "Concertino",
+   "group": "Misc"
   },
   "224": {
-   "name": "Cool Porta"
+   "name": "Cool Porta",
+   "group": "Misc"
   },
   "225": {
-   "name": "Crawlers"
+   "name": "Crawlers",
+   "group": "Misc"
   },
   "226": {
-   "name": "Crispy Saw"
+   "name": "Crispy Saw",
+   "group": "Leads"
   },
   "227": {
-   "name": "CyberLeader"
+   "name": "CyberLeader",
+   "group": "Leads"
   },
   "228": {
-   "name": "Dawn Organ"
+   "name": "Dawn Organ",
+   "group": "Organ"
   },
   "229": {
-   "name": "Deep Synth"
+   "name": "Deep Synth",
+   "group": "Misc"
   },
   "230": {
-   "name": "Delead It!"
+   "name": "Delead It!",
+   "group": "Leads"
   },
   "231": {
-   "name": "DirtyLead"
+   "name": "DirtyLead",
+   "group": "Leads"
   },
   "232": {
-   "name": "D-NoiZer"
+   "name": "D-NoiZer",
+   "group": "Misc"
   },
   "233": {
-   "name": "DollarBells"
+   "name": "DollarBells",
+   "group": "Bells"
   },
   "234": {
-   "name": "Dr. Motte"
+   "name": "Dr. Motte",
+   "group": "Leads"
   },
   "235": {
-   "name": "Energee!"
+   "name": "Energee!",
+   "group": "Misc"
   },
   "236": {
-   "name": "Enough Power"
+   "name": "Enough Power",
+   "group": "Misc"
   },
   "237": {
-   "name": "EthnoPerc"
+   "name": "EthnoPerc",
+   "group": "Drums"
   },
   "238": {
-   "name": "Euro-Zeichen"
+   "name": "Euro-Zeichen",
+   "group": "Misc"
   },
   "239": {
-   "name": "ExploreChords SK"
+   "name": "ExploreChords SK",
+   "group": "Chords & Stabs"
   },
   "240": {
-   "name": "Fat 8-Osc"
+   "name": "Fat 8-Osc",
+   "group": "Misc"
   },
   "241": {
-   "name": "Filigrano"
+   "name": "Filigrano",
+   "group": "Misc"
   },
   "242": {
-   "name": "FilterFM Keys"
+   "name": "FilterFM Keys",
+   "group": "Keys"
   },
   "243": {
-   "name": "FloorFilla"
+   "name": "FloorFilla",
+   "group": "Misc"
   },
   "244": {
-   "name": "FM Chords"
+   "name": "FM Chords",
+   "group": "Chords & Stabs"
   },
   "245": {
-   "name": "FM Melodies"
+   "name": "FM Melodies",
+   "group": "Leads"
   },
   "246": {
-   "name": "FMod Saws"
+   "name": "FMod Saws",
+   "group": "Misc"
   },
   "247": {
-   "name": "FM-sono Saw"
+   "name": "FM-sono Saw",
+   "group": "Leads"
   },
   "248": {
-   "name": "French"
+   "name": "French",
+   "group": "Winds"
   },
   "249": {
-   "name": "Fun Man"
+   "name": "Fun Man",
+   "group": "Misc"
   },
   "250": {
-   "name": "Gated 80's"
+   "name": "Gated 80's",
+   "group": "Leads"
   },
   "251": {
-   "name": "Gattaca"
+   "name": "Gattaca",
+   "group": "Misc"
   },
   "252": {
-   "name": "Gimme Five!"
+   "name": "Gimme Five!",
+   "group": "Misc"
   },
   "253": {
-   "name": "Glitter Power HS"
+   "name": "Glitter Power HS",
+   "group": "Misc"
   },
   "254": {
-   "name": "Good Air"
+   "name": "Good Air",
+   "group": "Pads"
   },
   "255": {
-   "name": "High Sequence jh"
+   "name": "High Sequence jh",
+   "group": "Sequences & Arps"
   },
   "256": {
-   "name": "HitMeQuick!"
+   "name": "HitMeQuick!",
+   "group": "FX"
   },
   "257": {
-   "name": "Human Touch"
+   "name": "Human Touch",
+   "group": "Strings & Choir"
   },
   "258": {
-   "name": "Ice Bells"
+   "name": "Ice Bells",
+   "group": "Bells"
   },
   "259": {
-   "name": "Illbient Mind"
+   "name": "Illbient Mind",
+   "group": "Misc"
   },
   "260": {
-   "name": "It's Digital"
+   "name": "It's Digital",
+   "group": "Misc"
   },
   "261": {
-   "name": "Jembala"
+   "name": "Jembala",
+   "group": "Drums"
   },
   "262": {
-   "name": "JMX jun."
+   "name": "JMX jun.",
+   "group": "Misc"
   },
   "263": {
-   "name": "Juno Soul"
+   "name": "Juno Soul",
+   "group": "Misc"
   },
   "264": {
-   "name": "KlingKlang'02 jh"
+   "name": "KlingKlang'02 jh",
+   "group": "Misc"
   },
   "265": {
-   "name": "La Sirena"
+   "name": "La Sirena",
+   "group": "FX"
   },
   "266": {
-   "name": "Late Ring"
+   "name": "Late Ring",
+   "group": "Misc"
   },
   "267": {
-   "name": "Leadrunner"
+   "name": "Leadrunner",
+   "group": "Sequences & Arps"
   },
   "268": {
-   "name": "Legal Resins"
+   "name": "Legal Resins",
+   "group": "Misc"
   },
   "269": {
-   "name": "LikeClinics"
+   "name": "LikeClinics",
+   "group": "Misc"
   },
   "270": {
-   "name": "Liquid Mel"
+   "name": "Liquid Mel",
+   "group": "Misc"
   },
   "271": {
-   "name": "Liquid Var"
+   "name": "Liquid Var",
+   "group": "Misc"
   },
   "272": {
-   "name": "LoFi 1oscPoly"
+   "name": "LoFi 1oscPoly",
+   "group": "Chords & Stabs"
   },
   "273": {
-   "name": "LoFi Lead"
+   "name": "LoFi Lead",
+   "group": "Leads"
   },
   "274": {
-   "name": "Minor Chord"
+   "name": "Minor Chord",
+   "group": "Chords & Stabs"
   },
   "275": {
-   "name": "Modulizer"
+   "name": "Modulizer",
+   "group": "Misc"
   },
   "276": {
-   "name": "Move Sound"
+   "name": "Move Sound",
+   "group": "Misc"
   },
   "277": {
-   "name": "My Ol' House"
+   "name": "My Ol' House",
+   "group": "Misc"
   },
   "278": {
-   "name": "Net Profit"
+   "name": "Net Profit",
+   "group": "Misc"
   },
   "279": {
-   "name": "Neu * Utz"
+   "name": "Neu * Utz",
+   "group": "Misc"
   },
   "280": {
-   "name": "NewClassicLd"
+   "name": "NewClassicLd",
+   "group": "Misc"
   },
   "281": {
-   "name": "No. 5 lives"
+   "name": "No. 5 lives",
+   "group": "Misc"
   },
   "282": {
-   "name": "OB-One Knobi"
+   "name": "OB-One Knobi",
+   "group": "Misc"
   },
   "283": {
-   "name": "OBX Purple5 PROX"
+   "name": "OBX Purple5 PROX",
+   "group": "Misc"
   },
   "284": {
-   "name": "Old * Uck"
+   "name": "Old * Uck",
+   "group": "Misc"
   },
   "285": {
-   "name": "Organistic"
+   "name": "Organistic",
+   "group": "Organ"
   },
   "286": {
-   "name": "Papathanasiou"
+   "name": "Papathanasiou",
+   "group": "Misc"
   },
   "287": {
-   "name": "Patagonia"
+   "name": "Patagonia",
+   "group": "Misc"
   },
   "288": {
-   "name": "PEG Horns"
+   "name": "PEG Horns",
+   "group": "Winds"
   },
   "289": {
-   "name": "Phased FM"
+   "name": "Phased FM",
+   "group": "Misc"
   },
   "290": {
-   "name": "Play It Sam!"
+   "name": "Play It Sam!",
+   "group": "Misc"
   },
   "291": {
-   "name": "Poly Flutes"
+   "name": "Poly Flutes",
+   "group": "Winds"
   },
   "292": {
-   "name": "PolySequencer"
+   "name": "PolySequencer",
+   "group": "Sequences & Arps"
   },
   "293": {
-   "name": "PowerLead"
+   "name": "PowerLead",
+   "group": "Leads"
   },
   "294": {
-   "name": "Harp"
+   "name": "Harp",
+   "group": "Guitar"
   },
   "295": {
-   "name": "PPG Nylons"
+   "name": "PPG Nylons",
+   "group": "Guitar"
   },
   "296": {
-   "name": "Pure Keys"
+   "name": "Pure Keys",
+   "group": "Keys"
   },
   "297": {
-   "name": "PWMaster"
+   "name": "PWMaster",
+   "group": "Misc"
   },
   "298": {
-   "name": "Qazzio"
+   "name": "Qazzio",
+   "group": "Misc"
   },
   "299": {
-   "name": "Qddicted!"
+   "name": "Qddicted!",
+   "group": "Misc"
   },
   "300": {
-   "name": "Qtronix"
+   "name": "Qtronix",
+   "group": "Misc"
   },
   "301": {
-   "name": "Quake FM"
+   "name": "Quake FM",
+   "group": "Leads"
   },
   "302": {
-   "name": "Quintage"
+   "name": "Quintage",
+   "group": "Misc"
   },
   "303": {
-   "name": "Quinter 007"
+   "name": "Quinter 007",
+   "group": "Misc"
   },
   "304": {
-   "name": "RaveLover"
+   "name": "RaveLover",
+   "group": "Misc"
   },
   "305": {
-   "name": "Really Insane"
+   "name": "Really Insane",
+   "group": "Misc"
   },
   "306": {
-   "name": "Romeo"
+   "name": "Romeo",
+   "group": "Misc"
   },
   "307": {
-   "name": "RoundTheHorn"
+   "name": "RoundTheHorn",
+   "group": "Winds"
   },
   "308": {
-   "name": "SawTheLight"
+   "name": "SawTheLight",
+   "group": "Misc"
   },
   "309": {
-   "name": "Sax And Dregs"
+   "name": "Sax And Dregs",
+   "group": "Winds"
   },
   "310": {
-   "name": "Schubduese"
+   "name": "Schubduese",
+   "group": "Leads"
   },
   "311": {
-   "name": "ShatterWaves"
+   "name": "ShatterWaves",
+   "group": "Misc"
   },
   "312": {
-   "name": "Siegessaeule"
+   "name": "Siegessaeule",
+   "group": "Misc"
   },
   "313": {
-   "name": "Simple Melo"
+   "name": "Simple Melo",
+   "group": "Leads"
   },
   "314": {
-   "name": "Smash It!"
+   "name": "Smash It!",
+   "group": "Misc"
   },
   "315": {
-   "name": "Solo Harp"
+   "name": "Solo Harp",
+   "group": "Guitar"
   },
   "316": {
-   "name": "Speed"
+   "name": "Speed",
+   "group": "Misc"
   },
   "317": {
-   "name": "Spice"
+   "name": "Spice",
+   "group": "Misc"
   },
   "318": {
-   "name": "Spring Clean"
+   "name": "Spring Clean",
+   "group": "Misc"
   },
   "319": {
-   "name": "Stabs!"
+   "name": "Stabs!",
+   "group": "Chords & Stabs"
   },
   "320": {
-   "name": "Stack with you"
+   "name": "Stack with you",
+   "group": "Misc"
   },
   "321": {
-   "name": "SteaLead"
+   "name": "SteaLead",
+   "group": "Leads"
   },
   "322": {
-   "name": "String Poly"
+   "name": "String Poly",
+   "group": "Strings & Choir"
   },
   "323": {
-   "name": "String Thing"
+   "name": "String Thing",
+   "group": "Strings & Choir"
   },
   "324": {
-   "name": "Stuermer 1"
+   "name": "Stuermer 1",
+   "group": "Misc"
   },
   "325": {
-   "name": "Stylotub"
+   "name": "Stylotub",
+   "group": "Drums"
   },
   "326": {
-   "name": "SyncCity"
+   "name": "SyncCity",
+   "group": "Leads"
   },
   "327": {
-   "name": "Synchronic"
+   "name": "Synchronic",
+   "group": "Leads"
   },
   "328": {
-   "name": "SynthPiano"
+   "name": "SynthPiano",
+   "group": "Keys"
   },
   "329": {
-   "name": "Synth X"
+   "name": "Synth X",
+   "group": "Misc"
   },
   "330": {
-   "name": "Tea @ Eight"
+   "name": "Tea @ Eight",
+   "group": "Misc"
   },
   "331": {
-   "name": "Tech.Lead 1"
+   "name": "Tech.Lead 1",
+   "group": "Leads"
   },
   "332": {
-   "name": "Tech.Lead 2"
+   "name": "Tech.Lead 2",
+   "group": "Leads"
   },
   "333": {
-   "name": "TelephoneSyn ugh"
+   "name": "TelephoneSyn ugh",
+   "group": "Misc"
   },
   "334": {
-   "name": "Telepromter"
+   "name": "Telepromter",
+   "group": "Misc"
   },
   "335": {
-   "name": "The Big 80s"
+   "name": "The Big 80s",
+   "group": "Misc"
   },
   "336": {
-   "name": "The Cutter"
+   "name": "The Cutter",
+   "group": "Misc"
   },
   "337": {
-   "name": "Titanomania"
+   "name": "Titanomania",
+   "group": "Misc"
   },
   "338": {
-   "name": "TranceHarp"
+   "name": "TranceHarp",
+   "group": "Misc"
   },
   "339": {
-   "name": "Trance Plant"
+   "name": "Trance Plant",
+   "group": "Misc"
   },
   "340": {
-   "name": "Trancer"
+   "name": "Trancer",
+   "group": "Misc"
   },
   "341": {
-   "name": "TrashCan!"
+   "name": "TrashCan!",
+   "group": "Misc"
   },
   "342": {
-   "name": "TributeTo DX WMF"
+   "name": "TributeTo DX WMF",
+   "group": "Misc"
   },
   "343": {
-   "name": "Tron Flutes"
+   "name": "Tron Flutes",
+   "group": "Winds"
   },
   "344": {
-   "name": "Tsching Lead"
+   "name": "Tsching Lead",
+   "group": "Leads"
   },
   "345": {
-   "name": "TuBerkel"
+   "name": "TuBerkel",
+   "group": "Misc"
   },
   "346": {
-   "name": "Typ Reso"
+   "name": "Typ Reso",
+   "group": "Misc"
   },
   "347": {
-   "name": "UltraFatPoly WMF"
+   "name": "UltraFatPoly WMF",
+   "group": "Chords & Stabs"
   },
   "348": {
-   "name": "UltraSynC"
+   "name": "UltraSynC",
+   "group": "Leads"
   },
   "349": {
-   "name": "UltraWave"
+   "name": "UltraWave",
+   "group": "Misc"
   },
   "350": {
-   "name": "Unisono Bass"
+   "name": "Unisono Bass",
+   "group": "Bass"
   },
   "351": {
-   "name": "Utopia!"
+   "name": "Utopia!",
+   "group": "Misc"
   },
   "352": {
-   "name": "VeloFreak"
+   "name": "VeloFreak",
+   "group": "Misc"
   },
   "353": {
-   "name": "Vintage Days"
+   "name": "Vintage Days",
+   "group": "Misc"
   },
   "354": {
-   "name": "VintageSpringWMF"
+   "name": "VintageSpringWMF",
+   "group": "Misc"
   },
   "355": {
-   "name": "Vitalica"
+   "name": "Vitalica",
+   "group": "Misc"
   },
   "356": {
-   "name": "Wank"
+   "name": "Wank",
+   "group": "Misc"
   },
   "357": {
-   "name": "Wank Lead"
+   "name": "Wank Lead",
+   "group": "Leads"
   },
   "358": {
-   "name": "Wanna Noise?? jh"
+   "name": "Wanna Noise?? jh",
+   "group": "FX"
   },
   "359": {
-   "name": "Warm PWM Lead SK"
+   "name": "Warm PWM Lead SK",
+   "group": "Leads"
   },
   "360": {
-   "name": "Warm Verse"
+   "name": "Warm Verse",
+   "group": "Misc"
   },
   "361": {
-   "name": "WaveLayer"
+   "name": "WaveLayer",
+   "group": "Misc"
   },
   "362": {
-   "name": "Wells'Tripod WMF"
+   "name": "Wells'Tripod WMF",
+   "group": "Misc"
   },
   "363": {
-   "name": "YourChords"
+   "name": "YourChords",
+   "group": "Chords & Stabs"
   },
   "364": {
-   "name": "Zapper"
+   "name": "Zapper",
+   "group": "FX"
   },
   "365": {
-   "name": "Zawichords"
+   "name": "Zawichords",
+   "group": "Chords & Stabs"
   },
   "366": {
-   "name": "Zing Thing"
+   "name": "Zing Thing",
+   "group": "Misc"
   },
   "367": {
-   "name": "Zippy 2"
+   "name": "Zippy 2",
+   "group": "Misc"
   },
   "368": {
-   "name": "Zombie Nation"
+   "name": "Zombie Nation",
+   "group": "Misc"
   },
   "369": {
-   "name": "50s Pad"
+   "name": "50s Pad",
+   "group": "Pads"
   },
   "370": {
-   "name": "Airpad"
+   "name": "Airpad",
+   "group": "Pads"
   },
   "371": {
-   "name": "AirSpacePad"
+   "name": "AirSpacePad",
+   "group": "Pads"
   },
   "372": {
-   "name": "AmbientSweep"
+   "name": "AmbientSweep",
+   "group": "Pads"
   },
   "373": {
-   "name": "Analog Pad 1"
+   "name": "Analog Pad 1",
+   "group": "Pads"
   },
   "374": {
-   "name": "Analog Pad 2"
+   "name": "Analog Pad 2",
+   "group": "Pads"
   },
   "375": {
-   "name": "Analog Pad 3"
+   "name": "Analog Pad 3",
+   "group": "Pads"
   },
   "376": {
-   "name": "Angel Pad"
+   "name": "Angel Pad",
+   "group": "Strings & Choir"
   },
   "377": {
-   "name": "Antarktis Pad jh"
+   "name": "Antarktis Pad jh",
+   "group": "Pads"
   },
   "378": {
-   "name": "Archangel"
+   "name": "Archangel",
+   "group": "Strings & Choir"
   },
   "379": {
-   "name": "Attacke"
+   "name": "Attacke",
+   "group": "Pads"
   },
   "380": {
-   "name": "BackStrings"
+   "name": "BackStrings",
+   "group": "Strings & Choir"
   },
   "381": {
-   "name": "Bandpad"
+   "name": "Bandpad",
+   "group": "Pads"
   },
   "382": {
-   "name": "BandSpass"
+   "name": "BandSpass",
+   "group": "Pads"
   },
   "383": {
-   "name": "Bend Pad"
+   "name": "Bend Pad",
+   "group": "Pads"
   },
   "384": {
-   "name": "Big Bad Pad"
+   "name": "Big Bad Pad",
+   "group": "Pads"
   },
   "385": {
-   "name": "Bounty"
+   "name": "Bounty",
+   "group": "Pads"
   },
   "386": {
-   "name": "BrightHallPad SK"
+   "name": "BrightHallPad SK",
+   "group": "Pads"
   },
   "387": {
-   "name": "Brightseite"
+   "name": "Brightseite",
+   "group": "Pads"
   },
   "388": {
-   "name": "Broadway"
+   "name": "Broadway",
+   "group": "Pads"
   },
   "389": {
-   "name": "Butter Pat"
+   "name": "Butter Pat",
+   "group": "Pads"
   },
   "390": {
-   "name": "Changing..."
+   "name": "Changing...",
+   "group": "Pads"
   },
   "391": {
-   "name": "ChromaParlong AT"
+   "name": "ChromaParlong AT",
+   "group": "Pads"
   },
   "392": {
-   "name": "Classic Pad"
+   "name": "Classic Pad",
+   "group": "Pads"
   },
   "393": {
-   "name": "CS100"
+   "name": "CS100",
+   "group": "Pads"
   },
   "394": {
-   "name": "CS500"
+   "name": "CS500",
+   "group": "Pads"
   },
   "395": {
-   "name": "Dark Quiet Pad"
+   "name": "Dark Quiet Pad",
+   "group": "Pads"
   },
   "396": {
-   "name": "deMotivation"
+   "name": "deMotivation",
+   "group": "Pads"
   },
   "397": {
-   "name": "di-Fusion"
+   "name": "di-Fusion",
+   "group": "Pads"
   },
   "398": {
-   "name": "Digitize Me!"
+   "name": "Digitize Me!",
+   "group": "Pads"
   },
   "399": {
-   "name": "Discreet Pad"
+   "name": "Discreet Pad",
+   "group": "Pads"
   },
   "400": {
-   "name": "Discreet Pad 2"
+   "name": "Discreet Pad 2",
+   "group": "Pads"
   },
   "401": {
-   "name": "DisharmonicPad"
+   "name": "DisharmonicPad",
+   "group": "Pads"
   },
   "402": {
-   "name": "Dizzyland"
+   "name": "Dizzyland",
+   "group": "Pads"
   },
   "403": {
-   "name": "Don't Ask"
+   "name": "Don't Ask",
+   "group": "Pads"
   },
   "404": {
-   "name": "Drive Sweep"
+   "name": "Drive Sweep",
+   "group": "Pads"
   },
   "405": {
-   "name": "DuMonde Wash WMF"
+   "name": "DuMonde Wash WMF",
+   "group": "Pads"
   },
   "406": {
-   "name": "DuneSdTrak"
+   "name": "DuneSdTrak",
+   "group": "Pads"
   },
   "407": {
-   "name": "Eel Pad"
+   "name": "Eel Pad",
+   "group": "Pads"
   },
   "408": {
-   "name": "Event Horizon"
+   "name": "Event Horizon",
+   "group": "Pads"
   },
   "409": {
-   "name": "Fairy Tale"
+   "name": "Fairy Tale",
+   "group": "Pads"
   },
   "410": {
-   "name": "Famous Sweep"
+   "name": "Famous Sweep",
+   "group": "Pads"
   },
   "411": {
-   "name": "FaMtastic"
+   "name": "FaMtastic",
+   "group": "Pads"
   },
   "412": {
-   "name": "Fat Sweep"
+   "name": "Fat Sweep",
+   "group": "Pads"
   },
   "413": {
-   "name": "Fat Synthpad"
+   "name": "Fat Synthpad",
+   "group": "Pads"
   },
   "414": {
-   "name": "F.E.O.S.phere"
+   "name": "F.E.O.S.phere",
+   "group": "Pads"
   },
   "415": {
-   "name": "FlimmerStringsDK"
+   "name": "FlimmerStringsDK",
+   "group": "Strings & Choir"
   },
   "416": {
-   "name": "GabrielsPad PROX"
+   "name": "GabrielsPad PROX",
+   "group": "Pads"
   },
   "417": {
-   "name": "Geiler Lurch"
+   "name": "Geiler Lurch",
+   "group": "Pads"
   },
   "418": {
-   "name": "Glasklar"
+   "name": "Glasklar",
+   "group": "Pads"
   },
   "419": {
-   "name": "Go to Pad"
+   "name": "Go to Pad",
+   "group": "Pads"
   },
   "420": {
-   "name": "Gran Canyon"
+   "name": "Gran Canyon",
+   "group": "Pads"
   },
   "421": {
-   "name": "Harsh Pad"
+   "name": "Harsh Pad",
+   "group": "Pads"
   },
   "422": {
-   "name": "HellsbugsIntroHM"
+   "name": "HellsbugsIntroHM",
+   "group": "Pads"
   },
   "423": {
-   "name": "Hollow Man"
+   "name": "Hollow Man",
+   "group": "Pads"
   },
   "424": {
-   "name": "House of Ice"
+   "name": "House of Ice",
+   "group": "Pads"
   },
   "425": {
-   "name": "Incoming Rezz"
+   "name": "Incoming Rezz",
+   "group": "Pads"
   },
   "426": {
-   "name": "In My Dreams"
+   "name": "In My Dreams",
+   "group": "Pads"
   },
   "427": {
-   "name": "In the woods"
+   "name": "In the woods",
+   "group": "Pads"
   },
   "428": {
-   "name": "Jetlack Pad"
+   "name": "Jetlack Pad",
+   "group": "Pads"
   },
   "429": {
-   "name": "Kiddings"
+   "name": "Kiddings",
+   "group": "Pads"
   },
   "430": {
-   "name": "Late at night RZ"
+   "name": "Late at night RZ",
+   "group": "Pads"
   },
   "431": {
-   "name": "LateNight Pad"
+   "name": "LateNight Pad",
+   "group": "Pads"
   },
   "432": {
-   "name": "LggSit"
+   "name": "LggSit",
+   "group": "Pads"
   },
   "433": {
-   "name": "Like Wool"
+   "name": "Like Wool",
+   "group": "Pads"
   },
   "434": {
-   "name": "Liquid Strg"
+   "name": "Liquid Strg",
+   "group": "Strings & Choir"
   },
   "435": {
-   "name": "Living Sweep"
+   "name": "Living Sweep",
+   "group": "Pads"
   },
   "436": {
-   "name": "LoFi Choir"
+   "name": "LoFi Choir",
+   "group": "Strings & Choir"
   },
   "437": {
-   "name": "LoFi Strings"
+   "name": "LoFi Strings",
+   "group": "Strings & Choir"
   },
   "438": {
-   "name": "Long Sweep"
+   "name": "Long Sweep",
+   "group": "Pads"
   },
   "439": {
-   "name": "LoveMoviePad"
+   "name": "LoveMoviePad",
+   "group": "Pads"
   },
   "440": {
-   "name": "Magic"
+   "name": "Magic",
+   "group": "Pads"
   },
   "441": {
-   "name": "Majestic"
+   "name": "Majestic",
+   "group": "Pads"
   },
   "442": {
-   "name": "Mantovani"
+   "name": "Mantovani",
+   "group": "Pads"
   },
   "443": {
-   "name": "Mega Drone"
+   "name": "Mega Drone",
+   "group": "Pads"
   },
   "444": {
-   "name": "MegaStrings"
+   "name": "MegaStrings",
+   "group": "Strings & Choir"
   },
   "445": {
-   "name": "Mellow Tron"
+   "name": "Mellow Tron",
+   "group": "Strings & Choir"
   },
   "446": {
-   "name": "Mercury"
+   "name": "Mercury",
+   "group": "Pads"
   },
   "447": {
-   "name": "MI5 Pad"
+   "name": "MI5 Pad",
+   "group": "Pads"
   },
   "448": {
-   "name": "Millenium"
+   "name": "Millenium",
+   "group": "Pads"
   },
   "449": {
-   "name": "Mist Mountain"
+   "name": "Mist Mountain",
+   "group": "Pads"
   },
   "450": {
-   "name": "Motivation Pad"
+   "name": "Motivation Pad",
+   "group": "Pads"
   },
   "451": {
-   "name": "Namlooking"
+   "name": "Namlooking",
+   "group": "Pads"
   },
   "452": {
-   "name": "Noisy Tapes"
+   "name": "Noisy Tapes",
+   "group": "Pads"
   },
   "453": {
-   "name": "No Wavetables"
+   "name": "No Wavetables",
+   "group": "Pads"
   },
   "454": {
-   "name": "ObiWahnPad"
+   "name": "ObiWahnPad",
+   "group": "Pads"
   },
   "455": {
-   "name": "Om mani padme HM"
+   "name": "Om mani padme HM",
+   "group": "Pads"
   },
   "456": {
-   "name": "Onyx"
+   "name": "Onyx",
+   "group": "Pads"
   },
   "457": {
-   "name": "OrchestralPad SK"
+   "name": "OrchestralPad SK",
+   "group": "Strings & Choir"
   },
   "458": {
-   "name": "Overdrive Pad"
+   "name": "Overdrive Pad",
+   "group": "Pads"
   },
   "459": {
-   "name": "Padagogy"
+   "name": "Padagogy",
+   "group": "Pads"
   },
   "460": {
-   "name": "Padings"
+   "name": "Padings",
+   "group": "Pads"
   },
   "461": {
-   "name": "Palisades"
+   "name": "Palisades",
+   "group": "Pads"
   },
   "462": {
-   "name": "Pass Sweep"
+   "name": "Pass Sweep",
+   "group": "Pads"
   },
   "463": {
-   "name": "PhaserStrings jh"
+   "name": "PhaserStrings jh",
+   "group": "Strings & Choir"
   },
   "464": {
-   "name": "Phazer PWM'02 jh"
+   "name": "Phazer PWM'02 jh",
+   "group": "Pads"
   },
   "465": {
-   "name": "Polaris"
+   "name": "Polaris",
+   "group": "Pads"
   },
   "466": {
-   "name": "Prelude Patch"
+   "name": "Prelude Patch",
+   "group": "Pads"
   },
   "467": {
-   "name": "ProducersPad ugh"
+   "name": "ProducersPad ugh",
+   "group": "Pads"
   },
   "468": {
-   "name": "Q-rious?"
+   "name": "Q-rious?",
+   "group": "Pads"
   },
   "469": {
-   "name": "Q-Sweep2"
+   "name": "Q-Sweep2",
+   "group": "Pads"
   },
   "470": {
-   "name": "Queen-mom"
+   "name": "Queen-mom",
+   "group": "Pads"
   },
   "471": {
-   "name": "QuintaSweep"
+   "name": "QuintaSweep",
+   "group": "Pads"
   },
   "472": {
-   "name": "RainAfterSun"
+   "name": "RainAfterSun",
+   "group": "Pads"
   },
   "473": {
-   "name": "Raising Sun"
+   "name": "Raising Sun",
+   "group": "Pads"
   },
   "474": {
-   "name": "Score Pad 1"
+   "name": "Score Pad 1",
+   "group": "Pads"
   },
   "475": {
-   "name": "Score Pad 2"
+   "name": "Score Pad 2",
+   "group": "Pads"
   },
   "476": {
-   "name": "Score Pad 3"
+   "name": "Score Pad 3",
+   "group": "Pads"
   },
   "477": {
-   "name": "S&H&Pad&Nice WMF"
+   "name": "S&H&Pad&Nice WMF",
+   "group": "Pads"
   },
   "478": {
-   "name": "Simple&Sold"
+   "name": "Simple&Sold",
+   "group": "Pads"
   },
   "479": {
-   "name": "Slow Wavetrip"
+   "name": "Slow Wavetrip",
+   "group": "Pads"
   },
   "480": {
-   "name": "Soap"
+   "name": "Soap",
+   "group": "Pads"
   },
   "481": {
-   "name": "Soar"
+   "name": "Soar",
+   "group": "Pads"
   },
   "482": {
-   "name": "Soft"
+   "name": "Soft",
+   "group": "Pads"
   },
   "483": {
-   "name": "Sonnenaufgang"
+   "name": "Sonnenaufgang",
+   "group": "Pads"
   },
   "484": {
-   "name": "Speak & Hold"
+   "name": "Speak & Hold",
+   "group": "Strings & Choir"
   },
   "485": {
-   "name": "Straight Pad"
+   "name": "Straight Pad",
+   "group": "Pads"
   },
   "486": {
-   "name": "String&AirPad SK"
+   "name": "String&AirPad SK",
+   "group": "Strings & Choir"
   },
   "487": {
-   "name": "Stringer"
+   "name": "Stringer",
+   "group": "Strings & Choir"
   },
   "488": {
-   "name": "StringOrchid WMF"
+   "name": "StringOrchid WMF",
+   "group": "Strings & Choir"
   },
   "489": {
-   "name": "Sublime"
+   "name": "Sublime",
+   "group": "Pads"
   },
   "490": {
-   "name": "Sweepy Sync"
+   "name": "Sweepy Sync",
+   "group": "Pads"
   },
   "491": {
-   "name": "SyncSanity"
+   "name": "SyncSanity",
+   "group": "Pads"
   },
   "492": {
-   "name": "SynthetiChoir"
+   "name": "SynthetiChoir",
+   "group": "Strings & Choir"
   },
   "493": {
-   "name": "TableSweep"
+   "name": "TableSweep",
+   "group": "Pads"
   },
   "494": {
-   "name": "TableSync"
+   "name": "TableSync",
+   "group": "Pads"
   },
   "495": {
-   "name": "The Beginning"
+   "name": "The Beginning",
+   "group": "Pads"
   },
   "496": {
-   "name": "The Blues"
+   "name": "The Blues",
+   "group": "Pads"
   },
   "497": {
-   "name": "The Bridge"
+   "name": "The Bridge",
+   "group": "Pads"
   },
   "498": {
-   "name": "The Carpet"
+   "name": "The Carpet",
+   "group": "Pads"
   },
   "499": {
-   "name": "Thin Pulsepad"
+   "name": "Thin Pulsepad",
+   "group": "Pads"
   },
   "500": {
-   "name": "Tranquilizer"
+   "name": "Tranquilizer",
+   "group": "Pads"
   },
   "501": {
-   "name": "TripleStringsWMF"
+   "name": "TripleStringsWMF",
+   "group": "Strings & Choir"
   },
   "502": {
-   "name": "Ultimaterial"
+   "name": "Ultimaterial",
+   "group": "Pads"
   },
   "503": {
-   "name": "unTuned"
+   "name": "unTuned",
+   "group": "Pads"
   },
   "504": {
-   "name": "Wake Up"
+   "name": "Wake Up",
+   "group": "Pads"
   },
   "505": {
-   "name": "Wartofsky"
+   "name": "Wartofsky",
+   "group": "Pads"
   },
   "506": {
-   "name": "Wavescapes 1"
+   "name": "Wavescapes 1",
+   "group": "Pads"
   },
   "507": {
-   "name": "Wavescapes 2"
+   "name": "Wavescapes 2",
+   "group": "Pads"
   },
   "508": {
-   "name": "Wavescapes 3"
+   "name": "Wavescapes 3",
+   "group": "Pads"
   },
   "509": {
-   "name": "Wave: Doom"
+   "name": "Wave: Doom",
+   "group": "Pads"
   },
   "510": {
-   "name": "Weddingday"
+   "name": "Weddingday",
+   "group": "Pads"
   },
   "511": {
-   "name": "Wide'n'Thin"
+   "name": "Wide'n'Thin",
+   "group": "Pads"
   },
   "512": {
-   "name": "Wide Saw Pad"
+   "name": "Wide Saw Pad",
+   "group": "Pads"
   },
   "513": {
-   "name": "WideWarmWash WMF"
+   "name": "WideWarmWash WMF",
+   "group": "Pads"
   },
   "514": {
-   "name": "Zeitlos"
+   "name": "Zeitlos",
+   "group": "Pads"
   },
   "515": {
-   "name": "11KHz Solo"
+   "name": "11KHz Solo",
+   "group": "Leads"
   },
   "516": {
-   "name": "12dB Monster"
+   "name": "12dB Monster",
+   "group": "Leads"
   },
   "517": {
-   "name": "Alt Vibes"
+   "name": "Alt Vibes",
+   "group": "Bells"
   },
   "518": {
-   "name": "Anna Powers"
+   "name": "Anna Powers",
+   "group": "Leads"
   },
   "519": {
-   "name": "Autobahn"
+   "name": "Autobahn",
+   "group": "Leads"
   },
   "520": {
-   "name": "Bach Whistler"
+   "name": "Bach Whistler",
+   "group": "Winds"
   },
   "521": {
-   "name": "Bad, bad Q!"
+   "name": "Bad, bad Q!",
+   "group": "Leads"
   },
   "522": {
-   "name": "Bass-to-Lead"
+   "name": "Bass-to-Lead",
+   "group": "Bass"
   },
   "523": {
-   "name": "ButtKicker"
+   "name": "ButtKicker",
+   "group": "Leads"
   },
   "524": {
-   "name": "ByteBass"
+   "name": "ByteBass",
+   "group": "Bass"
   },
   "525": {
-   "name": "Captain Cork"
+   "name": "Captain Cork",
+   "group": "Leads"
   },
   "526": {
-   "name": "Chord-A-Must!"
+   "name": "Chord-A-Must!",
+   "group": "Chords & Stabs"
   },
   "527": {
-   "name": "CosmoSpace"
+   "name": "CosmoSpace",
+   "group": "Leads"
   },
   "528": {
-   "name": "Crazy Diamond"
+   "name": "Crazy Diamond",
+   "group": "Leads"
   },
   "529": {
-   "name": "Crazy Parade"
+   "name": "Crazy Parade",
+   "group": "Leads"
   },
   "530": {
-   "name": "Crungy Lead"
+   "name": "Crungy Lead",
+   "group": "Leads"
   },
   "531": {
-   "name": "CS4O Vangelis"
+   "name": "CS4O Vangelis",
+   "group": "Strings & Choir"
   },
   "532": {
-   "name": "DeepDriveLead"
+   "name": "DeepDriveLead",
+   "group": "Leads"
   },
   "533": {
-   "name": "Dirty-Q-uinta"
+   "name": "Dirty-Q-uinta",
+   "group": "Leads"
   },
   "534": {
-   "name": "DiscoPhonic"
+   "name": "DiscoPhonic",
+   "group": "Leads"
   },
   "535": {
-   "name": "DistoQuak"
+   "name": "DistoQuak",
+   "group": "Leads"
   },
   "536": {
-   "name": "Dre's Solo"
+   "name": "Dre's Solo",
+   "group": "Leads"
   },
   "537": {
-   "name": "Eff Emmd!"
+   "name": "Eff Emmd!",
+   "group": "Leads"
   },
   "538": {
-   "name": "ElectricDance"
+   "name": "ElectricDance",
+   "group": "Leads"
   },
   "539": {
-   "name": "FictionGuitar"
+   "name": "FictionGuitar",
+   "group": "Guitar"
   },
   "540": {
-   "name": "FuzzyLogicFM"
+   "name": "FuzzyLogicFM",
+   "group": "Leads"
   },
   "541": {
-   "name": "Ghost"
+   "name": "Ghost",
+   "group": "Leads"
   },
   "542": {
-   "name": "Guitar 1"
+   "name": "Guitar 1",
+   "group": "Guitar"
   },
   "543": {
-   "name": "Guitar 2"
+   "name": "Guitar 2",
+   "group": "Guitar"
   },
   "544": {
-   "name": "Leaderlich 1"
+   "name": "Leaderlich 1",
+   "group": "Leads"
   },
   "545": {
-   "name": "Leaderlich 2"
+   "name": "Leaderlich 2",
+   "group": "Leads"
   },
   "546": {
-   "name": "LoFi 1oscLead"
+   "name": "LoFi 1oscLead",
+   "group": "Leads"
   },
   "547": {
-   "name": "Lowdown Lead"
+   "name": "Lowdown Lead",
+   "group": "Leads"
   },
   "548": {
-   "name": "MC-202 Solo 2"
+   "name": "MC-202 Solo 2",
+   "group": "Leads"
   },
   "549": {
-   "name": "MiniDuke Solo"
+   "name": "MiniDuke Solo",
+   "group": "Leads"
   },
   "550": {
-   "name": "Moany"
+   "name": "Moany",
+   "group": "Leads"
   },
   "551": {
-   "name": "Modulator"
+   "name": "Modulator",
+   "group": "Leads"
   },
   "552": {
-   "name": "MonoBeatLead"
+   "name": "MonoBeatLead",
+   "group": "Leads"
   },
   "553": {
-   "name": "Monofat"
+   "name": "Monofat",
+   "group": "Leads"
   },
   "554": {
-   "name": "Monoguitar"
+   "name": "Monoguitar",
+   "group": "Guitar"
   },
   "555": {
-   "name": "Monolith"
+   "name": "Monolith",
+   "group": "Leads"
   },
   "556": {
-   "name": "MonoSyncLead"
+   "name": "MonoSyncLead",
+   "group": "Leads"
   },
   "557": {
-   "name": "Nightmares"
+   "name": "Nightmares",
+   "group": "Leads"
   },
   "558": {
-   "name": "NoisyLead"
+   "name": "NoisyLead",
+   "group": "Leads"
   },
   "559": {
-   "name": "Notch It!"
+   "name": "Notch It!",
+   "group": "Leads"
   },
   "560": {
-   "name": "Old Squares"
+   "name": "Old Squares",
+   "group": "Leads"
   },
   "561": {
-   "name": "Orient Flute"
+   "name": "Orient Flute",
+   "group": "Winds"
   },
   "562": {
-   "name": "OverdriveLead"
+   "name": "OverdriveLead",
+   "group": "Leads"
   },
   "563": {
-   "name": "ParaToxic"
+   "name": "ParaToxic",
+   "group": "Leads"
   },
   "564": {
-   "name": "Popcorn"
+   "name": "Popcorn",
+   "group": "Leads"
   },
   "565": {
-   "name": "Portemon"
+   "name": "Portemon",
+   "group": "Leads"
   },
   "566": {
-   "name": "Powered By..."
+   "name": "Powered By...",
+   "group": "Leads"
   },
   "567": {
-   "name": "Pulsar Solo"
+   "name": "Pulsar Solo",
+   "group": "Leads"
   },
   "568": {
-   "name": "PulZer"
+   "name": "PulZer",
+   "group": "Leads"
   },
   "569": {
-   "name": "Q or Pulse?"
+   "name": "Q or Pulse?",
+   "group": "Leads"
   },
   "570": {
-   "name": "RoughTough"
+   "name": "RoughTough",
+   "group": "Leads"
   },
   "571": {
-   "name": "Saw 1 Osc"
+   "name": "Saw 1 Osc",
+   "group": "Leads"
   },
   "572": {
-   "name": "MiniLead 1"
+   "name": "MiniLead 1",
+   "group": "Leads"
   },
   "573": {
-   "name": "Sonic Six"
+   "name": "Sonic Six",
+   "group": "Leads"
   },
   "574": {
-   "name": "Starline"
+   "name": "Starline",
+   "group": "Leads"
   },
   "575": {
-   "name": "Starweed"
+   "name": "Starweed",
+   "group": "Leads"
   },
   "576": {
-   "name": "SteelDrum"
+   "name": "SteelDrum",
+   "group": "Bells"
   },
   "577": {
-   "name": "Tri-Sync"
+   "name": "Tri-Sync",
+   "group": "Leads"
   },
   "578": {
-   "name": "TronFlute 2"
+   "name": "TronFlute 2",
+   "group": "Winds"
   },
   "579": {
-   "name": "Valium"
+   "name": "Valium",
+   "group": "Leads"
   },
   "580": {
-   "name": "VoiceChords"
+   "name": "VoiceChords",
+   "group": "Strings & Choir"
   },
   "581": {
-   "name": "Waily"
+   "name": "Waily",
+   "group": "Leads"
   },
   "582": {
-   "name": "Weird&Wicked"
+   "name": "Weird&Wicked",
+   "group": "Leads"
   },
   "583": {
-   "name": "X-Feels"
+   "name": "X-Feels",
+   "group": "Leads"
   },
   "584": {
-   "name": "ZlatnaPlanega"
+   "name": "ZlatnaPlanega",
+   "group": "Leads"
   },
   "585": {
-   "name": "ArpeggyBells"
+   "name": "ArpeggyBells",
+   "group": "Bells"
   },
   "586": {
-   "name": "Asian Vibes"
+   "name": "Asian Vibes",
+   "group": "Bells"
   },
   "587": {
-   "name": "Capt.Future 2"
+   "name": "Capt.Future 2",
+   "group": "Sequences & Arps"
   },
   "588": {
-   "name": "Comb Sequence"
+   "name": "Comb Sequence",
+   "group": "Sequences & Arps"
   },
   "589": {
-   "name": "Dr. Strange"
+   "name": "Dr. Strange",
+   "group": "Sequences & Arps"
   },
   "590": {
-   "name": "DX Sequencer"
+   "name": "DX Sequencer",
+   "group": "Sequences & Arps"
   },
   "591": {
-   "name": "Fast & Furious"
+   "name": "Fast & Furious",
+   "group": "Sequences & Arps"
   },
   "592": {
-   "name": "FMe!"
+   "name": "FMe!",
+   "group": "Sequences & Arps"
   },
   "593": {
-   "name": "Gate Synth"
+   "name": "Gate Synth",
+   "group": "Sequences & Arps"
   },
   "594": {
-   "name": "HighFly"
+   "name": "HighFly",
+   "group": "Sequences & Arps"
   },
   "595": {
-   "name": "Hybrid Harp"
+   "name": "Hybrid Harp",
+   "group": "Guitar"
   },
   "596": {
-   "name": "KarmaKoma"
+   "name": "KarmaKoma",
+   "group": "Sequences & Arps"
   },
   "597": {
-   "name": "LFO sequenzer"
+   "name": "LFO sequenzer",
+   "group": "Sequences & Arps"
   },
   "598": {
-   "name": "Minor Seven"
+   "name": "Minor Seven",
+   "group": "Sequences & Arps"
   },
   "599": {
-   "name": "Nano Sequence"
+   "name": "Nano Sequence",
+   "group": "Sequences & Arps"
   },
   "600": {
-   "name": "Noisophon"
+   "name": "Noisophon",
+   "group": "Sequences & Arps"
   },
   "601": {
-   "name": "NotchSequence"
+   "name": "NotchSequence",
+   "group": "Sequences & Arps"
   },
   "602": {
-   "name": "Out Of Japan"
+   "name": "Out Of Japan",
+   "group": "Sequences & Arps"
   },
   "603": {
-   "name": "OverHigh"
+   "name": "OverHigh",
+   "group": "Sequences & Arps"
   },
   "604": {
-   "name": "OverHP Sequ."
+   "name": "OverHP Sequ.",
+   "group": "Sequences & Arps"
   },
   "605": {
-   "name": "PassSequ."
+   "name": "PassSequ.",
+   "group": "Sequences & Arps"
   },
   "606": {
-   "name": "Percussive SQ"
+   "name": "Percussive SQ",
+   "group": "Drums"
   },
   "607": {
-   "name": "Phantastica 2"
+   "name": "Phantastica 2",
+   "group": "Sequences & Arps"
   },
   "608": {
-   "name": "Pick It!"
+   "name": "Pick It!",
+   "group": "Guitar"
   },
   "609": {
-   "name": "Pop Spot"
+   "name": "Pop Spot",
+   "group": "Sequences & Arps"
   },
   "610": {
-   "name": "PrincessBellsWMF"
+   "name": "PrincessBellsWMF",
+   "group": "Bells"
   },
   "611": {
-   "name": "PW-Steps"
+   "name": "PW-Steps",
+   "group": "Sequences & Arps"
   },
   "612": {
-   "name": "Q-uirly"
+   "name": "Q-uirly",
+   "group": "Sequences & Arps"
   },
   "613": {
-   "name": "Ringmoding"
+   "name": "Ringmoding",
+   "group": "Sequences & Arps"
   },
   "614": {
-   "name": "Ring Sequel"
+   "name": "Ring Sequel",
+   "group": "Sequences & Arps"
   },
   "615": {
-   "name": "Schmatz"
+   "name": "Schmatz",
+   "group": "Sequences & Arps"
   },
   "616": {
-   "name": "S-Friends"
+   "name": "S-Friends",
+   "group": "Sequences & Arps"
   },
   "617": {
-   "name": "Short Bleeps"
+   "name": "Short Bleeps",
+   "group": "Sequences & Arps"
   },
   "618": {
-   "name": "SpaceGuitar"
+   "name": "SpaceGuitar",
+   "group": "Guitar"
   },
   "619": {
-   "name": "SqrBassSwing WMF"
+   "name": "SqrBassSwing WMF",
+   "group": "Bass"
   },
   "620": {
-   "name": "Steelon Morph"
+   "name": "Steelon Morph",
+   "group": "Sequences & Arps"
   },
   "621": {
-   "name": "Storchennest"
+   "name": "Storchennest",
+   "group": "Sequences & Arps"
   },
   "622": {
-   "name": "Sync Sequ."
+   "name": "Sync Sequ.",
+   "group": "Sequences & Arps"
   },
   "623": {
-   "name": "Tankin'"
+   "name": "Tankin'",
+   "group": "Sequences & Arps"
   },
   "624": {
-   "name": "TinkaBelle"
+   "name": "TinkaBelle",
+   "group": "Bells"
   },
   "625": {
-   "name": "Tiny Brushes"
+   "name": "Tiny Brushes",
+   "group": "Drums"
   },
   "626": {
-   "name": "Too Fast"
+   "name": "Too Fast",
+   "group": "Sequences & Arps"
   },
   "627": {
-   "name": "Vanille Keys"
+   "name": "Vanille Keys",
+   "group": "Keys"
   },
   "628": {
-   "name": "Zap Melody"
+   "name": "Zap Melody",
+   "group": "Sequences & Arps"
   },
   "629": {
-   "name": "1DrunkenStenz"
+   "name": "1DrunkenStenz",
+   "group": "Sequences & Arps"
   },
   "630": {
-   "name": "A*R*P"
+   "name": "A*R*P",
+   "group": "Sequences & Arps"
   },
   "631": {
-   "name": "ARPacadabra"
+   "name": "ARPacadabra",
+   "group": "Sequences & Arps"
   },
   "632": {
-   "name": "ARP Attack"
+   "name": "ARP Attack",
+   "group": "Sequences & Arps"
   },
   "633": {
-   "name": "AthmoDrops"
+   "name": "AthmoDrops",
+   "group": "Sequences & Arps"
   },
   "634": {
-   "name": "Attacke"
+   "name": "Attacke",
+   "group": "Sequences & Arps"
   },
   "635": {
-   "name": "BoubleBouble"
+   "name": "BoubleBouble",
+   "group": "Sequences & Arps"
   },
   "636": {
-   "name": "BP Runner"
+   "name": "BP Runner",
+   "group": "Sequences & Arps"
   },
   "637": {
-   "name": "Caribian Lead"
+   "name": "Caribian Lead",
+   "group": "Sequences & Arps"
   },
   "638": {
-   "name": "cARPet"
+   "name": "cARPet",
+   "group": "Sequences & Arps"
   },
   "639": {
-   "name": "ChorusPattern"
+   "name": "ChorusPattern",
+   "group": "Strings & Choir"
   },
   "640": {
-   "name": "Cosmic Slides"
+   "name": "Cosmic Slides",
+   "group": "Sequences & Arps"
   },
   "641": {
-   "name": "Cracy!Cracy!"
+   "name": "Cracy!Cracy!",
+   "group": "Sequences & Arps"
   },
   "642": {
-   "name": "CryBaby"
+   "name": "CryBaby",
+   "group": "Sequences & Arps"
   },
   "643": {
-   "name": "DeepLine FM"
+   "name": "DeepLine FM",
+   "group": "Sequences & Arps"
   },
   "644": {
-   "name": "Demons Rising"
+   "name": "Demons Rising",
+   "group": "Sequences & Arps"
   },
   "645": {
-   "name": "DetuneDaHouse"
+   "name": "DetuneDaHouse",
+   "group": "Sequences & Arps"
   },
   "646": {
-   "name": "Dirty Peggio"
+   "name": "Dirty Peggio",
+   "group": "Sequences & Arps"
   },
   "647": {
-   "name": "Dockstader"
+   "name": "Dockstader",
+   "group": "Sequences & Arps"
   },
   "648": {
-   "name": "Dot. Groove"
+   "name": "Dot. Groove",
+   "group": "Sequences & Arps"
   },
   "649": {
-   "name": "DriveMeCrazy"
+   "name": "DriveMeCrazy",
+   "group": "Sequences & Arps"
   },
   "650": {
-   "name": "Einstein"
+   "name": "Einstein",
+   "group": "Sequences & Arps"
   },
   "651": {
-   "name": "Electric HArp"
+   "name": "Electric HArp",
+   "group": "Guitar"
   },
   "652": {
-   "name": "ElectriX"
+   "name": "ElectriX",
+   "group": "Sequences & Arps"
   },
   "653": {
-   "name": "E-Motion"
+   "name": "E-Motion",
+   "group": "Sequences & Arps"
   },
   "654": {
-   "name": "Expensive"
+   "name": "Expensive",
+   "group": "Sequences & Arps"
   },
   "655": {
-   "name": "DeluXaflex"
+   "name": "DeluXaflex",
+   "group": "Sequences & Arps"
   },
   "656": {
-   "name": "EyesWideOpen"
+   "name": "EyesWideOpen",
+   "group": "Sequences & Arps"
   },
   "657": {
-   "name": "Fast'n'Smart"
+   "name": "Fast'n'Smart",
+   "group": "Sequences & Arps"
   },
   "658": {
-   "name": "Filter Games"
+   "name": "Filter Games",
+   "group": "Sequences & Arps"
   },
   "659": {
-   "name": "FM Drops"
+   "name": "FM Drops",
+   "group": "Sequences & Arps"
   },
   "660": {
-   "name": "FromBass2Dawn"
+   "name": "FromBass2Dawn",
+   "group": "Bass"
   },
   "661": {
-   "name": "From Germany"
+   "name": "From Germany",
+   "group": "Sequences & Arps"
   },
   "662": {
-   "name": "Furby Arp '02"
+   "name": "Furby Arp '02",
+   "group": "Sequences & Arps"
   },
   "663": {
-   "name": "GeeGaGooQ"
+   "name": "GeeGaGooQ",
+   "group": "Sequences & Arps"
   },
   "664": {
-   "name": "Grammophone"
+   "name": "Grammophone",
+   "group": "Sequences & Arps"
   },
   "665": {
-   "name": "Groove & Bass"
+   "name": "Groove & Bass",
+   "group": "Bass"
   },
   "666": {
-   "name": "High Voltage!"
+   "name": "High Voltage!",
+   "group": "Sequences & Arps"
   },
   "667": {
-   "name": "HouseMasterS"
+   "name": "HouseMasterS",
+   "group": "Sequences & Arps"
   },
   "668": {
-   "name": "HP Runner"
+   "name": "HP Runner",
+   "group": "Sequences & Arps"
   },
   "669": {
-   "name": "Juanita"
+   "name": "Juanita",
+   "group": "Sequences & Arps"
   },
   "670": {
-   "name": "Jupiter Synth"
+   "name": "Jupiter Synth",
+   "group": "Sequences & Arps"
   },
   "671": {
-   "name": "Milky Way"
+   "name": "Milky Way",
+   "group": "Sequences & Arps"
   },
   "672": {
-   "name": "Nowseq 2"
+   "name": "Nowseq 2",
+   "group": "Sequences & Arps"
   },
   "673": {
-   "name": "Panner Echoes"
+   "name": "Panner Echoes",
+   "group": "Sequences & Arps"
   },
   "674": {
-   "name": "PassPortament"
+   "name": "PassPortament",
+   "group": "Sequences & Arps"
   },
   "675": {
-   "name": "Patsy OB Pad"
+   "name": "Patsy OB Pad",
+   "group": "Sequences & Arps"
   },
   "676": {
-   "name": "PeeWee Lead"
+   "name": "PeeWee Lead",
+   "group": "Sequences & Arps"
   },
   "677": {
-   "name": "PercoBeats"
+   "name": "PercoBeats",
+   "group": "Drums"
   },
   "678": {
-   "name": "Perc School"
+   "name": "Perc School",
+   "group": "Drums"
   },
   "679": {
-   "name": "PhoeniX Arp"
+   "name": "PhoeniX Arp",
+   "group": "Sequences & Arps"
   },
   "680": {
-   "name": "Rhythm Arp"
+   "name": "Rhythm Arp",
+   "group": "Sequences & Arps"
   },
   "681": {
-   "name": "Ringmodular"
+   "name": "Ringmodular",
+   "group": "Sequences & Arps"
   },
   "682": {
-   "name": "Saturn"
+   "name": "Saturn",
+   "group": "Sequences & Arps"
   },
   "683": {
-   "name": "schARPing"
+   "name": "schARPing",
+   "group": "Sequences & Arps"
   },
   "684": {
-   "name": "Selbstlaeufer"
+   "name": "Selbstlaeufer",
+   "group": "Sequences & Arps"
   },
   "685": {
-   "name": "Sierra Velone"
+   "name": "Sierra Velone",
+   "group": "Sequences & Arps"
   },
   "686": {
-   "name": "Slow Pop"
+   "name": "Slow Pop",
+   "group": "Sequences & Arps"
   },
   "687": {
-   "name": "Smack Me Up!"
+   "name": "Smack Me Up!",
+   "group": "Sequences & Arps"
   },
   "688": {
-   "name": "SnappyInstr."
+   "name": "SnappyInstr.",
+   "group": "Sequences & Arps"
   },
   "689": {
-   "name": "Space Arp 1"
+   "name": "Space Arp 1",
+   "group": "Sequences & Arps"
   },
   "690": {
-   "name": "Space Arp 2"
+   "name": "Space Arp 2",
+   "group": "Sequences & Arps"
   },
   "691": {
-   "name": "Spiffing"
+   "name": "Spiffing",
+   "group": "Sequences & Arps"
   },
   "692": {
-   "name": "SquareBoubles"
+   "name": "SquareBoubles",
+   "group": "Sequences & Arps"
   },
   "693": {
-   "name": "Square Fun!"
+   "name": "Square Fun!",
+   "group": "Sequences & Arps"
   },
   "694": {
-   "name": "stARPower"
+   "name": "stARPower",
+   "group": "Sequences & Arps"
   },
   "695": {
-   "name": "StarSoldiers"
+   "name": "StarSoldiers",
+   "group": "Sequences & Arps"
   },
   "696": {
-   "name": "Sumeria Trek"
+   "name": "Sumeria Trek",
+   "group": "Sequences & Arps"
   },
   "697": {
-   "name": "SupportersRun"
+   "name": "SupportersRun",
+   "group": "Sequences & Arps"
   },
   "698": {
-   "name": "Synthi Pap"
+   "name": "Synthi Pap",
+   "group": "Sequences & Arps"
   },
   "699": {
-   "name": "Technica"
+   "name": "Technica",
+   "group": "Sequences & Arps"
   },
   "700": {
-   "name": "TranceMania 2"
+   "name": "TranceMania 2",
+   "group": "Sequences & Arps"
   },
   "701": {
-   "name": "Two Lines"
+   "name": "Two Lines",
+   "group": "Sequences & Arps"
   },
   "702": {
-   "name": "Visions of Q"
+   "name": "Visions of Q",
+   "group": "Sequences & Arps"
   },
   "703": {
-   "name": "Waven"
+   "name": "Waven",
+   "group": "Sequences & Arps"
   },
   "704": {
-   "name": "Weirdo FX"
+   "name": "Weirdo FX",
+   "group": "Sequences & Arps"
   },
   "705": {
-   "name": "WhatIcallPulZ"
+   "name": "WhatIcallPulZ",
+   "group": "Sequences & Arps"
   },
   "706": {
-   "name": "Wizzard's Run"
+   "name": "Wizzard's Run",
+   "group": "Sequences & Arps"
   },
   "707": {
-   "name": "ZZ-you"
+   "name": "ZZ-you",
+   "group": "Sequences & Arps"
   },
   "708": {
-   "name": "2Step Bass"
+   "name": "2Step Bass",
+   "group": "Bass"
   },
   "709": {
-   "name": "08/15 Bass"
+   "name": "08/15 Bass",
+   "group": "Bass"
   },
   "710": {
-   "name": "12dB PW-Bass"
+   "name": "12dB PW-Bass",
+   "group": "Bass"
   },
   "711": {
-   "name": "303 Wanna Be"
+   "name": "303 Wanna Be",
+   "group": "Bass"
   },
   "712": {
-   "name": "707Bass"
+   "name": "707Bass",
+   "group": "Bass"
   },
   "713": {
-   "name": "Acid Bubbles"
+   "name": "Acid Bubbles",
+   "group": "Bass"
   },
   "714": {
-   "name": "Acrylic Bass"
+   "name": "Acrylic Bass",
+   "group": "Bass"
   },
   "715": {
-   "name": "Agnostic Bass"
+   "name": "Agnostic Bass",
+   "group": "Bass"
   },
   "716": {
-   "name": "Analog Pass"
+   "name": "Analog Pass",
+   "group": "Bass"
   },
   "717": {
-   "name": "Ass age:101"
+   "name": "Ass age:101",
+   "group": "Bass"
   },
   "718": {
-   "name": "AthmoBass"
+   "name": "AthmoBass",
+   "group": "Bass"
   },
   "719": {
-   "name": "Bassanova"
+   "name": "Bassanova",
+   "group": "Bass"
   },
   "720": {
-   "name": "BassPhase"
+   "name": "BassPhase",
+   "group": "Bass"
   },
   "721": {
-   "name": "Bassreflex"
+   "name": "Bassreflex",
+   "group": "Bass"
   },
   "722": {
-   "name": "BassStation"
+   "name": "BassStation",
+   "group": "Bass"
   },
   "723": {
-   "name": "Bended Bass"
+   "name": "Bended Bass",
+   "group": "Bass"
   },
   "724": {
-   "name": "Blubba"
+   "name": "Blubba",
+   "group": "Bass"
   },
   "725": {
-   "name": "BoubleBass"
+   "name": "BoubleBass",
+   "group": "Bass"
   },
   "726": {
-   "name": "Captain Bass"
+   "name": "Captain Bass",
+   "group": "Bass"
   },
   "727": {
-   "name": "CascadeVCF"
+   "name": "CascadeVCF",
+   "group": "Bass"
   },
   "728": {
-   "name": "Classic Zirp"
+   "name": "Classic Zirp",
+   "group": "Bass"
   },
   "729": {
-   "name": "Clear Bass"
+   "name": "Clear Bass",
+   "group": "Bass"
   },
   "730": {
-   "name": "Clear Square"
+   "name": "Clear Square",
+   "group": "Bass"
   },
   "731": {
-   "name": "ClickBass"
+   "name": "ClickBass",
+   "group": "Bass"
   },
   "732": {
-   "name": "CongaBass"
+   "name": "CongaBass",
+   "group": "Bass"
   },
   "733": {
-   "name": "CrossOsTanker"
+   "name": "CrossOsTanker",
+   "group": "Bass"
   },
   "734": {
-   "name": "Da Bazz"
+   "name": "Da Bazz",
+   "group": "Bass"
   },
   "735": {
-   "name": "Damper Bass"
+   "name": "Damper Bass",
+   "group": "Bass"
   },
   "736": {
-   "name": "DaScrubber"
+   "name": "DaScrubber",
+   "group": "Bass"
   },
   "737": {
-   "name": "Deep Bass 9"
+   "name": "Deep Bass 9",
+   "group": "Bass"
   },
   "738": {
-   "name": "Deeper Love"
+   "name": "Deeper Love",
+   "group": "Bass"
   },
   "739": {
-   "name": "Deep Square"
+   "name": "Deep Square",
+   "group": "Bass"
   },
   "740": {
-   "name": "DigiBass"
+   "name": "DigiBass",
+   "group": "Bass"
   },
   "741": {
-   "name": "Dirty One"
+   "name": "Dirty One",
+   "group": "Bass"
   },
   "742": {
-   "name": "Dooms Bass"
+   "name": "Dooms Bass",
+   "group": "Bass"
   },
   "743": {
-   "name": "DowLow"
+   "name": "DowLow",
+   "group": "Bass"
   },
   "744": {
-   "name": "Driveline"
+   "name": "Driveline",
+   "group": "Bass"
   },
   "745": {
-   "name": "Drum'n'Bass 1"
+   "name": "Drum'n'Bass 1",
+   "group": "Drums"
   },
   "746": {
-   "name": "Drum'n'Bass 2"
+   "name": "Drum'n'Bass 2",
+   "group": "Drums"
   },
   "747": {
-   "name": "Drum'n'Bass 3"
+   "name": "Drum'n'Bass 3",
+   "group": "Drums"
   },
   "748": {
-   "name": "Dry ResoBass"
+   "name": "Dry ResoBass",
+   "group": "Bass"
   },
   "749": {
-   "name": "Dub Bass"
+   "name": "Dub Bass",
+   "group": "Bass"
   },
   "750": {
-   "name": "Elastique"
+   "name": "Elastique",
+   "group": "Bass"
   },
   "751": {
-   "name": "Fat Resonatic"
+   "name": "Fat Resonatic",
+   "group": "Bass"
   },
   "752": {
-   "name": "Flapper Bass"
+   "name": "Flapper Bass",
+   "group": "Bass"
   },
   "753": {
-   "name": "Fonky Fonky"
+   "name": "Fonky Fonky",
+   "group": "Bass"
   },
   "754": {
-   "name": "Frittenlos"
+   "name": "Frittenlos",
+   "group": "Bass"
   },
   "755": {
-   "name": "Full Pulse!"
+   "name": "Full Pulse!",
+   "group": "Bass"
   },
   "756": {
-   "name": "Got Balls."
+   "name": "Got Balls.",
+   "group": "Bass"
   },
   "757": {
-   "name": "Gum Bass"
+   "name": "Gum Bass",
+   "group": "Bass"
   },
   "758": {
-   "name": "Heaviside"
+   "name": "Heaviside",
+   "group": "Bass"
   },
   "759": {
-   "name": "Hollow Bass"
+   "name": "Hollow Bass",
+   "group": "Bass"
   },
   "760": {
-   "name": "Huge Whoop"
+   "name": "Huge Whoop",
+   "group": "Bass"
   },
   "761": {
-   "name": "Jamiro-Q-ai"
+   "name": "Jamiro-Q-ai",
+   "group": "Bass"
   },
   "762": {
-   "name": "JV HardBass"
+   "name": "JV HardBass",
+   "group": "Bass"
   },
   "763": {
-   "name": "Knorz Bass"
+   "name": "Knorz Bass",
+   "group": "Bass"
   },
   "764": {
-   "name": "K's Smacks"
+   "name": "K's Smacks",
+   "group": "Drums"
   },
   "765": {
-   "name": "LaserBass"
+   "name": "LaserBass",
+   "group": "Bass"
   },
   "766": {
-   "name": "Long Wires"
+   "name": "Long Wires",
+   "group": "Bass"
   },
   "767": {
-   "name": "LoPulse"
+   "name": "LoPulse",
+   "group": "Bass"
   },
   "768": {
-   "name": "Low Tension"
+   "name": "Low Tension",
+   "group": "Bass"
   },
   "769": {
-   "name": "Machine Bass"
+   "name": "Machine Bass",
+   "group": "Bass"
   },
   "770": {
-   "name": "Mars Mouse"
+   "name": "Mars Mouse",
+   "group": "Bass"
   },
   "771": {
-   "name": "Metal Bass"
+   "name": "Metal Bass",
+   "group": "Bass"
   },
   "772": {
-   "name": "ModMeBass"
+   "name": "ModMeBass",
+   "group": "Bass"
   },
   "773": {
-   "name": "Mo'Grass"
+   "name": "Mo'Grass",
+   "group": "Guitar"
   },
   "774": {
-   "name": "Mono PW Bass"
+   "name": "Mono PW Bass",
+   "group": "Bass"
   },
   "775": {
-   "name": "Narrow"
+   "name": "Narrow",
+   "group": "Bass"
   },
   "776": {
-   "name": "Noise Bass 2"
+   "name": "Noise Bass 2",
+   "group": "Bass"
   },
   "777": {
-   "name": "NoreBass#2"
+   "name": "NoreBass#2",
+   "group": "Bass"
   },
   "778": {
-   "name": "Oberton Bass"
+   "name": "Oberton Bass",
+   "group": "Bass"
   },
   "779": {
-   "name": "Ouw Bass"
+   "name": "Ouw Bass",
+   "group": "Bass"
   },
   "780": {
-   "name": "Phalanx Bass"
+   "name": "Phalanx Bass",
+   "group": "Bass"
   },
   "781": {
-   "name": "PulsatingBass"
+   "name": "PulsatingBass",
+   "group": "Bass"
   },
   "782": {
-   "name": "Pulse Bass 1"
+   "name": "Pulse Bass 1",
+   "group": "Bass"
   },
   "783": {
-   "name": "Pulse Bass 2"
+   "name": "Pulse Bass 2",
+   "group": "Bass"
   },
   "784": {
-   "name": "Pulse Bass 4"
+   "name": "Pulse Bass 4",
+   "group": "Bass"
   },
   "785": {
-   "name": "Pulse Bass 6"
+   "name": "Pulse Bass 6",
+   "group": "Bass"
   },
   "786": {
-   "name": "Pulsified SaW"
+   "name": "Pulsified SaW",
+   "group": "Bass"
   },
   "787": {
-   "name": "Q-Timps"
+   "name": "Q-Timps",
+   "group": "Bass"
   },
   "788": {
-   "name": "Qubik Bass"
+   "name": "Qubik Bass",
+   "group": "Bass"
   },
   "789": {
-   "name": "Ringmono"
+   "name": "Ringmono",
+   "group": "Bass"
   },
   "790": {
-   "name": "RumbleHumble"
+   "name": "RumbleHumble",
+   "group": "Bass"
   },
   "791": {
-   "name": "Sawproof 3"
+   "name": "Sawproof 3",
+   "group": "Bass"
   },
   "792": {
-   "name": "Sawproof 5"
+   "name": "Sawproof 5",
+   "group": "Bass"
   },
   "793": {
-   "name": "Scrawl Bass"
+   "name": "Scrawl Bass",
+   "group": "Bass"
   },
   "794": {
-   "name": "Serious Bass"
+   "name": "Serious Bass",
+   "group": "Bass"
   },
   "795": {
-   "name": "Silicon Base"
+   "name": "Silicon Base",
+   "group": "Bass"
   },
   "796": {
-   "name": "Simple Square"
+   "name": "Simple Square",
+   "group": "Bass"
   },
   "797": {
-   "name": "Slapper"
+   "name": "Slapper",
+   "group": "Bass"
   },
   "798": {
-   "name": "Smaq Bass"
+   "name": "Smaq Bass",
+   "group": "Bass"
   },
   "799": {
-   "name": "Snudge Bass"
+   "name": "Snudge Bass",
+   "group": "Bass"
   },
   "800": {
-   "name": "Solo FM Bass"
+   "name": "Solo FM Bass",
+   "group": "Bass"
   },
   "801": {
-   "name": "Specralizer"
+   "name": "Specralizer",
+   "group": "Bass"
   },
   "802": {
-   "name": "SteelOBass"
+   "name": "SteelOBass",
+   "group": "Bass"
   },
   "803": {
-   "name": "Subsonic"
+   "name": "Subsonic",
+   "group": "Bass"
   },
   "804": {
-   "name": "Talking Bass"
+   "name": "Talking Bass",
+   "group": "Strings & Choir"
   },
   "805": {
-   "name": "The Pulse"
+   "name": "The Pulse",
+   "group": "Bass"
   },
   "806": {
-   "name": "TockTock"
+   "name": "TockTock",
+   "group": "Drums"
   },
   "807": {
-   "name": "Ultra Deep"
+   "name": "Ultra Deep",
+   "group": "Bass"
   },
   "808": {
-   "name": "Ultra Sub 1"
+   "name": "Ultra Sub 1",
+   "group": "Bass"
   },
   "809": {
-   "name": "Ultra Sub 2"
+   "name": "Ultra Sub 2",
+   "group": "Bass"
   },
   "810": {
-   "name": "Unpredictable"
+   "name": "Unpredictable",
+   "group": "Bass"
   },
   "811": {
-   "name": "VelocityBass1"
+   "name": "VelocityBass1",
+   "group": "Bass"
   },
   "812": {
-   "name": "VelocityBass2"
+   "name": "VelocityBass2",
+   "group": "Bass"
   },
   "813": {
-   "name": "Veloquity"
+   "name": "Veloquity",
+   "group": "Bass"
   },
   "814": {
-   "name": "VeloReso"
+   "name": "VeloReso",
+   "group": "Bass"
   },
   "815": {
-   "name": "VocodaBass"
+   "name": "VocodaBass",
+   "group": "Strings & Choir"
   },
   "816": {
-   "name": "Wah Basses"
+   "name": "Wah Basses",
+   "group": "Bass"
   },
   "817": {
-   "name": "WhopWhop"
+   "name": "WhopWhop",
+   "group": "Bass"
   },
   "818": {
-   "name": "Woofer FM"
+   "name": "Woofer FM",
+   "group": "Bass"
   },
   "819": {
-   "name": "20 Whiny"
+   "name": "20 Whiny",
+   "group": "Atmospheres"
   },
   "820": {
-   "name": "Acostic Glue"
+   "name": "Acostic Glue",
+   "group": "Atmospheres"
   },
   "821": {
-   "name": "AdventurBell"
+   "name": "AdventurBell",
+   "group": "Bells"
   },
   "822": {
-   "name": "AliasingLayer"
+   "name": "AliasingLayer",
+   "group": "Atmospheres"
   },
   "823": {
-   "name": "Ambishous"
+   "name": "Ambishous",
+   "group": "Pads"
   },
   "824": {
-   "name": "Antarktis2000"
+   "name": "Antarktis2000",
+   "group": "Atmospheres"
   },
   "825": {
-   "name": "Arctica"
+   "name": "Arctica",
+   "group": "Atmospheres"
   },
   "826": {
-   "name": "Atlantis"
+   "name": "Atlantis",
+   "group": "Atmospheres"
   },
   "827": {
-   "name": "Atmo Harp"
+   "name": "Atmo Harp",
+   "group": "Guitar"
   },
   "828": {
-   "name": "Atmostrobe"
+   "name": "Atmostrobe",
+   "group": "Pads"
   },
   "829": {
-   "name": "Background"
+   "name": "Background",
+   "group": "Atmospheres"
   },
   "830": {
-   "name": "Baraka"
+   "name": "Baraka",
+   "group": "Atmospheres"
   },
   "831": {
-   "name": "Beautiful Sky"
+   "name": "Beautiful Sky",
+   "group": "Pads"
   },
   "832": {
-   "name": "Clink Clash"
+   "name": "Clink Clash",
+   "group": "Bells"
   },
   "833": {
-   "name": "Comb Tree"
+   "name": "Comb Tree",
+   "group": "Atmospheres"
   },
   "834": {
-   "name": "Cousteau 2001"
+   "name": "Cousteau 2001",
+   "group": "Atmospheres"
   },
   "835": {
-   "name": "Deep Space"
+   "name": "Deep Space",
+   "group": "Pads"
   },
   "836": {
-   "name": "Diginferno"
+   "name": "Diginferno",
+   "group": "Atmospheres"
   },
   "837": {
-   "name": "Dreamware"
+   "name": "Dreamware",
+   "group": "Pads"
   },
   "838": {
-   "name": "Drift"
+   "name": "Drift",
+   "group": "Atmospheres"
   },
   "839": {
-   "name": "Electro Pop"
+   "name": "Electro Pop",
+   "group": "Atmospheres"
   },
   "840": {
-   "name": "Fear'n'Loath"
+   "name": "Fear'n'Loath",
+   "group": "Atmospheres"
   },
   "841": {
-   "name": "Filter Organ"
+   "name": "Filter Organ",
+   "group": "Organ"
   },
   "842": {
-   "name": "Filter Pad"
+   "name": "Filter Pad",
+   "group": "Pads"
   },
   "843": {
-   "name": "Flinker"
+   "name": "Flinker",
+   "group": "Atmospheres"
   },
   "844": {
-   "name": "FlowMotion"
+   "name": "FlowMotion",
+   "group": "Atmospheres"
   },
   "845": {
-   "name": "FM World Pad"
+   "name": "FM World Pad",
+   "group": "Pads"
   },
   "846": {
-   "name": "Frankenstein"
+   "name": "Frankenstein",
+   "group": "Atmospheres"
   },
   "847": {
-   "name": "Ganimed"
+   "name": "Ganimed",
+   "group": "Atmospheres"
   },
   "848": {
-   "name": "Glas"
+   "name": "Glas",
+   "group": "Bells"
   },
   "849": {
-   "name": "Glidebells"
+   "name": "Glidebells",
+   "group": "Bells"
   },
   "850": {
-   "name": "Highlander"
+   "name": "Highlander",
+   "group": "Atmospheres"
   },
   "851": {
-   "name": "Introduction"
+   "name": "Introduction",
+   "group": "Atmospheres"
   },
   "852": {
-   "name": "Intruder"
+   "name": "Intruder",
+   "group": "Atmospheres"
   },
   "853": {
-   "name": "Jp8 TRACER"
+   "name": "Jp8 TRACER",
+   "group": "Atmospheres"
   },
   "854": {
-   "name": "Kristallglas"
+   "name": "Kristallglas",
+   "group": "Bells"
   },
   "855": {
-   "name": "Lettland"
+   "name": "Lettland",
+   "group": "Atmospheres"
   },
   "856": {
-   "name": "LoFi E-Pad"
+   "name": "LoFi E-Pad",
+   "group": "Pads"
   },
   "857": {
-   "name": "Metallica"
+   "name": "Metallica",
+   "group": "Atmospheres"
   },
   "858": {
-   "name": "Not guilty2!"
+   "name": "Not guilty2!",
+   "group": "Atmospheres"
   },
   "859": {
-   "name": "Octave Jumper"
+   "name": "Octave Jumper",
+   "group": "Atmospheres"
   },
   "860": {
-   "name": "Oooh Choir"
+   "name": "Oooh Choir",
+   "group": "Strings & Choir"
   },
   "861": {
-   "name": "Orthanc"
+   "name": "Orthanc",
+   "group": "Atmospheres"
   },
   "862": {
-   "name": "Overflow"
+   "name": "Overflow",
+   "group": "Atmospheres"
   },
   "863": {
-   "name": "PANamericana"
+   "name": "PANamericana",
+   "group": "Atmospheres"
   },
   "864": {
-   "name": "Polarkappe"
+   "name": "Polarkappe",
+   "group": "Atmospheres"
   },
   "865": {
-   "name": "PPG-Verb"
+   "name": "PPG-Verb",
+   "group": "Atmospheres"
   },
   "866": {
-   "name": "Pulsating"
+   "name": "Pulsating",
+   "group": "Atmospheres"
   },
   "867": {
-   "name": "RePression"
+   "name": "RePression",
+   "group": "Atmospheres"
   },
   "868": {
-   "name": "Royalties"
+   "name": "Royalties",
+   "group": "Atmospheres"
   },
   "869": {
-   "name": "Schmalspur"
+   "name": "Schmalspur",
+   "group": "Atmospheres"
   },
   "870": {
-   "name": "ScoreTraX"
+   "name": "ScoreTraX",
+   "group": "Atmospheres"
   },
   "871": {
-   "name": "Solaris"
+   "name": "Solaris",
+   "group": "Pads"
   },
   "872": {
-   "name": "SoundScapes 1"
+   "name": "SoundScapes 1",
+   "group": "Pads"
   },
   "873": {
-   "name": "Spektrum Pad"
+   "name": "Spektrum Pad",
+   "group": "Pads"
   },
   "874": {
-   "name": "Sphere"
+   "name": "Sphere",
+   "group": "Pads"
   },
   "875": {
-   "name": "Spitzbergen"
+   "name": "Spitzbergen",
+   "group": "Atmospheres"
   },
   "876": {
-   "name": "Stratosphere"
+   "name": "Stratosphere",
+   "group": "Pads"
   },
   "877": {
-   "name": "Swiss Atmo"
+   "name": "Swiss Atmo",
+   "group": "Pads"
   },
   "878": {
-   "name": "The 5th Atmo"
+   "name": "The 5th Atmo",
+   "group": "Pads"
   },
   "879": {
-   "name": "The Fog"
+   "name": "The Fog",
+   "group": "Pads"
   },
   "880": {
-   "name": "The Year 3000"
+   "name": "The Year 3000",
+   "group": "Atmospheres"
   },
   "881": {
-   "name": "Thin Ice"
+   "name": "Thin Ice",
+   "group": "Atmospheres"
   },
   "882": {
-   "name": "ThrillerOrgan"
+   "name": "ThrillerOrgan",
+   "group": "Organ"
   },
   "883": {
-   "name": "THX Spot"
+   "name": "THX Spot",
+   "group": "Atmospheres"
   },
   "884": {
-   "name": "Tire-Guy"
+   "name": "Tire-Guy",
+   "group": "Atmospheres"
   },
   "885": {
-   "name": "TschingHisCan"
+   "name": "TschingHisCan",
+   "group": "Atmospheres"
   },
   "886": {
-   "name": "Upstream"
+   "name": "Upstream",
+   "group": "Atmospheres"
   },
   "887": {
-   "name": "ValeyPad"
+   "name": "ValeyPad",
+   "group": "Pads"
   },
   "888": {
-   "name": "Vanilla Sky"
+   "name": "Vanilla Sky",
+   "group": "Pads"
   },
   "889": {
-   "name": "VeryCompleqs"
+   "name": "VeryCompleqs",
+   "group": "Atmospheres"
   },
   "890": {
-   "name": "Warbirds"
+   "name": "Warbirds",
+   "group": "Atmospheres"
   },
   "891": {
-   "name": "Waterworld"
+   "name": "Waterworld",
+   "group": "FX"
   },
   "892": {
-   "name": "70ies NoDrugs"
+   "name": "70ies NoDrugs",
+   "group": "FX"
   },
   "893": {
-   "name": "Animals"
+   "name": "Animals",
+   "group": "FX"
   },
   "894": {
-   "name": "Apex Triplet"
+   "name": "Apex Triplet",
+   "group": "FX"
   },
   "895": {
-   "name": "Bone Soup"
+   "name": "Bone Soup",
+   "group": "FX"
   },
   "896": {
-   "name": "Bubble World"
+   "name": "Bubble World",
+   "group": "FX"
   },
   "897": {
-   "name": "Captain Kirk"
+   "name": "Captain Kirk",
+   "group": "FX"
   },
   "898": {
-   "name": "ChopperSweep"
+   "name": "ChopperSweep",
+   "group": "FX"
   },
   "899": {
-   "name": "ComputerGames"
+   "name": "ComputerGames",
+   "group": "FX"
   },
   "900": {
-   "name": "Cyber Farm"
+   "name": "Cyber Farm",
+   "group": "FX"
   },
   "901": {
-   "name": "DCS3 Bubbles"
+   "name": "DCS3 Bubbles",
+   "group": "FX"
   },
   "902": {
-   "name": "Duck Lambada"
+   "name": "Duck Lambada",
+   "group": "FX"
   },
   "903": {
-   "name": "EffEmmEffIxx"
+   "name": "EffEmmEffIxx",
+   "group": "FX"
   },
   "904": {
-   "name": "Fade FX."
+   "name": "Fade FX.",
+   "group": "FX"
   },
   "905": {
-   "name": "Final Choice"
+   "name": "Final Choice",
+   "group": "FX"
   },
   "906": {
-   "name": "FlangedNoise WMF"
+   "name": "FlangedNoise WMF",
+   "group": "FX"
   },
   "907": {
-   "name": "FlangeplosionWMF"
+   "name": "FlangeplosionWMF",
+   "group": "FX"
   },
   "908": {
-   "name": "Flying Teapot"
+   "name": "Flying Teapot",
+   "group": "FX"
   },
   "909": {
-   "name": "FM Comb FX"
+   "name": "FM Comb FX",
+   "group": "FX"
   },
   "910": {
-   "name": "FM Noises"
+   "name": "FM Noises",
+   "group": "FX"
   },
   "911": {
-   "name": "Gastrology"
+   "name": "Gastrology",
+   "group": "FX"
   },
   "912": {
-   "name": "HawaiGlider"
+   "name": "HawaiGlider",
+   "group": "FX"
   },
   "913": {
-   "name": "Into Mouth"
+   "name": "Into Mouth",
+   "group": "FX"
   },
   "914": {
-   "name": "LFO"
+   "name": "LFO",
+   "group": "FX"
   },
   "915": {
-   "name": "LFO"
+   "name": "LFO",
+   "group": "FX"
   },
   "916": {
-   "name": "LilaBells"
+   "name": "LilaBells",
+   "group": "Bells"
   },
   "917": {
-   "name": "Living Water"
+   "name": "Living Water",
+   "group": "FX"
   },
   "918": {
-   "name": "LosAngeles2019"
+   "name": "LosAngeles2019",
+   "group": "FX"
   },
   "919": {
-   "name": "Maschinenraum"
+   "name": "Maschinenraum",
+   "group": "FX"
   },
   "920": {
-   "name": "Newtronic"
+   "name": "Newtronic",
+   "group": "Drums"
   },
   "921": {
-   "name": "Noise Move"
+   "name": "Noise Move",
+   "group": "FX"
   },
   "922": {
-   "name": "NoiseSlapper"
+   "name": "NoiseSlapper",
+   "group": "FX"
   },
   "923": {
-   "name": "NoRobotsHere"
+   "name": "NoRobotsHere",
+   "group": "FX"
   },
   "924": {
-   "name": "Power Down"
+   "name": "Power Down",
+   "group": "FX"
   },
   "925": {
-   "name": "Q Wars"
+   "name": "Q Wars",
+   "group": "FX"
   },
   "926": {
-   "name": "Reverse-ecioV"
+   "name": "Reverse-ecioV",
+   "group": "FX"
   },
   "927": {
-   "name": "RingDaBell"
+   "name": "RingDaBell",
+   "group": "Bells"
   },
   "928": {
-   "name": "Ring Steps"
+   "name": "Ring Steps",
+   "group": "FX"
   },
   "929": {
-   "name": "Rise&Fall"
+   "name": "Rise&Fall",
+   "group": "FX"
   },
   "930": {
-   "name": "Robotalk =:b"
+   "name": "Robotalk =:b",
+   "group": "FX"
   },
   "931": {
-   "name": "Score FX Pad"
+   "name": "Score FX Pad",
+   "group": "FX"
   },
   "932": {
-   "name": "Shoot Goose!"
+   "name": "Shoot Goose!",
+   "group": "FX"
   },
   "933": {
-   "name": "Shore"
+   "name": "Shore",
+   "group": "FX"
   },
   "934": {
-   "name": "Short Moment"
+   "name": "Short Moment",
+   "group": "FX"
   },
   "935": {
-   "name": "Shot Tool"
+   "name": "Shot Tool",
+   "group": "FX"
   },
   "936": {
-   "name": "Sine Down"
+   "name": "Sine Down",
+   "group": "FX"
   },
   "937": {
-   "name": "Skywalker"
+   "name": "Skywalker",
+   "group": "FX"
   },
   "938": {
-   "name": "SubSineSweep WMF"
+   "name": "SubSineSweep WMF",
+   "group": "FX"
   },
   "939": {
-   "name": "The Assault"
+   "name": "The Assault",
+   "group": "FX"
   },
   "940": {
-   "name": "The BORG"
+   "name": "The BORG",
+   "group": "FX"
   },
   "941": {
-   "name": "Thunderain"
+   "name": "Thunderain",
+   "group": "FX"
   },
   "942": {
-   "name": "ThunderDrums"
+   "name": "ThunderDrums",
+   "group": "FX"
   },
   "943": {
-   "name": "Tron Ring Game"
+   "name": "Tron Ring Game",
+   "group": "FX"
   },
   "944": {
-   "name": "Tuxedosun"
+   "name": "Tuxedosun",
+   "group": "FX"
   },
   "945": {
-   "name": "Why?"
+   "name": "Why?",
+   "group": "FX"
   },
   "946": {
-   "name": "Wind Athmo"
+   "name": "Wind Athmo",
+   "group": "FX"
   },
   "947": {
-   "name": "WipeOut"
+   "name": "WipeOut",
+   "group": "FX"
   },
   "948": {
-   "name": "ZischDeep"
+   "name": "ZischDeep",
+   "group": "FX"
   },
   "949": {
-   "name": "Agogo Scrape"
+   "name": "Agogo Scrape",
+   "group": "Drums"
   },
   "950": {
-   "name": "All Thumbs"
+   "name": "All Thumbs",
+   "group": "Drums"
   },
   "951": {
-   "name": "AnalogBongo 1"
+   "name": "AnalogBongo 1",
+   "group": "Drums"
   },
   "952": {
-   "name": "Analog HH op"
+   "name": "Analog HH op",
+   "group": "Drums"
   },
   "953": {
-   "name": "AnalogStick 1"
+   "name": "AnalogStick 1",
+   "group": "Drums"
   },
   "954": {
-   "name": "Bass Drum"
+   "name": "Bass Drum",
+   "group": "Drums"
   },
   "955": {
-   "name": "BD 90ies Drum"
+   "name": "BD 90ies Drum",
+   "group": "Drums"
   },
   "956": {
-   "name": "BD 808 @ 2002"
+   "name": "BD 808 @ 2002",
+   "group": "Drums"
   },
   "957": {
-   "name": "BD analg80ies"
+   "name": "BD analg80ies",
+   "group": "Drums"
   },
   "958": {
-   "name": "BD analog 02"
+   "name": "BD analog 02",
+   "group": "Drums"
   },
   "959": {
-   "name": "BD analog 03"
+   "name": "BD analog 03",
+   "group": "Drums"
   },
   "960": {
-   "name": "BD AnalogRand"
+   "name": "BD AnalogRand",
+   "group": "Drums"
   },
   "961": {
-   "name": "BD Club 01"
+   "name": "BD Club 01",
+   "group": "Drums"
   },
   "962": {
-   "name": "BD Deep Zap"
+   "name": "BD Deep Zap",
+   "group": "Drums"
   },
   "963": {
-   "name": "BD Disto 808"
+   "name": "BD Disto 808",
+   "group": "Drums"
   },
   "964": {
-   "name": "BD DoorSlam"
+   "name": "BD DoorSlam",
+   "group": "Drums"
   },
   "965": {
-   "name": "BD Hardcore"
+   "name": "BD Hardcore",
+   "group": "Drums"
   },
   "966": {
-   "name": "BD HighKick"
+   "name": "BD HighKick",
+   "group": "Drums"
   },
   "967": {
-   "name": "BD On Stage"
+   "name": "BD On Stage",
+   "group": "Drums"
   },
   "968": {
-   "name": "BD Plock!"
+   "name": "BD Plock!",
+   "group": "Drums"
   },
   "969": {
-   "name": "BD Smack It!"
+   "name": "BD Smack It!",
+   "group": "Drums"
   },
   "970": {
-   "name": "BD SpectroZap"
+   "name": "BD SpectroZap",
+   "group": "Drums"
   },
   "971": {
-   "name": "BD SubDrum"
+   "name": "BD SubDrum",
+   "group": "Drums"
   },
   "972": {
-   "name": "BD Woof&Pock"
+   "name": "BD Woof&Pock",
+   "group": "Drums"
   },
   "973": {
-   "name": "BD ZapDrum"
+   "name": "BD ZapDrum",
+   "group": "Drums"
   },
   "974": {
-   "name": "Bended Metal"
+   "name": "Bended Metal",
+   "group": "Drums"
   },
   "975": {
-   "name": "Brush HH"
+   "name": "Brush HH",
+   "group": "Drums"
   },
   "976": {
-   "name": "Clap 01"
+   "name": "Clap 01",
+   "group": "Drums"
   },
   "977": {
-   "name": "Clap 03"
+   "name": "Clap 03",
+   "group": "Drums"
   },
   "978": {
-   "name": "Clap 04"
+   "name": "Clap 04",
+   "group": "Drums"
   },
   "979": {
-   "name": "ClapsMuehle"
+   "name": "ClapsMuehle",
+   "group": "Drums"
   },
   "980": {
-   "name": "Deep Bell"
+   "name": "Deep Bell",
+   "group": "Bells"
   },
   "981": {
-   "name": "DivX Pad"
+   "name": "DivX Pad",
+   "group": "Drums"
   },
   "982": {
-   "name": "DoubleHHclose"
+   "name": "DoubleHHclose",
+   "group": "Drums"
   },
   "983": {
-   "name": "Dry BD"
+   "name": "Dry BD",
+   "group": "Drums"
   },
   "984": {
-   "name": "Dry BD 2"
+   "name": "Dry BD 2",
+   "group": "Drums"
   },
   "985": {
-   "name": "FM HHcl"
+   "name": "FM HHcl",
+   "group": "Drums"
   },
   "986": {
-   "name": "FM HHop"
+   "name": "FM HHop",
+   "group": "Drums"
   },
   "987": {
-   "name": "HammerBell"
+   "name": "HammerBell",
+   "group": "Bells"
   },
   "988": {
-   "name": "HH closed 01"
+   "name": "HH closed 01",
+   "group": "Drums"
   },
   "989": {
-   "name": "HH closed 02"
+   "name": "HH closed 02",
+   "group": "Drums"
   },
   "990": {
-   "name": "HH closed 03"
+   "name": "HH closed 03",
+   "group": "Drums"
   },
   "991": {
-   "name": "HH closed 04"
+   "name": "HH closed 04",
+   "group": "Drums"
   },
   "992": {
-   "name": "HH closed 05"
+   "name": "HH closed 05",
+   "group": "Drums"
   },
   "993": {
-   "name": "HH closed 06"
+   "name": "HH closed 06",
+   "group": "Drums"
   },
   "994": {
-   "name": "HH closed 08"
+   "name": "HH closed 08",
+   "group": "Drums"
   },
   "995": {
-   "name": "HH closed 09"
+   "name": "HH closed 09",
+   "group": "Drums"
   },
   "996": {
-   "name": "HH open 01"
+   "name": "HH open 01",
+   "group": "Drums"
   },
   "997": {
-   "name": "HH open 02"
+   "name": "HH open 02",
+   "group": "Drums"
   },
   "998": {
-   "name": "HH open 03"
+   "name": "HH open 03",
+   "group": "Drums"
   },
   "999": {
-   "name": "HH open 06"
+   "name": "HH open 06",
+   "group": "Drums"
   },
   "1000": {
-   "name": "HH open 07"
+   "name": "HH open 07",
+   "group": "Drums"
   },
   "1001": {
-   "name": "HH open 08"
+   "name": "HH open 08",
+   "group": "Drums"
   },
   "1002": {
-   "name": "High PulseZap"
+   "name": "High PulseZap",
+   "group": "Drums"
   },
   "1003": {
-   "name": "PPG Zaps"
+   "name": "PPG Zaps",
+   "group": "Drums"
   },
   "1004": {
-   "name": "Punchy SN"
+   "name": "Punchy SN",
+   "group": "Drums"
   },
   "1005": {
-   "name": "Q-La Shaker"
+   "name": "Q-La Shaker",
+   "group": "Drums"
   },
   "1006": {
-   "name": "Skellington"
+   "name": "Skellington",
+   "group": "Drums"
   },
   "1007": {
-   "name": "SN NeoAnalog"
+   "name": "SN NeoAnalog",
+   "group": "Drums"
   },
   "1008": {
-   "name": "SN Real Snare"
+   "name": "SN Real Snare",
+   "group": "Drums"
   },
   "1009": {
-   "name": "SN RimSnare"
+   "name": "SN RimSnare",
+   "group": "Drums"
   },
   "1010": {
-   "name": "SN SnAir ;-)"
+   "name": "SN SnAir ;-)",
+   "group": "Drums"
   },
   "1011": {
-   "name": "SN Thinny"
+   "name": "SN Thinny",
+   "group": "Drums"
   },
   "1012": {
-   "name": "SN Zappada"
+   "name": "SN Zappada",
+   "group": "Drums"
   },
   "1013": {
-   "name": "SN ZapSnare"
+   "name": "SN ZapSnare",
+   "group": "Drums"
   },
   "1014": {
-   "name": "Surrr"
+   "name": "Surrr",
+   "group": "Drums"
   },
   "1015": {
-   "name": "Tombola 1"
+   "name": "Tombola 1",
+   "group": "Drums"
   },
   "1016": {
-   "name": "TR66 Hihat"
+   "name": "TR66 Hihat",
+   "group": "Drums"
   },
   "1017": {
-   "name": "Various Metal"
+   "name": "Various Metal",
+   "group": "Drums"
   },
   "1018": {
-   "name": "Woodpicker"
+   "name": "Woodpicker",
+   "group": "Drums"
   },
   "1019": {
-   "name": "Zap 1"
+   "name": "Zap 1",
+   "group": "Drums"
   },
   "1020": {
-   "name": "Zap 2"
+   "name": "Zap 2",
+   "group": "Drums"
   },
   "1021": {
-   "name": "Zap BD"
+   "name": "Zap BD",
+   "group": "Drums"
   },
   "1022": {
-   "name": "Zappy :)"
+   "name": "Zappy :)",
+   "group": "Drums"
   },
   "1023": {
-   "name": "Zap Stick"
+   "name": "Zap Stick",
+   "group": "Drums"
   },
   "1024": {
-   "name": "Zwitscher 1"
+   "name": "Zwitscher 1",
+   "group": "Drums"
   }
  }
 }

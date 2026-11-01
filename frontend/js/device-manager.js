@@ -30,6 +30,7 @@ export class DeviceManager {
         this.presetNames = new Map();
         this.presetCounts = new Map();
         this.presetFiles = new Map();      // baseKey -> device map file name
+        this.presetGroups = new Map();     // baseKey -> { number: group } (sound categories), when the catalog has them
         this.presetCatalogs = new Map();   // baseKey -> { number: name } from device_maps/presets, when the device has one
     }
 
@@ -51,18 +52,29 @@ export class DeviceManager {
         if (!file || this.presetCatalogs.has(key)) return;
         this.presetCatalogs.set(key, {});
         this.presetFiles.set(key, file);
-        const names = {};
+        const names = {}, groups = {};
         // Shipped names first, then what this machine learned from the device (which wins).
         for (const url of [`/device_maps/presets/${file}.json`, `/device_maps/learned/${file}.json`]) {
             try {
                 const response = await fetch(url);
                 if (!response.ok) continue;
-                for (const [number, preset] of Object.entries((await response.json()).presets || {})) names[number] = preset.name;
+                for (const [number, preset] of Object.entries((await response.json()).presets || {})) {
+                    names[number] = preset.name;
+                    if (preset.group) groups[number] = preset.group;
+                }
             } catch (_) { /* no catalog: numbers and names learned from the device */ }
         }
         if (!Object.keys(names).length) return;
         this.presetCatalogs.set(key, names);
+        if (Object.keys(groups).length) this.presetGroups.set(key, groups);
         this.refreshPresetLabels();
+    }
+
+    // Presets (0-based programs) of a device that belong to a group; every program for "All" or when groups are unknown.
+    programsInGroup(baseKey, group, count = this.presetCounts.get(baseKey) || 128) {
+        const groups = this.presetGroups.get(baseKey);
+        const all = Array.from({ length: count }, (_, index) => index);
+        return !group || !groups ? all : all.filter(index => groups[String(index + 1)] === group);
     }
 
     // The device sent a preset name: it replaces what the list showed for that preset.
@@ -129,29 +141,44 @@ export class DeviceManager {
     // The preset drop-down lists every program of the device; a program shows its name when one is
     // known (factory catalog, or reported by the device / saved with the session).
     refreshPresetLabels() {
+        document.querySelectorAll?.('.device-program-group').forEach(select => {
+            const groups = this.presetGroups.get(select.dataset.baseKey);
+            select.hidden = !groups;
+            if (!groups || select.dataset.filled === String(Object.keys(groups).length)) return;
+            select.dataset.filled = String(Object.keys(groups).length);
+            const names = [...new Set(Object.values(groups))].sort((a, b) => a.localeCompare(b));
+            select.replaceChildren(new Option('All', ''), ...names.map(name => new Option(name, name)));
+            select.value = select.dataset.group || '';
+        });
         document.querySelectorAll?.('.device-program-name').forEach(select => {
             const baseKey = select.dataset.baseKey || select.dataset.deviceKey;
             const key = `${baseKey}:${this.channelForKey(select.dataset.deviceKey, select.dataset.part)}`;
             const program = this.programs.get(key);
             const count = this.presetCounts.get(baseKey) || 128;
-            if (select.children.length !== count + 1) {
+            const groups = this.presetGroups.get(baseKey);
+            const group = groups ? select.dataset.group || '' : '';
+            const shown = this.programsInGroup(baseKey, group, count);
+            if (program != null && program < count && !shown.includes(program)) { shown.push(program); shown.sort((a, b) => a - b); }   // the chosen preset stays listed
+            const signature = `${count}|${group}|${shown.length}|${shown[0]}|${shown[shown.length - 1]}`;
+            if (select._signature !== signature) {
+                select._signature = signature;
                 select.replaceChildren();
                 const none = document.createElement('option');
                 none.value = '';
                 none.textContent = '—';
                 select.appendChild(none);
-                for (let index = 0; index < count; index++) {
+                for (const index of shown) {
                     const option = document.createElement('option');
                     option.value = String(index);
                     select.appendChild(option);
                 }
             }
             const catalog = this.presetCatalogs.get(baseKey) || {};
-            for (let index = 0; index < count; index++) {
+            shown.forEach((index, position) => {
                 const name = this.presetNames.get(`${key}:${index}`) || catalog[String(index + 1)];
                 const text = name ? `${index + 1} · ${name}` : String(index + 1);
-                if (select.children[index + 1].textContent !== text) select.children[index + 1].textContent = text;
-            }
+                if (select.children[position + 1].textContent !== text) select.children[position + 1].textContent = text;
+            });
             select.value = program == null ? '' : String(program);
             select.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
         });
@@ -335,6 +362,14 @@ export class DeviceManager {
         this.loadPresetCatalog(dev);
         const presets = document.createElement('div');
         presets.className = 'device-program-controls';
+        const groupSelect = document.createElement('select');
+        groupSelect.className = 'device-program-group';
+        groupSelect.dataset.baseKey = baseKey;
+        groupSelect.hidden = true;   // shown once the device's catalog has sound groups
+        groupSelect.setAttribute('aria-label', `${label} preset group`);
+        groupSelect.title = 'Show only presets of this sound group';
+        const groupStorage = `preset-group:${unitKey}`;
+        try { groupSelect.dataset.group = localStorage.getItem(groupStorage) || ''; } catch { /* storage unavailable */ }
         const presetLabel = document.createElement('select');
         presetLabel.className = 'device-program-name';
         presetLabel.dataset.deviceKey = unitKey;
@@ -353,10 +388,18 @@ export class DeviceManager {
             this._discardControls(el, dev, part);
             presets.title = `Last requested preset: ${program + 1}`;
         };
+        groupSelect.addEventListener('change', () => {
+            groupSelect.dataset.group = groupSelect.value;
+            presetLabel.dataset.group = groupSelect.value;
+            try { localStorage.setItem(groupStorage, groupSelect.value); } catch { /* optional */ }
+            this.refreshPresetLabels();
+        });
+        presetLabel.dataset.group = groupSelect.dataset.group || '';
         presetLabel.addEventListener('change', () => {
             const program = Number(presetLabel.value);
             if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
         });
+        presets.appendChild(groupSelect);
         for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
             const button = document.createElement('button');
             button.type = 'button';
@@ -365,7 +408,10 @@ export class DeviceManager {
             button.setAttribute('aria-label', `${label}: ${description}`);
             button.addEventListener('click', () => {
                 if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
-                selectProgram(Math.max(0, Math.min(this.presetCounts.get(baseKey) - 1 || 127, (this.programs.get(programKey()) ?? 0) + step)));
+                const list = this.programsInGroup(baseKey, presetLabel.dataset.group);
+                const current = this.programs.get(programKey()) ?? 0;
+                const next = (step > 0 ? list.find(index => index > current) : [...list].reverse().find(index => index < current)) ?? (step > 0 ? list.at(-1) : list[0]);
+                if (next != null) selectProgram(next);
             });
             if (step > 0) presets.appendChild(presetLabel);
             presets.appendChild(button);
