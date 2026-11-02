@@ -274,6 +274,10 @@ export class DeviceManager {
     applyRemoteControl({ target, channel, cc, value }) {
         this._controlValues.set(`${target}:${channel}:${cc}`, value);
         for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
+            const nrpn = panel.querySelector(`[data-cc="${Number(cc)}"]`)?.dataset.nrpn;
+            if (nrpn !== undefined) for (const map of [this._nrpnValues, this._nrpnSeen]) map.delete(`${target}:${channel}:${nrpn}`);
+        }
+        for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
             if (panel.dataset.deviceId !== target || this.channelForKey(panel.dataset.unitKey, panel.dataset.part) !== channel) continue;
             for (const input of panel.querySelectorAll(`[data-cc="${Number(cc)}"]`)) {
                 const min = Number(input.dataset.min || 0);
@@ -501,6 +505,8 @@ export class DeviceManager {
     _discardControls(el, dev, part) {
         const prefix = `${dev.id}:${this.channelForDevice(dev, part)}:`;
         for (const key of [...this._controlValues.keys()]) if (key.startsWith(prefix)) this._controlValues.delete(key);
+        // The router reads the reloaded patch back; its NRPN values must reach the knobs even when they equal the old ones.
+        for (const map of [this._nrpnValues, this._nrpnSeen]) for (const key of [...map.keys()]) if (key.startsWith(prefix)) map.delete(key);
         const panel = el.querySelector('.synth-controls');
         if (!panel) return;
         for (const input of panel.querySelectorAll('[data-cc]')) {
@@ -673,7 +679,7 @@ export class DeviceManager {
             const send = (definition, value) => {
                 const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
                 this._controlValues.set(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`, bytes[2]);
-                if (definition.nrpn !== undefined) this._nrpnValues.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
+                if (definition.nrpn !== undefined) for (const map of [this._nrpnValues, this._nrpnSeen]) map.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
                 this.sendMidi(device.id, bytes, part);
             };
             const saved = definition => {
@@ -831,7 +837,7 @@ export class DeviceManager {
             }
         }
         input.dataset.min = String(definition.min ?? 0);
-        if (input.type === 'range') input.dataset.start = instruction.attrs.value;
+        if (input.type === 'range') input.dataset.start = input.value;
         input.setAttribute('aria-label', instruction.label.text);
         if (input.type === 'checkbox') {
             input.checked = false;
@@ -850,7 +856,7 @@ export class DeviceManager {
             }
             const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
             this._controlValues.set(valueKey(), bytes[2]);
-            if (definition.nrpn !== undefined) this._nrpnValues.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
+            if (definition.nrpn !== undefined) for (const map of [this._nrpnValues, this._nrpnSeen]) map.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
             this.sendMidi(device.id, bytes, part);
         };
         if (savedValue !== undefined) {

@@ -1,5 +1,6 @@
 /* === MIDI Router — all-to-all passthrough + DAW / Clip mode === */
 import midi from '@julusian/midi';
+import { DeviceCatalog } from './device-catalog.js';
 import { parentPort } from 'worker_threads';
 import { DAWEngine, loopBridgedNotes, noteOn, noteOff } from './daw.js';
 import { portIndex, PortRecord } from './port-index.js';
@@ -2705,6 +2706,7 @@ class MIDIRouterWorker {
     // Last CC value sent to each instrument parameter (from the UI knobs, pads and graphs).
     // Saved with the session so loading it brings the sound back.
     _rememberDeviceControl(target, channel, cc, value) {
+        this._forgetNrpnOfCc(target, channel, cc);
         this._deviceControls ??= new Map();
         this._deviceControls.set(`${deviceChannelKey(target)}:${channel}:${cc}`, { target, channel, cc, value });
     }
@@ -2768,7 +2770,7 @@ class MIDIRouterWorker {
 
     // Patch read-back: NRPN 127/127 makes a PreenFM2 send its whole current patch as NRPN writes on the
     // channel. They are collected until the device goes quiet, then reported to the server as [nrpn, raw].
-    _startNrpnRead(id, target, channel) {
+    _startNrpnRead(id, target, channel, onDone) {
         const output = this.outputs.get(target);
         if (!output) {
             parentPort?.postMessage({ type: 'nrpn_read_result', id, values: [], error: `no output "${target}"` });
@@ -2777,7 +2779,7 @@ class MIDIRouterWorker {
         this._nrpnReads ??= new Map();
         const key = `${deviceChannelKey(target)}:${channel}`;
         this._finishNrpnRead(key);
-        const read = { id, values: new Map(), number: [0, 0], msb: 0, quiet: null };
+        const read = { id, values: new Map(), number: [0, 0], msb: 0, quiet: null, onDone };
         read.timeout = setTimeout(() => this._finishNrpnRead(key), NRPN_READ_TIMEOUT_MS);
         this._nrpnReads.set(key, read);
         // Queued behind any NRPN writes still going out, so the dump shows them.
@@ -2791,7 +2793,8 @@ class MIDIRouterWorker {
         clearTimeout(read.timeout);
         clearTimeout(read.quiet);
         this._nrpnReads.delete(key);
-        parentPort?.postMessage({ type: 'nrpn_read_result', id: read.id, values: [...read.values] });
+        if (read.onDone) read.onDone([...read.values]);
+        else parentPort?.postMessage({ type: 'nrpn_read_result', id: read.id, values: [...read.values] });
     }
 
     // True when an incoming message is part of a patch read in progress; it is consumed, not routed on
@@ -2808,6 +2811,27 @@ class MIDIRouterWorker {
         clearTimeout(read.quiet);
         read.quiet = setTimeout(() => this._finishNrpnRead(key), NRPN_READ_QUIET_MS);
         return true;
+    }
+
+    // After a preset reload: read the patch the synth now plays and send it back, so the router remembers
+    // every NRPN value (UI knobs, sessions) as the synth has it.
+    _resyncNrpnPatch(target, channel) {
+        this._startNrpnRead(null, target, channel, values => {
+            for (const [nrpn, raw] of values) {
+                try { this._sendNrpn(target, channel, nrpn, raw); }
+                catch (error) { console.error(`[MIDI] NRPN resend failed for ${target}:`, error.message); break; }
+            }
+            this._broadcastState();
+        });
+    }
+
+    // A CC that moves a parameter which also has an NRPN makes the remembered NRPN value stale (the session
+    // would send it again over the CC): forget that NRPN, the CC value stays.
+    _forgetNrpnOfCc(target, channel, cc) {
+        if (!this._deviceNrpns?.size) return;
+        this._catalog ??= new DeviceCatalog(path.join(__dirname, 'device_maps'));
+        const control = this._catalog.forPort(target)?.map.controls_cc?.find(c => c.cc === cc && c.nrpn !== undefined);
+        if (control) this._deviceNrpns.delete(`${deviceChannelKey(target)}:${channel}:${control.nrpn}`);
     }
 
     // Drop the remembered knob and NRPN values of one channel (a preset reload discards them).
@@ -3029,7 +3053,11 @@ if (parentPort) {
                     worker._forgetDeviceControls(msg.target, msg.channel);
                     const known = worker._devicePrograms?.get(`${deviceChannelKey(msg.target)}:${msg.channel}`);
                     const program = known?.program ?? (msg.reloadPreset ? msg.index : undefined);
-                    if (program !== undefined) worker._reloadPreset(msg.target, msg.channel, program, known?.name);
+                    if (program !== undefined) {
+                        worker._reloadPreset(msg.target, msg.channel, program, known?.name);
+                        // Give the synth time to load the sound, then read its patch back.
+                        if (msg.readNrpn) setTimeout(() => { try { worker._resyncNrpnPatch(msg.target, msg.channel); } catch (e) { console.error(`[MIDI] NRPN resync failed for ${msg.target}:`, e.message); } }, 1000).unref?.();
+                    }
                     else console.log(`[MIDI] [PRESET] ${msg.target} ch${msg.channel}: no preset selected yet, nothing to reload`);
                     worker._broadcastState();
                 } else if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState();

@@ -9,7 +9,7 @@ import { getCaptivePortalRedirect } from './wifi-ap/captive-portal.js';
 import { DeviceChannelSettings } from './device-channel-settings.js';
 import { UiLayoutSettings } from './ui-layout.js';
 import { EventEmitter } from 'events';
-import { DeviceCatalog } from './device-catalog.js';
+import { DeviceCatalog, nrpnControls } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
 import { scaleById } from './frontend/js/scales.js';
 import { AudioCapture, serveLiveAudio } from './audio-capture.js';
@@ -313,6 +313,9 @@ class MIDIRouterWorker {
         const known = controls.find(c => deviceChannelKey(c.target) === key && c.channel === channel && c.cc === cc);
         if (known) known.value = value;
         else controls.push({ target, channel, cc, value });
+        // A CC on a parameter that also has an NRPN makes that NRPN value stale (the worker forgets it too).
+        const nrpn = deviceCatalog.forPort(target)?.map.controls_cc?.find(c => c.cc === cc && c.nrpn !== undefined)?.nrpn;
+        if (nrpn !== undefined && state.deviceNrpns) state.deviceNrpns = state.deviceNrpns.filter(n => !(deviceChannelKey(n.target) === key && n.channel === channel && n.nrpn === nrpn));
         this._broadcast({ type: 'device-control', target, channel, cc, value });
     }
 
@@ -398,9 +401,10 @@ router.deviceChannels = deviceChannels;
 const uiLayout = new UiLayoutSettings(join(import.meta.dirname, 'ui-layout.json'));
 // Audio capture/analysis tools come from mcpi (Python) and are forwarded through the same /mcp.
 // MCPI_URL="" disables forwarding.
+const deviceCatalog = new DeviceCatalog(join(import.meta.dirname, 'device_maps'));
 const mcp = createMcpServer({
     upstream: createUpstream({ url: process.env.MCPI_URL ?? 'http://127.0.0.1:8000/mcp', token: process.env.MCPI_TOKEN }),
-    catalog: new DeviceCatalog(join(import.meta.dirname, 'device_maps')),
+    catalog: deviceCatalog,
     getOutputs: () => router.getPorts().outputs,
     getChannel: (name, part) => deviceChannels.channels[part ? `${deviceChannelKey(name)}#${part}` : deviceChannelKey(name)] || part || 1,
     getParts: name => {
@@ -916,7 +920,8 @@ function startServer() {
 
                     case 'select-preset':
                         if (router.worker && typeof message.target === 'string') {
-                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index, reset: message.reset === true, reloadPreset: message.reloadPreset === true });
+                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index, reset: message.reset === true, reloadPreset: message.reloadPreset === true,
+                                readNrpn: message.reset === true && nrpnControls(deviceCatalog.forPort(message.target)?.map).length > 0 });
                         }
                         break;
 
