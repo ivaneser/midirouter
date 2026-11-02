@@ -168,6 +168,25 @@ export function planNrpnWidgets(controls, algorithms, nrpnParams = [], algorithm
 
 const DOT_COLORS = ['#4cc9f0', '#f72585', '#ffd60a', '#80ed99'];
 
+// Dragging an operator's frequency dot: on the middle line the value is pulled to whole ratios, and the further
+// the pointer is above or below it, the weaker the pull and the finer the sideways movement. The pull fades out
+// gradually: a flat zone right at the line, then a smooth fall to nothing.
+export const FREQ_LOCK_RANGE = 6;     // distance from the middle line (graph units) within which values lock to whole ratios
+export const FREQ_PULL_RANGE = 60;    // distance at which the pull is gone
+export function freqPull(offset) {
+    const t = clamp01((Math.abs(offset) - FREQ_LOCK_RANGE) / (FREQ_PULL_RANGE - FREQ_LOCK_RANGE));
+    return 1 - t * t * (3 - 2 * t);
+}
+export const freqFineness = pull => 0.1 + 0.9 * pull;   // sideways movement scale: 1 on the line, 0.1 far from it
+// A value d away from the nearest whole ratio is brought to d * (2|d|)^(4 * pull): nothing moves at pull 0, the
+// values collapse onto the whole ratios as the pull nears 1, and halfway between two ratios the value is untouched,
+// so the result is continuous and never jumps.
+export function pullToIntegers(value, pull) {
+    const whole = Math.round(value), distance = value - whole;
+    if (pull >= 0.985) return whole;
+    return whole + distance * Math.pow(2 * Math.abs(distance), 4 * pull);
+}
+
 /** Triangles: attack moves the apex sideways, release the far end, frequency (when there is one) the middle dot. */
 export function createEnvelopeTriangles(plan, io) {
     const defs = plan.items.flatMap(item => [item.attack, item.release, item.freq].filter(Boolean));
@@ -247,7 +266,7 @@ export function createEnvelopeTriangles(plan, io) {
             io.set(def, value);
             draw();
         };
-        let grabbed = null;
+        let grabbed = null, rawFreq = 0, lastUx = 0;
         drag(graph, graph, wrap, {
             begin: f => {
                 const ux = f[0] * W, uy = (1 - f[1]) * H;
@@ -255,13 +274,20 @@ export function createEnvelopeTriangles(plan, io) {
                 const near = [['a', ax, top], ['r', rx, bottom], ...(item.freq ? [['f', fx, midY]] : [])]
                     .map(([key, x, y]) => [key, Math.hypot(ux - x, uy - y)]).sort((m, n) => m[1] - n[1]);
                 grabbed = near[0][0];
+                if (grabbed === 'f') { rawFreq = freqFraction(item.freq, state.f); lastUx = ux; }
                 return true;
             },
             move: f => {
                 const ux = f[0] * W;
                 if (grabbed === 'a') setValue('a', item.attack, timeValue(item.attack, clamp01((ux - left) / (mid - left))));
                 else if (grabbed === 'r') setValue('r', item.release, timeValue(item.release, clamp01((ux - geometry().ax) / (right - geometry().ax))));
-                else setValue('f', item.freq, freqValue(item.freq, clamp01((ux - left) / (right - left))));
+                else {
+                    // Relative movement, scaled by how close the pointer is to the middle line, then pulled to whole ratios.
+                    const pull = freqPull((1 - f[1]) * H - midY);
+                    rawFreq = clamp01(rawFreq + (ux - lastUx) / (right - left) * freqFineness(pull));
+                    lastUx = ux;
+                    setValue('f', item.freq, snap(item.freq, pullToIntegers(freqValue(item.freq, rawFreq), pull)));
+                }
             },
         });
         graph.addEventListener('keydown', event => {
