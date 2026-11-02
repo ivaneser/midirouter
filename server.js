@@ -88,6 +88,9 @@ class MIDIRouterWorker {
                     this.isReady = true;
                     console.log('[SERVER] Worker is ready');
                     this.worker.removeListener('message', readyHandler);
+                    // The worker saves the parts with each session, so it needs the layout from the start
+                    // (also after a worker restart); a session saved without it would remove every part when loaded.
+                    if (this.deviceChannels) this.worker.postMessage({ type: 'device_channels', channels: this.deviceChannels.channels });
                     resolve();
                 }
             };
@@ -392,7 +395,6 @@ opusBroadcast.packing = PACKING_FRAMES[audioSettings.packing];
 let listenServer = null;
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));
 router.deviceChannels = deviceChannels;
-router.worker?.postMessage({ type: 'device_channels', channels: deviceChannels.channels });
 const uiLayout = new UiLayoutSettings(join(import.meta.dirname, 'ui-layout.json'));
 // Audio capture/analysis tools come from mcpi (Python) and are forwarded through the same /mcp.
 // MCPI_URL="" disables forwarding.
