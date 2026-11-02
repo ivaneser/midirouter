@@ -5,6 +5,11 @@
 export function attachMidiKnob(input, dial, readout, onChange, options = {}) {
     const min = Number(input.min);
     const max = Number(input.max);
+    // Fractional ranges (an NRPN parameter such as 0-16 in hundredths) turn in `step` increments.
+    const step = Number(input.step) > 0 && input.step !== 'any' ? Number(input.step) : 1;
+    const decimals = step < 1 ? (String(step).split('.')[1] || '').length : 0;
+    const snap = raw => Number((Math.round((raw - min) / step) * step + min).toFixed(decimals));
+    const format = value => value.toFixed(decimals);
     // Signed ranges (-64..63) are centred on 0.
     const center = Number.isFinite(options.center) ? options.center : (min < 0 && max > 0 ? 0 : undefined);
     const reset = options.reset;
@@ -27,7 +32,7 @@ export function attachMidiKnob(input, dial, readout, onChange, options = {}) {
         dial.style.setProperty('--knob-start', `${from * 270}deg`);
         dial.style.setProperty('--knob-fill', `${to * 270}deg`);
         dial.style.setProperty('--knob-angle', `${-135 + fraction * 270}deg`);
-        const text = bipolar ? (value === center ? '0' : `${value > center ? '+' : '−'}${Math.abs(value - center)}`) : String(value);
+        const text = bipolar ? (value === center ? '0' : `${value > center ? '+' : '−'}${format(Math.abs(value - center))}`) : format(value);
         readout.textContent = text;
         input.setAttribute('aria-valuetext', text);
     };
@@ -54,7 +59,7 @@ export function attachMidiKnob(input, dial, readout, onChange, options = {}) {
         if (!drag || event.pointerId !== drag.id) return;
         const sensitivity = (max - min) / (event.shiftKey ? 1200 : 160);
         const raw = Math.max(min, Math.min(max, drag.value + ((horizontal ? event.clientX - drag.y : drag.y - event.clientY)) * sensitivity));
-        const value = Math.round(raw);
+        const value = snap(raw);
         // Incremental movement lets Shift change precision without value jumps.
         drag.y = horizontal ? event.clientX : event.clientY;
         drag.value = raw;

@@ -931,6 +931,15 @@ function startServer() {
                         }
                         break;
 
+                    case 'nrpn-send':
+                        // NRPN writes from a UI knob: [{ nrpn, raw }] to one channel of an output
+                        if (typeof message.target === 'string' && Number.isInteger(message.channel) && message.channel >= 1 && message.channel <= 16 &&
+                            Array.isArray(message.writes)) {
+                            const writes = message.writes.filter(w => Number.isInteger(w?.nrpn) && w.nrpn >= 0 && w.nrpn <= 16383 && Number.isInteger(w.raw) && w.raw >= 0 && w.raw <= 16383);
+                            if (writes.length) router.sendNrpn(message.target, message.channel, writes);
+                        }
+                        break;
+
                     case 'reload-config':
                         // Reload the configuration from config.json
                         if (router.worker) {

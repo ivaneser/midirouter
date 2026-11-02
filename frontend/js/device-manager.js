@@ -1,5 +1,5 @@
 /* === Device Manager — MIDI device management === */
-import { attachMidiKnob } from './midi-knob.js?v=25';
+import { attachMidiKnob } from './midi-knob.js?v=26';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
@@ -26,6 +26,24 @@ function ccFromNrpn({ nrpnMin, nrpnMax, nrpnScale }, raw) {
     const min = Number(nrpnMin), max = Number(nrpnMax), scale = Number(nrpnScale) || 0;
     const value = scale ? min + raw / scale : raw;
     return Math.max(0, Math.min(127, Math.round((value - min) / (max - min) * 127)));
+}
+
+// The same value as the parameter's own number (what the synth displays), snapped to the raw step.
+function nativeFromNrpn({ nrpnMin, nrpnMax, nrpnScale }, raw) {
+    const scale = Number(nrpnScale) || 0;
+    return scale ? Number(nrpnMin) + raw / scale : raw;
+}
+
+function nativeFromCc({ nrpnMin, nrpnMax, nrpnScale }, cc) {
+    const min = Number(nrpnMin), max = Number(nrpnMax), scale = Number(nrpnScale) || 0;
+    const value = min + cc / 127 * (max - min);
+    return scale ? Math.round(value * scale) / scale : Math.round(value);
+}
+
+// Raw 14-bit NRPN value of a parameter-unit value.
+function rawFromNative({ nrpnMin, nrpnScale }, value) {
+    const scale = Number(nrpnScale) || 0;
+    return scale ? Math.round((value - Number(nrpnMin)) * scale) : Math.round(value);
 }
 
 export class DeviceManager {
@@ -242,7 +260,7 @@ export class DeviceManager {
             for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
                 if (panel.dataset.deviceId !== target || this.channelForKey(panel.dataset.unitKey, panel.dataset.part) !== channel) continue;
                 for (const input of panel.querySelectorAll(`[data-nrpn="${Number(nrpn)}"]`)) {
-                    const display = ccFromNrpn(input.dataset, raw);
+                    const display = nativeFromNrpn(input.dataset, raw);
                     if (input.type !== 'range' || input === document.activeElement) continue;
                     input.value = String(display);
                     input.dispatchEvent(new Event('knob-sync'));
@@ -259,7 +277,7 @@ export class DeviceManager {
             if (panel.dataset.deviceId !== target || this.channelForKey(panel.dataset.unitKey, panel.dataset.part) !== channel) continue;
             for (const input of panel.querySelectorAll(`[data-cc="${Number(cc)}"]`)) {
                 const min = Number(input.dataset.min || 0);
-                const display = value - (min < 0 ? -min : 0);
+                const display = input.dataset.nrpn !== undefined ? nativeFromCc(input.dataset, value) : value - (min < 0 ? -min : 0);
                 if (input.type === 'range') {
                     if (input === document.activeElement) continue;   // the user is dragging it
                     input.value = String(display);
@@ -753,7 +771,21 @@ export class DeviceManager {
     _savedFromNrpn(deviceId, channel, definition) {
         if (definition.nrpn === undefined) return undefined;
         const raw = this._nrpnValues.get(`${deviceId}:${channel}:${definition.nrpn}`);
-        return raw === undefined ? undefined : ccFromNrpn({ nrpnMin: definition.nrpnMin, nrpnMax: definition.nrpnMax, nrpnScale: definition.nrpnScale }, raw);
+        return raw === undefined ? undefined : ccFromNrpn(definition, raw);
+    }
+
+    // Knobs of controls that mirror an NRPN run over the parameter's own range and send the NRPN.
+    _nrpnKnob(definition, instruction) {
+        return definition.nrpn !== undefined && instruction.attrs.type === 'range';
+    }
+
+    sendNrpn(deviceId, channel, nrpn, raw) {
+        const key = `${deviceId}:${channel}:${nrpn}`;
+        this._nrpnValues.set(key, raw);
+        this._nrpnSeen.set(key, raw);
+        if (window.app?.ws?.readyState === WebSocket.OPEN) {
+            window.app.ws.send(JSON.stringify({ type: 'nrpn-send', target: deviceId, channel, writes: [{ nrpn, raw }] }));
+        }
     }
 
     _createDeviceControl(device, model, definition, part) {
@@ -791,6 +823,12 @@ export class DeviceManager {
             input.dataset.nrpnMin = String(definition.nrpnMin);
             input.dataset.nrpnMax = String(definition.nrpnMax);
             if (definition.nrpnScale) input.dataset.nrpnScale = String(definition.nrpnScale);
+            if (this._nrpnKnob(definition, instruction)) {
+                input.min = String(definition.nrpnMin);
+                input.max = String(definition.nrpnMax);
+                input.step = String(definition.nrpnScale ? 1 / definition.nrpnScale : 1);
+                input.value = String(definition.nrpnMin);
+            }
         }
         input.dataset.min = String(definition.min ?? 0);
         if (input.type === 'range') input.dataset.start = instruction.attrs.value;
@@ -800,9 +838,16 @@ export class DeviceManager {
         }
         const valueKey = () => `${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`;
         const rawSaved = this._controlValues.get(valueKey());
-        const savedValue = this._savedFromNrpn(device.id, this.channelForDevice(device, part), definition) ??
-            (rawSaved === undefined ? undefined : rawSaved - (Number(definition.min) < 0 ? -Number(definition.min) : 0));
+        const nrpnKnob = this._nrpnKnob(definition, instruction);
+        const rawNrpn = nrpnKnob ? this._nrpnValues.get(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`) : undefined;
+        const savedValue = nrpnKnob
+            ? (rawNrpn !== undefined ? nativeFromNrpn(definition, rawNrpn) : rawSaved === undefined ? undefined : nativeFromCc(definition, rawSaved))
+            : rawSaved === undefined ? undefined : rawSaved - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
         const sendValue = value => {
+            if (nrpnKnob) {
+                this.sendNrpn(device.id, this.channelForDevice(device, part), definition.nrpn, rawFromNative(definition, value));
+                return;
+            }
             const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
             this._controlValues.set(valueKey(), bytes[2]);
             if (definition.nrpn !== undefined) this._nrpnValues.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
