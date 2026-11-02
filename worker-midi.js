@@ -982,12 +982,6 @@ class MIDIRouterWorker {
         }
     }
 
-    _restartActiveClips() {
-        for (const [trackIdx, slot] of this.daw.clipState.entries()) {
-            if (slot >= 0 && this._trackPlayTimers.has(trackIdx)) this._startTrackPlayback(trackIdx, slot);
-        }
-    }
-
     _syncActiveClipsToExternalClock() {
         for (const [trackIdx, slot] of this.daw.clipState.entries()) {
             if (slot >= 0) this._startTrackPlayback(trackIdx, slot);
@@ -2108,8 +2102,8 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             case 'daw_set_tempo':
+                // daw.setTempo re-times the clips that are playing (see the wrapper in the constructor): no restart.
                 daw.setTempo(msg.bpm);
-                this._restartActiveClips();
                 this._broadcastState();
                 break;
             case 'daw_tap_tempo':
@@ -2120,7 +2114,6 @@ class MIDIRouterWorker {
                 if (this._tapTimes.length >= 2) {
                     const iv = (this._tapTimes[this._tapTimes.length - 1] - this._tapTimes[this._tapTimes.length - 2]) / 1000;
                     daw.setTempo(Math.max(20, Math.min(300, 60 / iv)));
-                    this._restartActiveClips();
                 }
                 this._broadcastState();
                 break;

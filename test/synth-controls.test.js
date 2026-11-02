@@ -464,7 +464,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         assert.deepEqual(sent.at(-1), { type: 'set-device-channel', target: 'microfreak-output', channel: 16 });
         assert.equal(microItem.querySelector('.device-header-mixer'), null);
         const presetButtons = microItem.querySelector('.device-program-controls').children.filter(el => el.tagName === 'button');
-        presetButtons[1].listeners.click();
+        presetButtons.find(button => button.title.startsWith('Next preset')).listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 1 });
         const presetName = microItem.querySelector('.device-program-name');
         const optionFor = program => presetName.children.find(option => option.value === String(program));
@@ -480,13 +480,13 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         presetName.listeners.change();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 7 });
         assert.equal(presetName.value, '7', 'picking from the list selects that preset');
-        presetButtons[1].listeners.click();
+        presetButtons.find(button => button.title.startsWith('Next preset')).listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 8 }, 'the arrows continue from the picked preset');
         presetName.value = '1';
         presetName.listeners.change();
-        presetButtons[0].listeners.click();
+        presetButtons.find(button => button.title.startsWith('Previous preset')).listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 });
-        presetButtons[0].listeners.click();
+        presetButtons.find(button => button.title.startsWith('Previous preset')).listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 0 }, 'previous preset clamps at zero');
         assert.equal(cutoff.value, '0', 'a new sound puts the knobs back to their start positions');
         cutoff.value = '96';

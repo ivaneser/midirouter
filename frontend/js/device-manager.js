@@ -112,9 +112,9 @@ export class DeviceManager {
     // Presets (0-based programs) of a device that belong to a group; every program for "All" or when groups are unknown.
     programsInGroup(baseKey, group, count = this.presetCounts.get(baseKey) || 128, favoritesOnly = false) {
         const groups = this.presetGroups.get(baseKey);
-        const starred = this.favorites.get(this.presetFiles.get(baseKey));
         let list = Array.from({ length: count }, (_, index) => index);
         if (group && groups) list = list.filter(index => groups[String(index + 1)] === group);
+        const starred = favoritesOnly ? this.favorites.get(this.presetFiles.get(baseKey)) : null;
         return favoritesOnly ? list.filter(index => starred?.has(index + 1)) : list;
     }
 
@@ -374,7 +374,7 @@ export class DeviceManager {
             if (select._star) {
                 const starred = program != null && this.favorites.get(this.presetFiles.get(baseKey))?.has(program + 1);
                 select._star.textContent = starred ? '★' : '☆';
-                select._star.classList.toggle('starred', !!starred);
+                select._star.className = starred ? 'device-program-star starred' : 'device-program-star';
                 select._star.setAttribute('aria-pressed', String(!!starred));
                 select._star.title = starred ? 'Remove this preset from favorites' : 'Add this preset to favorites';
             }
@@ -606,7 +606,7 @@ export class DeviceManager {
             const showFavoritesOnly = on => {
                 presetLabel.dataset.favorites = on ? '1' : '';
                 favoritesOnly.textContent = on ? '★' : '☆';
-                favoritesOnly.classList.toggle('starred', on);
+                favoritesOnly.className = on ? 'device-program-favorites starred' : 'device-program-favorites';
                 favoritesOnly.setAttribute('aria-pressed', String(on));
                 favoritesOnly.title = on ? 'Showing only favorite presets: click to show all' : 'Show only favorite presets in the lists';
             };

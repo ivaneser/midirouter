@@ -83,3 +83,22 @@ test('an emptied or external-clock clip asks for a full restart instead', t => {
     playback.externalClock = true;
     assert.equal(worker._refreshPlayingClip(0, 0), false);
 });
+
+// The tempo message must not stop and relaunch the clips: that waited for the next cycle start and
+// left a gap. daw.setTempo (wrapped by the worker) already re-times them in place.
+test('changing the tempo over the control channel does not restart the playing clips', () => {
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    const calls = [];
+    worker.daw = { playing: true, tempo: 120, setTempo(bpm) { this.tempo = bpm; calls.push(['setTempo', bpm]); } };
+    worker._broadcastState = () => {};
+    worker._startTrackPlayback = () => calls.push(['start']);
+    worker._stopTrackPlayback = () => calls.push(['stop']);
+    worker.handleDawControl({ type: 'daw_set_tempo', bpm: 140 });
+    assert.deepEqual(calls, [['setTempo', 140]]);
+
+    calls.length = 0;
+    worker._tapTimes = [performance.now() - 500];
+    worker.handleDawControl({ type: 'daw_tap_tempo' });
+    assert.equal(calls.filter(call => call[0] === 'setTempo').length, 1);
+    assert.ok(!calls.some(call => call[0] === 'start' || call[0] === 'stop'), 'no restart after a tap either');
+});
