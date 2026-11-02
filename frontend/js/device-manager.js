@@ -67,6 +67,8 @@ export class DeviceManager {
         this.userPresets = new Map();      // file -> { id: { name, group, controls } } saved on the router
         this.userPresetChosen = new Map(); // `${target}:${channel}` -> id of the preset last loaded
         this.presetGroups = new Map();     // baseKey -> { number: group } (sound categories), when the catalog has them
+        this.favorites = new Map();        // device map file -> Set of starred presets (1-based numbers), kept on the router
+        this.favoritesVersion = 0;
         this.presetCatalogs = new Map();   // baseKey -> { number: name } from device_maps/presets, when the device has one
     }
 
@@ -107,10 +109,19 @@ export class DeviceManager {
     }
 
     // Presets (0-based programs) of a device that belong to a group; every program for "All" or when groups are unknown.
-    programsInGroup(baseKey, group, count = this.presetCounts.get(baseKey) || 128) {
+    programsInGroup(baseKey, group, count = this.presetCounts.get(baseKey) || 128, favoritesOnly = false) {
         const groups = this.presetGroups.get(baseKey);
-        const all = Array.from({ length: count }, (_, index) => index);
-        return !group || !groups ? all : all.filter(index => groups[String(index + 1)] === group);
+        const starred = this.favorites.get(this.presetFiles.get(baseKey));
+        let list = Array.from({ length: count }, (_, index) => index);
+        if (group && groups) list = list.filter(index => groups[String(index + 1)] === group);
+        return favoritesOnly ? list.filter(index => starred?.has(index + 1)) : list;
+    }
+
+    // The router sent the starred presets of a device map (on connect, and whenever anyone changes them).
+    updateFavorites({ file, numbers }) {
+        this.favorites.set(file, new Set(numbers || []));
+        this.favoritesVersion++;
+        this.refreshPresetLabels();
     }
 
     // Preset controls of an instrument without presets: group and preset drop-downs over the sounds the user
@@ -321,8 +332,9 @@ export class DeviceManager {
             const count = this.presetCounts.get(baseKey) || 128;
             const groups = this.presetGroups.get(baseKey);
             const group = groups ? select.dataset.group || '' : '';
-            const shown = this.programsInGroup(baseKey, group, count);
-            const signature = `${count}|${group}|${shown.length}|${shown[0]}|${shown[shown.length - 1]}`;
+            const favoritesOnly = select.dataset.favorites === '1';
+            const shown = this.programsInGroup(baseKey, group, count, favoritesOnly);
+            const signature = `${count}|${group}|${favoritesOnly}|${this.favoritesVersion}|${shown.length}|${shown[0]}|${shown[shown.length - 1]}`;
             if (select._signature !== signature) {
                 select._signature = signature;
                 select.replaceChildren();
@@ -343,6 +355,13 @@ export class DeviceManager {
                 if (select.children[position + 1].textContent !== text) select.children[position + 1].textContent = text;
             });
             select.value = program == null || !shown.includes(program) ? '' : String(program);   // a preset outside the shown group is not listed
+            if (select._star) {
+                const starred = program != null && this.favorites.get(this.presetFiles.get(baseKey))?.has(program + 1);
+                select._star.textContent = starred ? '★' : '☆';
+                select._star.classList.toggle('starred', !!starred);
+                select._star.setAttribute('aria-pressed', String(!!starred));
+                select._star.title = starred ? 'Remove this preset from favorites' : 'Add this preset to favorites';
+            }
             select.title = program == null ? 'Select a preset' : program > 127 ? `Preset ${program + 1} (bank ${(program >> 7) + 1}, program ${(program & 127) + 1})` : `Preset ${program + 1}`;
         });
     }
@@ -563,11 +582,40 @@ export class DeviceManager {
                 this.refreshPresetLabels();
             });
             presetLabel.dataset.group = groupSelect.dataset.group || '';
+            const favoritesStorage = `preset-favorites:${unitKey}`;
+            const favoritesOnly = document.createElement('label');
+            favoritesOnly.className = 'device-program-favorites';
+            favoritesOnly.title = 'Show only favorite presets in the lists';
+            const favoritesBox = document.createElement('input');
+            favoritesBox.type = 'checkbox';
+            favoritesBox.setAttribute('aria-label', `${label}: only favorite presets`);
+            try { favoritesBox.checked = localStorage.getItem(favoritesStorage) === '1'; } catch { /* storage unavailable */ }
+            presetLabel.dataset.favorites = favoritesBox.checked ? '1' : '';
+            favoritesBox.addEventListener('change', () => {
+                presetLabel.dataset.favorites = favoritesBox.checked ? '1' : '';
+                try { localStorage.setItem(favoritesStorage, favoritesBox.checked ? '1' : '0'); } catch { /* optional */ }
+                this.refreshPresetLabels();
+            });
+            favoritesOnly.append(favoritesBox, ' ★');
+            const star = document.createElement('button');
+            star.type = 'button';
+            star.className = 'device-program-star';
+            star.textContent = '☆';
+            star.setAttribute('aria-label', `${label}: favorite preset`);
+            star.addEventListener('click', () => {
+                const program = this.programs.get(programKey());
+                const file = this.presetFiles.get(baseKey);
+                if (program == null || !file) { window.app?.log?.('Pick a preset first, then star it.'); return; }
+                if (window.app?.ws?.readyState !== WebSocket.OPEN) { window.app?.log?.('Connect to the router to change favorites.'); return; }
+                window.app.ws.send(JSON.stringify({ type: 'favorite-set', file, number: program + 1, favorite: !this.favorites.get(file)?.has(program + 1) }));
+            });
+            presetLabel._star = star;
             presetLabel.addEventListener('change', () => {
                 const program = Number(presetLabel.value);
                 if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
             });
             presets.appendChild(groupSelect);
+            presets.appendChild(favoritesOnly);
             for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -576,7 +624,7 @@ export class DeviceManager {
                 button.setAttribute('aria-label', `${label}: ${description}`);
                 button.addEventListener('click', () => {
                     if (window.app?.ws?.readyState !== WebSocket.OPEN) return;
-                    const list = this.programsInGroup(baseKey, presetLabel.dataset.group);
+                    const list = this.programsInGroup(baseKey, presetLabel.dataset.group, undefined, presetLabel.dataset.favorites === '1');
                     const current = this.programs.get(programKey()) ?? 0;
                     const next = (step > 0 ? list.find(index => index > current) : [...list].reverse().find(index => index < current)) ?? (step > 0 ? list.at(-1) : list[0]);
                     if (next != null) selectProgram(next);
@@ -598,6 +646,7 @@ export class DeviceManager {
                 window.app.ws.send(JSON.stringify({ type: 'select-preset', target: dev.id, channel: channelNumber, index: program ?? 0, reset: true, reloadPreset: program != null }));
                 this._discardControls(el, dev, part);
             });
+            presets.appendChild(star);
             presets.appendChild(reset);
         }
         el.appendChild(presets);

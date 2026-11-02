@@ -271,6 +271,9 @@ function handleMessage(msg) {
         case 'preset-learned':
             deviceManager.updateLearnedPreset(msg);
             break;
+        case 'favorites':
+            deviceManager.updateFavorites(msg);
+            break;
         case 'user-presets':
             deviceManager.updateUserPresets(msg);
             break;

@@ -354,6 +354,9 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .synth-widget-axes span { font-weight: 600; }
 .synth-widget-note { margin: 2px 0 0; color: #8fa0ad; font-size: .72rem; }
 .device-program-controls .device-program-reset { font-size: 1.1rem; }
+.device-program-favorites { display: inline-flex; align-items: center; align-self: center; gap: 2px; min-height: 44px; font-size: .9rem; cursor: pointer; }
+.device-program-controls .device-program-star { font-size: 1.3rem; }
+.device-program-controls .device-program-star.starred { color: #f5b400; }
 .midi-knob.bipolar input.midi-knob-input { cursor: ew-resize; }
 
 .synth-stage > summary.synth-stage-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 4px 6px; list-style: none; cursor: pointer; border-bottom: 1px solid var(--line); }

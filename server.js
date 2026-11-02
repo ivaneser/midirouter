@@ -584,6 +584,7 @@ function startServer() {
         ws.send(JSON.stringify({ type: 'device-channels', channels: deviceChannels.channels }));
         ws.send(JSON.stringify({ type: 'ui-layout', order: uiLayout.order }));
         ws.send(JSON.stringify({ type: 'audio-filter', level: audioSettings.filter }));
+        for (const file of ['preenfm2']) ws.send(JSON.stringify({ type: 'favorites', file, numbers: deviceCatalog.favorites(file) }));
         for (const file of ['korg_nts1']) ws.send(JSON.stringify({ type: 'user-presets', file, presets: router.userPresets.list(file) }));
         ws.send(JSON.stringify({ type: 'audio-quality', quality: audioSettings.quality }));
         ws.send(JSON.stringify({ type: 'audio-packing', packing: audioSettings.packing }));
@@ -861,6 +862,9 @@ function startServer() {
                         break;
                     case 'user-preset-delete':
                         if (router.userPresets.remove(message.file, String(message.id))) router._broadcast({ type: 'user-presets', file: message.file, presets: router.userPresets.list(message.file) });
+                        break;
+                    case 'favorite-set':
+                        if (deviceCatalog.setFavorite(message.file, message.number, message.favorite === true)) router._broadcast({ type: 'favorites', file: message.file, numbers: deviceCatalog.favorites(message.file) });
                         break;
                     case 'user-preset-clear':
                         if (typeof message.target === 'string' && Number.isInteger(message.channel)) router.forgetControls(message.target, message.channel);

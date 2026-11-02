@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { classifySynthPortName, MAP_FILES, flattenControls, dropdownRaw, dropdownIndex } from './frontend/js/synth-catalog.js';
 
@@ -28,6 +28,26 @@ export class DeviceCatalog {
         if (!map) return null;
         map.controls = flattenControls(map);
         return { model, map, presets: this._load(join(this.directory, 'presets', `${file}.json`)) };
+    }
+
+    // Favourite presets are the ones whose catalog entry carries the tag "favorite".
+    favorites(file) {
+        const presets = /^[\w-]+$/.test(file) ? this._load(join(this.directory, 'presets', `${file}.json`))?.presets : null;
+        return Object.entries(presets ?? {}).filter(([, p]) => p.tags?.includes('favorite')).map(([number]) => Number(number)).sort((a, b) => a - b);
+    }
+
+    // Tags or untags one preset (1-based number) and saves the catalog; false when there is no such preset.
+    setFavorite(file, number, favorite) {
+        if (!/^[\w-]+$/.test(file)) return false;
+        const path = join(this.directory, 'presets', `${file}.json`);
+        const preset = this._load(path)?.presets?.[String(number)];
+        if (!preset) return false;
+        const tags = new Set(preset.tags ?? []);
+        if (favorite) tags.add('favorite'); else tags.delete('favorite');
+        if (tags.size) preset.tags = [...tags]; else delete preset.tags;
+        writeFileSync(`${path}.tmp`, `${JSON.stringify(this._load(path), null, 1)}\n`);
+        renameSync(`${path}.tmp`, path);
+        return true;
     }
 }
 
