@@ -140,6 +140,8 @@ export async function getControlsForModel(model) {
     if (parsed.ui) copy.layout = JSON.parse(JSON.stringify(parsed.ui));
     // Algorithm wirings (the PreenFM2), for the algorithm picker.
     if (parsed.controls_nrpn?.algorithms) copy.algorithms = JSON.parse(JSON.stringify(parsed.controls_nrpn.algorithms));
+    // The modulation matrix's source and destination choices exist only as NRPN parameters.
+    if (parsed.controls_nrpn?.parameters) copy.nrpnParams = JSON.parse(JSON.stringify(parsed.controls_nrpn.parameters.filter(p => p.category === 'matrix')));
     return copy;
 }
 

@@ -83,7 +83,7 @@ function drag(target, box, wrap, { begin, move, end }) {
 function makeWrap(title, defs, redraw) {
     const wrap = html('div', 'synth-widget nrpn-widget');
     // "cc:nrpn" pairs let the device manager find this widget when one of its parameters changes remotely.
-    wrap.dataset.pairs = defs.map(def => `${def.cc}:${def.nrpn ?? ''}`).join(' ');
+    wrap.dataset.pairs = defs.map(def => `${def.cc ?? ''}:${def.nrpn ?? ''}`).join(' ');
     let head = null;
     if (title) {
         head = html('div', 'synth-widget-head');
@@ -95,7 +95,7 @@ function makeWrap(title, defs, redraw) {
 }
 
 /** Pick the controls a module can draw with these widgets. `algorithms` is the device's algorithm list, for the picker. */
-export function planNrpnWidgets(controls, algorithms) {
+export function planNrpnWidgets(controls, algorithms, nrpnParams = []) {
     const byName = new Map(controls.map(c => [c.name, c]));
     const widgets = [], used = new Set();
     const take = (...names) => {
@@ -124,6 +124,16 @@ export function planNrpnWidgets(controls, algorithms) {
         widgets.push({ kind: 'env-triangles', title: 'Carriers · apex = attack, end = release', items: [{ label: 'All carriers', attack: carrier[0], release: carrier[1] }] });
         mark(carrier);
     }
+
+    // The modulation matrix: the knobs are the rows' multipliers, source and destinations are NRPN-only choices.
+    const choice = new Map(nrpnParams.map(c => [c.name, c]));
+    const rows = [];
+    for (let n = 1; n <= 4; n++) {
+        const amount = take(`Matrix Row ${n} Amount`)?.[0];
+        const source = choice.get(`Matrix ${n} Source`), dest1 = choice.get(`Matrix ${n} Destination 1`), dest2 = choice.get(`Matrix ${n} Destination 2`);
+        if (amount && source && dest1) rows.push({ n, amount, source, dest1, dest2 });
+    }
+    if (rows.length) { widgets.push({ kind: 'matrix', rows }); rows.forEach(row => mark([row.amount])); }
 
     const arp = take('Arp Pattern');
     if (arp) { widgets.push({ kind: 'arp-patterns', def: arp[0] }); mark(arp); }
@@ -595,6 +605,104 @@ export function createFilterWidget(plan, io) {
     return box;
 }
 
+/** The modulation matrix: sources on the left, targets on the right, a knob per row between them. Click a knob to
+ * pick its row (its source and targets light up), then click a source or a target to set it; click a lit one to clear it. */
+export function createMatrixWidget(plan, io) {
+    const defs = plan.rows.flatMap(row => [row.amount, row.source, row.dest1, row.dest2].filter(Boolean));
+    let redraw = () => {};
+    const { wrap } = makeWrap('', defs, () => redraw());
+    wrap.classList.add('nrpn-matrix');
+    const box = html('div', 'nrpn-matrix-box');
+    wrap.appendChild(box);
+
+    const state = plan.rows.map(() => ({ src: 0, d1: 0, d2: 0 }));
+    let active = 0;
+    const list = (options, onPick) => {
+        const column = html('div', 'nrpn-matrix-list');
+        column.setAttribute('role', 'listbox');
+        const items = options.map((option, value) => {
+            const item = html('button', 'nrpn-matrix-item');
+            item.type = 'button';
+            item.setAttribute('role', 'option');
+            item.append(html('span', 'nrpn-matrix-text', value === 0 ? '—' : option), html('span', 'nrpn-matrix-badges'));
+            item.addEventListener('click', () => onPick(value));
+            column.appendChild(item);
+            return item;
+        });
+        return { column, items };
+    };
+    const sources = list(plan.rows[0].source.options || [], value => {
+        const row = state[active];
+        row.src = row.src === value ? 0 : value;
+        io.set(plan.rows[active].source, row.src);
+        draw();
+    });
+    const targets = list(plan.rows[0].dest1.options || [], value => {
+        const row = state[active], def = plan.rows[active];
+        if (value !== 0 && row.d1 === value) { row.d1 = 0; io.set(def.dest1, 0); }
+        else if (value !== 0 && row.d2 === value && def.dest2) { row.d2 = 0; io.set(def.dest2, 0); }
+        else if (value !== 0 && row.d1 === 0) { row.d1 = value; io.set(def.dest1, value); }
+        else if (value !== 0 && def.dest2) { row.d2 = value; io.set(def.dest2, value); }
+        else if (value !== 0) { row.d1 = value; io.set(def.dest1, value); }
+        draw();
+    });
+
+    const knobs = html('div', 'nrpn-matrix-knobs');
+    const knobBoxes = plan.rows.map((row, index) => {
+        const knob = io.knob(row.amount);
+        knob.classList.add('nrpn-matrix-knob');
+        // Just the knob: the row number is not written, the knob keeps its accessible name.
+        knob.querySelector?.('.synth-control-name')?.remove();
+        knob.title = `Matrix row ${row.n}`;
+        knob.style.setProperty('--row', DOT_COLORS[index % DOT_COLORS.length]);
+        // A press or keyboard focus on the knob picks the row; the knob itself still turns as usual.
+        knob.addEventListener('pointerdown', () => select(index));
+        knob.addEventListener('focusin', () => select(index));
+        knobs.appendChild(knob);
+        return knob;
+    });
+    // The lists fill a cell whose height comes from the knob column, so they are exactly as tall as the four knobs.
+    const cell = column => { const holder = html('div', 'nrpn-matrix-cell'); holder.appendChild(column); return holder; };
+    box.append(cell(sources.column), knobs, cell(targets.column));
+
+    // Keep the row's lit entries in view in a long list, without scrolling the page.
+    const reveal = (column, item) => {
+        if (!item || !column.clientHeight) return;
+        if (item.offsetTop < column.scrollTop || item.offsetTop + item.offsetHeight > column.scrollTop + column.clientHeight) {
+            column.scrollTop = item.offsetTop - (column.clientHeight - item.offsetHeight) / 2;
+        }
+    };
+    const draw = (scroll = false) => {
+        const mine = state[active];
+        const paint = (items, matches, claimed) => items.forEach((item, value) => {
+            const lit = value !== 0 && matches(value);
+            item.className = `nrpn-matrix-item${lit ? ' lit' : ''}`;
+            item.setAttribute('aria-selected', String(lit));
+            // A small number for each other row that uses this entry.
+            item.querySelector('.nrpn-matrix-badges').replaceChildren(...state.flatMap((row, index) =>
+                index !== active && value !== 0 && claimed(row, value) ? [html('span', 'nrpn-matrix-badge', String(plan.rows[index].n))] : []));
+        });
+        paint(sources.items, value => mine.src === value, (row, value) => row.src === value);
+        paint(targets.items, value => mine.d1 === value || mine.d2 === value, (row, value) => row.d1 === value || row.d2 === value);
+        knobBoxes.forEach((knob, index) => knob.classList.toggle('active', index === active));
+        if (scroll) {
+            reveal(sources.column, sources.items[mine.src]);
+            reveal(targets.column, targets.items[mine.d1] || targets.items[mine.d2]);
+        }
+    };
+    const select = index => { if (index !== active) { active = index; draw(true); } };
+    redraw = () => {
+        plan.rows.forEach((row, index) => {
+            state[index].src = Math.round(read(io, row.source));
+            state[index].d1 = Math.round(read(io, row.dest1));
+            state[index].d2 = row.dest2 ? Math.round(read(io, row.dest2)) : 0;
+        });
+        draw(true);
+    };
+    redraw();
+    return wrap;
+}
+
 const SHAPE_NAMES = ['Sine', 'Saw', 'Triangle', 'Square', 'Random'];
 const SHAPE_GLYPHS = ['∿', '◿', '△', '⊓', '⁝'];
 
@@ -719,5 +827,6 @@ export function createNrpnWidget(plan, io) {
     if (plan.kind === 'algorithms') return createAlgorithmPicker(plan, io);
     if (plan.kind === 'arp-patterns') return createArpPatternPicker(plan, io);
     if (plan.kind === 'filter') return createFilterWidget(plan, io);
+    if (plan.kind === 'matrix') return createMatrixWidget(plan, io);
     return createDotField(plan, io);
 }

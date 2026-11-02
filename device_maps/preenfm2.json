@@ -5552,13 +5552,20 @@
     "stages": [
       {
         "title": "Sound source",
-        "hint": "The algorithm wires the operators together: carriers are heard, modulators bend the operator they point to.",
+        "hint": "The algorithm wires the operators together: carriers are heard, modulators bend the operator they point to. Modulation indexes say how strongly.",
         "modules": [
           {
             "title": "Algorithm",
             "section": "cc",
             "categories": [
               "algorithm"
+            ]
+          },
+          {
+            "title": "Modulation indexes",
+            "section": "cc",
+            "categories": [
+              "modindex"
             ]
           }
         ]
@@ -5612,18 +5619,8 @@
       },
       {
         "title": "Modulation",
-        "hint": "Modulation indexes (and the mod wheel) say how strongly one operator bends the next; then three LFOs and the modulation matrix amounts.",
+        "hint": "Three LFOs and the modulation matrix: pick a source on the left, a target on the right, and set how much with the knobs.",
         "modules": [
-          {
-            "title": "Modulation indexes",
-            "section": "cc",
-            "categories": [
-              "modindex"
-            ],
-            "include": [
-              "Modulation Wheel"
-            ]
-          },
           {
             "title": "LFOs",
             "section": "cc",
@@ -5636,6 +5633,16 @@
             "section": "cc",
             "categories": [
               "matrix"
+            ]
+          },
+          {
+            "title": "Modulation wheel",
+            "section": "cc",
+            "categories": [
+              "performance"
+            ],
+            "match": [
+              "Modulation Wheel"
             ]
           }
         ]

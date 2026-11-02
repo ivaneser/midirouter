@@ -1,7 +1,7 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=26';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
-import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=6';
+import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=9';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
 import { buildStages } from './synth-stages.js?v=2';
@@ -16,7 +16,7 @@ import {
     MAP_FILES,
     dropdownRaw,
     dropdownIndex,
-} from './synth-catalog.js?v=26';
+} from './synth-catalog.js?v=27';
 
 // Instruments without presets of their own: the user saves the CCs they set as named presets (stored on the router).
 const USER_PRESET_FILES = { 'korg-nts-1': 'korg_nts1' };
@@ -284,7 +284,7 @@ export class DeviceManager {
 
     // The "cc:nrpn" pairs a graph (nrpn-widgets.js) draws.
     _widgetPairs(widget) {
-        return (widget.dataset.pairs || '').split(' ').filter(Boolean).map(token => { const [cc, nrpn] = token.split(':'); return { cc, nrpn: nrpn === '' ? undefined : nrpn }; });
+        return (widget.dataset.pairs || '').split(' ').filter(Boolean).map(token => { const [cc, nrpn] = token.split(':'); return { cc: cc === '' ? undefined : cc, nrpn: nrpn === '' ? undefined : nrpn }; });
     }
 
     // Tell the graphs of a panel that draw a changed parameter to redraw (they send nothing).
@@ -767,6 +767,8 @@ export class DeviceManager {
                     if (cc === undefined) return undefined;
                     return definition.nrpn === undefined ? cc : nativeFromCc(definition, cc);
                 },
+                // A real knob for a control, for graphs that host knobs (the modulation matrix).
+                knob: definition => this._createDeviceControl(device, model, definition, part),
                 // A control with no NRPN (the carriers' shared envelope) is sent as its CC.
                 set: (definition, value) => definition.nrpn === undefined
                     ? send(definition, value)
@@ -803,10 +805,12 @@ export class DeviceManager {
                         title.textContent = module.title;
                         card.appendChild(title);
                         const moduleControls = module.groups.flatMap(group => group.controls);
-                        const drawn = planNrpnWidgets(moduleControls, controls.algorithms);
+                        const drawn = planNrpnWidgets(moduleControls, controls.algorithms, controls.nrpnParams);
                         const basic = planWidgets(moduleControls.filter(control => !drawn.used.has(control)));
                         const widgets = [...drawn.widgets, ...basic.widgets];
                         const rest = basic.rest;
+                        // The modulation matrix and the LFO plots (side by side) take the whole width of the section.
+                        if (drawn.widgets.some(plan => plan.kind === 'matrix' || plan.kind === 'lfo-plots')) card.className += ' synth-module-full';
                         if (widgets.length) {
                             const grid = document.createElement('div');
                             grid.className = `synth-control-grid synth-module-widgets${drawn.widgets.length ? ' synth-module-widgets-wide' : ''}`;
