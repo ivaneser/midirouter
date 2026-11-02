@@ -167,3 +167,28 @@ test('NRPN values are saved with the session, re-sent after the sounds load and 
     worker._forgetDeviceControls('PreenFM mk2:PreenFM mk2 MIDI 1 40:0', 1);
     assert.equal(worker._deviceNrpns.size, 0, 'a new preset forgets the NRPN edits');
 });
+
+test('a patch read asks for the dump, collects its NRPNs until the synth is quiet and does not route them on', t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    const sent = [];
+    const target = 'PreenFM mk2:PreenFM mk2 MIDI 1 36:0';
+    worker.outputs = new Map([[target, { sendMessage: bytes => sent.push([...bytes]) }]]);
+    const posted = [];
+    const original = MIDIRouterWorker.prototype._finishNrpnRead;
+    worker._finishNrpnRead = function (key) {
+        const read = this._nrpnReads?.get(key);
+        if (read) posted.push({ id: read.id, values: [...read.values] });
+        return original.call(this, key);
+    };
+    worker._startNrpnRead('r1', target, 2);
+    assert.deepEqual(sent, [[0xB1, 99, 127], [0xB1, 98, 127], [0xB1, 6, 0], [0xB1, 38, 0]]);
+    const dump = [[0xB1, 99, 1], [0xB1, 98, 68], [0xB1, 6, 1], [0xB1, 38, 122], [0xB1, 99, 0], [0xB1, 98, 0], [0xB1, 6, 0], [0xB1, 38, 13]];
+    for (const bytes of dump) assert.equal(worker._takeNrpnReadMessage(target, bytes), true);
+    assert.equal(worker._takeNrpnReadMessage(target, [0xB0, 99, 1]), false, 'another channel is routed as usual');
+    assert.equal(worker._takeNrpnReadMessage(target, [0xB1, 7, 100]), false, 'other CCs are routed as usual');
+    assert.equal(posted.length, 0);
+    t.mock.timers.tick(400);
+    assert.deepEqual(posted, [{ id: 'r1', values: [[196, 250], [0, 13]] }]);
+    assert.equal(worker._takeNrpnReadMessage(target, [0xB1, 99, 1]), false, 'nothing is consumed once the read is over');
+});

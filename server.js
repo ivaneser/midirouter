@@ -107,6 +107,9 @@ class MIDIRouterWorker {
                 this.events.emit('preset-name', msg);
                 this._broadcast(msg);
                 break;
+            case 'nrpn_read_result':
+                this.events.emit('nrpn-read', msg);
+                break;
             case 'preset-learned':
                 // A name or sound a device sent: keep it, and let the open pages show the new name.
                 if (this.presetStore?.learn(msg) && msg.name) this._broadcast({ type: 'preset-learned', file: msg.file, program: msg.program, name: msg.name });
@@ -416,6 +419,15 @@ const mcp = createMcpServer({
     },
     sendMidi: (target, bytes) => router._sendMidiToTarget(bytes, target),
     sendNrpn: (target, channel, writes) => router.sendNrpn(target, channel, writes),
+    // The device's current patch as [[nrpn, raw], ...] (empty when it did not answer).
+    readNrpnPatch: (target, channel) => new Promise(resolve => {
+        const id = `${Date.now()}-${Math.random()}`;
+        const done = msg => { clearTimeout(timer); router.events.off('nrpn-read', onResult); resolve(msg?.values || []); };
+        const onResult = msg => { if (msg.id === id) done(msg); };
+        const timer = setTimeout(() => done(null), 10000);
+        router.events.on('nrpn-read', onResult);
+        router.worker?.postMessage({ type: 'nrpn_read', id, target, channel });
+    }),
     noteControl: (target, channel, cc, value) => router.noteControl(target, channel, cc, value),
     selectPreset: (target, channel, index) => {
         router.presetNames.delete(`${deviceChannelKey(target)}:${channel}:${index}`);

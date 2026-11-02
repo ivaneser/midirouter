@@ -28,6 +28,9 @@ const MIDI_DEBUG = process.env.MIDI_DEBUG === '1';
 // and the audio metronome, so the worker can run in tests without devices.
 // Pause between the sounds of a restored session so a busy synth does not drop one.
 const PRESET_RESTORE_GAP_MS = 300;
+// A PreenFM2 patch dump (~1000 CCs) takes about 2.5 s; it is complete once the synth has been quiet this long.
+const NRPN_READ_QUIET_MS = 400;
+const NRPN_READ_TIMEOUT_MS = 8000;
 const NO_HARDWARE = process.env.MIDIR_NO_HARDWARE === '1';
 
 class MIDIRouterWorker {
@@ -1922,6 +1925,7 @@ class MIDIRouterWorker {
                 parentPort?.postMessage({ type: 'preset-name', ...preset });
             }
         }
+        if (this._takeNrpnReadMessage(deviceName, bytes)) return;
         const status = bytes[0];
         const type = (status & 0xf0) >> 4;
         const channel = type >= 8 ? (status & 0x0f) + 1 : 1;
@@ -2739,6 +2743,49 @@ class MIDIRouterWorker {
         this._rememberDeviceNrpn(target, channel, nrpn, raw);
     }
 
+    // Patch read-back: NRPN 127/127 makes a PreenFM2 send its whole current patch as NRPN writes on the
+    // channel. They are collected until the device goes quiet, then reported to the server as [nrpn, raw].
+    _startNrpnRead(id, target, channel) {
+        const output = this.outputs.get(target);
+        if (!output) {
+            parentPort?.postMessage({ type: 'nrpn_read_result', id, values: [], error: `no output "${target}"` });
+            return;
+        }
+        this._nrpnReads ??= new Map();
+        const key = `${deviceChannelKey(target)}:${channel}`;
+        this._finishNrpnRead(key);
+        const read = { id, values: new Map(), number: [0, 0], msb: 0, quiet: null };
+        read.timeout = setTimeout(() => this._finishNrpnRead(key), NRPN_READ_TIMEOUT_MS);
+        this._nrpnReads.set(key, read);
+        const status = 0xB0 | (channel - 1);
+        for (const bytes of [[status, 99, 127], [status, 98, 127], [status, 6, 0], [status, 38, 0]]) output.sendMessage(Buffer.from(bytes));
+    }
+
+    _finishNrpnRead(key) {
+        const read = this._nrpnReads?.get(key);
+        if (!read) return;
+        clearTimeout(read.timeout);
+        clearTimeout(read.quiet);
+        this._nrpnReads.delete(key);
+        parentPort?.postMessage({ type: 'nrpn_read_result', id: read.id, values: [...read.values] });
+    }
+
+    // True when an incoming message is part of a patch read in progress; it is consumed, not routed on
+    // (all-to-all routing would otherwise echo the whole patch to every output).
+    _takeNrpnReadMessage(deviceName, bytes) {
+        if (!this._nrpnReads?.size || (bytes[0] & 0xF0) !== 0xB0 || bytes.length < 3) return false;
+        const key = `${deviceChannelKey(deviceName)}:${(bytes[0] & 15) + 1}`;
+        const read = this._nrpnReads.get(key);
+        if (!read || ![99, 98, 6, 38].includes(bytes[1])) return false;
+        if (bytes[1] === 99) read.number[0] = bytes[2];
+        else if (bytes[1] === 98) read.number[1] = bytes[2];
+        else if (bytes[1] === 6) read.msb = bytes[2];
+        else read.values.set((read.number[0] << 7) | read.number[1], (read.msb << 7) | bytes[2]);
+        clearTimeout(read.quiet);
+        read.quiet = setTimeout(() => this._finishNrpnRead(key), NRPN_READ_QUIET_MS);
+        return true;
+    }
+
     // Drop the remembered knob and NRPN values of one channel (a preset reload discards them).
     _forgetDeviceControls(target, channel) {
         const prefix = `${deviceChannelKey(target)}:${channel}:`;
@@ -2934,6 +2981,11 @@ if (parentPort) {
         worker._deviceChannels = msg.channels && typeof msg.channels === 'object' ? msg.channels : {};
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
+    } else if (msg.type === 'nrpn_read') {
+        if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
+            try { worker._startNrpnRead(msg.id, msg.target, msg.channel); }
+            catch (e) { console.error(`[MIDI] NRPN read failed for ${msg.target}:`, e.message); }
+        }
     } else if (msg.type === 'nrpn_send') {
         // NRPN writes from the MCP server: [{ nrpn, raw }] on one channel, remembered for the session.
         if (worker.outputs.has(msg.target) && Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16 && Array.isArray(msg.writes)) {

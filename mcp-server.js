@@ -21,8 +21,9 @@ export const TOOLS = [
     { name: 'get_device_state', description: 'Last values sent to a device (by parameter name) plus its current preset. MIDI has no readback, so this is what the router last sent.', inputSchema: obj({ device: DEVICE, channel: CHANNEL }, ['device']) },
     { name: 'set_parameter', description: 'Set one parameter by name or CC number. Sliders take the displayed value (signed ranges allowed), dropdowns an option label or index, toggles true/false. The UI knob moves too.', inputSchema: obj({ device: DEVICE, parameter: { type: ['string', 'integer'] }, value: { type: ['number', 'string', 'boolean'] }, channel: CHANNEL }, ['device', 'parameter', 'value']) },
     { name: 'set_parameters', description: 'Set several parameters at once: values maps parameter name (or CC number) to value.', inputSchema: obj({ device: DEVICE, values: { type: 'object', additionalProperties: { type: ['number', 'string', 'boolean'] } }, channel: CHANNEL }, ['device', 'values']) },
-    { name: 'get_device_nrpn_params', description: 'NRPN parameter map of a device (e.g. every PreenFM2 patch parameter: operator shapes, frequencies, full envelopes, matrix sources and destinations). Values are in the synth\'s own units; value is what the router last sent since the preset changed (saved with DAW sessions).', inputSchema: obj({ device: DEVICE, category: { type: 'string', description: 'Only this category (engine, modindex, mixer, operators, envelopes, matrix, lfo, freeenv, stepseq, filter, arp, ...)' } }, ['device']) },
-    { name: 'set_nrpn_parameters', description: 'Set NRPN parameters (see get_device_nrpn_params): values maps parameter name (or NRPN number) to value. Sliders take the value in the synth\'s units, dropdowns an option label or value, text a string. All names are checked before anything is sent.', inputSchema: obj({ device: DEVICE, values: { type: 'object', additionalProperties: { type: ['number', 'string'] } }, channel: CHANNEL }, ['device', 'values']) },
+    { name: 'get_device_nrpn_params', description: 'NRPN parameter map of a device (e.g. every PreenFM2 patch parameter: operator shapes, frequencies, full envelopes, matrix sources and destinations), with a sound-design guide, the FM algorithms (carriers and which operator modulates which through which IM) and the init patch. Values are in the synth\'s own units; value is what the router last sent since the preset changed (saved with DAW sessions).', inputSchema: obj({ device: DEVICE, category: { type: 'string', description: 'Only this category (engine, modindex, mixer, operators, envelopes, matrix, lfo, freeenv, stepseq, filter, arp, ...)' } }, ['device']) },
+    { name: 'set_nrpn_parameters', description: 'Set NRPN parameters (see get_device_nrpn_params): values maps parameter name (or NRPN number) to value. Sliders take the value in the synth\'s units, dropdowns an option label or value, text a string. from_init sends the whole init patch first (values override it), so a sound is built from scratch whatever was loaded. All names are checked before anything is sent.', inputSchema: obj({ device: DEVICE, values: { type: 'object', additionalProperties: { type: ['number', 'string'] } }, from_init: { type: 'boolean' }, channel: CHANNEL }, ['device', 'values']) },
+    { name: 'read_nrpn_patch', description: 'Read the patch the synth is playing now (PreenFM2: it sends every parameter back): name, algorithm with its carriers and modulation connections, and every parameter value. Use it to study a preset before rebuilding a sound, or to check what a patch really is after editing.', inputSchema: obj({ device: DEVICE, channel: CHANNEL, category: { type: 'string', description: 'Only parameters of this category' } }, ['device']) },
     { name: 'send_cc', description: 'Send a raw Control Change (cc 1-119 except 32) for things outside the control map, e.g. part volume (7), pan (10, 64 = centre). Prefer set_parameter when the control is listed.', inputSchema: obj({ device: DEVICE, cc: { type: 'integer', minimum: 1, maximum: 119 }, value: { type: 'integer', minimum: 0, maximum: 127 }, channel: CHANNEL }, ['device', 'cc', 'value']) },
     { name: 'send_sysex', description: 'Send a raw System Exclusive message to a device, for settings that have no CC (e.g. Blofeld effect types via Sound Parameter Change). bytes: the data bytes 0-127, with or without the leading 0xF0 and trailing 0xF7 (added when missing). Starts and ends are validated; no reply is read.', inputSchema: obj({ device: DEVICE, bytes: { type: 'array', minItems: 1, maxItems: 512, items: { type: 'integer', minimum: 0, maximum: 247 } } }, ['device', 'bytes']) },
     { name: 'list_presets', description: 'Preset catalog of a device (name, number, tags) when one is available; supports a name filter.', inputSchema: obj({ device: DEVICE, query: { type: 'string' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, ['device']) },
@@ -164,28 +165,54 @@ export function createMcpServer(ctx) {
             const controls = nrpnFor(output);
             const channel = ctx.getChannel(output.name, output.part);
             const raws = nrpnValues(output, channel);
+            const { description, guide, algorithms, init } = catalogFor(output).map.controls_nrpn;
             return {
                 device: output.name, model: catalogFor(output).map.model, channel,
-                description: catalogFor(output).map.controls_nrpn.description,
+                description, guide, algorithms, init,
                 parameters: controls.filter(c => !category || c.category === category).map(c => ({
                     name: c.name, nrpn: c.nrpn, type: c.type, category: c.category, min: c.min, max: c.max, maxLength: c.maxLength, unit: c.unit,
                     options: c.options, description: c.description, value: decodeNrpnValue(c, raws) ?? null,
                 })),
             };
         },
-        set_nrpn_parameters({ device, values, channel }) {
+        set_nrpn_parameters({ device, values, from_init, channel }) {
             const output = resolve(device);
             const ch = channelFor(output, channel);
             const controls = nrpnFor(output);
             const entries = Object.entries(values || {});
-            if (!entries.length) throw new ToolError('values is empty');
-            // Resolve and encode everything first so a typo does not leave a half-applied sound.
-            const planned = entries.map(([ref, value]) => {
+            if (!entries.length && !from_init) throw new ToolError('values is empty');
+            const init = from_init ? Object.entries(catalogFor(output).map.controls_nrpn.init || {}) : [];
+            if (from_init && !init.length) throw new ToolError(`"${output.name}" has no init patch`);
+            // Resolve and encode everything first so a typo does not leave a half-applied sound; a value given
+            // for a parameter replaces its init value.
+            const planned = new Map();
+            for (const [ref, value] of [...init, ...entries]) {
                 const control = findControl(controls, ref, 'nrpn');
-                return { control, ...encodeNrpnValue(control, value) };
-            });
-            ctx.sendNrpn(output.id, ch, planned.flatMap(p => p.writes));
-            return { device: output.name, channel: ch, applied: planned.map(({ control, display }) => ({ parameter: control.name, nrpn: control.nrpn, value: display })) };
+                planned.set(control.name, { control, ...encodeNrpnValue(control, value) });
+            }
+            ctx.sendNrpn(output.id, ch, [...planned.values()].flatMap(p => p.writes));
+            const given = new Set(entries.map(([ref]) => findControl(controls, ref, 'nrpn').name));
+            const applied = [...planned.values()].filter(({ control }) => !from_init || given.has(control.name))
+                .map(({ control, display }) => ({ parameter: control.name, nrpn: control.nrpn, value: display }));
+            return { device: output.name, channel: ch, ...(from_init ? { init: planned.size - given.size } : {}), applied };
+        },
+        async read_nrpn_patch({ device, channel, category }) {
+            const output = resolve(device);
+            const ch = channelFor(output, channel);
+            const controls = nrpnFor(output);
+            const raws = new Map(await ctx.readNrpnPatch(output.id, ch));
+            if (!raws.size) throw new ToolError(`no patch came back from "${output.name}" on channel ${ch} (is its MIDI output connected?)`);
+            const values = {};
+            for (const c of controls) {
+                if (category && c.category !== category) continue;
+                const value = decodeNrpnValue(c, raws);
+                if (value !== undefined) values[c.name] = value;
+            }
+            const algorithmControl = controls.find(c => c.name === 'Algorithm');
+            const number = algorithmControl ? decodeNrpnValue(algorithmControl, raws)?.value + 1 : undefined;
+            const algorithm = catalogFor(output).map.controls_nrpn.algorithms?.find(a => a.algorithm === number);
+            const nameControl = controls.find(c => c.type === 'text');
+            return { device: output.name, channel: ch, name: nameControl ? decodeNrpnValue(nameControl, raws) ?? null : null, ...(algorithm ? { algorithm } : {}), values };
         },
         set_parameter({ device, parameter, value, channel }) {
             const output = resolve(device);
@@ -405,7 +432,7 @@ export function createMcpServer(ctx) {
                     protocolVersion: SUPPORTED_PROTOCOLS.includes(requested) ? requested : SUPPORTED_PROTOCOLS[0],
                     capabilities: { tools: { listChanged: false } },
                     serverInfo: SERVER_INFO,
-                    instructions: 'Control MIDI instruments connected to the midirouter: list_devices, then get_device_params / list_presets to choose sounds, select_preset and set_parameter(s) to apply them; devices with nrpnControls (PreenFM2) expose every patch parameter through get_device_nrpn_params / set_nrpn_parameters. DAW tools record and play clips. All MIDI goes through the router.',
+                    instructions: 'Control MIDI instruments connected to the midirouter: list_devices, then get_device_params / list_presets to choose sounds, select_preset and set_parameter(s) to apply them; devices with nrpnControls (PreenFM2) expose every patch parameter through get_device_nrpn_params / set_nrpn_parameters (from_init builds a sound from scratch) and read_nrpn_patch (what the synth is playing). DAW tools record and play clips. All MIDI goes through the router.',
                 });
             }
             case 'ping': return reply({});

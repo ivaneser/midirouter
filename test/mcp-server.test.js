@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createMcpServer } from '../mcp-server.js';
 import { DeviceCatalog, encodeControlValue, findControl } from '../device-catalog.js';
 
@@ -258,4 +259,37 @@ test('set_nrpn_parameters checks every name first, clamps values and writes the 
     assert.deepEqual(writes[0], { nrpn: 228, raw: 'G'.charCodeAt(0) });
     assert.deepEqual(writes[11], { nrpn: 239, raw: 32 });
     assert.equal((await call('get_device_state', { device: 'PreenFM' })).data.nrpnValues['Patch Name'], 'Glass EP');
+});
+
+test('set_nrpn_parameters from_init sends the whole init patch with the given values on top', async () => {
+    const { call, nrpn } = setupPfm();
+    const ok = await call('set_nrpn_parameters', { device: 'PreenFM', from_init: true, values: { 'Algorithm': 'Algo 14', 'op 2 frequency': 7 } });
+    const writes = nrpn.pop()[2];
+    const map = JSON.parse(readFileSync(new URL('../device_maps/preenfm2.json', import.meta.url), 'utf8')).controls_nrpn;
+    assert.equal(ok.data.init, Object.keys(map.init).length - 2, 'Algorithm and Op 2 Frequency override their init values');
+    assert.deepEqual(ok.data.applied.map(a => a.parameter), ['Algorithm', 'Op 2 Frequency']);
+    assert.ok(writes.some(w => w.nrpn === 0 && w.raw === 13), 'Algo 14');
+    assert.ok(writes.some(w => w.nrpn === 50 && w.raw === 700), 'Op 2 Frequency 7 replaces the init 1');
+    assert.ok(!writes.some(w => w.nrpn === 50 && w.raw === 100));
+    assert.ok(!writes.some(w => w.nrpn === 2), 'Voices is shared by the parts and left alone');
+    assert.equal(writes.filter(w => w.nrpn >= 228 && w.nrpn < 240).length, 12, 'the init name');
+    assert.equal(map.algorithms.length, 28);
+    assert.deepEqual(map.algorithms[13].carriers, [1, 4]);
+});
+
+test('read_nrpn_patch decodes the patch the synth sends back, with its algorithm', async () => {
+    const name = [...'GLASS EP    '].map((ch, i) => [228 + i, ch.charCodeAt(0)]);
+    const { call } = setup({
+        getOutputs: () => [FREAK, PFM], getParts: () => [{ part: 1 }],
+        readNrpnPatch: async (target, channel) => (target === PFM.id && channel === 3 ? [[0, 13], [5, 55], [46, 50], [117, 850], ...name] : []),
+    });
+    const patch = await call('read_nrpn_patch', { device: 'PreenFM' });
+    assert.equal(patch.data.name, 'GLASS EP');
+    assert.deepEqual(patch.data.algorithm.carriers, [1, 4]);
+    assert.deepEqual(patch.data.values['Algorithm'], { value: 13, option: 'Algo 14' });
+    assert.equal(patch.data.values['IM 1 Velocity'], 0.55);
+    assert.equal(patch.data.values['Op 1 Frequency'], 0.5);
+    assert.equal(patch.data.values['Matrix 1 Multiplier'], -1.5);
+    assert.ok((await call('read_nrpn_patch', { device: 'PreenFM', channel: 5 })).error, 'no answer is an error');
+    assert.ok((await call('read_nrpn_patch', { device: 'MicroFreak' })).error);
 });
