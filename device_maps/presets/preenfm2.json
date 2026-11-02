@@ -520,7 +520,7 @@
   },
   "130": {
    "name": "SO*LOW! #1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "131": {
    "name": "ANALOG",
@@ -568,7 +568,7 @@
   },
   "142": {
    "name": "MC-MM  5-3",
-   "group": "Misc"
+   "group": "Synths"
   },
   "143": {
    "name": "MELLOWSOLO",
@@ -576,7 +576,7 @@
   },
   "144": {
    "name": "LEMONADE 1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "145": {
    "name": "SYN-TOUCH",
@@ -688,15 +688,15 @@
   },
   "172": {
    "name": "ANALQG--OB",
-   "group": "Misc"
+   "group": "Synths"
   },
   "173": {
    "name": "ANTHR SYN2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "174": {
    "name": "ANTHR SYN3",
-   "group": "Misc"
+   "group": "Synths"
   },
   "175": {
    "name": "Anna 3",
@@ -788,7 +788,7 @@
   },
   "197": {
    "name": "HERMAN",
-   "group": "Misc"
+   "group": "Synths"
   },
   "198": {
    "name": "SYN-LEAD 1",
@@ -952,7 +952,7 @@
   },
   "238": {
    "name": "JEROME",
-   "group": "Misc"
+   "group": "Synths"
   },
   "239": {
    "name": "MINI MOOG",
@@ -960,7 +960,7 @@
   },
   "240": {
    "name": "AERIELBOND",
-   "group": "Misc"
+   "group": "Synths"
   },
   "241": {
    "name": "TOM DRUMS",
@@ -968,11 +968,11 @@
   },
   "242": {
    "name": "MEDL XPRSV",
-   "group": "Misc"
+   "group": "Synths"
   },
   "243": {
    "name": "SNOOPY KOO",
-   "group": "Misc"
+   "group": "Synths"
   },
   "244": {
    "name": "SYNDRUM 1",
@@ -988,7 +988,7 @@
   },
   "247": {
    "name": "MONDRE",
-   "group": "Misc"
+   "group": "Synths"
   },
   "248": {
    "name": "ANLG STRNG",
@@ -1000,7 +1000,7 @@
   },
   "250": {
    "name": "DOLBY SPLT",
-   "group": "Misc"
+   "group": "Synths"
   },
   "251": {
    "name": "PROPHET T8",
@@ -1008,7 +1008,7 @@
   },
   "252": {
    "name": "TOO COOL",
-   "group": "Misc"
+   "group": "Synths"
   },
   "253": {
    "name": "VOICES",
@@ -1016,7 +1016,7 @@
   },
   "254": {
    "name": "GOODLUVING",
-   "group": "Misc"
+   "group": "Synths"
   },
   "255": {
    "name": "MOOG-52 MO",
@@ -1032,7 +1032,7 @@
   },
   "258": {
    "name": "JONES4Udb1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "259": {
    "name": "CASIOP.PIA",
@@ -1092,11 +1092,11 @@
   },
   "273": {
    "name": "TEARS DESU",
-   "group": "Misc"
+   "group": "Synths"
   },
   "274": {
    "name": "TEARSdb2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "275": {
    "name": "NYLONdb1",
@@ -1116,7 +1116,7 @@
   },
   "279": {
    "name": "JONESVIB?",
-   "group": "Misc"
+   "group": "Synths"
   },
   "280": {
    "name": "KOTO",
@@ -1140,19 +1140,19 @@
   },
   "285": {
    "name": "ROKdb1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "286": {
    "name": "ROKdb2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "287": {
    "name": "OBER.db1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "288": {
    "name": "OHSUREdb2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "289": {
    "name": "DAB PIA 10",
@@ -1164,7 +1164,7 @@
   },
   "291": {
    "name": "DAVE'S INT",
-   "group": "Misc"
+   "group": "Synths"
   },
   "292": {
    "name": "SMMONS TAM",
@@ -1192,7 +1192,7 @@
   },
   "298": {
    "name": "NEW TEARS",
-   "group": "Misc"
+   "group": "Synths"
   },
   "299": {
    "name": "E.PIANO 1",
@@ -1224,7 +1224,7 @@
   },
   "306": {
    "name": "OH SURE.",
-   "group": "Misc"
+   "group": "Synths"
   },
   "307": {
    "name": "SHIT PIPES",
@@ -1244,7 +1244,7 @@
   },
   "311": {
    "name": "TEARS DESU",
-   "group": "Misc"
+   "group": "Synths"
   },
   "312": {
    "name": "SYN BRASS",
@@ -1304,19 +1304,19 @@
   },
   "326": {
    "name": "CHANGES-2X",
-   "group": "Misc"
+   "group": "Synths"
   },
   "327": {
    "name": "THE TEMPLE",
-   "group": "Misc"
+   "group": "Synths"
   },
   "328": {
    "name": "ORIENT-MOD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "329": {
    "name": "FAR EAST 1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "330": {
    "name": "GLASS",
@@ -1328,7 +1328,7 @@
   },
   "332": {
    "name": "THOUGHTS-2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "333": {
    "name": "CHEAPSYNTH",
@@ -1348,7 +1348,7 @@
   },
   "337": {
    "name": "ALGERNON",
-   "group": "Misc"
+   "group": "Synths"
   },
   "338": {
    "name": "MALE CHOIR",
@@ -1360,11 +1360,11 @@
   },
   "340": {
    "name": "MOVIE 1 PD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "341": {
    "name": "MOVIE 2 PD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "342": {
    "name": "CLARIFLUTE",
@@ -1384,7 +1384,7 @@
   },
   "346": {
    "name": "AL-PAUL 1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "347": {
    "name": "KARIMBA  A",
@@ -1408,7 +1408,7 @@
   },
   "352": {
    "name": "TUBERISE A",
-   "group": "Misc"
+   "group": "Synths"
   },
   "353": {
    "name": "t/piano pd",
@@ -1600,7 +1600,7 @@
   },
   "400": {
    "name": "SCHIZO4 PD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "401": {
    "name": "cmj brass",
@@ -1652,7 +1652,7 @@
   },
   "413": {
    "name": "BANA-SPLIT",
-   "group": "Misc"
+   "group": "Synths"
   },
   "414": {
    "name": "E.P.& BR A",
@@ -1708,7 +1708,7 @@
   },
   "427": {
    "name": "YES BUNK 1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "428": {
    "name": "TIMPS  PD1",
@@ -1720,7 +1720,7 @@
   },
   "430": {
    "name": "ELECTTOMOM",
-   "group": "Misc"
+   "group": "Synths"
   },
   "431": {
    "name": "INIT VOICE",
@@ -1796,7 +1796,7 @@
   },
   "449": {
    "name": "SUPERTRAMP",
-   "group": "Misc"
+   "group": "Synths"
   },
   "450": {
    "name": "CEMBALO",
@@ -1804,19 +1804,19 @@
   },
   "451": {
    "name": "TAENZERIN",
-   "group": "Misc"
+   "group": "Synths"
   },
   "452": {
    "name": "MULMI",
-   "group": "Misc"
+   "group": "Synths"
   },
   "453": {
    "name": "WATSCH",
-   "group": "Misc"
+   "group": "Synths"
   },
   "454": {
    "name": "LADEN",
-   "group": "Misc"
+   "group": "Synths"
   },
   "455": {
    "name": "GEORG",
@@ -1824,7 +1824,7 @@
   },
   "456": {
    "name": "DSCHUNGEL",
-   "group": "Misc"
+   "group": "Synths"
   },
   "457": {
    "name": "HUBSCHRAUB",
@@ -1896,7 +1896,7 @@
   },
   "474": {
    "name": "FUNKY",
-   "group": "Misc"
+   "group": "Synths"
   },
   "475": {
    "name": "GITARRE",
@@ -1904,7 +1904,7 @@
   },
   "476": {
    "name": "NERVOES",
-   "group": "Misc"
+   "group": "Synths"
   },
   "477": {
    "name": "ALARM",
@@ -1916,7 +1916,7 @@
   },
   "479": {
    "name": "MENSCHESSE",
-   "group": "Misc"
+   "group": "Synths"
   },
   "480": {
    "name": "ROBOTER",
@@ -1960,7 +1960,7 @@
   },
   "490": {
    "name": "16-4Melo Y",
-   "group": "Misc"
+   "group": "Synths"
   },
   "491": {
    "name": "B/TrumpetY",
@@ -2020,7 +2020,7 @@
   },
   "505": {
    "name": "Grinder 5Y",
-   "group": "Misc"
+   "group": "Synths"
   },
   "506": {
    "name": "Farf.16-8Y",
@@ -2220,7 +2220,7 @@
   },
   "555": {
    "name": "B/HarmAxlY",
-   "group": "Misc"
+   "group": "Synths"
   },
   "556": {
    "name": "B/MelBrasY",
@@ -2228,7 +2228,7 @@
   },
   "557": {
    "name": "B/DrtyAnaY",
-   "group": "Misc"
+   "group": "Synths"
   },
   "558": {
    "name": "AppyBirDay",
@@ -2248,7 +2248,7 @@
   },
   "562": {
    "name": "SparePrtsY",
-   "group": "Misc"
+   "group": "Synths"
   },
   "563": {
    "name": "JazGuitarY",
@@ -2264,11 +2264,11 @@
   },
   "566": {
    "name": "Jamaica  Y",
-   "group": "Misc"
+   "group": "Synths"
   },
   "567": {
    "name": "Lavitar  Y",
-   "group": "Misc"
+   "group": "Synths"
   },
   "568": {
    "name": "PipeOrganY",
@@ -2328,15 +2328,15 @@
   },
   "582": {
    "name": "CHILD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "583": {
    "name": "SUPRSTR LO",
-   "group": "Misc"
+   "group": "Synths"
   },
   "584": {
    "name": "MEDL XPRSV",
-   "group": "Misc"
+   "group": "Synths"
   },
   "585": {
    "name": "CARLOS   1",
@@ -2344,7 +2344,7 @@
   },
   "586": {
    "name": "TOO COOL",
-   "group": "Misc"
+   "group": "Synths"
   },
   "587": {
    "name": "76 BELLS",
@@ -2596,7 +2596,7 @@
   },
   "649": {
    "name": "THE BEST .",
-   "group": "Misc"
+   "group": "Synths"
   },
   "650": {
    "name": "STRING 1--",
@@ -2636,7 +2636,7 @@
   },
   "659": {
    "name": "SPECTRUM 2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "660": {
    "name": "VH JUMP 2",
@@ -2660,7 +2660,7 @@
   },
   "665": {
    "name": "WHY 2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "666": {
    "name": "STEINWAY43",
@@ -2672,7 +2672,7 @@
   },
   "668": {
    "name": "CHILD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "669": {
    "name": "BRS-STG-DB",
@@ -2680,7 +2680,7 @@
   },
   "670": {
    "name": "SUPRSTR LO",
-   "group": "Misc"
+   "group": "Synths"
   },
   "671": {
    "name": "VICS ROADS",
@@ -2692,7 +2692,7 @@
   },
   "673": {
    "name": "pi k  l w",
-   "group": "Misc"
+   "group": "Synths"
   },
   "674": {
    "name": "FLUTE   2",
