@@ -84,9 +84,12 @@ function makeWrap(title, defs, redraw) {
     const wrap = html('div', 'synth-widget nrpn-widget');
     // "cc:nrpn" pairs let the device manager find this widget when one of its parameters changes remotely.
     wrap.dataset.pairs = defs.map(def => `${def.cc}:${def.nrpn ?? ''}`).join(' ');
-    const head = html('div', 'synth-widget-head');
-    head.appendChild(html('span', '', title));
-    wrap.appendChild(head);
+    let head = null;
+    if (title) {
+        head = html('div', 'synth-widget-head');
+        head.appendChild(html('span', '', title));
+        wrap.appendChild(head);
+    }
     wrap.addEventListener('widget-sync', () => { if (!wrap.dataset.dragging) redraw(); });
     return { wrap, head };
 }
@@ -130,13 +133,13 @@ export function planNrpnWidgets(controls, algorithms) {
         const pair = take(`Mix ${n}`, `Pan ${n}`);
         if (pair) { dots.push({ label: String(n), color: DOT_COLORS[n - 1], x: pair[1], y: pair[0] }); mark(pair); }
     }
-    if (dots.length) widgets.push({ kind: 'dot-field', title: 'Mixer · pan across, level up', xLabels: ['L', 'R'], yLabel: 'Mix', dots, center: true });
+    if (dots.length) widgets.push({ kind: 'dot-field', title: 'Mixer: pan across, level up', dots, center: true });
 
     const filter = take('Filter Param 1', 'Filter Param 2');
     if (filter) {
         const gain = take('Filter Gain'), type = take('Filter Type');
         widgets.push({ kind: 'filter',
-            pad: { kind: 'dot-field', title: 'Filter · Param 1 across, Param 2 up', xLabels: ['Param 1', ''], yLabel: 'Param 2', dots: [{ label: '', color: DOT_COLORS[0], x: filter[0], y: filter[1] }] },
+            pad: { kind: 'dot-field', title: 'Filter: first parameter across, second up', dots: [{ label: '', color: DOT_COLORS[0], x: filter[0], y: filter[1] }] },
             gain: gain?.[0], type: type?.[0] });
         mark(filter); if (gain) mark(gain); if (type) mark(type);
     }
@@ -157,7 +160,7 @@ const DOT_COLORS = ['#4cc9f0', '#f72585', '#ffd60a', '#80ed99'];
 export function createEnvelopeTriangles(plan, io) {
     const defs = plan.items.flatMap(item => [item.attack, item.release, item.freq].filter(Boolean));
     const redraws = [];
-    const { wrap } = makeWrap(plan.title, defs, () => redraws.forEach(fn => fn()));
+    const { wrap } = makeWrap('', defs, () => redraws.forEach(fn => fn()));
     const grid = html('div', 'nrpn-env-grid');
     wrap.appendChild(grid);
 
@@ -178,15 +181,12 @@ export function createEnvelopeTriangles(plan, io) {
         const apex = svg('circle', { r: 6, class: 'synth-dot' });
         const tail = svg('circle', { r: 6, class: 'synth-dot' });
         const pitch = svg('circle', { r: 6, class: 'synth-dot nrpn-freq-dot' });
-        const label = svg('text', { x: 6, y: 92, class: 'nrpn-env-label' });
-        label.textContent = item.label;
         graph.append(fill, line);
         if (item.freq) graph.appendChild(wave);
         graph.append(apex, tail);
         if (item.freq) graph.appendChild(pitch);
-        graph.appendChild(label);
         const readout = html('output', 'nrpn-env-readout');
-        cell.append(graph, readout);
+        cell.append(graph, html('div', 'nrpn-name', item.label), readout);
         grid.appendChild(cell);
 
         const state = { a: 0, r: 0, f: 0 };
@@ -286,7 +286,7 @@ function algorithmLayout(algorithm) {
 /** All algorithms as small pictures of the operator wiring; click one to select it. */
 export function createAlgorithmPicker(plan, io) {
     let redraw = () => {};
-    const { wrap } = makeWrap('Algorithm · operators in boxes, arrows show who modulates whom, filled boxes are heard', [plan.def], () => redraw());
+    const { wrap } = makeWrap('', [plan.def], () => redraw());
     const grid = html('div', 'nrpn-algo-grid');
     wrap.appendChild(grid);
     const W = 72, H = 64;
@@ -345,7 +345,7 @@ export function createAlgorithmPicker(plan, io) {
 export function createDotField(plan, io) {
     const defs = plan.dots.flatMap(dot => [dot.x, dot.y]);
     let draw = () => {};
-    const { wrap } = makeWrap(plan.title, defs, () => draw());
+    const { wrap } = makeWrap('', defs, () => draw());
     const W = 220, H = 150, pad = 14;
     const graph = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'synth-xy nrpn-field', role: 'application', tabindex: '0',
         'aria-label': plan.title });
@@ -354,15 +354,6 @@ export function createDotField(plan, io) {
         graph.appendChild(svg('line', { x1: pad, y1: pad + i * (H - 2 * pad) / 4, x2: W - pad, y2: pad + i * (H - 2 * pad) / 4, class: 'synth-grid' }));
     }
     if (plan.center) graph.appendChild(svg('line', { x1: W / 2, y1: pad, x2: W / 2, y2: H - pad, class: 'synth-cross' }));
-    const mark = (x, y, text, anchor) => {
-        const label = svg('text', { x, y, class: 'nrpn-field-label', 'text-anchor': anchor });
-        label.textContent = text;
-        graph.appendChild(label);
-    };
-    mark(pad, H - 2, plan.xLabels[0], 'start');
-    mark(W - pad, H - 2, plan.xLabels[1], 'end');
-    mark(2, pad + 4, plan.yLabel, 'start');
-
     const dots = plan.dots.map(dot => {
         const circle = svg('circle', { r: 10, class: 'nrpn-dot', fill: dot.color });
         const text = svg('text', { class: 'nrpn-dot-label', 'text-anchor': 'middle' });
@@ -439,7 +430,7 @@ const ARP_PATTERNS = [21845, 62965, 46517, 54741, 43861, 22869, 38293, 2313, 374
 /** Arpeggiator rhythms as small step icons (a bar per played step); click one to select it. */
 export function createArpPatternPicker(plan, io) {
     let redraw = () => {};
-    const { wrap } = makeWrap('Arpeggiator pattern · each bar is a played step of 16', [plan.def], () => redraw());
+    const { wrap } = makeWrap('', [plan.def], () => redraw());
     const grid = html('div', 'nrpn-arp-grid');
     grid.setAttribute('role', 'radiogroup');
     grid.setAttribute('aria-label', 'Arpeggiator pattern');
@@ -492,35 +483,45 @@ const FILTER_SKETCH = {
     Ap4b: 'allpass', Ap4D: 'allpass', Oryx: 'reso', Orx2: 'reso', Orx3: 'reso', '18db': 'lp', 'La+d': 'lp', 'Lad+': 'lp', Diod: 'lp', 'L+d+': 'lp', 'h3o+': 'hp',
 };
 
-/** Filter types as small response sketches with the type's name under each; click one to select it. */
-export function createFilterTypePicker(plan, io) {
+/** A horizontal slider over whole steps; `text(value)` is what the readout under it says. */
+export function createHorizontalSlider(plan, io) {
     let redraw = () => {};
-    const { wrap } = makeWrap('Filter type', [plan.def], () => redraw());
-    const grid = html('div', 'nrpn-ftype-grid');
-    grid.setAttribute('role', 'radiogroup');
-    grid.setAttribute('aria-label', 'Filter type');
-    wrap.appendChild(grid);
-    const total = Math.min(span(plan.def).max + 1, FILTER_TYPES.length);
-    const buttons = Array.from({ length: total }, (_, index) => {
-        const name = FILTER_TYPES[index];
-        const family = FILTER_SKETCH[name] || 'other';
-        const button = html('button', 'nrpn-ftype');
-        button.type = 'button';
-        button.setAttribute('role', 'radio');
-        button.title = name;
-        button.setAttribute('aria-label', `Filter type ${name}`);
-        const icon = svg('svg', { viewBox: '0 0 32 18', class: 'nrpn-ftype-icon', 'aria-hidden': 'true' });
-        if (SKETCH[family]) icon.appendChild(svg('polyline', { points: SKETCH[family], class: family === 'off' || family === 'allpass' ? 'nrpn-ftype-line dashed' : 'nrpn-ftype-line' }));
-        else icon.appendChild(svg('circle', { cx: 16, cy: 9, r: 2, class: 'nrpn-ftype-dot' }));
-        button.append(icon, html('span', 'nrpn-algo-number', name));
-        button.addEventListener('click', () => { io.set(plan.def, index); redraw(); });
-        grid.appendChild(button);
-        return button;
-    });
-    redraw = () => {
-        const current = Math.round(read(io, plan.def));
-        buttons.forEach((button, index) => button.setAttribute('aria-checked', String(index === current)));
+    const { wrap } = makeWrap('', [plan.def], () => redraw());
+    wrap.classList.add('nrpn-hslider');
+    const track = html('div', 'nrpn-hslider-track');
+    track.tabIndex = 0;
+    track.setAttribute('role', 'slider');
+    track.setAttribute('aria-label', plan.def.name);
+    const fill = html('div', 'nrpn-hslider-fill');
+    const handle = html('div', 'nrpn-hslider-handle');
+    track.append(fill, handle);
+    const readout = html('output', 'nrpn-env-readout');
+    wrap.append(track, readout);
+    const { min, max } = span(plan.def);
+    let value = min;
+    const draw = () => {
+        const f = clamp01((value - min) / (max - min));
+        handle.style.left = `${f * 100}%`;
+        fill.style.width = `${f * 100}%`;
+        readout.textContent = plan.text(value);
+        track.setAttribute('aria-valuenow', String(value));
+        track.setAttribute('aria-valuetext', plan.text(value));
+        plan.onChange?.(value);
     };
+    const change = next => {
+        if (next === value) return;
+        value = next;
+        io.set(plan.def, value);
+        draw();
+    };
+    redraw = () => { value = Math.round(read(io, plan.def)); draw(); };
+    drag(track, track, wrap, { begin: () => true, move: f => change(snap(plan.def, min + f[0] * (max - min))) });
+    track.addEventListener('keydown', event => {
+        const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key];
+        if (!dir) return;
+        event.preventDefault();
+        change(snap(plan.def, value + dir));
+    });
     redraw();
     return wrap;
 }
@@ -566,15 +567,30 @@ export function createVerticalSlider(plan, io) {
     return wrap;
 }
 
-/** Filter: the two-parameter pad with the gain as a vertical slider on its right, the type icons underneath. */
+/** Filter: the two-parameter pad (the selected type's response as a thin line behind it) with the gain as a
+ * vertical slider on its right and the type as a slider underneath. */
 export function createFilterWidget(plan, io) {
     const box = html('div', 'nrpn-filter');
-    box.appendChild(createDotField(plan.pad, io));
+    const pad = createDotField(plan.pad, io);
+    box.appendChild(pad);
     if (plan.gain) box.appendChild(createVerticalSlider({ def: plan.gain, label: 'Gain' }, io));
     if (plan.type) {
-        const types = createFilterTypePicker({ def: plan.type }, io);
-        types.classList.add('nrpn-filter-types');
-        box.appendChild(types);
+        // The curve sits behind the grid and the dot, in the plot area of the pad's 220x150 box.
+        const curve = svg('polyline', { class: 'nrpn-field-curve' });
+        const field = pad.querySelector('.nrpn-field');
+        field.insertBefore(curve, field.firstChild);
+        const show = value => {
+            const name = FILTER_TYPES[value];
+            const sketch = SKETCH[FILTER_SKETCH[name] || 'other'];
+            curve.setAttribute('points', sketch.split(' ').filter(Boolean).map(pair => {
+                const [x, y] = pair.split(',').map(Number);
+                return `${(14 + (x - 1) / 30 * 192).toFixed(1)},${(14 + (y - 1) / 16 * 122).toFixed(1)}`;
+            }).join(' '));
+            curve.classList.toggle('dashed', FILTER_SKETCH[name] === 'off' || FILTER_SKETCH[name] === 'allpass');
+        };
+        const slider = createHorizontalSlider({ def: plan.type, text: value => FILTER_TYPES[value] ?? String(value), onChange: show }, io);
+        slider.classList.add('nrpn-filter-types');
+        box.appendChild(slider);
     }
     return box;
 }
@@ -601,7 +617,7 @@ function lfoSample(shape, cycles) {
 export function createLfoPlots(plan, io) {
     const defs = plan.items.flatMap(item => [item.freq, item.phase, item.bias, item.shape]);
     const redraws = [];
-    const { wrap } = makeWrap('LFOs · drag the plot for frequency and bias, the strip for phase', defs, () => redraws.forEach(fn => fn()));
+    const { wrap } = makeWrap('', defs, () => redraws.forEach(fn => fn()));
     const grid = html('div', 'nrpn-lfo-grid');
     wrap.appendChild(grid);
 
@@ -621,9 +637,7 @@ export function createLfoPlots(plan, io) {
         const dot = svg('circle', { r: 6, class: 'synth-dot' });
         const track = svg('line', { x1: left, y1: stripY, x2: right, y2: stripY, class: 'nrpn-lfo-track' });
         const marker = svg('circle', { r: 6, cy: stripY, class: 'synth-dot' });
-        const title = svg('text', { x: left + 2, y: top + 9, class: 'nrpn-env-label' });
-        title.textContent = `LFO ${item.n}`;
-        graph.append(frame, zero, curve, dot, track, marker, title);
+        graph.append(frame, zero, curve, dot, track, marker);
         const buttons = html('div', 'nrpn-lfo-shapes');
         const shapeButtons = SHAPE_NAMES.map((name, shape) => {
             const button = html('button', 'nrpn-lfo-shape', SHAPE_GLYPHS[shape]);
@@ -639,7 +653,7 @@ export function createLfoPlots(plan, io) {
             return button;
         });
         const readout = html('output', 'nrpn-env-readout');
-        cell.append(graph, buttons, readout);
+        cell.append(graph, html('div', 'nrpn-name', `LFO ${item.n}`), buttons, readout);
         grid.appendChild(cell);
 
         const state = { freq: 0, phase: 0, bias: 0, shape: 0 };
