@@ -128,7 +128,10 @@
   },
   "32": {
    "name": "HRMONIC GT",
-   "group": "Guitar"
+   "group": "Guitar",
+   "tags": [
+    "favorite"
+   ]
   },
   "33": {
    "name": "A.BASS",
@@ -316,7 +319,10 @@
   },
   "79": {
    "name": "WHISTLE",
-   "group": "Winds"
+   "group": "Winds",
+   "tags": [
+    "favorite"
+   ]
   },
   "80": {
    "name": "OCARINA",
@@ -380,7 +386,10 @@
   },
   "95": {
    "name": "PD HALO",
-   "group": "Pads"
+   "group": "Pads",
+   "tags": [
+    "favorite"
+   ]
   },
   "96": {
    "name": "PD SWEEP",
@@ -420,7 +429,10 @@
   },
   "105": {
    "name": "SITAR",
-   "group": "Guitar"
+   "group": "Guitar",
+   "tags": [
+    "favorite"
+   ]
   },
   "106": {
    "name": "BANJO",
@@ -472,7 +484,10 @@
   },
   "118": {
    "name": "MELODI.TOM",
-   "group": "Drums"
+   "group": "Drums",
+   "tags": [
+    "favorite"
+   ]
   },
   "119": {
    "name": "SYNTH DRUM",
@@ -484,7 +499,10 @@
   },
   "121": {
    "name": "FRET NOISE",
-   "group": "FX"
+   "group": "FX",
+   "tags": [
+    "favorite"
+   ]
   },
   "122": {
    "name": "BREATH",
@@ -508,7 +526,10 @@
   },
   "127": {
    "name": "<-->",
-   "group": "FX"
+   "group": "FX",
+   "tags": [
+    "favorite"
+   ]
   },
   "128": {
    "name": "GUNSHOT",
@@ -700,7 +721,10 @@
   },
   "175": {
    "name": "Anna 3",
-   "group": "Synths"
+   "group": "Synths",
+   "tags": [
+    "favorite"
+   ]
   },
   "176": {
    "name": "Anna Fat 1",
@@ -796,7 +820,10 @@
   },
   "199": {
    "name": "SYN-LEAD 2",
-   "group": "Leads"
+   "group": "Leads",
+   "tags": [
+    "favorite"
+   ]
   },
   "200": {
    "name": "SYN-LEAD 3",
@@ -1164,7 +1191,10 @@
   },
   "291": {
    "name": "DAVE'S INT",
-   "group": "Synths"
+   "group": "Synths",
+   "tags": [
+    "favorite"
+   ]
   },
   "292": {
    "name": "SMMONS TAM",
@@ -1496,7 +1526,10 @@
   },
   "374": {
    "name": "HARPSI.  A",
-   "group": "Keys"
+   "group": "Keys",
+   "tags": [
+    "favorite"
+   ]
   },
   "375": {
    "name": "DBL.HARP A",
@@ -1644,7 +1677,10 @@
   },
   "411": {
    "name": "SWEEPBRAS(",
-   "group": "Winds"
+   "group": "Winds",
+   "tags": [
+    "favorite"
+   ]
   },
   "412": {
    "name": "SYNBRASS 2",
@@ -1864,7 +1900,10 @@
   },
   "466": {
    "name": "WUSCH",
-   "group": "FX"
+   "group": "FX",
+   "tags": [
+    "favorite"
+   ]
   },
   "467": {
    "name": "TOMS",
@@ -2036,7 +2075,10 @@
   },
   "509": {
    "name": "KC Flute4Y",
-   "group": "Winds"
+   "group": "Winds",
+   "tags": [
+    "favorite"
+   ]
   },
   "510": {
    "name": "StrEnsmblY",
@@ -2216,7 +2258,10 @@
   },
   "554": {
    "name": "B/ClarnetY",
-   "group": "Winds"
+   "group": "Winds",
+   "tags": [
+    "favorite"
+   ]
   },
   "555": {
    "name": "B/HarmAxlY",
@@ -2388,7 +2433,10 @@
   },
   "597": {
    "name": "<Perc=>  3",
-   "group": "Synths"
+   "group": "Synths",
+   "tags": [
+    "favorite"
+   ]
   },
   "598": {
    "name": "<Perc=>  8",
@@ -2436,7 +2484,10 @@
   },
   "609": {
    "name": "E.SNR   1",
-   "group": "Drums"
+   "group": "Drums",
+   "tags": [
+    "favorite"
+   ]
   },
   "610": {
    "name": "E.SNR   2",
@@ -2444,11 +2495,17 @@
   },
   "611": {
    "name": "E.SNR   3",
-   "group": "Drums"
+   "group": "Drums",
+   "tags": [
+    "favorite"
+   ]
   },
   "612": {
    "name": "E.SNR   4",
-   "group": "Drums"
+   "group": "Drums",
+   "tags": [
+    "favorite"
+   ]
   },
   "613": {
    "name": "E.SNR   5",
@@ -2668,7 +2725,10 @@
   },
   "667": {
    "name": "SIMMONS MF",
-   "group": "Drums"
+   "group": "Drums",
+   "tags": [
+    "favorite"
+   ]
   },
   "668": {
    "name": "CHILD",
@@ -2776,7 +2836,10 @@
   },
   "694": {
    "name": "TUB BELLS",
-   "group": "Bells"
+   "group": "Bells",
+   "tags": [
+    "favorite"
+   ]
   },
   "695": {
    "name": "RECORDERS",
@@ -2952,7 +3015,10 @@
   },
   "738": {
    "name": "TAKINGOFF?",
-   "group": "FX"
+   "group": "FX",
+   "tags": [
+    "favorite"
+   ]
   },
   "739": {
    "name": "CHOPPER",
@@ -2964,7 +3030,10 @@
   },
   "741": {
    "name": "TWONG",
-   "group": "Guitar"
+   "group": "Guitar",
+   "tags": [
+    "favorite"
+   ]
   },
   "742": {
    "name": "SLOSWEEPUP",
@@ -2976,7 +3045,10 @@
   },
   "744": {
    "name": "RUMBLE",
-   "group": "FX"
+   "group": "FX",
+   "tags": [
+    "favorite"
+   ]
   },
   "745": {
    "name": "CMPUTRTALK",
@@ -3048,7 +3120,10 @@
   },
   "762": {
    "name": "SPACE DOVE",
-   "group": "Pads"
+   "group": "Pads",
+   "tags": [
+    "favorite"
+   ]
   },
   "763": {
    "name": "HANFULOMTL",
@@ -3208,7 +3283,10 @@
   },
   "802": {
    "name": "HipHopOtam",
-   "group": "Synths"
+   "group": "Synths",
+   "tags": [
+    "favorite"
+   ]
   },
   "803": {
    "name": "-WURLIE-",
@@ -3220,7 +3298,10 @@
   },
   "805": {
    "name": "WURLI /VIB",
-   "group": "Keys"
+   "group": "Keys",
+   "tags": [
+    "favorite"
+   ]
   },
   "806": {
    "name": "CLAV.    A",
@@ -3304,7 +3385,10 @@
   },
   "826": {
    "name": "Spaceclav",
-   "group": "Keys"
+   "group": "Keys",
+   "tags": [
+    "favorite"
+   ]
   },
   "827": {
    "name": "Bang ?????",
@@ -3596,7 +3680,10 @@
   },
   "899": {
    "name": "BRIGHT ST.",
-   "group": "Strings & Choir"
+   "group": "Strings & Choir",
+   "tags": [
+    "favorite"
+   ]
   },
   "900": {
    "name": "CELLOS  1A",
@@ -3816,7 +3903,10 @@
   },
   "954": {
    "name": "P.STG 29.4",
-   "group": "Strings & Choir"
+   "group": "Strings & Choir",
+   "tags": [
+    "favorite"
+   ]
   },
   "955": {
    "name": "KOTO  28.3",
@@ -3980,7 +4070,10 @@
   },
   "995": {
    "name": "METALBASS",
-   "group": "Bass"
+   "group": "Bass",
+   "tags": [
+    "favorite"
+   ]
   },
   "996": {
    "name": "KLIKBASS",
@@ -4024,7 +4117,10 @@
   },
   "1006": {
    "name": "BRITEFUNK",
-   "group": "Synths"
+   "group": "Synths",
+   "tags": [
+    "favorite"
+   ]
   },
   "1007": {
    "name": "BEEFBASS",
