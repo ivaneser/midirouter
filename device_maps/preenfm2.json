@@ -5552,28 +5552,25 @@
     "stages": [
       {
         "title": "Sound source",
-        "hint": "The algorithm wires the operators together: carriers are heard, modulators bend the operator they point to. Modulation indexes say how strongly.",
+        "hint": "The algorithm wires the operators together: carriers are heard, modulators bend the operator they point to, by the modulation index of that link. Per operator, the apex sets attack, the end release and the middle dot the frequency ratio.",
         "modules": [
           {
             "title": "Algorithm",
             "section": "cc",
             "categories": [
               "algorithm"
-            ]
+            ],
+            "full": true
           },
           {
             "title": "Modulation indexes",
             "section": "cc",
             "categories": [
               "modindex"
-            ]
-          }
-        ]
-      },
-      {
-        "title": "Envelopes",
-        "hint": "Per operator: the apex sets attack, the end release and the middle dot the frequency ratio. Carriers shape loudness, modulators brightness over time.",
-        "modules": [
+            ],
+            "strip": "Mod Index ",
+            "full": true
+          },
           {
             "title": "Operators",
             "section": "cc",
@@ -5583,7 +5580,8 @@
             ],
             "exclude": [
               "Carrier"
-            ]
+            ],
+            "full": true
           },
           {
             "title": "Carrier",

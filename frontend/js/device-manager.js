@@ -1,10 +1,10 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=26';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
-import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=9';
+import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=10';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
-import { buildStages } from './synth-stages.js?v=2';
+import { buildStages } from './synth-stages.js?v=4';
 import { deviceChannelKey, validMidiChannel } from './device-channels.js';
 
 import {
@@ -758,6 +758,7 @@ export class DeviceManager {
                 return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
             };
             // Values of NRPN parameters in their own units, for the graphs that draw them.
+            const changeListeners = new Set();
             const io = {
                 get: definition => {
                     const channelNumber = this.channelForDevice(device, part);
@@ -770,9 +771,13 @@ export class DeviceManager {
                 // A real knob for a control, for graphs that host knobs (the modulation matrix).
                 knob: definition => this._createDeviceControl(device, model, definition, part),
                 // A control with no NRPN (the carriers' shared envelope) is sent as its CC.
-                set: (definition, value) => definition.nrpn === undefined
-                    ? send(definition, value)
-                    : this.sendNrpn(device.id, this.channelForDevice(device, part), definition.nrpn, rawFromNative(definition, value)),
+                set: (definition, value) => {
+                    if (definition.nrpn === undefined) send(definition, value);
+                    else this.sendNrpn(device.id, this.channelForDevice(device, part), definition.nrpn, rawFromNative(definition, value));
+                    for (const listener of changeListeners) listener(definition, value);
+                },
+                // Graphs that depend on another control (the operator names on the algorithm) hear about its changes here.
+                onChange: listener => { changeListeners.add(listener); },
             };
             // Graphs first, then the remaining controls as knobs.
             const fill = (grid, widgets, rest) => {
@@ -805,12 +810,12 @@ export class DeviceManager {
                         title.textContent = module.title;
                         card.appendChild(title);
                         const moduleControls = module.groups.flatMap(group => group.controls);
-                        const drawn = planNrpnWidgets(moduleControls, controls.algorithms, controls.nrpnParams);
+                        const drawn = planNrpnWidgets(moduleControls, controls.algorithms, controls.nrpnParams, controls.find(control => control.name === 'Algorithm'));
                         const basic = planWidgets(moduleControls.filter(control => !drawn.used.has(control)));
                         const widgets = [...drawn.widgets, ...basic.widgets];
                         const rest = basic.rest;
                         // The modulation matrix and the LFO plots (side by side) take the whole width of the section.
-                        if (drawn.widgets.some(plan => plan.kind === 'matrix' || plan.kind === 'lfo-plots')) card.className += ' synth-module-full';
+                        if (module.full || drawn.widgets.some(plan => plan.kind === 'matrix' || plan.kind === 'lfo-plots')) card.className += ' synth-module-full';
                         if (widgets.length) {
                             const grid = document.createElement('div');
                             grid.className = `synth-control-grid synth-module-widgets${drawn.widgets.length ? ' synth-module-widgets-wide' : ''}`;

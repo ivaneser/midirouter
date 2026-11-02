@@ -27,6 +27,8 @@ export function buildStages(controls, ui) {
                     && (!module.match || startsWithAny(c.name, module.match))
                     && !(module.exclude && startsWithAny(c.name, module.exclude)));
             }
+            // `strip` shows the controls without a common name prefix ("Mod Index 3" as "3").
+            if (module.strip) pool = pool.map(c => c.name.startsWith(module.strip) ? { ...c, name: c.name.slice(module.strip.length) } : c);
             // `include` pulls named controls of other categories into the module (the mod wheel next to the mod indexes).
             if (module.include) pool = [...pool, ...controls.filter(c => c.section === module.section && !pool.includes(c) && startsWithAny(c.name, module.include))];
             const taken = new Set();
@@ -37,7 +39,7 @@ export function buildStages(controls, ui) {
             });
             const rest = pool.filter(c => !taken.has(c));
             if (rest.length) groups.push({ label: groups.length ? 'More' : null, controls: rest });
-            return { title: module.title, groups: groups.filter(g => g.controls.length) };
+            return { title: module.title, full: !!module.full, groups: groups.filter(g => g.controls.length) };
         }).filter(module => module.groups.length),
     })).filter(stage => stage.modules.length);
 }

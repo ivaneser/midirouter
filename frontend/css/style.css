@@ -395,7 +395,8 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 /* NRPN graphs: triangle envelopes, LFO plots and the dot field of mixer and filter. */
 .synth-module > .synth-module-widgets.synth-module-widgets-wide { display: block; flex: 1 1 100%; min-width: 0; }
 .nrpn-widget .synth-widget-head { font-size: .6875rem; }
-.nrpn-env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+/* Operator and carrier envelope graphs have one size (a narrower container shrinks it). */
+.nrpn-env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(213px, 100%), 213px)); gap: 8px; }
 .nrpn-lfo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
 .nrpn-env-cell, .nrpn-lfo-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .nrpn-env-readout { color: #d3e6bf; font-size: .6875rem; text-align: center; font-variant-numeric: tabular-nums; }
@@ -467,3 +468,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .nrpn-matrix-knob.active { border-color: var(--accent); background: #1a2a1a; }
 .nrpn-widget.nrpn-matrix { max-width: none; }
 .synth-modules > .synth-module-full { grid-column: 1 / -1; }
+/* A full-width group keeps its items at their normal size and lets them flow across the width. */
+.synth-module-full .nrpn-algo-grid { grid-template-columns: repeat(auto-fill, 84px); }
+
+.nrpn-name.carrier { width: fit-content; padding: 0 6px; border-radius: 4px; background: var(--accent); color: #11181d; }

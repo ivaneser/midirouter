@@ -95,7 +95,7 @@ function makeWrap(title, defs, redraw) {
 }
 
 /** Pick the controls a module can draw with these widgets. `algorithms` is the device's algorithm list, for the picker. */
-export function planNrpnWidgets(controls, algorithms, nrpnParams = []) {
+export function planNrpnWidgets(controls, algorithms, nrpnParams = [], algorithmDef = null) {
     const byName = new Map(controls.map(c => [c.name, c]));
     const widgets = [], used = new Set();
     const take = (...names) => {
@@ -113,10 +113,12 @@ export function planNrpnWidgets(controls, algorithms, nrpnParams = []) {
         const pair = take(`Op ${n} Env Attack`, `Op ${n} Env Release`);
         if (!pair) continue;
         const freq = take(`Op ${n} Frequency`);
-        operators.push({ label: `Op ${n}`, attack: pair[0], release: pair[1], freq: freq?.[0] });
+        operators.push({ n, label: `Op ${n}`, attack: pair[0], release: pair[1], freq: freq?.[0] });
         mark(pair); if (freq) mark(freq);
     }
-    if (operators.length) widgets.push({ kind: 'env-triangles', title: 'Operators · apex = attack, end = release, middle dot = frequency', items: operators });
+    if (operators.length) widgets.push({ kind: 'env-triangles', title: 'Operators · apex = attack, end = release, middle dot = frequency', items: operators,
+        // With these the names of the operators that are carriers in the current algorithm are filled in.
+        ...(algorithmDef && algorithms?.length ? { algorithmDef, algorithms } : {}) });
 
     // The carriers' shared envelope has no NRPN: it is two CCs.
     const carrier = ['Carrier Env Attack (all)', 'Carrier Env Release (all)'].map(name => byName.get(name));
@@ -169,7 +171,9 @@ const DOT_COLORS = ['#4cc9f0', '#f72585', '#ffd60a', '#80ed99'];
 /** Triangles: attack moves the apex sideways, release the far end, frequency (when there is one) the middle dot. */
 export function createEnvelopeTriangles(plan, io) {
     const defs = plan.items.flatMap(item => [item.attack, item.release, item.freq].filter(Boolean));
+    if (plan.algorithmDef) defs.push(plan.algorithmDef);   // an algorithm change from outside redraws the names too
     const redraws = [];
+    const names = [];
     const { wrap } = makeWrap('', defs, () => redraws.forEach(fn => fn()));
     const grid = html('div', 'nrpn-env-grid');
     wrap.appendChild(grid);
@@ -196,7 +200,9 @@ export function createEnvelopeTriangles(plan, io) {
         graph.append(apex, tail);
         if (item.freq) graph.appendChild(pitch);
         const readout = html('output', 'nrpn-env-readout');
-        cell.append(graph, html('div', 'nrpn-name', item.label), readout);
+        const name = html('div', 'nrpn-name', item.label);
+        cell.append(graph, name, readout);
+        names.push([item, name]);
         grid.appendChild(cell);
 
         const state = { a: 0, r: 0, f: 0 };
@@ -265,6 +271,23 @@ export function createEnvelopeTriangles(plan, io) {
             const def = key[0] === 'a' ? item.attack : item.release;
             const f = timeFraction(def, state[key[0]]) + key[1] * (event.shiftKey ? 0.01 : 0.05);
             setValue(key[0], def, timeValue(def, clamp01(f)));
+        });
+    }
+    // A carrier is heard: its name is filled in. Which operators those are depends on the current algorithm.
+    const markCarriers = () => {
+        const algorithm = plan.algorithmDef ? plan.algorithms[clamp(Math.round(read(io, plan.algorithmDef)), 0, plan.algorithms.length - 1)] : null;
+        for (const [item, name] of names) {
+            const carrier = !!algorithm && item.n !== undefined && algorithm.carriers.includes(item.n);
+            name.classList.toggle('carrier', carrier);
+            name.title = carrier ? `${item.label} is a carrier in this algorithm` : '';
+        }
+    };
+    if (plan.algorithmDef) {
+        redraws.push(markCarriers);
+        // Picking an algorithm in its own widget does not reach the other graphs by itself: follow its changes.
+        io.onChange?.(def => {
+            if (def.nrpn !== plan.algorithmDef.nrpn) return;
+            if (wrap.isConnected) markCarriers();
         });
     }
     redraws.forEach(fn => fn());
