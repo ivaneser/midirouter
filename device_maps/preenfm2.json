@@ -5552,7 +5552,7 @@
     "stages": [
       {
         "title": "Sound source",
-        "hint": "The algorithm wires six operators together; modulation indexes say how strongly one operator bends the next, and operator frequencies set the harmonic ratios.",
+        "hint": "The algorithm wires the operators together: carriers are heard, modulators bend the operator they point to.",
         "modules": [
           {
             "title": "Algorithm",
@@ -5560,32 +5560,32 @@
             "categories": [
               "algorithm"
             ]
-          },
-          {
-            "title": "Modulation indexes",
-            "section": "cc",
-            "categories": [
-              "modindex"
-            ]
-          },
-          {
-            "title": "Operator frequencies",
-            "section": "cc",
-            "categories": [
-              "operators"
-            ]
           }
         ]
       },
       {
         "title": "Envelopes",
-        "hint": "Attack and release of each operator: carriers shape loudness, modulators shape brightness over time.",
+        "hint": "Per operator: the apex sets attack, the end release and the middle dot the frequency ratio. Carriers shape loudness, modulators brightness over time.",
         "modules": [
           {
-            "title": "Operator envelopes",
+            "title": "Operators",
+            "section": "cc",
+            "categories": [
+              "envelopes",
+              "operators"
+            ],
+            "exclude": [
+              "Carrier"
+            ]
+          },
+          {
+            "title": "Carrier",
             "section": "cc",
             "categories": [
               "envelopes"
+            ],
+            "match": [
+              "Carrier"
             ]
           }
         ]
@@ -5612,8 +5612,18 @@
       },
       {
         "title": "Modulation",
-        "hint": "Three LFOs, the modulation matrix amounts and the performance controllers.",
+        "hint": "Modulation indexes (and the mod wheel) say how strongly one operator bends the next; then three LFOs and the modulation matrix amounts.",
         "modules": [
+          {
+            "title": "Modulation indexes",
+            "section": "cc",
+            "categories": [
+              "modindex"
+            ],
+            "include": [
+              "Modulation Wheel"
+            ]
+          },
           {
             "title": "LFOs",
             "section": "cc",
@@ -5627,25 +5637,28 @@
             "categories": [
               "matrix"
             ]
-          },
-          {
-            "title": "Performance",
-            "section": "cc",
-            "categories": [
-              "performance"
-            ]
           }
         ]
       },
       {
-        "title": "Arpeggiator",
-        "hint": "Plays held notes as a pattern.",
+        "title": "Arpeggiator and Performance",
+        "hint": "Plays held notes as a pattern; performance controllers shape the sound while you play.",
         "modules": [
           {
             "title": "Arpeggiator",
             "section": "cc",
             "categories": [
               "arp"
+            ]
+          },
+          {
+            "title": "Performance",
+            "section": "cc",
+            "categories": [
+              "performance"
+            ],
+            "exclude": [
+              "Modulation Wheel"
             ]
           }
         ]

@@ -27,6 +27,8 @@ export function buildStages(controls, ui) {
                     && (!module.match || startsWithAny(c.name, module.match))
                     && !(module.exclude && startsWithAny(c.name, module.exclude)));
             }
+            // `include` pulls named controls of other categories into the module (the mod wheel next to the mod indexes).
+            if (module.include) pool = [...pool, ...controls.filter(c => c.section === module.section && !pool.includes(c) && startsWithAny(c.name, module.include))];
             const taken = new Set();
             const groups = (module.groups || []).map(group => {
                 const own = pool.filter(c => !taken.has(c) && startsWithAny(c.name, group.match));

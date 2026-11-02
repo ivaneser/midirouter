@@ -138,6 +138,8 @@ export async function getControlsForModel(model) {
     const copy = JSON.parse(JSON.stringify(controls));
     // Optional signal-flow layout (map.ui) travels with the controls.
     if (parsed.ui) copy.layout = JSON.parse(JSON.stringify(parsed.ui));
+    // Algorithm wirings (the PreenFM2), for the algorithm picker.
+    if (parsed.controls_nrpn?.algorithms) copy.algorithms = JSON.parse(JSON.stringify(parsed.controls_nrpn.algorithms));
     return copy;
 }
 

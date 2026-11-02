@@ -1,10 +1,10 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=26';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
-import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=1';
+import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=4';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
-import { buildStages } from './synth-stages.js';
+import { buildStages } from './synth-stages.js?v=2';
 import { deviceChannelKey, validMidiChannel } from './device-channels.js';
 
 import {
@@ -16,7 +16,7 @@ import {
     MAP_FILES,
     dropdownRaw,
     dropdownIndex,
-} from './synth-catalog.js?v=25';
+} from './synth-catalog.js?v=26';
 
 // Instruments without presets of their own: the user saves the CCs they set as named presets (stored on the router).
 const USER_PRESET_FILES = { 'korg-nts-1': 'korg_nts1' };
@@ -284,7 +284,7 @@ export class DeviceManager {
 
     // The "cc:nrpn" pairs a graph (nrpn-widgets.js) draws.
     _widgetPairs(widget) {
-        return (widget.dataset.pairs || '').split(' ').filter(Boolean).map(token => { const [cc, nrpn] = token.split(':'); return { cc, nrpn }; });
+        return (widget.dataset.pairs || '').split(' ').filter(Boolean).map(token => { const [cc, nrpn] = token.split(':'); return { cc, nrpn: nrpn === '' ? undefined : nrpn }; });
     }
 
     // Tell the graphs of a panel that draw a changed parameter to redraw (they send nothing).
@@ -761,12 +761,16 @@ export class DeviceManager {
             const io = {
                 get: definition => {
                     const channelNumber = this.channelForDevice(device, part);
-                    const raw = this._nrpnValues.get(`${device.id}:${channelNumber}:${definition.nrpn}`);
+                    const raw = definition.nrpn === undefined ? undefined : this._nrpnValues.get(`${device.id}:${channelNumber}:${definition.nrpn}`);
                     if (raw !== undefined) return nativeFromNrpn(definition, raw);
                     const cc = this._controlValues.get(`${device.id}:${channelNumber}:${definition.cc}`);
-                    return cc === undefined ? undefined : nativeFromCc(definition, cc);
+                    if (cc === undefined) return undefined;
+                    return definition.nrpn === undefined ? cc : nativeFromCc(definition, cc);
                 },
-                set: (definition, value) => this.sendNrpn(device.id, this.channelForDevice(device, part), definition.nrpn, rawFromNative(definition, value)),
+                // A control with no NRPN (the carriers' shared envelope) is sent as its CC.
+                set: (definition, value) => definition.nrpn === undefined
+                    ? send(definition, value)
+                    : this.sendNrpn(device.id, this.channelForDevice(device, part), definition.nrpn, rawFromNative(definition, value)),
             };
             // Graphs first, then the remaining controls as knobs.
             const fill = (grid, widgets, rest) => {
@@ -799,10 +803,10 @@ export class DeviceManager {
                         title.textContent = module.title;
                         card.appendChild(title);
                         const moduleControls = module.groups.flatMap(group => group.controls);
-                        const drawn = planNrpnWidgets(moduleControls);
-                        const basic = planWidgets(moduleControls.filter(control => !drawn.used.has(control) && !drawn.keep.includes(control)));
+                        const drawn = planNrpnWidgets(moduleControls, controls.algorithms);
+                        const basic = planWidgets(moduleControls.filter(control => !drawn.used.has(control)));
                         const widgets = [...drawn.widgets, ...basic.widgets];
-                        const rest = [...basic.rest, ...drawn.keep];
+                        const rest = basic.rest;
                         if (widgets.length) {
                             const grid = document.createElement('div');
                             grid.className = `synth-control-grid synth-module-widgets${drawn.widgets.length ? ' synth-module-widgets-wide' : ''}`;
