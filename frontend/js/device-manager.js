@@ -20,6 +20,14 @@ import {
 // Instruments without presets of their own: the user saves the CCs they set as named presets (stored on the router).
 const USER_PRESET_FILES = { 'korg-nts-1': 'korg_nts1' };
 
+// CC knob position (0-127) for a raw 14-bit NRPN value: the parameter's value (min + raw / scale, or raw
+// when it has no scale) placed in its range.
+function ccFromNrpn({ nrpnMin, nrpnMax, nrpnScale }, raw) {
+    const min = Number(nrpnMin), max = Number(nrpnMax), scale = Number(nrpnScale) || 0;
+    const value = scale ? min + raw / scale : raw;
+    return Math.max(0, Math.min(127, Math.round((value - min) / (max - min) * 127)));
+}
+
 export class DeviceManager {
     constructor() {
         this.inputs = [];   // [{id, name}]
@@ -28,6 +36,11 @@ export class DeviceManager {
         this._synthControlCache = new Map();
         // Last value sent per device+CC, so a re-opened panel shows what the synth was set to.
         this._controlValues = new Map();
+        // NRPN values (raw, 14-bit) per device+channel+NRPN, from sessions and the MCP server. A knob whose
+        // control names an NRPN shows it. _nrpnSeen is the last value the server reported, so a repeated
+        // state message does not undo a knob moved since.
+        this._nrpnValues = new Map();
+        this._nrpnSeen = new Map();
         this.channels = {};
         this.programs = new Map();
         this.presetNames = new Map();
@@ -216,6 +229,26 @@ export class DeviceManager {
         this._controlValues.clear();
         for (const { target, channel, cc, value } of controls || []) this._controlValues.set(`${target}:${channel}:${cc}`, value);
         if (!first) this.render();   // closes open panels; reopening shows the loaded values
+    }
+
+    // NRPN values from the server (saved session, MCP): remember the changed ones and move the matching
+    // knobs of open panels without sending any MIDI.
+    updateDeviceNrpns(nrpns) {
+        for (const { target, channel, nrpn, raw } of nrpns || []) {
+            const key = `${target}:${channel}:${nrpn}`;
+            if (this._nrpnSeen.get(key) === raw) continue;
+            this._nrpnSeen.set(key, raw);
+            this._nrpnValues.set(key, raw);
+            for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
+                if (panel.dataset.deviceId !== target || this.channelForKey(panel.dataset.unitKey, panel.dataset.part) !== channel) continue;
+                for (const input of panel.querySelectorAll(`[data-nrpn="${Number(nrpn)}"]`)) {
+                    const display = ccFromNrpn(input.dataset, raw);
+                    if (input.type !== 'range' || input === document.activeElement) continue;
+                    input.value = String(display);
+                    input.dispatchEvent(new Event('knob-sync'));
+                }
+            }
+        }
     }
 
     // A control changed from elsewhere (another browser or the MCP server): remember the raw
@@ -622,9 +655,12 @@ export class DeviceManager {
             const send = (definition, value) => {
                 const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
                 this._controlValues.set(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`, bytes[2]);
+                if (definition.nrpn !== undefined) this._nrpnValues.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
                 this.sendMidi(device.id, bytes, part);
             };
             const saved = definition => {
+                const fromNrpn = this._savedFromNrpn(device.id, this.channelForDevice(device, part), definition);
+                if (fromNrpn !== undefined) return fromNrpn;
                 const raw = this._controlValues.get(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`);
                 return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
             };
@@ -712,6 +748,14 @@ export class DeviceManager {
         }
     }
 
+    // The knob position (CC 0-127) of a control that mirrors an NRPN parameter, from the NRPN value the
+    // device was last given; undefined when none is known.
+    _savedFromNrpn(deviceId, channel, definition) {
+        if (definition.nrpn === undefined) return undefined;
+        const raw = this._nrpnValues.get(`${deviceId}:${channel}:${definition.nrpn}`);
+        return raw === undefined ? undefined : ccFromNrpn({ nrpnMin: definition.nrpnMin, nrpnMax: definition.nrpnMax, nrpnScale: definition.nrpnScale }, raw);
+    }
+
     _createDeviceControl(device, model, definition, part) {
         const instruction = renderControlDefinition(definition);
         const row = document.createElement('label');
@@ -742,6 +786,12 @@ export class DeviceManager {
         }
 
         input.dataset.cc = String(definition.cc);
+        if (definition.nrpn !== undefined) {
+            input.dataset.nrpn = String(definition.nrpn);
+            input.dataset.nrpnMin = String(definition.nrpnMin);
+            input.dataset.nrpnMax = String(definition.nrpnMax);
+            if (definition.nrpnScale) input.dataset.nrpnScale = String(definition.nrpnScale);
+        }
         input.dataset.min = String(definition.min ?? 0);
         if (input.type === 'range') input.dataset.start = instruction.attrs.value;
         input.setAttribute('aria-label', instruction.label.text);
@@ -750,10 +800,12 @@ export class DeviceManager {
         }
         const valueKey = () => `${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`;
         const rawSaved = this._controlValues.get(valueKey());
-        const savedValue = rawSaved === undefined ? undefined : rawSaved - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
+        const savedValue = this._savedFromNrpn(device.id, this.channelForDevice(device, part), definition) ??
+            (rawSaved === undefined ? undefined : rawSaved - (Number(definition.min) < 0 ? -Number(definition.min) : 0));
         const sendValue = value => {
             const bytes = buildMidiCcBytes(model, definition.cc, value, definition);
             this._controlValues.set(valueKey(), bytes[2]);
+            if (definition.nrpn !== undefined) this._nrpnValues.delete(`${device.id}:${this.channelForDevice(device, part)}:${definition.nrpn}`);
             this.sendMidi(device.id, bytes, part);
         };
         if (savedValue !== undefined) {

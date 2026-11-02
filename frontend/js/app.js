@@ -1,6 +1,6 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=74';
+import { DeviceManager } from './device-manager.js?v=75';
 import { DAWUI } from './daw-ui.js?v=61';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
@@ -255,6 +255,7 @@ function handleMessage(msg) {
     if (msg.type === 'daw_state' && msg.payload) showAudioMonitor(msg.payload);
     if (msg.type === 'daw_state') pianoRoll.update(msg.payload);
     if (msg.type === 'daw_state' && msg.payload?.deviceControls) deviceManager.updateDeviceControls(msg.payload.deviceControls, msg.payload.deviceControlsRev);
+    if (msg.type === 'daw_state' && msg.payload?.deviceNrpns) deviceManager.updateDeviceNrpns(msg.payload.deviceNrpns);
     if (msg.type === 'daw_state' && msg.payload?.devicePresets) deviceManager.updateDevicePresets(msg.payload.devicePresets);
     if (msg.type === 'daw_progress') pianoRoll.updateProgress(msg.payload?.playing === false ? [] : msg.payload?.clipProgress || []);
     switch (msg.type) {
