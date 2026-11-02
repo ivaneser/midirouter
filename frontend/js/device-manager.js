@@ -1,6 +1,7 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=26';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
+import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=1';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
 import { buildStages } from './synth-stages.js';
@@ -276,7 +277,20 @@ export class DeviceManager {
                     input.value = String(display);
                     input.dispatchEvent(new Event('knob-sync'));
                 }
+                this._syncWidgets(panel, pair => Number(pair.nrpn) === Number(nrpn));
             }
+        }
+    }
+
+    // The "cc:nrpn" pairs a graph (nrpn-widgets.js) draws.
+    _widgetPairs(widget) {
+        return (widget.dataset.pairs || '').split(' ').filter(Boolean).map(token => { const [cc, nrpn] = token.split(':'); return { cc, nrpn }; });
+    }
+
+    // Tell the graphs of a panel that draw a changed parameter to redraw (they send nothing).
+    _syncWidgets(panel, matches) {
+        for (const widget of panel.querySelectorAll('.nrpn-widget[data-pairs]')) {
+            if (this._widgetPairs(widget).some(matches)) widget.dispatchEvent(new Event('widget-sync'));
         }
     }
 
@@ -285,11 +299,13 @@ export class DeviceManager {
     applyRemoteControl({ target, channel, cc, value }) {
         this._controlValues.set(`${target}:${channel}:${cc}`, value);
         for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
-            const nrpn = panel.querySelector(`[data-cc="${Number(cc)}"]`)?.dataset.nrpn;
+            const nrpn = panel.querySelector(`[data-cc="${Number(cc)}"]`)?.dataset.nrpn
+                ?? [...panel.querySelectorAll('.nrpn-widget[data-pairs]')].flatMap(widget => this._widgetPairs(widget)).find(pair => Number(pair.cc) === Number(cc))?.nrpn;
             if (nrpn !== undefined) for (const map of [this._nrpnValues, this._nrpnSeen]) map.delete(`${target}:${channel}:${nrpn}`);
         }
         for (const panel of document.querySelectorAll?.('.synth-controls[data-device-id]') || []) {
             if (panel.dataset.deviceId !== target || this.channelForKey(panel.dataset.unitKey, panel.dataset.part) !== channel) continue;
+            this._syncWidgets(panel, pair => Number(pair.cc) === Number(cc));
             for (const input of panel.querySelectorAll(`[data-cc="${Number(cc)}"]`)) {
                 const min = Number(input.dataset.min || 0);
                 const display = input.dataset.nrpn !== undefined ? nativeFromCc(input.dataset, value) : value - (min < 0 ? -min : 0);
@@ -741,10 +757,23 @@ export class DeviceManager {
                 const raw = this._controlValues.get(`${device.id}:${this.channelForDevice(device, part)}:${definition.cc}`);
                 return raw === undefined ? undefined : raw - (Number(definition.min) < 0 ? -Number(definition.min) : 0);
             };
+            // Values of NRPN parameters in their own units, for the graphs that draw them.
+            const io = {
+                get: definition => {
+                    const channelNumber = this.channelForDevice(device, part);
+                    const raw = this._nrpnValues.get(`${device.id}:${channelNumber}:${definition.nrpn}`);
+                    if (raw !== undefined) return nativeFromNrpn(definition, raw);
+                    const cc = this._controlValues.get(`${device.id}:${channelNumber}:${definition.cc}`);
+                    return cc === undefined ? undefined : nativeFromCc(definition, cc);
+                },
+                set: (definition, value) => this.sendNrpn(device.id, this.channelForDevice(device, part), definition.nrpn, rawFromNative(definition, value)),
+            };
             // Graphs first, then the remaining controls as knobs.
             const fill = (grid, widgets, rest) => {
                 for (const plan of widgets) {
-                    grid.appendChild(plan.kind === 'xy' ? createXYPad(plan, send, saved) : createAdsrGraph(plan, send, saved));
+                    if (plan.kind === 'xy') grid.appendChild(createXYPad(plan, send, saved));
+                    else if (plan.kind === 'adsr') grid.appendChild(createAdsrGraph(plan, send, saved));
+                    else grid.appendChild(createNrpnWidget(plan, io));
                 }
                 for (const definition of rest) grid.appendChild(this._createDeviceControl(device, model, definition, part));
             };
@@ -769,10 +798,14 @@ export class DeviceManager {
                         const title = document.createElement('h5');
                         title.textContent = module.title;
                         card.appendChild(title);
-                        const { widgets, rest } = planWidgets(module.groups.flatMap(group => group.controls));
+                        const moduleControls = module.groups.flatMap(group => group.controls);
+                        const drawn = planNrpnWidgets(moduleControls);
+                        const basic = planWidgets(moduleControls.filter(control => !drawn.used.has(control) && !drawn.keep.includes(control)));
+                        const widgets = [...drawn.widgets, ...basic.widgets];
+                        const rest = [...basic.rest, ...drawn.keep];
                         if (widgets.length) {
                             const grid = document.createElement('div');
-                            grid.className = 'synth-control-grid synth-module-widgets';
+                            grid.className = `synth-control-grid synth-module-widgets${drawn.widgets.length ? ' synth-module-widgets-wide' : ''}`;
                             fill(grid, widgets, []);
                             card.appendChild(grid);
                         }

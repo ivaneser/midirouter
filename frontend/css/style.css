@@ -391,3 +391,21 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .clock-source-row > label { flex: 1 1 auto; min-width: 0; }
 .clock-out-button { min-height: 44px; flex: 0 0 auto; white-space: nowrap; }
 .clock-master-section .clock-master-status { grid-column: 1 / -1; margin: 0; }
+
+/* NRPN graphs: triangle envelopes, LFO plots and the dot field of mixer and filter. */
+.synth-module > .synth-module-widgets.synth-module-widgets-wide { display: block; flex: 1 1 100%; min-width: 0; }
+.nrpn-widget .synth-widget-head { font-size: .6875rem; }
+.nrpn-env-grid, .nrpn-lfo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.nrpn-env-cell, .nrpn-lfo-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nrpn-env-readout { color: #d3e6bf; font-size: .6875rem; text-align: center; font-variant-numeric: tabular-nums; }
+.nrpn-env-label, .nrpn-field-label { fill: #8fa0ad; font: 600 9px system-ui, sans-serif; }
+.nrpn-lfo-frame { fill: none; stroke: #26323c; }
+.nrpn-lfo-track { stroke: #33414d; stroke-width: 3; stroke-linecap: round; }
+.nrpn-lfo-shapes { display: flex; gap: 3px; justify-content: center; }
+.nrpn-lfo-shape { min-width: 28px; min-height: 28px; padding: 0 4px; font-size: .8125rem; line-height: 1; }
+.nrpn-lfo-shape[aria-pressed="true"] { background: var(--accent); color: #11181d; }
+.nrpn-field { max-width: 300px; }
+.nrpn-dot { stroke: #0f151a; stroke-width: 2; cursor: grab; }
+.nrpn-dot-label { fill: #0f151a; font: 700 10px system-ui, sans-serif; pointer-events: none; }
+.nrpn-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: .6875rem; color: #d3e6bf; font-variant-numeric: tabular-nums; }
+.nrpn-legend-item::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 50%; background: var(--dot); }
