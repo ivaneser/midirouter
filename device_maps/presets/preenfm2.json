@@ -1,0 +1,4102 @@
+{
+ "model": "PreenFM2",
+ "source": "Names read from the synth (its NRPN patch dump, mcpi tools/read_preenfm2_names.py); number = 1-based global preset (DX7 bank = (number-1) div 32, program = (number-1) mod 32); group = sound category from the name, else from the mcpi profile (mcpi tools/export_preset_groups.py)",
+ "presets": {
+  "1": {
+   "name": "A.G.PIANO",
+   "group": "Keys"
+  },
+  "2": {
+   "name": "A.B.PIANO",
+   "group": "Keys"
+  },
+  "3": {
+   "name": "E.G.PIANO",
+   "group": "Keys"
+  },
+  "4": {
+   "name": "HONKYTONK",
+   "group": "Keys"
+  },
+  "5": {
+   "name": "E.PIANO 1",
+   "group": "Keys"
+  },
+  "6": {
+   "name": "E.PIANO 2",
+   "group": "Keys"
+  },
+  "7": {
+   "name": "HARPSICH.",
+   "group": "Keys"
+  },
+  "8": {
+   "name": "CLAVINET",
+   "group": "Keys"
+  },
+  "9": {
+   "name": "CELESTA",
+   "group": "Bells"
+  },
+  "10": {
+   "name": "GLOKENSPL",
+   "group": "Bells"
+  },
+  "11": {
+   "name": "MUSIC BOX",
+   "group": "Bells"
+  },
+  "12": {
+   "name": "VIBRAPHONE",
+   "group": "Bells"
+  },
+  "13": {
+   "name": "MARIMBA",
+   "group": "Bells"
+  },
+  "14": {
+   "name": "XYLOPHONE",
+   "group": "Bells"
+  },
+  "15": {
+   "name": "TBL BELLS",
+   "group": "Bells"
+  },
+  "16": {
+   "name": "DULCIMER",
+   "group": "Bells"
+  },
+  "17": {
+   "name": "DRAW ORG",
+   "group": "Organ"
+  },
+  "18": {
+   "name": "PERCU ORG",
+   "group": "Organ"
+  },
+  "19": {
+   "name": "ROCK ORG",
+   "group": "Organ"
+  },
+  "20": {
+   "name": "CHURCH ORG",
+   "group": "Organ"
+  },
+  "21": {
+   "name": "STREET ORG",
+   "group": "Strings & Choir"
+  },
+  "22": {
+   "name": "ACCORDION",
+   "group": "Organ"
+  },
+  "23": {
+   "name": "HARMONICA",
+   "group": "Winds"
+  },
+  "24": {
+   "name": "ACCORDION2",
+   "group": "Organ"
+  },
+  "25": {
+   "name": "A.GUITAR N",
+   "group": "Guitar"
+  },
+  "26": {
+   "name": "A.GUITAR S",
+   "group": "Guitar"
+  },
+  "27": {
+   "name": "JAZZ GT",
+   "group": "Guitar"
+  },
+  "28": {
+   "name": "CLEAN GT",
+   "group": "Guitar"
+  },
+  "29": {
+   "name": "MUTED GT",
+   "group": "Guitar"
+  },
+  "30": {
+   "name": "OVERDR GT",
+   "group": "Guitar"
+  },
+  "31": {
+   "name": "DISTO GT",
+   "group": "Guitar"
+  },
+  "32": {
+   "name": "HRMONIC GT",
+   "group": "Guitar"
+  },
+  "33": {
+   "name": "A.BASS",
+   "group": "Bass"
+  },
+  "34": {
+   "name": "E.BASS FNG",
+   "group": "Bass"
+  },
+  "35": {
+   "name": "E.BASS PCK",
+   "group": "Bass"
+  },
+  "36": {
+   "name": "FRETLESS",
+   "group": "Bass"
+  },
+  "37": {
+   "name": "SLAP BASS1",
+   "group": "Bass"
+  },
+  "38": {
+   "name": "SLAP BASS2",
+   "group": "Bass"
+  },
+  "39": {
+   "name": "SYN.BASS 1",
+   "group": "Bass"
+  },
+  "40": {
+   "name": "SYN.BASS 2",
+   "group": "Bass"
+  },
+  "41": {
+   "name": "VIOLIN",
+   "group": "Strings & Choir"
+  },
+  "42": {
+   "name": "VIOLA",
+   "group": "Strings & Choir"
+  },
+  "43": {
+   "name": "CELLO",
+   "group": "Strings & Choir"
+  },
+  "44": {
+   "name": "CONTRABASS",
+   "group": "Strings & Choir"
+  },
+  "45": {
+   "name": "TREMOLO ST",
+   "group": "Strings & Choir"
+  },
+  "46": {
+   "name": "PIZZCT ST",
+   "group": "Strings & Choir"
+  },
+  "47": {
+   "name": "ORCHE.HARP",
+   "group": "Strings & Choir"
+  },
+  "48": {
+   "name": "TIMPANI",
+   "group": "Drums"
+  },
+  "49": {
+   "name": "STRG ENS.2",
+   "group": "Strings & Choir"
+  },
+  "50": {
+   "name": "STRG ENS 1",
+   "group": "Strings & Choir"
+  },
+  "51": {
+   "name": "SYN.STRG 1",
+   "group": "Strings & Choir"
+  },
+  "52": {
+   "name": "SYN.STRG 2",
+   "group": "Strings & Choir"
+  },
+  "53": {
+   "name": "CHOIR AAHS",
+   "group": "Strings & Choir"
+  },
+  "54": {
+   "name": "CHOIR OOHS",
+   "group": "Strings & Choir"
+  },
+  "55": {
+   "name": "SYN.VOICE",
+   "group": "Strings & Choir"
+  },
+  "56": {
+   "name": "ORCHE.HIT",
+   "group": "Strings & Choir"
+  },
+  "57": {
+   "name": "TRUMPET",
+   "group": "Winds"
+  },
+  "58": {
+   "name": "TROMBONE",
+   "group": "Winds"
+  },
+  "59": {
+   "name": "TUBA",
+   "group": "Winds"
+  },
+  "60": {
+   "name": "MUTE TRPT",
+   "group": "Winds"
+  },
+  "61": {
+   "name": "F.HORNS",
+   "group": "Winds"
+  },
+  "62": {
+   "name": "BRASS SECT",
+   "group": "Winds"
+  },
+  "63": {
+   "name": "SYN.BRASS1",
+   "group": "Winds"
+  },
+  "64": {
+   "name": "SYN.BRASS2",
+   "group": "Winds"
+  },
+  "65": {
+   "name": "SOPRAN SAX",
+   "group": "Winds"
+  },
+  "66": {
+   "name": "ALTO SAX",
+   "group": "Winds"
+  },
+  "67": {
+   "name": "TENOR SAX",
+   "group": "Winds"
+  },
+  "68": {
+   "name": "BARIT. SAX",
+   "group": "Winds"
+  },
+  "69": {
+   "name": "OBOE",
+   "group": "Winds"
+  },
+  "70": {
+   "name": "ENGL.HORN",
+   "group": "Winds"
+  },
+  "71": {
+   "name": "BASSOON",
+   "group": "Winds"
+  },
+  "72": {
+   "name": "CLARINET",
+   "group": "Winds"
+  },
+  "73": {
+   "name": "PICCOLO",
+   "group": "Winds"
+  },
+  "74": {
+   "name": "FLUTE",
+   "group": "Winds"
+  },
+  "75": {
+   "name": "RECORDER",
+   "group": "Winds"
+  },
+  "76": {
+   "name": "PAN FLUTE",
+   "group": "Winds"
+  },
+  "77": {
+   "name": "BOTTLE FLT",
+   "group": "Winds"
+  },
+  "78": {
+   "name": "SHAKUHACHI",
+   "group": "Winds"
+  },
+  "79": {
+   "name": "WHISTLE",
+   "group": "Winds"
+  },
+  "80": {
+   "name": "OCARINA",
+   "group": "Winds"
+  },
+  "81": {
+   "name": "LD SQUARE",
+   "group": "Leads"
+  },
+  "82": {
+   "name": "LD SAW",
+   "group": "Leads"
+  },
+  "83": {
+   "name": "LD CALIOP",
+   "group": "Leads"
+  },
+  "84": {
+   "name": "LD CHIFF",
+   "group": "Leads"
+  },
+  "85": {
+   "name": "LD CHARANG",
+   "group": "Leads"
+  },
+  "86": {
+   "name": "LD VOCODER",
+   "group": "Strings & Choir"
+  },
+  "87": {
+   "name": "LD FIFTHS",
+   "group": "Leads"
+  },
+  "88": {
+   "name": "LD BASS&LD",
+   "group": "Bass"
+  },
+  "89": {
+   "name": "PD NEW AGE",
+   "group": "Pads"
+  },
+  "90": {
+   "name": "PD WARM",
+   "group": "Pads"
+  },
+  "91": {
+   "name": "PD POLYSYN",
+   "group": "Pads"
+  },
+  "92": {
+   "name": "PD CHOIR",
+   "group": "Strings & Choir"
+  },
+  "93": {
+   "name": "PD BOWED",
+   "group": "Strings & Choir"
+  },
+  "94": {
+   "name": "PD METAL",
+   "group": "Pads"
+  },
+  "95": {
+   "name": "PD HALO",
+   "group": "Pads"
+  },
+  "96": {
+   "name": "PD SWEEP",
+   "group": "Pads"
+  },
+  "97": {
+   "name": "FX RAIN",
+   "group": "FX"
+  },
+  "98": {
+   "name": "FX SOUNDTR",
+   "group": "Pads"
+  },
+  "99": {
+   "name": "FX CRYSTAL",
+   "group": "Bells"
+  },
+  "100": {
+   "name": "FX ATMOSPH",
+   "group": "Pads"
+  },
+  "101": {
+   "name": "FX BRIGHT",
+   "group": "FX"
+  },
+  "102": {
+   "name": "FX GOBLINS",
+   "group": "FX"
+  },
+  "103": {
+   "name": "FX ECHOES",
+   "group": "FX"
+  },
+  "104": {
+   "name": "FX SCI-FI",
+   "group": "FX"
+  },
+  "105": {
+   "name": "SITAR",
+   "group": "Guitar"
+  },
+  "106": {
+   "name": "BANJO",
+   "group": "Guitar"
+  },
+  "107": {
+   "name": "BIWA",
+   "group": "Guitar"
+  },
+  "108": {
+   "name": "KOTO",
+   "group": "Guitar"
+  },
+  "109": {
+   "name": "KALIMBA",
+   "group": "Bells"
+  },
+  "110": {
+   "name": "BAGPIPE(C)",
+   "group": "Winds"
+  },
+  "111": {
+   "name": "FIDDLE",
+   "group": "Strings & Choir"
+  },
+  "112": {
+   "name": "SHANAI",
+   "group": "Winds"
+  },
+  "113": {
+   "name": "TINKLE BEL",
+   "group": "Bells"
+  },
+  "114": {
+   "name": "AGOGO",
+   "group": "Drums"
+  },
+  "115": {
+   "name": "STEELDRUMS",
+   "group": "Drums"
+  },
+  "116": {
+   "name": "WOODBLOCK",
+   "group": "Drums"
+  },
+  "117": {
+   "name": "TAIKO DRUM",
+   "group": "Drums"
+  },
+  "118": {
+   "name": "MELODI.TOM",
+   "group": "Drums"
+  },
+  "119": {
+   "name": "SYNTH DRUM",
+   "group": "Drums"
+  },
+  "120": {
+   "name": "RVS CYMBAL",
+   "group": "Drums"
+  },
+  "121": {
+   "name": "FRET NOISE",
+   "group": "FX"
+  },
+  "122": {
+   "name": "BREATH",
+   "group": "FX"
+  },
+  "123": {
+   "name": "SEASHORE",
+   "group": "FX"
+  },
+  "124": {
+   "name": "BIRD TWEET",
+   "group": "FX"
+  },
+  "125": {
+   "name": "PHONE RING",
+   "group": "FX"
+  },
+  "126": {
+   "name": "HELICOPTER",
+   "group": "FX"
+  },
+  "127": {
+   "name": "<-->",
+   "group": "FX"
+  },
+  "128": {
+   "name": "GUNSHOT",
+   "group": "FX"
+  },
+  "129": {
+   "name": "DX1 LEAD B",
+   "group": "Leads"
+  },
+  "130": {
+   "name": "SO*LOW! #1",
+   "group": "Misc"
+  },
+  "131": {
+   "name": "ANALOG",
+   "group": "Synths"
+  },
+  "132": {
+   "name": "LEADSYN 1",
+   "group": "Leads"
+  },
+  "133": {
+   "name": "LEADSYN 2",
+   "group": "Leads"
+  },
+  "134": {
+   "name": "LEADSYN 3",
+   "group": "Leads"
+  },
+  "135": {
+   "name": "LEADSYN 4",
+   "group": "Leads"
+  },
+  "136": {
+   "name": "ANLGSYN 1",
+   "group": "Synths"
+  },
+  "137": {
+   "name": "ANLGSYN 4",
+   "group": "Synths"
+  },
+  "138": {
+   "name": "PERCSYN 1",
+   "group": "Synths"
+  },
+  "139": {
+   "name": "PERCSYN 2",
+   "group": "Synths"
+  },
+  "140": {
+   "name": "PERCSYN 3",
+   "group": "Synths"
+  },
+  "141": {
+   "name": "PERCSYN 4",
+   "group": "Synths"
+  },
+  "142": {
+   "name": "MC-MM  5-3",
+   "group": "Misc"
+  },
+  "143": {
+   "name": "MELLOWSOLO",
+   "group": "Leads"
+  },
+  "144": {
+   "name": "LEMONADE 1",
+   "group": "Misc"
+  },
+  "145": {
+   "name": "SYN-TOUCH",
+   "group": "Synths"
+  },
+  "146": {
+   "name": "PRC SYNTH1",
+   "group": "Synths"
+  },
+  "147": {
+   "name": "SYN-LEAD 1",
+   "group": "Leads"
+  },
+  "148": {
+   "name": "{ Mooger }",
+   "group": "Leads"
+  },
+  "149": {
+   "name": "Anna Logue",
+   "group": "Synths"
+  },
+  "150": {
+   "name": "Prophet 8",
+   "group": "Synths"
+  },
+  "151": {
+   "name": "Piano Bass",
+   "group": "Bass"
+  },
+  "152": {
+   "name": "MINI-MOOG",
+   "group": "Leads"
+  },
+  "153": {
+   "name": "-ANALOG 5-",
+   "group": "Synths"
+  },
+  "154": {
+   "name": "-ANALOG 6-",
+   "group": "Synths"
+  },
+  "155": {
+   "name": "-ANALOG 7-",
+   "group": "Synths"
+  },
+  "156": {
+   "name": "..LEAD.1..",
+   "group": "Leads"
+  },
+  "157": {
+   "name": "-ANALOG 1-",
+   "group": "Synths"
+  },
+  "158": {
+   "name": "ANLGSYN 3",
+   "group": "Synths"
+  },
+  "159": {
+   "name": "SYNC SOUND",
+   "group": "Leads"
+  },
+  "160": {
+   "name": "RES SYNTH1",
+   "group": "Synths"
+  },
+  "161": {
+   "name": "5th Lead1a",
+   "group": "Leads"
+  },
+  "162": {
+   "name": "DIGILOG 2",
+   "group": "Synths"
+  },
+  "163": {
+   "name": "ANALG SYN1",
+   "group": "Synths"
+  },
+  "164": {
+   "name": "ANALG SYN2",
+   "group": "Synths"
+  },
+  "165": {
+   "name": "ANALG SYN3",
+   "group": "Synths"
+  },
+  "166": {
+   "name": "ANALG SYN5",
+   "group": "Synths"
+  },
+  "167": {
+   "name": "ANALG SYN6",
+   "group": "Synths"
+  },
+  "168": {
+   "name": "ANALG SYN7",
+   "group": "Synths"
+  },
+  "169": {
+   "name": "ANALG SYN8",
+   "group": "Synths"
+  },
+  "170": {
+   "name": "ANALG SYN9",
+   "group": "Synths"
+  },
+  "171": {
+   "name": "ANALOG 1",
+   "group": "Synths"
+  },
+  "172": {
+   "name": "ANALQG--OB",
+   "group": "Misc"
+  },
+  "173": {
+   "name": "ANTHR SYN2",
+   "group": "Misc"
+  },
+  "174": {
+   "name": "ANTHR SYN3",
+   "group": "Misc"
+  },
+  "175": {
+   "name": "Anna 3",
+   "group": "Synths"
+  },
+  "176": {
+   "name": "Anna Fat 1",
+   "group": "Synths"
+  },
+  "177": {
+   "name": "Anna Fat 2",
+   "group": "Synths"
+  },
+  "178": {
+   "name": "Anna Fat 3",
+   "group": "Synths"
+  },
+  "179": {
+   "name": "Anna Hit 1",
+   "group": "Synths"
+  },
+  "180": {
+   "name": "Anna Hit 2",
+   "group": "Synths"
+  },
+  "181": {
+   "name": "Anna Hit 3",
+   "group": "Synths"
+  },
+  "182": {
+   "name": "Anna Hit 4",
+   "group": "Synths"
+  },
+  "183": {
+   "name": "Anna Hit 5",
+   "group": "Synths"
+  },
+  "184": {
+   "name": "Anna Xylo",
+   "group": "Bells"
+  },
+  "185": {
+   "name": "Anna Xylo1",
+   "group": "Bells"
+  },
+  "186": {
+   "name": "AnnaFatest",
+   "group": "Synths"
+  },
+  "187": {
+   "name": "AnnaNasty1",
+   "group": "Synths"
+  },
+  "188": {
+   "name": "BathrmSync",
+   "group": "Leads"
+  },
+  "189": {
+   "name": "Bs Anna  3",
+   "group": "Bass"
+  },
+  "190": {
+   "name": "Bs Anna 1a",
+   "group": "Bass"
+  },
+  "191": {
+   "name": "Bs Anna 4a",
+   "group": "Bass"
+  },
+  "192": {
+   "name": "JUMP ....",
+   "group": "Synths"
+  },
+  "193": {
+   "name": "JUMP 2",
+   "group": "Synths"
+  },
+  "194": {
+   "name": "KNU SYNTH",
+   "group": "Synths"
+  },
+  "195": {
+   "name": "Kech'nSync",
+   "group": "Leads"
+  },
+  "196": {
+   "name": "PEC SYNTH2",
+   "group": "Synths"
+  },
+  "197": {
+   "name": "HERMAN",
+   "group": "Misc"
+  },
+  "198": {
+   "name": "SYN-LEAD 1",
+   "group": "Leads"
+  },
+  "199": {
+   "name": "SYN-LEAD 2",
+   "group": "Leads"
+  },
+  "200": {
+   "name": "SYN-LEAD 3",
+   "group": "Leads"
+  },
+  "201": {
+   "name": "SYN-LEAD 4",
+   "group": "Leads"
+  },
+  "202": {
+   "name": "SYN-LEAD 5",
+   "group": "Leads"
+  },
+  "203": {
+   "name": "SYNTH  .01",
+   "group": "Synths"
+  },
+  "204": {
+   "name": "SYNTH SSL1",
+   "group": "Synths"
+  },
+  "205": {
+   "name": "SYNTH SSL2",
+   "group": "Synths"
+  },
+  "206": {
+   "name": "SYNTH SSL3",
+   "group": "Synths"
+  },
+  "207": {
+   "name": "SYNTH SSL4",
+   "group": "Synths"
+  },
+  "208": {
+   "name": "SYNTH SSL5",
+   "group": "Synths"
+  },
+  "209": {
+   "name": "SYNTHING 1",
+   "group": "Synths"
+  },
+  "210": {
+   "name": "SYNTHING 2",
+   "group": "Synths"
+  },
+  "211": {
+   "name": "Sync Lead2",
+   "group": "Leads"
+  },
+  "212": {
+   "name": "Vocoder Ld",
+   "group": "Strings & Choir"
+  },
+  "213": {
+   "name": "<-<-<SYNTH",
+   "group": "Synths"
+  },
+  "214": {
+   "name": "{5TH LEAD",
+   "group": "Leads"
+  },
+  "215": {
+   "name": "CARLOS   1",
+   "group": "Synths"
+  },
+  "216": {
+   "name": "CARLOS   4",
+   "group": "Synths"
+  },
+  "217": {
+   "name": "POWERSYN A",
+   "group": "Synths"
+  },
+  "218": {
+   "name": "FATSYNTH A",
+   "group": "Synths"
+  },
+  "219": {
+   "name": "HARMOSYNTH",
+   "group": "Synths"
+  },
+  "220": {
+   "name": "E.P-BRS BC",
+   "group": "Winds"
+  },
+  "221": {
+   "name": "FLUTE/STRG",
+   "group": "Strings & Choir"
+  },
+  "222": {
+   "name": "FLU.STRG.1",
+   "group": "Strings & Choir"
+  },
+  "223": {
+   "name": "FLUT.BSSN1",
+   "group": "Winds"
+  },
+  "224": {
+   "name": "PFM 0224",
+   "group": "Bass"
+  },
+  "225": {
+   "name": "PROPHET 5.",
+   "group": "Synths"
+  },
+  "226": {
+   "name": "-Q- PROPHT",
+   "group": "Synths"
+  },
+  "227": {
+   "name": "ORTEGA STG",
+   "group": "Strings & Choir"
+  },
+  "228": {
+   "name": "CHAMBERORC",
+   "group": "Strings & Choir"
+  },
+  "229": {
+   "name": "DIGI-CLAV1",
+   "group": "Keys"
+  },
+  "230": {
+   "name": "DYNORHODE2",
+   "group": "Keys"
+  },
+  "231": {
+   "name": "MARIMBA",
+   "group": "Bells"
+  },
+  "232": {
+   "name": "DYNORHODES",
+   "group": "Keys"
+  },
+  "233": {
+   "name": "PIANO",
+   "group": "Keys"
+  },
+  "234": {
+   "name": "FLANGDBASS",
+   "group": "Bass"
+  },
+  "235": {
+   "name": "LEAD-GUITR",
+   "group": "Guitar"
+  },
+  "236": {
+   "name": "JUMP ....",
+   "group": "Synths"
+  },
+  "237": {
+   "name": "MINI MOOGY",
+   "group": "Leads"
+  },
+  "238": {
+   "name": "JEROME",
+   "group": "Misc"
+  },
+  "239": {
+   "name": "MINI MOOG",
+   "group": "Leads"
+  },
+  "240": {
+   "name": "AERIELBOND",
+   "group": "Misc"
+  },
+  "241": {
+   "name": "TOM DRUMS",
+   "group": "Drums"
+  },
+  "242": {
+   "name": "MEDL XPRSV",
+   "group": "Misc"
+  },
+  "243": {
+   "name": "SNOOPY KOO",
+   "group": "Misc"
+  },
+  "244": {
+   "name": "SYNDRUM 1",
+   "group": "Drums"
+  },
+  "245": {
+   "name": "SITAR",
+   "group": "Guitar"
+  },
+  "246": {
+   "name": "SYN-PIANO",
+   "group": "Keys"
+  },
+  "247": {
+   "name": "MONDRE",
+   "group": "Misc"
+  },
+  "248": {
+   "name": "ANLG STRNG",
+   "group": "Strings & Choir"
+  },
+  "249": {
+   "name": "CARLOS   1",
+   "group": "Synths"
+  },
+  "250": {
+   "name": "DOLBY SPLT",
+   "group": "Misc"
+  },
+  "251": {
+   "name": "PROPHET T8",
+   "group": "Synths"
+  },
+  "252": {
+   "name": "TOO COOL",
+   "group": "Misc"
+  },
+  "253": {
+   "name": "VOICES",
+   "group": "Strings & Choir"
+  },
+  "254": {
+   "name": "GOODLUVING",
+   "group": "Misc"
+  },
+  "255": {
+   "name": "MOOG-52 MO",
+   "group": "Leads"
+  },
+  "256": {
+   "name": "STEEL DRUM",
+   "group": "Drums"
+  },
+  "257": {
+   "name": "TAKPIAdb1",
+   "group": "Keys"
+  },
+  "258": {
+   "name": "JONES4Udb1",
+   "group": "Misc"
+  },
+  "259": {
+   "name": "CASIOP.PIA",
+   "group": "Keys"
+  },
+  "260": {
+   "name": "RHODESdb1",
+   "group": "Keys"
+  },
+  "261": {
+   "name": "RHODESdb2",
+   "group": "Keys"
+  },
+  "262": {
+   "name": "DBbasroad1",
+   "group": "Bass"
+  },
+  "263": {
+   "name": "DBbasroad2",
+   "group": "Bass"
+  },
+  "264": {
+   "name": "PIANOSINGS",
+   "group": "Keys"
+  },
+  "265": {
+   "name": "PIPES    A",
+   "group": "Organ"
+  },
+  "266": {
+   "name": "E.ORGAN 1A",
+   "group": "Organ"
+  },
+  "267": {
+   "name": "VOXFARFdb1",
+   "group": "Organ"
+  },
+  "268": {
+   "name": "SUPER BASS",
+   "group": "Bass"
+  },
+  "269": {
+   "name": "BASSdb3",
+   "group": "Bass"
+  },
+  "270": {
+   "name": "BASSdb2",
+   "group": "Bass"
+  },
+  "271": {
+   "name": "BASSdb1",
+   "group": "Bass"
+  },
+  "272": {
+   "name": "HJONES BAS",
+   "group": "Bass"
+  },
+  "273": {
+   "name": "TEARS DESU",
+   "group": "Misc"
+  },
+  "274": {
+   "name": "TEARSdb2",
+   "group": "Misc"
+  },
+  "275": {
+   "name": "NYLONdb1",
+   "group": "Guitar"
+  },
+  "276": {
+   "name": "NYLONdb2",
+   "group": "Guitar"
+  },
+  "277": {
+   "name": "SUSHARP1",
+   "group": "Guitar"
+  },
+  "278": {
+   "name": "SPACE TAK",
+   "group": "Pads"
+  },
+  "279": {
+   "name": "JONESVIB?",
+   "group": "Misc"
+  },
+  "280": {
+   "name": "KOTO",
+   "group": "Guitar"
+  },
+  "281": {
+   "name": "HORNdb1",
+   "group": "Winds"
+  },
+  "282": {
+   "name": "HORNdb2",
+   "group": "Winds"
+  },
+  "283": {
+   "name": "HORNdb3",
+   "group": "Winds"
+  },
+  "284": {
+   "name": "CRYSTALBEL",
+   "group": "Bells"
+  },
+  "285": {
+   "name": "ROKdb1",
+   "group": "Misc"
+  },
+  "286": {
+   "name": "ROKdb2",
+   "group": "Misc"
+  },
+  "287": {
+   "name": "OBER.db1",
+   "group": "Misc"
+  },
+  "288": {
+   "name": "OHSUREdb2",
+   "group": "Misc"
+  },
+  "289": {
+   "name": "DAB PIA 10",
+   "group": "Keys"
+  },
+  "290": {
+   "name": "TAK PIANO",
+   "group": "Keys"
+  },
+  "291": {
+   "name": "DAVE'S INT",
+   "group": "Misc"
+  },
+  "292": {
+   "name": "SMMONS TAM",
+   "group": "Drums"
+  },
+  "293": {
+   "name": "RQK GUITAR",
+   "group": "Guitar"
+  },
+  "294": {
+   "name": "CASIQPEA P",
+   "group": "Keys"
+  },
+  "295": {
+   "name": "CASIOPEA 3",
+   "group": "Keys"
+  },
+  "296": {
+   "name": "CASIOP VIB",
+   "group": "Keys"
+  },
+  "297": {
+   "name": "HORN...-..",
+   "group": "Winds"
+  },
+  "298": {
+   "name": "NEW TEARS",
+   "group": "Misc"
+  },
+  "299": {
+   "name": "E.PIANO 1",
+   "group": "Keys"
+  },
+  "300": {
+   "name": "DBBASS  1",
+   "group": "Bass"
+  },
+  "301": {
+   "name": "DBBASS 3",
+   "group": "Bass"
+  },
+  "302": {
+   "name": "DB BASS 2",
+   "group": "Bass"
+  },
+  "303": {
+   "name": "JSYN BASS1",
+   "group": "Bass"
+  },
+  "304": {
+   "name": "DBBASS  1",
+   "group": "Bass"
+  },
+  "305": {
+   "name": "GRAND PIAN",
+   "group": "Keys"
+  },
+  "306": {
+   "name": "OH SURE.",
+   "group": "Misc"
+  },
+  "307": {
+   "name": "SHIT PIPES",
+   "group": "Organ"
+  },
+  "308": {
+   "name": "DB GRAND 2",
+   "group": "Keys"
+  },
+  "309": {
+   "name": "VIBE    1",
+   "group": "Bells"
+  },
+  "310": {
+   "name": "DB HORN 2",
+   "group": "Winds"
+  },
+  "311": {
+   "name": "TEARS DESU",
+   "group": "Misc"
+  },
+  "312": {
+   "name": "SYN BRASS",
+   "group": "Winds"
+  },
+  "313": {
+   "name": "DB HORN 2",
+   "group": "Winds"
+  },
+  "314": {
+   "name": "CYMBAL J",
+   "group": "Drums"
+  },
+  "315": {
+   "name": "SPLIT GRAN",
+   "group": "Keys"
+  },
+  "316": {
+   "name": "SPLIT PIAN",
+   "group": "Keys"
+  },
+  "317": {
+   "name": "DB2 EPIANO",
+   "group": "Keys"
+  },
+  "318": {
+   "name": "DAB E PIAN",
+   "group": "Keys"
+  },
+  "319": {
+   "name": "DABCLAV 1",
+   "group": "Keys"
+  },
+  "320": {
+   "name": "DB ORGAN 1",
+   "group": "Organ"
+  },
+  "321": {
+   "name": "SYNTH ENS2",
+   "group": "Synths"
+  },
+  "322": {
+   "name": "SYNTH.ORCH",
+   "group": "Strings & Choir"
+  },
+  "323": {
+   "name": "PROPHET 5A",
+   "group": "Synths"
+  },
+  "324": {
+   "name": "JUPITER 8<",
+   "group": "Synths"
+  },
+  "325": {
+   "name": "HARMOSYNTH",
+   "group": "Synths"
+  },
+  "326": {
+   "name": "CHANGES-2X",
+   "group": "Misc"
+  },
+  "327": {
+   "name": "THE TEMPLE",
+   "group": "Misc"
+  },
+  "328": {
+   "name": "ORIENT-MOD",
+   "group": "Misc"
+  },
+  "329": {
+   "name": "FAR EAST 1",
+   "group": "Misc"
+  },
+  "330": {
+   "name": "GLASS",
+   "group": "Bells"
+  },
+  "331": {
+   "name": "GLASS 2",
+   "group": "Bells"
+  },
+  "332": {
+   "name": "THOUGHTS-2",
+   "group": "Misc"
+  },
+  "333": {
+   "name": "CHEAPSYNTH",
+   "group": "Synths"
+  },
+  "334": {
+   "name": "POWERSYN A",
+   "group": "Synths"
+  },
+  "335": {
+   "name": "FATSYNTH A",
+   "group": "Synths"
+  },
+  "336": {
+   "name": "SYN-RISE A",
+   "group": "Synths"
+  },
+  "337": {
+   "name": "ALGERNON",
+   "group": "Misc"
+  },
+  "338": {
+   "name": "MALE CHOIR",
+   "group": "Strings & Choir"
+  },
+  "339": {
+   "name": "VOICE   1",
+   "group": "Strings & Choir"
+  },
+  "340": {
+   "name": "MOVIE 1 PD",
+   "group": "Misc"
+  },
+  "341": {
+   "name": "MOVIE 2 PD",
+   "group": "Misc"
+  },
+  "342": {
+   "name": "CLARIFLUTE",
+   "group": "Winds"
+  },
+  "343": {
+   "name": "OBOE1 DB",
+   "group": "Winds"
+  },
+  "344": {
+   "name": "eastrndrum",
+   "group": "Drums"
+  },
+  "345": {
+   "name": "estrnblock",
+   "group": "Drums"
+  },
+  "346": {
+   "name": "AL-PAUL 1",
+   "group": "Misc"
+  },
+  "347": {
+   "name": "KARIMBA  A",
+   "group": "Bells"
+  },
+  "348": {
+   "name": "A.MALLET B",
+   "group": "Bells"
+  },
+  "349": {
+   "name": "MARIMBA",
+   "group": "Bells"
+  },
+  "350": {
+   "name": "VIBES PD B",
+   "group": "Bells"
+  },
+  "351": {
+   "name": "TUB BELLS",
+   "group": "Bells"
+  },
+  "352": {
+   "name": "TUBERISE A",
+   "group": "Misc"
+  },
+  "353": {
+   "name": "t/piano pd",
+   "group": "Keys"
+  },
+  "354": {
+   "name": "prelude.pn",
+   "group": "Keys"
+  },
+  "355": {
+   "name": "PIANO  PD1",
+   "group": "Keys"
+  },
+  "356": {
+   "name": "PIANO  PD1",
+   "group": "Keys"
+  },
+  "357": {
+   "name": "FM PIANO 8",
+   "group": "Keys"
+  },
+  "358": {
+   "name": "PIANOFLUKE",
+   "group": "Keys"
+  },
+  "359": {
+   "name": "EL.PNO PD5",
+   "group": "Keys"
+  },
+  "360": {
+   "name": "CLAV-E.PNO",
+   "group": "Keys"
+  },
+  "361": {
+   "name": "E.PIANO 1",
+   "group": "Keys"
+  },
+  "362": {
+   "name": "RHODES 2",
+   "group": "Keys"
+  },
+  "363": {
+   "name": "ELEC.PNO A",
+   "group": "Keys"
+  },
+  "364": {
+   "name": "TINE E.PN4",
+   "group": "Keys"
+  },
+  "365": {
+   "name": "WURLIZ PD1",
+   "group": "Keys"
+  },
+  "366": {
+   "name": "SYN-CLAV 3",
+   "group": "Keys"
+  },
+  "367": {
+   "name": "clav+mod=<",
+   "group": "Keys"
+  },
+  "368": {
+   "name": "CLAV    1",
+   "group": "Keys"
+  },
+  "369": {
+   "name": "CLAV.    A",
+   "group": "Keys"
+  },
+  "370": {
+   "name": "HAMM0ND-PD",
+   "group": "Organ"
+  },
+  "371": {
+   "name": "E.ORGAN 1",
+   "group": "Organ"
+  },
+  "372": {
+   "name": "<<Organ>>1",
+   "group": "Organ"
+  },
+  "373": {
+   "name": "PIPES    A",
+   "group": "Organ"
+  },
+  "374": {
+   "name": "HARPSI.  A",
+   "group": "Keys"
+  },
+  "375": {
+   "name": "DBL.HARP A",
+   "group": "Guitar"
+  },
+  "376": {
+   "name": "SITAR 2",
+   "group": "Guitar"
+  },
+  "377": {
+   "name": "SPANISHGTR",
+   "group": "Guitar"
+  },
+  "378": {
+   "name": "JAZZ GUITR",
+   "group": "Guitar"
+  },
+  "379": {
+   "name": "E.GUITAR A",
+   "group": "Guitar"
+  },
+  "380": {
+   "name": "E.BASS   A",
+   "group": "Bass"
+  },
+  "381": {
+   "name": "SLAP-BASS",
+   "group": "Bass"
+  },
+  "382": {
+   "name": "EMM BASS",
+   "group": "Bass"
+  },
+  "383": {
+   "name": "BASSALATOM",
+   "group": "Bass"
+  },
+  "384": {
+   "name": "p/bass  pd",
+   "group": "Bass"
+  },
+  "385": {
+   "name": "E H STRING",
+   "group": "Strings & Choir"
+  },
+  "386": {
+   "name": "STRINGSPD2",
+   "group": "Strings & Choir"
+  },
+  "387": {
+   "name": "HI STRINGS",
+   "group": "Strings & Choir"
+  },
+  "388": {
+   "name": "VIOLINS  A",
+   "group": "Strings & Choir"
+  },
+  "389": {
+   "name": "<Strings>1",
+   "group": "Strings & Choir"
+  },
+  "390": {
+   "name": "STRINGSPD2",
+   "group": "Strings & Choir"
+  },
+  "391": {
+   "name": "STRING PD9",
+   "group": "Strings & Choir"
+  },
+  "392": {
+   "name": "VIOLINS  A",
+   "group": "Strings & Choir"
+  },
+  "393": {
+   "name": "STRING PD5",
+   "group": "Strings & Choir"
+  },
+  "394": {
+   "name": "STRING PD3",
+   "group": "Strings & Choir"
+  },
+  "395": {
+   "name": "<Strings>3",
+   "group": "Strings & Choir"
+  },
+  "396": {
+   "name": "STRING PD7",
+   "group": "Strings & Choir"
+  },
+  "397": {
+   "name": "CELLOS   A",
+   "group": "Strings & Choir"
+  },
+  "398": {
+   "name": "<Strings>4",
+   "group": "Strings & Choir"
+  },
+  "399": {
+   "name": "STRING PD4",
+   "group": "Strings & Choir"
+  },
+  "400": {
+   "name": "SCHIZO4 PD",
+   "group": "Misc"
+  },
+  "401": {
+   "name": "cmj brass",
+   "group": "Winds"
+  },
+  "402": {
+   "name": "BRASS   1",
+   "group": "Winds"
+  },
+  "403": {
+   "name": "BRASS   3",
+   "group": "Winds"
+  },
+  "404": {
+   "name": "BRASS 6 BC",
+   "group": "Winds"
+  },
+  "405": {
+   "name": "HORN SEC.A",
+   "group": "Winds"
+  },
+  "406": {
+   "name": "HORN SEC.B",
+   "group": "Winds"
+  },
+  "407": {
+   "name": "TRUMPET  A",
+   "group": "Winds"
+  },
+  "408": {
+   "name": "TRUMPET  B",
+   "group": "Winds"
+  },
+  "409": {
+   "name": "BIG BRASS",
+   "group": "Winds"
+  },
+  "410": {
+   "name": "GRANDBRASS",
+   "group": "Winds"
+  },
+  "411": {
+   "name": "SWEEPBRAS(",
+   "group": "Winds"
+  },
+  "412": {
+   "name": "SYNBRASS 2",
+   "group": "Winds"
+  },
+  "413": {
+   "name": "BANA-SPLIT",
+   "group": "Misc"
+  },
+  "414": {
+   "name": "E.P.& BR A",
+   "group": "Keys"
+  },
+  "415": {
+   "name": "ORCHESTRA<",
+   "group": "Strings & Choir"
+  },
+  "416": {
+   "name": "ORCHESTRA1",
+   "group": "Strings & Choir"
+  },
+  "417": {
+   "name": "COMPUTER-4",
+   "group": "FX"
+  },
+  "418": {
+   "name": "computer-6",
+   "group": "FX"
+  },
+  "419": {
+   "name": "JETSONS-PD",
+   "group": "FX"
+  },
+  "420": {
+   "name": "JETSONS-PD",
+   "group": "FX"
+  },
+  "421": {
+   "name": "SHORT-WAVE",
+   "group": "FX"
+  },
+  "422": {
+   "name": "SHORT-CYCL",
+   "group": "FX"
+  },
+  "423": {
+   "name": "time warp",
+   "group": "FX"
+  },
+  "424": {
+   "name": "dentistry!",
+   "group": "FX"
+  },
+  "425": {
+   "name": "ANVIL  PD1",
+   "group": "FX"
+  },
+  "426": {
+   "name": "SHRIEK PD4",
+   "group": "FX"
+  },
+  "427": {
+   "name": "YES BUNK 1",
+   "group": "Misc"
+  },
+  "428": {
+   "name": "TIMPS  PD1",
+   "group": "Drums"
+  },
+  "429": {
+   "name": "TIMPANI MW",
+   "group": "Drums"
+  },
+  "430": {
+   "name": "ELECTTOMOM",
+   "group": "Misc"
+  },
+  "431": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "432": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "433": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "434": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "435": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "436": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "437": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "438": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "439": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "440": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "441": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "442": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "443": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "444": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "445": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "446": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "447": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "448": {
+   "name": "INIT VOICE",
+   "group": "Misc"
+  },
+  "449": {
+   "name": "SUPERTRAMP",
+   "group": "Misc"
+  },
+  "450": {
+   "name": "CEMBALO",
+   "group": "Keys"
+  },
+  "451": {
+   "name": "TAENZERIN",
+   "group": "Misc"
+  },
+  "452": {
+   "name": "MULMI",
+   "group": "Misc"
+  },
+  "453": {
+   "name": "WATSCH",
+   "group": "Misc"
+  },
+  "454": {
+   "name": "LADEN",
+   "group": "Misc"
+  },
+  "455": {
+   "name": "GEORG",
+   "group": "Organ"
+  },
+  "456": {
+   "name": "DSCHUNGEL",
+   "group": "Misc"
+  },
+  "457": {
+   "name": "HUBSCHRAUB",
+   "group": "FX"
+  },
+  "458": {
+   "name": "MASCHGEW",
+   "group": "FX"
+  },
+  "459": {
+   "name": "HUPE",
+   "group": "FX"
+  },
+  "460": {
+   "name": "HERZSCHLA",
+   "group": "FX"
+  },
+  "461": {
+   "name": "ORGEL 1",
+   "group": "Organ"
+  },
+  "462": {
+   "name": "DREHORGEL",
+   "group": "Organ"
+  },
+  "463": {
+   "name": "ORGEL 2",
+   "group": "Organ"
+  },
+  "464": {
+   "name": "KLACK",
+   "group": "Drums"
+  },
+  "465": {
+   "name": "GLOCKEN",
+   "group": "Bells"
+  },
+  "466": {
+   "name": "WUSCH",
+   "group": "FX"
+  },
+  "467": {
+   "name": "TOMS",
+   "group": "Drums"
+  },
+  "468": {
+   "name": "UI",
+   "group": "FX"
+  },
+  "469": {
+   "name": "GEIGEN 1",
+   "group": "Strings & Choir"
+  },
+  "470": {
+   "name": "GEIGEN 2",
+   "group": "Strings & Choir"
+  },
+  "471": {
+   "name": "ZWITSCHER",
+   "group": "FX"
+  },
+  "472": {
+   "name": "TRIANGEL",
+   "group": "Drums"
+  },
+  "473": {
+   "name": "BLBLBLBL",
+   "group": "FX"
+  },
+  "474": {
+   "name": "FUNKY",
+   "group": "Misc"
+  },
+  "475": {
+   "name": "GITARRE",
+   "group": "Guitar"
+  },
+  "476": {
+   "name": "NERVOES",
+   "group": "Misc"
+  },
+  "477": {
+   "name": "ALARM",
+   "group": "FX"
+  },
+  "478": {
+   "name": "KATZE",
+   "group": "FX"
+  },
+  "479": {
+   "name": "MENSCHESSE",
+   "group": "Misc"
+  },
+  "480": {
+   "name": "ROBOTER",
+   "group": "FX"
+  },
+  "481": {
+   "name": "B/Piano 1Y",
+   "group": "Keys"
+  },
+  "482": {
+   "name": "B/ElGrnd1Y",
+   "group": "Keys"
+  },
+  "483": {
+   "name": "B/EPiano1Y",
+   "group": "Keys"
+  },
+  "484": {
+   "name": "B/E.PianoY",
+   "group": "Keys"
+  },
+  "485": {
+   "name": "B/WrlitzrY",
+   "group": "Keys"
+  },
+  "486": {
+   "name": "B/SawPinoY",
+   "group": "Keys"
+  },
+  "487": {
+   "name": "B/ClavnetY",
+   "group": "Keys"
+  },
+  "488": {
+   "name": "B/Organ  Y",
+   "group": "Organ"
+  },
+  "489": {
+   "name": "Cordovox Y",
+   "group": "Organ"
+  },
+  "490": {
+   "name": "16-4Melo Y",
+   "group": "Misc"
+  },
+  "491": {
+   "name": "B/TrumpetY",
+   "group": "Winds"
+  },
+  "492": {
+   "name": "B/Bones  Y",
+   "group": "Winds"
+  },
+  "493": {
+   "name": "B/Flt AxlY",
+   "group": "Winds"
+  },
+  "494": {
+   "name": "B/String1Y",
+   "group": "Strings & Choir"
+  },
+  "495": {
+   "name": "B/StrsWrmY",
+   "group": "Strings & Choir"
+  },
+  "496": {
+   "name": "AgiY/E.Pno",
+   "group": "Keys"
+  },
+  "497": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "498": {
+   "name": "ElecGrandY",
+   "group": "Keys"
+  },
+  "499": {
+   "name": "KCEpTyn 7Y",
+   "group": "Keys"
+  },
+  "500": {
+   "name": "OvrDunEP.Y",
+   "group": "Keys"
+  },
+  "501": {
+   "name": "Wurli 8{%}",
+   "group": "Keys"
+  },
+  "502": {
+   "name": "SawPiano Y",
+   "group": "Keys"
+  },
+  "503": {
+   "name": "Clavinet Y",
+   "group": "Keys"
+  },
+  "504": {
+   "name": "ChorsOrg1Y",
+   "group": "Organ"
+  },
+  "505": {
+   "name": "Grinder 5Y",
+   "group": "Misc"
+  },
+  "506": {
+   "name": "Farf.16-8Y",
+   "group": "Organ"
+  },
+  "507": {
+   "name": "Trumpet  Y",
+   "group": "Winds"
+  },
+  "508": {
+   "name": "Trombone Y",
+   "group": "Winds"
+  },
+  "509": {
+   "name": "KC Flute4Y",
+   "group": "Winds"
+  },
+  "510": {
+   "name": "StrEnsmblY",
+   "group": "Strings & Choir"
+  },
+  "511": {
+   "name": "WrmStringY",
+   "group": "Strings & Choir"
+  },
+  "512": {
+   "name": "StrngGtr2Y",
+   "group": "Strings & Choir"
+  },
+  "513": {
+   "name": "WallyPno4",
+   "group": "Keys"
+  },
+  "514": {
+   "name": "Bras5-Splt",
+   "group": "Winds"
+  },
+  "515": {
+   "name": "New Grand1",
+   "group": "Keys"
+  },
+  "516": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "517": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "518": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "519": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "520": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "521": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "522": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "523": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "524": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "525": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "526": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "527": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "528": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "529": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "530": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "531": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "532": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "533": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "534": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "535": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "536": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "537": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "538": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "539": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "540": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "541": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "542": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "543": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "544": {
+   "name": "PianoBo 7Y",
+   "group": "Keys"
+  },
+  "545": {
+   "name": "B/Piano 2Y",
+   "group": "Keys"
+  },
+  "546": {
+   "name": "EP-StrngsY",
+   "group": "Strings & Choir"
+  },
+  "547": {
+   "name": "Bs/NylGtrY",
+   "group": "Bass"
+  },
+  "548": {
+   "name": "XyloHrdWdY",
+   "group": "Bells"
+  },
+  "549": {
+   "name": "B/Bell   Y",
+   "group": "Bells"
+  },
+  "550": {
+   "name": "Celest   Y",
+   "group": "Bells"
+  },
+  "551": {
+   "name": "Bs/ClrBelY",
+   "group": "Bass"
+  },
+  "552": {
+   "name": "Bs/SqezBxY",
+   "group": "Bass"
+  },
+  "553": {
+   "name": "B/MelodcaY",
+   "group": "Winds"
+  },
+  "554": {
+   "name": "B/ClarnetY",
+   "group": "Winds"
+  },
+  "555": {
+   "name": "B/HarmAxlY",
+   "group": "Misc"
+  },
+  "556": {
+   "name": "B/MelBrasY",
+   "group": "Winds"
+  },
+  "557": {
+   "name": "B/DrtyAnaY",
+   "group": "Misc"
+  },
+  "558": {
+   "name": "AppyBirDay",
+   "group": "FX"
+  },
+  "559": {
+   "name": "Elec.BassY",
+   "group": "Bass"
+  },
+  "560": {
+   "name": "SynthBasWY",
+   "group": "Synths"
+  },
+  "561": {
+   "name": "EpClique8Y",
+   "group": "Keys"
+  },
+  "562": {
+   "name": "SparePrtsY",
+   "group": "Misc"
+  },
+  "563": {
+   "name": "JazGuitarY",
+   "group": "Guitar"
+  },
+  "564": {
+   "name": "TakMrimbaY",
+   "group": "Bells"
+  },
+  "565": {
+   "name": "RodeBell Y",
+   "group": "Bells"
+  },
+  "566": {
+   "name": "Jamaica  Y",
+   "group": "Misc"
+  },
+  "567": {
+   "name": "Lavitar  Y",
+   "group": "Misc"
+  },
+  "568": {
+   "name": "PipeOrganY",
+   "group": "Organ"
+  },
+  "569": {
+   "name": "Dbl Reed2Y",
+   "group": "Winds"
+  },
+  "570": {
+   "name": "AnnaClaraY",
+   "group": "Synths"
+  },
+  "571": {
+   "name": "BagyPipesY",
+   "group": "Winds"
+  },
+  "572": {
+   "name": "AnnaSubtlY",
+   "group": "Synths"
+  },
+  "573": {
+   "name": "PedSweep1Y",
+   "group": "Pads"
+  },
+  "574": {
+   "name": "Fox Horn",
+   "group": "Winds"
+  },
+  "575": {
+   "name": "FndrB/PnoY",
+   "group": "Keys"
+  },
+  "576": {
+   "name": "(A) -{440}",
+   "group": "Leads"
+  },
+  "577": {
+   "name": "DIGI-BASS1",
+   "group": "Bass"
+  },
+  "578": {
+   "name": "OVRDRBASS1",
+   "group": "Bass"
+  },
+  "579": {
+   "name": "BASS-RESWP",
+   "group": "Bass"
+  },
+  "580": {
+   "name": "ANLOG SQR1",
+   "group": "Leads"
+  },
+  "581": {
+   "name": "ANLOGLEAD1",
+   "group": "Leads"
+  },
+  "582": {
+   "name": "CHILD",
+   "group": "Misc"
+  },
+  "583": {
+   "name": "SUPRSTR LO",
+   "group": "Misc"
+  },
+  "584": {
+   "name": "MEDL XPRSV",
+   "group": "Misc"
+  },
+  "585": {
+   "name": "CARLOS   1",
+   "group": "Synths"
+  },
+  "586": {
+   "name": "TOO COOL",
+   "group": "Misc"
+  },
+  "587": {
+   "name": "76 BELLS",
+   "group": "Bells"
+  },
+  "588": {
+   "name": "<<Smash>>",
+   "group": "Drums"
+  },
+  "589": {
+   "name": "<Acc>Gtr 4",
+   "group": "Guitar"
+  },
+  "590": {
+   "name": "<Big> Orgn",
+   "group": "Organ"
+  },
+  "591": {
+   "name": "<Brr> Epno",
+   "group": "Keys"
+  },
+  "592": {
+   "name": "<FM>alog 1",
+   "group": "Synths"
+  },
+  "593": {
+   "name": "<FM>alog 2",
+   "group": "Synths"
+  },
+  "594": {
+   "name": "<FM>alog 3",
+   "group": "Synths"
+  },
+  "595": {
+   "name": "<Perc=>  1",
+   "group": "Synths"
+  },
+  "596": {
+   "name": "<Perc=>  2",
+   "group": "Synths"
+  },
+  "597": {
+   "name": "<Perc=>  3",
+   "group": "Synths"
+  },
+  "598": {
+   "name": "<Perc=>  8",
+   "group": "Synths"
+  },
+  "599": {
+   "name": "<Pluk>   1",
+   "group": "Guitar"
+  },
+  "600": {
+   "name": "<Pluk>   2",
+   "group": "Guitar"
+  },
+  "601": {
+   "name": "<Pluk>   3",
+   "group": "Guitar"
+  },
+  "602": {
+   "name": "<Pluk>   4",
+   "group": "Guitar"
+  },
+  "603": {
+   "name": "<Pluk>   <",
+   "group": "Guitar"
+  },
+  "604": {
+   "name": "<Pop> Epno",
+   "group": "Keys"
+  },
+  "605": {
+   "name": "<Puf> Orgn",
+   "group": "Organ"
+  },
+  "606": {
+   "name": "<Synth>  1",
+   "group": "Synths"
+  },
+  "607": {
+   "name": "<Synth>  2",
+   "group": "Synths"
+  },
+  "608": {
+   "name": "<Synth>  3",
+   "group": "Synths"
+  },
+  "609": {
+   "name": "E.SNR   1",
+   "group": "Drums"
+  },
+  "610": {
+   "name": "E.SNR   2",
+   "group": "Drums"
+  },
+  "611": {
+   "name": "E.SNR   3",
+   "group": "Drums"
+  },
+  "612": {
+   "name": "E.SNR   4",
+   "group": "Drums"
+  },
+  "613": {
+   "name": "E.SNR   5",
+   "group": "Drums"
+  },
+  "614": {
+   "name": "E.SNR   6",
+   "group": "Drums"
+  },
+  "615": {
+   "name": "AC.SNR",
+   "group": "Drums"
+  },
+  "616": {
+   "name": "STL.SNR 1",
+   "group": "Drums"
+  },
+  "617": {
+   "name": "STL.SNR 2",
+   "group": "Drums"
+  },
+  "618": {
+   "name": "STL.SNR 3",
+   "group": "Drums"
+  },
+  "619": {
+   "name": "STL.SNR 4",
+   "group": "Drums"
+  },
+  "620": {
+   "name": "STL.SNR 5",
+   "group": "Drums"
+  },
+  "621": {
+   "name": "E.BD    1",
+   "group": "Drums"
+  },
+  "622": {
+   "name": "E.BD    2",
+   "group": "Drums"
+  },
+  "623": {
+   "name": "E.BD    3",
+   "group": "Drums"
+  },
+  "624": {
+   "name": "E.BD    4",
+   "group": "Drums"
+  },
+  "625": {
+   "name": "AC.BD   1",
+   "group": "Drums"
+  },
+  "626": {
+   "name": "AC.BD   2",
+   "group": "Drums"
+  },
+  "627": {
+   "name": "AC.BD   3",
+   "group": "Drums"
+  },
+  "628": {
+   "name": "AC.BD   4",
+   "group": "Drums"
+  },
+  "629": {
+   "name": "AC.BD   5",
+   "group": "Drums"
+  },
+  "630": {
+   "name": "AC.BD   6",
+   "group": "Drums"
+  },
+  "631": {
+   "name": "STL.BD",
+   "group": "Drums"
+  },
+  "632": {
+   "name": "E.BASS",
+   "group": "Bass"
+  },
+  "633": {
+   "name": "STL.DR.",
+   "group": "Drums"
+  },
+  "634": {
+   "name": "TRIANGLE",
+   "group": "Drums"
+  },
+  "635": {
+   "name": "SNR.BLAST",
+   "group": "Drums"
+  },
+  "636": {
+   "name": "HNDRUM",
+   "group": "Drums"
+  },
+  "637": {
+   "name": "MTL BLOCK",
+   "group": "Drums"
+  },
+  "638": {
+   "name": "SLEIGHBELL",
+   "group": "Drums"
+  },
+  "639": {
+   "name": "SMASH",
+   "group": "Drums"
+  },
+  "640": {
+   "name": "S.WHISTLE",
+   "group": "Winds"
+  },
+  "641": {
+   "name": "DIGI-BASS1",
+   "group": "Bass"
+  },
+  "642": {
+   "name": "DIGI-BASS3",
+   "group": "Bass"
+  },
+  "643": {
+   "name": "OVRDRBASS1",
+   "group": "Bass"
+  },
+  "644": {
+   "name": "BASS-RESWP",
+   "group": "Bass"
+  },
+  "645": {
+   "name": "SYNBRASS 2",
+   "group": "Winds"
+  },
+  "646": {
+   "name": "SYNBRASS 8",
+   "group": "Winds"
+  },
+  "647": {
+   "name": "OCTBRASS 8",
+   "group": "Winds"
+  },
+  "648": {
+   "name": "OCTSYNTH 8",
+   "group": "Synths"
+  },
+  "649": {
+   "name": "THE BEST .",
+   "group": "Misc"
+  },
+  "650": {
+   "name": "STRING 1--",
+   "group": "Strings & Choir"
+  },
+  "651": {
+   "name": "STRING 3V1",
+   "group": "Strings & Choir"
+  },
+  "652": {
+   "name": "PERFECTPAD",
+   "group": "Pads"
+  },
+  "653": {
+   "name": "OB8 STRING",
+   "group": "Strings & Choir"
+  },
+  "654": {
+   "name": "OB8STRING3",
+   "group": "Strings & Choir"
+  },
+  "655": {
+   "name": "HORNSECT.1",
+   "group": "Winds"
+  },
+  "656": {
+   "name": "QUARTET 2",
+   "group": "Strings & Choir"
+  },
+  "657": {
+   "name": "M-F VOIZE3",
+   "group": "Strings & Choir"
+  },
+  "658": {
+   "name": "SAMPLE BRS",
+   "group": "Winds"
+  },
+  "659": {
+   "name": "SPECTRUM 2",
+   "group": "Misc"
+  },
+  "660": {
+   "name": "VH JUMP 2",
+   "group": "Synths"
+  },
+  "661": {
+   "name": "ANLOG SQR1",
+   "group": "Leads"
+  },
+  "662": {
+   "name": "ANLOGLEAD1",
+   "group": "Leads"
+  },
+  "663": {
+   "name": "DIGI-LEAD1",
+   "group": "Leads"
+  },
+  "664": {
+   "name": "DIGI-LEAD7",
+   "group": "Leads"
+  },
+  "665": {
+   "name": "WHY 2",
+   "group": "Misc"
+  },
+  "666": {
+   "name": "STEINWAY43",
+   "group": "Keys"
+  },
+  "667": {
+   "name": "SIMMONS MF",
+   "group": "Drums"
+  },
+  "668": {
+   "name": "CHILD",
+   "group": "Misc"
+  },
+  "669": {
+   "name": "BRS-STG-DB",
+   "group": "Strings & Choir"
+  },
+  "670": {
+   "name": "SUPRSTR LO",
+   "group": "Misc"
+  },
+  "671": {
+   "name": "VICS ROADS",
+   "group": "Keys"
+  },
+  "672": {
+   "name": "BC SAX 5",
+   "group": "Winds"
+  },
+  "673": {
+   "name": "pi k  l w",
+   "group": "Misc"
+  },
+  "674": {
+   "name": "FLUTE   2",
+   "group": "Winds"
+  },
+  "675": {
+   "name": "OBOE",
+   "group": "Winds"
+  },
+  "676": {
+   "name": "CLARINET",
+   "group": "Winds"
+  },
+  "677": {
+   "name": "BASSOON",
+   "group": "Winds"
+  },
+  "678": {
+   "name": "PAN FLUTE",
+   "group": "Winds"
+  },
+  "679": {
+   "name": "LEAD BRASS",
+   "group": "Winds"
+  },
+  "680": {
+   "name": "HORNS",
+   "group": "Winds"
+  },
+  "681": {
+   "name": "SOLO TBONE",
+   "group": "Winds"
+  },
+  "682": {
+   "name": "BRASS BC",
+   "group": "Winds"
+  },
+  "683": {
+   "name": "BRASS 5THS",
+   "group": "Winds"
+  },
+  "684": {
+   "name": "SYNTHBRASS",
+   "group": "Winds"
+  },
+  "685": {
+   "name": "STRG QRT 1",
+   "group": "Strings & Choir"
+  },
+  "686": {
+   "name": "STRG ENS 2",
+   "group": "Strings & Choir"
+  },
+  "687": {
+   "name": "VIOLA SECN",
+   "group": "Strings & Choir"
+  },
+  "688": {
+   "name": "STRGS LOW",
+   "group": "Strings & Choir"
+  },
+  "689": {
+   "name": "HIGH STRGS",
+   "group": "Strings & Choir"
+  },
+  "690": {
+   "name": "PIZZ STGS",
+   "group": "Strings & Choir"
+  },
+  "691": {
+   "name": "STG CRSNDO",
+   "group": "Strings & Choir"
+  },
+  "692": {
+   "name": "STGS 5THS",
+   "group": "Strings & Choir"
+  },
+  "693": {
+   "name": "BELLS",
+   "group": "Bells"
+  },
+  "694": {
+   "name": "TUB BELLS",
+   "group": "Bells"
+  },
+  "695": {
+   "name": "RECORDERS",
+   "group": "Winds"
+  },
+  "696": {
+   "name": "CHIMES",
+   "group": "Bells"
+  },
+  "697": {
+   "name": "VOICES",
+   "group": "Strings & Choir"
+  },
+  "698": {
+   "name": "XYLOPHONE",
+   "group": "Bells"
+  },
+  "699": {
+   "name": "COWBELL",
+   "group": "Drums"
+  },
+  "700": {
+   "name": "WOOD BLOCK",
+   "group": "Drums"
+  },
+  "701": {
+   "name": "FLEXATONE",
+   "group": "Bells"
+  },
+  "702": {
+   "name": "LOG DRUM",
+   "group": "Drums"
+  },
+  "703": {
+   "name": "GLOKENSPL",
+   "group": "Bells"
+  },
+  "704": {
+   "name": "VIBE",
+   "group": "Bells"
+  },
+  "705": {
+   "name": "Gl    i no",
+   "group": "Misc"
+  },
+  "706": {
+   "name": "Sa    a n.",
+   "group": "Misc"
+  },
+  "707": {
+   "name": "GrandPiano",
+   "group": "Keys"
+  },
+  "708": {
+   "name": "GRAND LH",
+   "group": "Keys"
+  },
+  "709": {
+   "name": "Proc.E.Pno",
+   "group": "Keys"
+  },
+  "710": {
+   "name": "JA",
+   "group": "Misc"
+  },
+  "711": {
+   "name": "E. GOM",
+   "group": "Misc"
+  },
+  "712": {
+   "name": "FM PIANO B",
+   "group": "Keys"
+  },
+  "713": {
+   "name": "SY C  V ER",
+   "group": "Misc"
+  },
+  "714": {
+   "name": "Split #1",
+   "group": "Misc"
+  },
+  "715": {
+   "name": "Split #2",
+   "group": "Misc"
+  },
+  "716": {
+   "name": "CathedrOrg",
+   "group": "Organ"
+  },
+  "717": {
+   "name": "BEAM ME UP",
+   "group": "FX"
+  },
+  "718": {
+   "name": "E.GUITAR B",
+   "group": "Guitar"
+  },
+  "719": {
+   "name": "TORIMTORAH",
+   "group": "Misc"
+  },
+  "720": {
+   "name": "DBL GITUAR",
+   "group": "Guitar"
+  },
+  "721": {
+   "name": "Rastabuzzz",
+   "group": "Misc"
+  },
+  "722": {
+   "name": "SYNERGY  4",
+   "group": "Synths"
+  },
+  "723": {
+   "name": "AT&T- RING",
+   "group": "FX"
+  },
+  "724": {
+   "name": "DIAL TONE",
+   "group": "FX"
+  },
+  "725": {
+   "name": "BUZY",
+   "group": "FX"
+  },
+  "726": {
+   "name": "JAZZ-TRUMP",
+   "group": "Winds"
+  },
+  "727": {
+   "name": "PRINCE",
+   "group": "Misc"
+  },
+  "728": {
+   "name": "MICHAEL",
+   "group": "Misc"
+  },
+  "729": {
+   "name": "SYN-RISE A",
+   "group": "Synths"
+  },
+  "730": {
+   "name": "DARKSHADOW",
+   "group": "Misc"
+  },
+  "731": {
+   "name": "SURVIVOR",
+   "group": "Misc"
+  },
+  "732": {
+   "name": "SLAPCONGAS",
+   "group": "Drums"
+  },
+  "733": {
+   "name": "Textures 6",
+   "group": "Pads"
+  },
+  "734": {
+   "name": "Textures 7",
+   "group": "Pads"
+  },
+  "735": {
+   "name": "Textures 3",
+   "group": "Pads"
+  },
+  "736": {
+   "name": "JX3P STRGS",
+   "group": "Strings & Choir"
+  },
+  "737": {
+   "name": "OEOEOE",
+   "group": "Misc"
+  },
+  "738": {
+   "name": "TAKINGOFF?",
+   "group": "FX"
+  },
+  "739": {
+   "name": "CHOPPER",
+   "group": "FX"
+  },
+  "740": {
+   "name": "G3 IS GUN",
+   "group": "FX"
+  },
+  "741": {
+   "name": "TWONG",
+   "group": "Guitar"
+  },
+  "742": {
+   "name": "SLOSWEEPUP",
+   "group": "Pads"
+  },
+  "743": {
+   "name": "NUKFALLOUT",
+   "group": "FX"
+  },
+  "744": {
+   "name": "RUMBLE",
+   "group": "FX"
+  },
+  "745": {
+   "name": "CMPUTRTALK",
+   "group": "FX"
+  },
+  "746": {
+   "name": "IN THE AIR",
+   "group": "Misc"
+  },
+  "747": {
+   "name": "WHEET WEOW",
+   "group": "FX"
+  },
+  "748": {
+   "name": "WARFARE",
+   "group": "FX"
+  },
+  "749": {
+   "name": "CLOUDROPS",
+   "group": "FX"
+  },
+  "750": {
+   "name": "ENCOUNTER",
+   "group": "FX"
+  },
+  "751": {
+   "name": "WONDER",
+   "group": "Misc"
+  },
+  "752": {
+   "name": "MOON SHUTL",
+   "group": "FX"
+  },
+  "753": {
+   "name": "FLUTTRBLOK",
+   "group": "Winds"
+  },
+  "754": {
+   "name": "TRANSPORT",
+   "group": "FX"
+  },
+  "755": {
+   "name": "MNSKOPRBOL",
+   "group": "Misc"
+  },
+  "756": {
+   "name": "METAL BOW",
+   "group": "Strings & Choir"
+  },
+  "757": {
+   "name": "LLEB",
+   "group": "Misc"
+  },
+  "758": {
+   "name": "NOTONEBELL",
+   "group": "Bells"
+  },
+  "759": {
+   "name": "BELL TREE",
+   "group": "Bells"
+  },
+  "760": {
+   "name": "BAEOW DRUM",
+   "group": "Drums"
+  },
+  "761": {
+   "name": "GONGED",
+   "group": "Bells"
+  },
+  "762": {
+   "name": "SPACE DOVE",
+   "group": "Pads"
+  },
+  "763": {
+   "name": "HANFULOMTL",
+   "group": "Misc"
+  },
+  "764": {
+   "name": "INDUSTRY",
+   "group": "FX"
+  },
+  "765": {
+   "name": "ARROW",
+   "group": "FX"
+  },
+  "766": {
+   "name": "YAYABREATH",
+   "group": "FX"
+  },
+  "767": {
+   "name": "G3-THUNDER",
+   "group": "FX"
+  },
+  "768": {
+   "name": "MOSQUITO",
+   "group": "FX"
+  },
+  "769": {
+   "name": "Bass Guitr",
+   "group": "Bass"
+  },
+  "770": {
+   "name": "BASS-1",
+   "group": "Bass"
+  },
+  "771": {
+   "name": "Bang ?????",
+   "group": "Misc"
+  },
+  "772": {
+   "name": "-METABASS-",
+   "group": "Bass"
+  },
+  "773": {
+   "name": "METABASS 2",
+   "group": "Bass"
+  },
+  "774": {
+   "name": "PICK BASS",
+   "group": "Bass"
+  },
+  "775": {
+   "name": "Bass.1",
+   "group": "Bass"
+  },
+  "776": {
+   "name": "E.BASS 1",
+   "group": "Bass"
+  },
+  "777": {
+   "name": "E.BASS  2",
+   "group": "Bass"
+  },
+  "778": {
+   "name": "FRETLESS 2",
+   "group": "Bass"
+  },
+  "779": {
+   "name": "PLUCK BASS",
+   "group": "Bass"
+  },
+  "780": {
+   "name": "FRETLESS 1",
+   "group": "Bass"
+  },
+  "781": {
+   "name": "S.BSS 32.7",
+   "group": "Bass"
+  },
+  "782": {
+   "name": "D.BAS 24.7",
+   "group": "Bass"
+  },
+  "783": {
+   "name": "H.BAS 25.7",
+   "group": "Bass"
+  },
+  "784": {
+   "name": "F.BAS 26.7",
+   "group": "Bass"
+  },
+  "785": {
+   "name": "S.BAS 27.7",
+   "group": "Bass"
+  },
+  "786": {
+   "name": "WDBSS 28.7",
+   "group": "Bass"
+  },
+  "787": {
+   "name": "SMBSS 29.7",
+   "group": "Bass"
+  },
+  "788": {
+   "name": "F.BSS 30.7",
+   "group": "Bass"
+  },
+  "789": {
+   "name": "F.BSS 31.7",
+   "group": "Bass"
+  },
+  "790": {
+   "name": "Doug17synt",
+   "group": "Misc"
+  },
+  "791": {
+   "name": "AnaBass",
+   "group": "Bass"
+  },
+  "792": {
+   "name": "Slicktrick",
+   "group": "Misc"
+  },
+  "793": {
+   "name": "Slicktrik2",
+   "group": "Misc"
+  },
+  "794": {
+   "name": "-ANALOG 7-",
+   "group": "Synths"
+  },
+  "795": {
+   "name": "SUPER BASS",
+   "group": "Bass"
+  },
+  "796": {
+   "name": "SuperBass1",
+   "group": "Bass"
+  },
+  "797": {
+   "name": "SuperBass2",
+   "group": "Bass"
+  },
+  "798": {
+   "name": "BASS..-ICE",
+   "group": "Bass"
+  },
+  "799": {
+   "name": "SLAP-RHODE",
+   "group": "Keys"
+  },
+  "800": {
+   "name": "Pluckclav",
+   "group": "Keys"
+  },
+  "801": {
+   "name": "CLAV-ORGAN",
+   "group": "Keys"
+  },
+  "802": {
+   "name": "HipHopOtam",
+   "group": "Misc"
+  },
+  "803": {
+   "name": "-WURLIE-",
+   "group": "Keys"
+  },
+  "804": {
+   "name": "WURLI/TREM",
+   "group": "Keys"
+  },
+  "805": {
+   "name": "WURLI /VIB",
+   "group": "Keys"
+  },
+  "806": {
+   "name": "CLAV.    A",
+   "group": "Keys"
+  },
+  "807": {
+   "name": "FUNK CLAV",
+   "group": "Keys"
+  },
+  "808": {
+   "name": "CLAV ENS 2",
+   "group": "Strings & Choir"
+  },
+  "809": {
+   "name": "PERC CLAV",
+   "group": "Keys"
+  },
+  "810": {
+   "name": "CLAV    1",
+   "group": "Keys"
+  },
+  "811": {
+   "name": "CLAV ENS",
+   "group": "Strings & Choir"
+  },
+  "812": {
+   "name": "HERBIE",
+   "group": "Keys"
+  },
+  "813": {
+   "name": "PEDALSTEEL",
+   "group": "Guitar"
+  },
+  "814": {
+   "name": "Funkydroid",
+   "group": "Misc"
+  },
+  "815": {
+   "name": "ACOU VOICE",
+   "group": "Strings & Choir"
+  },
+  "816": {
+   "name": "CLAV  13.8",
+   "group": "Keys"
+  },
+  "817": {
+   "name": "ClaviStuff",
+   "group": "Keys"
+  },
+  "818": {
+   "name": "Y.BNK 27.6",
+   "group": "Misc"
+  },
+  "819": {
+   "name": "NCLAV 32.5",
+   "group": "Keys"
+  },
+  "820": {
+   "name": "STGTR 27.5",
+   "group": "Guitar"
+  },
+  "821": {
+   "name": "SYNPK 20.5",
+   "group": "Synths"
+  },
+  "822": {
+   "name": "CLAV. 29.2",
+   "group": "Keys"
+  },
+  "823": {
+   "name": "PLUK  16.1",
+   "group": "Guitar"
+  },
+  "824": {
+   "name": "Clarstring",
+   "group": "Strings & Choir"
+  },
+  "825": {
+   "name": "Pluckclav",
+   "group": "Keys"
+  },
+  "826": {
+   "name": "Spaceclav",
+   "group": "Keys"
+  },
+  "827": {
+   "name": "Bang ?????",
+   "group": "Misc"
+  },
+  "828": {
+   "name": "Clavdroid",
+   "group": "Keys"
+  },
+  "829": {
+   "name": "EVERYTHING",
+   "group": "Misc"
+  },
+  "830": {
+   "name": "PIANO  RR",
+   "group": "Keys"
+  },
+  "831": {
+   "name": "BASS-CLAV",
+   "group": "Bass"
+  },
+  "832": {
+   "name": "PREPARED",
+   "group": "Keys"
+  },
+  "833": {
+   "name": "FENDER 2<<",
+   "group": "Keys"
+  },
+  "834": {
+   "name": "Wurliddzer",
+   "group": "Keys"
+  },
+  "835": {
+   "name": "ELEC PNO A",
+   "group": "Keys"
+  },
+  "836": {
+   "name": "E.PIANO 1A",
+   "group": "Keys"
+  },
+  "837": {
+   "name": "E.PIANO 2A",
+   "group": "Keys"
+  },
+  "838": {
+   "name": "E.PIANO 3A",
+   "group": "Keys"
+  },
+  "839": {
+   "name": "E.PIANO 4A",
+   "group": "Keys"
+  },
+  "840": {
+   "name": "TINE-RHODS",
+   "group": "Keys"
+  },
+  "841": {
+   "name": "CLAV-E.PNO",
+   "group": "Keys"
+  },
+  "842": {
+   "name": "E.PIANO 2",
+   "group": "Keys"
+  },
+  "843": {
+   "name": "E.PIANO 3",
+   "group": "Keys"
+  },
+  "844": {
+   "name": "E.PIANO 4",
+   "group": "Keys"
+  },
+  "845": {
+   "name": "HONKY TONK",
+   "group": "Keys"
+  },
+  "846": {
+   "name": "E.PIANO 1",
+   "group": "Keys"
+  },
+  "847": {
+   "name": "PAULPIANO1",
+   "group": "Keys"
+  },
+  "848": {
+   "name": "SLAP-RHODE",
+   "group": "Keys"
+  },
+  "849": {
+   "name": "T.PNO  6.8",
+   "group": "Keys"
+  },
+  "850": {
+   "name": "W.PNO 11.4",
+   "group": "Keys"
+  },
+  "851": {
+   "name": "E.PNO  6.2",
+   "group": "Keys"
+  },
+  "852": {
+   "name": "FMPNO 11.2",
+   "group": "Keys"
+  },
+  "853": {
+   "name": "E.PNO 13.2",
+   "group": "Keys"
+  },
+  "854": {
+   "name": "E.PNO 13.1",
+   "group": "Keys"
+  },
+  "855": {
+   "name": "FMPNO 11.1",
+   "group": "Keys"
+  },
+  "856": {
+   "name": "E.PNO  6.1",
+   "group": "Keys"
+  },
+  "857": {
+   "name": "Chorma 6 Y",
+   "group": "Misc"
+  },
+  "858": {
+   "name": "FullTines",
+   "group": "Keys"
+  },
+  "859": {
+   "name": "Good-Vibes",
+   "group": "Bells"
+  },
+  "860": {
+   "name": "VibraPhone",
+   "group": "Bells"
+  },
+  "861": {
+   "name": "PianoBells",
+   "group": "Keys"
+  },
+  "862": {
+   "name": "KCEpTyn 7Y",
+   "group": "Keys"
+  },
+  "863": {
+   "name": "RodeBell Y",
+   "group": "Bells"
+  },
+  "864": {
+   "name": "Ep.CliqueY",
+   "group": "Keys"
+  },
+  "865": {
+   "name": "-ANALOG 1-",
+   "group": "Synths"
+  },
+  "866": {
+   "name": "-ANALOG 2-",
+   "group": "Synths"
+  },
+  "867": {
+   "name": "-ANALOG 3-",
+   "group": "Synths"
+  },
+  "868": {
+   "name": "-ANALOG 4-",
+   "group": "Synths"
+  },
+  "869": {
+   "name": "-ANALOG 5-",
+   "group": "Synths"
+  },
+  "870": {
+   "name": "-ANALOG 6-",
+   "group": "Synths"
+  },
+  "871": {
+   "name": "-ANALOG 7-",
+   "group": "Synths"
+  },
+  "872": {
+   "name": "-WOBBLE 1-",
+   "group": "Bass"
+  },
+  "873": {
+   "name": "-WOBBLE 2-",
+   "group": "Bass"
+  },
+  "874": {
+   "name": "SLOATTACK",
+   "group": "Misc"
+  },
+  "875": {
+   "name": "SYN BRS 2A",
+   "group": "Winds"
+  },
+  "876": {
+   "name": "SYN BRS 3A",
+   "group": "Winds"
+  },
+  "877": {
+   "name": "CS80 BRS A",
+   "group": "Winds"
+  },
+  "878": {
+   "name": "SYN BRS 1A",
+   "group": "Winds"
+  },
+  "879": {
+   "name": "PROPHET 5",
+   "group": "Synths"
+  },
+  "880": {
+   "name": "SmoothSqrY",
+   "group": "Leads"
+  },
+  "881": {
+   "name": "OB-X 1",
+   "group": "Synths"
+  },
+  "882": {
+   "name": "SQRTHANG2A",
+   "group": "Leads"
+  },
+  "883": {
+   "name": "SQURSWEP1A",
+   "group": "Pads"
+  },
+  "884": {
+   "name": "SEXSHIN 3",
+   "group": "Misc"
+  },
+  "885": {
+   "name": "ANLGBRASS",
+   "group": "Winds"
+  },
+  "886": {
+   "name": "PRC SYNTH2",
+   "group": "Synths"
+  },
+  "887": {
+   "name": "E.P-BRS BC",
+   "group": "Winds"
+  },
+  "888": {
+   "name": "SYNTHBRASS",
+   "group": "Winds"
+  },
+  "889": {
+   "name": "F.SWP 10.5",
+   "group": "Pads"
+  },
+  "890": {
+   "name": "BIGANDBAD",
+   "group": "Misc"
+  },
+  "891": {
+   "name": "SYNBR2 MGD",
+   "group": "Synths"
+  },
+  "892": {
+   "name": "Orchestra",
+   "group": "Strings & Choir"
+  },
+  "893": {
+   "name": "TADreamy",
+   "group": "Pads"
+  },
+  "894": {
+   "name": "PADSTRING1",
+   "group": "Strings & Choir"
+  },
+  "895": {
+   "name": "ANALG SYN1",
+   "group": "Synths"
+  },
+  "896": {
+   "name": "Ensemble",
+   "group": "Strings & Choir"
+  },
+  "897": {
+   "name": "STRINGS",
+   "group": "Strings & Choir"
+  },
+  "898": {
+   "name": "STRG ENS 1",
+   "group": "Strings & Choir"
+  },
+  "899": {
+   "name": "BRIGHT ST.",
+   "group": "Strings & Choir"
+  },
+  "900": {
+   "name": "CELLOS  1A",
+   "group": "Strings & Choir"
+  },
+  "901": {
+   "name": "ST.ENS. 1A",
+   "group": "Strings & Choir"
+  },
+  "902": {
+   "name": "MID.STRG A",
+   "group": "Strings & Choir"
+  },
+  "903": {
+   "name": "AN.STRG 1A",
+   "group": "Strings & Choir"
+  },
+  "904": {
+   "name": "CELLOS  2A",
+   "group": "Strings & Choir"
+  },
+  "905": {
+   "name": "ST.ENS. 2A",
+   "group": "Strings & Choir"
+  },
+  "906": {
+   "name": "STRINGS  A",
+   "group": "Strings & Choir"
+  },
+  "907": {
+   "name": "STRG QRT 1",
+   "group": "Strings & Choir"
+  },
+  "908": {
+   "name": "STRG ENS 2",
+   "group": "Strings & Choir"
+  },
+  "909": {
+   "name": "VIOLA SECN",
+   "group": "Strings & Choir"
+  },
+  "910": {
+   "name": "STRGS LOW",
+   "group": "Strings & Choir"
+  },
+  "911": {
+   "name": "HIGH STRGS",
+   "group": "Strings & Choir"
+  },
+  "912": {
+   "name": "STG CRSNDO",
+   "group": "Strings & Choir"
+  },
+  "913": {
+   "name": "Warm Stg A",
+   "group": "Strings & Choir"
+  },
+  "914": {
+   "name": "Sofstring2",
+   "group": "Strings & Choir"
+  },
+  "915": {
+   "name": "BRIGHT BOW",
+   "group": "Strings & Choir"
+  },
+  "916": {
+   "name": "VIOLIN 2.8",
+   "group": "Strings & Choir"
+  },
+  "917": {
+   "name": "CELLO  7.8",
+   "group": "Strings & Choir"
+  },
+  "918": {
+   "name": "STG.M.15.5",
+   "group": "Strings & Choir"
+  },
+  "919": {
+   "name": "StrPd 2%%Y",
+   "group": "Strings & Choir"
+  },
+  "920": {
+   "name": "VIOLN 21.3",
+   "group": "Strings & Choir"
+  },
+  "921": {
+   "name": "STGSB 15.2",
+   "group": "Strings & Choir"
+  },
+  "922": {
+   "name": "E.VLN 21.2",
+   "group": "Strings & Choir"
+  },
+  "923": {
+   "name": "Livestring",
+   "group": "Strings & Choir"
+  },
+  "924": {
+   "name": "Livstring2",
+   "group": "Strings & Choir"
+  },
+  "925": {
+   "name": "Blowstring",
+   "group": "Strings & Choir"
+  },
+  "926": {
+   "name": "Tapis Strg",
+   "group": "Strings & Choir"
+  },
+  "927": {
+   "name": "-QUARTET-",
+   "group": "Strings & Choir"
+  },
+  "928": {
+   "name": "StrPd3%%%Y",
+   "group": "Strings & Choir"
+  },
+  "929": {
+   "name": "POCK",
+   "group": "Drums"
+  },
+  "930": {
+   "name": "DBL.HARP A",
+   "group": "Guitar"
+  },
+  "931": {
+   "name": "MARIMBONE",
+   "group": "Bells"
+  },
+  "932": {
+   "name": "SLX      3",
+   "group": "Misc"
+  },
+  "933": {
+   "name": "OUTOFTOUCH",
+   "group": "Misc"
+  },
+  "934": {
+   "name": "TODD WASH",
+   "group": "Pads"
+  },
+  "935": {
+   "name": "CLARSTRING",
+   "group": "Strings & Choir"
+  },
+  "936": {
+   "name": "LUCY..SKY",
+   "group": "Misc"
+  },
+  "937": {
+   "name": "HARPSI-STG",
+   "group": "Strings & Choir"
+  },
+  "938": {
+   "name": "CHIME-STRG",
+   "group": "Strings & Choir"
+  },
+  "939": {
+   "name": "HARP-FLUTE",
+   "group": "Winds"
+  },
+  "940": {
+   "name": "BELL-FLUTE",
+   "group": "Winds"
+  },
+  "941": {
+   "name": "STRG-CHIME",
+   "group": "Strings & Choir"
+  },
+  "942": {
+   "name": "STRG-MARIM",
+   "group": "Strings & Choir"
+  },
+  "943": {
+   "name": "STRG-PIZZT",
+   "group": "Strings & Choir"
+  },
+  "944": {
+   "name": "PIZZ STGS",
+   "group": "Strings & Choir"
+  },
+  "945": {
+   "name": "SITAR",
+   "group": "Guitar"
+  },
+  "946": {
+   "name": "KOTO",
+   "group": "Guitar"
+  },
+  "947": {
+   "name": "LUTE",
+   "group": "Guitar"
+  },
+  "948": {
+   "name": "HARP    2",
+   "group": "Guitar"
+  },
+  "949": {
+   "name": "HARP    1",
+   "group": "Guitar"
+  },
+  "950": {
+   "name": "GUITARDAMP",
+   "group": "Guitar"
+  },
+  "951": {
+   "name": "H.SYN 25.6",
+   "group": "Synths"
+  },
+  "952": {
+   "name": "O.SPH 26.6",
+   "group": "Misc"
+  },
+  "953": {
+   "name": "SITAR 28.4",
+   "group": "Guitar"
+  },
+  "954": {
+   "name": "P.STG 29.4",
+   "group": "Strings & Choir"
+  },
+  "955": {
+   "name": "KOTO  28.3",
+   "group": "Guitar"
+  },
+  "956": {
+   "name": "DB.HP.31.2",
+   "group": "Guitar"
+  },
+  "957": {
+   "name": "P.ICE 25.1",
+   "group": "Misc"
+  },
+  "958": {
+   "name": "DB.HP.31.1",
+   "group": "Guitar"
+  },
+  "959": {
+   "name": "Pizz.ring",
+   "group": "Strings & Choir"
+  },
+  "960": {
+   "name": "Pluckclav",
+   "group": "Keys"
+  },
+  "961": {
+   "name": "PrSynBass1",
+   "group": "Bass"
+  },
+  "962": {
+   "name": "PrSynBass2",
+   "group": "Bass"
+  },
+  "963": {
+   "name": "PrSynBass3",
+   "group": "Bass"
+  },
+  "964": {
+   "name": "Ppg-Bass 1",
+   "group": "Bass"
+  },
+  "965": {
+   "name": "Ppg-Bass 2",
+   "group": "Bass"
+  },
+  "966": {
+   "name": "Ppg-Bass 4",
+   "group": "Bass"
+  },
+  "967": {
+   "name": "R SynBass1",
+   "group": "Bass"
+  },
+  "968": {
+   "name": "R SynBass2",
+   "group": "Bass"
+  },
+  "969": {
+   "name": "R SynBass4",
+   "group": "Bass"
+  },
+  "970": {
+   "name": "R SynBass5",
+   "group": "Bass"
+  },
+  "971": {
+   "name": "Dlby Rude",
+   "group": "Misc"
+  },
+  "972": {
+   "name": "Bass 1",
+   "group": "Bass"
+  },
+  "973": {
+   "name": "SynjBass 2",
+   "group": "Bass"
+  },
+  "974": {
+   "name": "F SynBass1",
+   "group": "Bass"
+  },
+  "975": {
+   "name": "GrwlBass 2",
+   "group": "Bass"
+  },
+  "976": {
+   "name": "GrwlBass 3",
+   "group": "Bass"
+  },
+  "977": {
+   "name": "JacoBass 1",
+   "group": "Bass"
+  },
+  "978": {
+   "name": "JacoBass 2",
+   "group": "Bass"
+  },
+  "979": {
+   "name": "F Bass  5",
+   "group": "Bass"
+  },
+  "980": {
+   "name": "F Bass  10",
+   "group": "Bass"
+  },
+  "981": {
+   "name": "Slp Bass 2",
+   "group": "Bass"
+  },
+  "982": {
+   "name": "Slp Bass 4",
+   "group": "Bass"
+  },
+  "983": {
+   "name": "J Guitar 1",
+   "group": "Guitar"
+  },
+  "984": {
+   "name": "J Guitar 2",
+   "group": "Guitar"
+  },
+  "985": {
+   "name": "Guitar Swp",
+   "group": "Guitar"
+  },
+  "986": {
+   "name": "The Gitar1",
+   "group": "Guitar"
+  },
+  "987": {
+   "name": "J Lute",
+   "group": "Guitar"
+  },
+  "988": {
+   "name": "J Lute   4",
+   "group": "Guitar"
+  },
+  "989": {
+   "name": "J Guitar 5",
+   "group": "Guitar"
+  },
+  "990": {
+   "name": "J Guitar 6",
+   "group": "Guitar"
+  },
+  "991": {
+   "name": "J Harp   1",
+   "group": "Guitar"
+  },
+  "992": {
+   "name": "ClasGitar+",
+   "group": "Guitar"
+  },
+  "993": {
+   "name": "BEEFPOP",
+   "group": "Misc"
+  },
+  "994": {
+   "name": "SLAPKLAV",
+   "group": "Keys"
+  },
+  "995": {
+   "name": "METALBASS",
+   "group": "Bass"
+  },
+  "996": {
+   "name": "KLIKBASS",
+   "group": "Bass"
+  },
+  "997": {
+   "name": "EWOW BASS",
+   "group": "Bass"
+  },
+  "998": {
+   "name": "SYNTHSLAP",
+   "group": "Synths"
+  },
+  "999": {
+   "name": "ARCO BASS",
+   "group": "Strings & Choir"
+  },
+  "1000": {
+   "name": "METALFUNK",
+   "group": "Misc"
+  },
+  "1001": {
+   "name": "POWERCHORD",
+   "group": "Misc"
+  },
+  "1002": {
+   "name": "SHIFTY",
+   "group": "Misc"
+  },
+  "1003": {
+   "name": "MESSYBASS",
+   "group": "Bass"
+  },
+  "1004": {
+   "name": "BEEFDRUMBS",
+   "group": "Drums"
+  },
+  "1005": {
+   "name": "EEBASS",
+   "group": "Bass"
+  },
+  "1006": {
+   "name": "BRITEFUNK",
+   "group": "Misc"
+  },
+  "1007": {
+   "name": "BEEFBASS",
+   "group": "Bass"
+  },
+  "1008": {
+   "name": "BASSKLAV",
+   "group": "Bass"
+  },
+  "1009": {
+   "name": "DREAMBASS",
+   "group": "Bass"
+  },
+  "1010": {
+   "name": "BARKBASS",
+   "group": "Bass"
+  },
+  "1011": {
+   "name": "STICK 1",
+   "group": "Bass"
+  },
+  "1012": {
+   "name": "STICK 2",
+   "group": "Bass"
+  },
+  "1013": {
+   "name": "SYNTHBASE1",
+   "group": "Synths"
+  },
+  "1014": {
+   "name": "SPACEBASS",
+   "group": "Bass"
+  },
+  "1015": {
+   "name": "SYNTHBASE2",
+   "group": "Synths"
+  },
+  "1016": {
+   "name": "SYNTHBASE3",
+   "group": "Synths"
+  },
+  "1017": {
+   "name": "MARIMBASS",
+   "group": "Bass"
+  },
+  "1018": {
+   "name": "LOGBASS",
+   "group": "Bass"
+  },
+  "1019": {
+   "name": "RABAHBASS",
+   "group": "Bass"
+  },
+  "1020": {
+   "name": "E. GOMEZ",
+   "group": "Misc"
+  },
+  "1021": {
+   "name": "PLEX BASS",
+   "group": "Bass"
+  },
+  "1022": {
+   "name": "TUBEBASS",
+   "group": "Bass"
+  },
+  "1023": {
+   "name": "WEEBLEBASS",
+   "group": "Bass"
+  },
+  "1024": {
+   "name": "WOBBLEBASS",
+   "group": "Bass"
+  }
+ }
+}

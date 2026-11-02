@@ -40,3 +40,13 @@ test('Craft Synth presets are grouped too, with Misc for the ones that fit nowhe
     assert.equal(craft.presets['64'].group, 'Misc');   // Init Patch
     assert.ok(Object.values(craft.presets).every(preset => preset.group));
 });
+
+test('PreenFM2 presets carry the names read from the synth and a group each', () => {
+    const pfm = JSON.parse(readFileSync(new URL('../device_maps/presets/preenfm2.json', import.meta.url), 'utf8'));
+    assert.equal(Object.keys(pfm.presets).length, 1024);
+    assert.ok(Object.values(pfm.presets).every(preset => preset.name && preset.group));
+    assert.deepEqual(pfm.presets['1'], { name: 'A.G.PIANO', group: 'Keys' });
+    assert.equal(pfm.presets['19'].group, 'Organ');               // ROCK ORG
+    assert.equal(pfm.presets['49'].group, 'Strings & Choir');     // STRG ENS.2
+    assert.equal(pfm.presets['1024'].group, 'Bass');              // WOBBLEBASS
+});
