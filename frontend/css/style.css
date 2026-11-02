@@ -172,13 +172,13 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .monitor-gain-control .midi-knob-face { inset: 8px; }
 .monitor-gain-control .midi-knob-face::after { top: 4px; height: 10px; }
 .monitor-gain-control .midi-knob-value { min-width: 48px; font-size: .75rem; }
-.device-program-controls button { min-width: 32px; min-height: 44px; padding: 4px 8px; font-size: 1.25rem; }
+.device-program-controls button { min-width: 32px; min-height: 44px; padding: 4px 8px; font-size: 1rem; font-weight: 500; line-height: 1; }
 .device-group > .device-parts { flex: 1 1 100%; display: grid; gap: 8px; min-width: 0; }
 .device-group > .device-parts[hidden] { display: none; }
 .device-part { background: #202a33; }
 .device-part-add, .device-part-remove { min-height: 44px; padding: 4px 12px; }
-.device-part-remove { min-width: 44px; font-size: 1.25rem; }
-.device-midi-channel { width: 88px; min-height: 44px; font-size: 1rem; }
+.device-part-remove { min-width: 44px; font-size: .9rem; font-weight: 500; }
+.device-midi-channel { width: 72px; min-height: 44px; font-size: .75rem; }
 .device-item > .synth-controls { grid-column: 1 / -1; }
 .synth-card-name { font-weight: 600; }
 .synth-card-status { color: var(--muted); font-size: .75rem; }
@@ -353,10 +353,10 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .midi-knob.bipolar::after { content: ''; position: absolute; top: 0; left: calc(50% - 1px); width: 2px; height: 6px; border-radius: 1px; background: #d7ecbc; opacity: .7; pointer-events: none; }
 .synth-widget-axes span { font-weight: 600; }
 .synth-widget-note { margin: 2px 0 0; color: #8fa0ad; font-size: .72rem; }
-.device-program-controls .device-program-reset { font-size: 1.1rem; }
-.device-program-controls .device-program-favorites { font-size: 1.3rem; }
+.device-program-controls .device-program-reset { font-size: 1rem; }
+.device-program-controls .device-program-favorites { font-size: 1.1rem; }
 .device-program-controls .device-program-favorites.starred { color: #f5b400; }
-.device-program-controls .device-program-star { font-size: 1.3rem; }
+.device-program-controls .device-program-star { font-size: 1.1rem; }
 .device-program-controls .device-program-star.starred { color: #f5b400; }
 .midi-knob.bipolar input.midi-knob-input { cursor: ew-resize; }
 
