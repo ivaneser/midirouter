@@ -192,3 +192,28 @@ test('a patch read asks for the dump, collects its NRPNs until the synth is quie
     assert.deepEqual(posted, [{ id: 'r1', values: [[196, 250], [0, 13]] }]);
     assert.equal(worker._takeNrpnReadMessage(target, [0xB1, 99, 1]), false, 'nothing is consumed once the read is over');
 });
+
+test('NRPN writes go out paced and in order, and a patch read waits behind them', t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const worker = Object.create(MIDIRouterWorker.prototype);
+    const sent = [];
+    const target = 'PreenFM mk2:PreenFM mk2 MIDI 1 36:0';
+    worker.outputs = new Map([[target, { sendMessage: bytes => sent.push([...bytes]) }]]);
+    for (let n = 0; n < 40; n++) worker._sendNrpn(target, 1, n, n);
+    worker._startNrpnRead('r', target, 1);
+    assert.equal(sent.length, 4, 'the first write goes out at once, the rest wait');
+    t.mock.timers.tick(10);
+    assert.equal(sent.length, 17 * 4, 'then a burst every gap');
+    t.mock.timers.tick(10);
+    assert.equal(sent.length, 33 * 4);
+    t.mock.timers.tick(10);
+    assert.equal(sent.length, 40 * 4 + 4, 'the rest, then the dump request');
+    assert.deepEqual(sent.slice(-4), [[0xB0, 99, 127], [0xB0, 98, 127], [0xB0, 6, 0], [0xB0, 38, 0]]);
+    assert.deepEqual(sent.filter(b => b[1] === 98).slice(0, 40).map(b => b[2]), Array.from({ length: 40 }, (_, n) => n), 'in order');
+    assert.equal(worker._deviceNrpns.size, 40, 'remembered at once');
+    t.mock.timers.tick(10);
+    t.mock.timers.tick(10);
+    worker._sendNrpn(target, 1, 1, 1);
+    assert.equal(sent.length, 40 * 4 + 8, 'an idle queue sends straight away');
+    worker._finishNrpnRead([...worker._nrpnReads.keys()][0]);
+});

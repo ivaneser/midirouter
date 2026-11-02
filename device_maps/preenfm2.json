@@ -178,7 +178,7 @@
       "center": 64
     },
     {
-      "cc": 74,
+      "cc": 65,
       "name": "Op 1 Env Attack",
       "min": 0,
       "max": 127,
@@ -503,7 +503,7 @@
       "category": "performance"
     },
     {
-      "cc": 97,
+      "cc": 100,
       "name": "Arp Clock",
       "min": 0,
       "max": 127,
@@ -511,32 +511,8 @@
       "category": "arp"
     },
     {
-      "cc": 98,
-      "name": "Arp Tempo",
-      "min": 0,
-      "max": 127,
-      "type": "slider",
-      "category": "arp"
-    },
-    {
-      "cc": 99,
-      "name": "Arp Octave",
-      "min": 0,
-      "max": 127,
-      "type": "slider",
-      "category": "arp"
-    },
-    {
-      "cc": 100,
-      "name": "Arp Pattern",
-      "min": 0,
-      "max": 127,
-      "type": "slider",
-      "category": "arp"
-    },
-    {
       "cc": 101,
-      "name": "Arp Division",
+      "name": "Arp Direction",
       "min": 0,
       "max": 127,
       "type": "slider",
@@ -544,6 +520,30 @@
     },
     {
       "cc": 102,
+      "name": "Arp Octave",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "arp"
+    },
+    {
+      "cc": 103,
+      "name": "Arp Pattern",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "arp"
+    },
+    {
+      "cc": 104,
+      "name": "Arp Division",
+      "min": 0,
+      "max": 127,
+      "type": "slider",
+      "category": "arp"
+    },
+    {
+      "cc": 105,
       "name": "Arp Duration",
       "min": 0,
       "max": 127,
@@ -1931,6 +1931,7 @@
           "User 3",
           "User 4"
         ],
+        "description": "On the connected PreenFM2 a pattern reads back one higher than written (its firmware differs from the published source)",
         "category": "arp"
       },
       {
@@ -5197,6 +5198,7 @@
           "-Linear8",
           "-Exp"
         ],
+        "description": "Key scaling for the Note matrix source. On the connected PreenFM2 the \"-\" curves read back as their \"+\" counterparts (its firmware differs from the published source)",
         "category": "notecurve"
       },
       {
@@ -5222,6 +5224,7 @@
           "-Linear8",
           "-Exp"
         ],
+        "description": "Key scaling for the Note matrix source. On the connected PreenFM2 the \"-\" curves read back as their \"+\" counterparts (its firmware differs from the published source)",
         "category": "notecurve"
       },
       {
@@ -5239,6 +5242,7 @@
           "-Linear8",
           "-Exp"
         ],
+        "description": "Key scaling for the Note matrix source. On the connected PreenFM2 the \"-\" curves read back as their \"+\" counterparts (its firmware differs from the published source)",
         "category": "notecurve"
       },
       {
@@ -5264,6 +5268,7 @@
           "-Linear8",
           "-Exp"
         ],
+        "description": "Key scaling for the Note matrix source. On the connected PreenFM2 the \"-\" curves read back as their \"+\" counterparts (its firmware differs from the published source)",
         "category": "notecurve"
       },
       {
@@ -5428,5 +5433,5 @@
     ],
     "bankSize": 32
   },
-  "note": "PreenFM2 is 4-timbre multitimbral (channels 1-4). Presets: Bank Select CC 0 (2 = DX7 banks 0-127; 3 = DX7 banks 128-255) then CC 32 (bank number), then Program Change; per midi.guide. CC labels follow midi.guide. A DX7 bank holds 32 voices, so preset N is bank N div 32, program N mod 32 (checked on hardware: Program Change above 31 does nothing)."
+  "note": "PreenFM2 is 4-timbre multitimbral (channels 1-4). Presets: Bank Select CC 0 (2 = DX7 banks 0-127; 3 = DX7 banks 128-255) then CC 32 (bank number), then Program Change; per midi.guide. CC labels follow midi.guide. A DX7 bank holds 32 voices, so preset N is bank N div 32, program N mod 32 (checked on hardware: Program Change above 31 does nothing). CC numbers checked against the firmware (MidiDecoder.h): arpeggiator CC 100-105, Op 1 attack CC 65."
 }

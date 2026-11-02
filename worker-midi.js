@@ -31,6 +31,9 @@ const PRESET_RESTORE_GAP_MS = 300;
 // A PreenFM2 patch dump (~1000 CCs) takes about 2.5 s; it is complete once the synth has been quiet this long.
 const NRPN_READ_QUIET_MS = 400;
 const NRPN_READ_TIMEOUT_MS = 8000;
+// NRPN writes per burst and the pause between bursts (a whole PreenFM2 patch is ~200 writes).
+const NRPN_BURST = 16;
+const NRPN_GAP_MS = 10;
 const NO_HARDWARE = process.env.MIDIR_NO_HARDWARE === '1';
 
 class MIDIRouterWorker {
@@ -2733,14 +2736,34 @@ class MIDIRouterWorker {
 
     // One NRPN write: number MSB/LSB (CC 99/98), then value MSB/LSB (CC 6/38).
     _sendNrpn(target, channel, nrpn, raw) {
-        const output = this.outputs.get(target);
-        if (output) {
-            const status = 0xB0 | (channel - 1);
-            for (const bytes of [[status, 99, nrpn >> 7], [status, 98, nrpn & 127], [status, 6, raw >> 7], [status, 38, raw & 127]]) {
-                output.sendMessage(Buffer.from(bytes));
-            }
-        }
+        const status = 0xB0 | (channel - 1);
+        this._queueNrpn(target, [[status, 99, nrpn >> 7], [status, 98, nrpn & 127], [status, 6, raw >> 7], [status, 38, raw & 127]]);
         this._rememberDeviceNrpn(target, channel, nrpn, raw);
+    }
+
+    // NRPN traffic goes out paced, in order: a whole patch at once (~850 CCs) overruns the PreenFM2's MIDI
+    // input now and then, and a lost CC 99/98 sends the next value to the wrong parameter.
+    _queueNrpn(target, messages) {
+        (this._nrpnQueue ??= []).push({ target, messages });
+        if (!this._nrpnDraining) this._drainNrpnQueue();
+    }
+
+    // Sends one burst, then stays busy for a gap even when the queue ran dry, so writes that arrive one by one
+    // (each from its own call) are paced too.
+    _drainNrpnQueue() {
+        if (!this._nrpnQueue.length) {
+            this._nrpnDraining = false;
+            return;
+        }
+        this._nrpnDraining = true;
+        for (let i = 0; i < NRPN_BURST && this._nrpnQueue.length; i++) {
+            const { target, messages } = this._nrpnQueue.shift();
+            const output = this.outputs.get(target);
+            if (!output) continue;
+            try { for (const bytes of messages) output.sendMessage(Buffer.from(bytes)); }
+            catch (error) { console.error(`[MIDI] NRPN send failed for ${target}:`, error.message); }
+        }
+        setTimeout(() => this._drainNrpnQueue(), NRPN_GAP_MS).unref?.();
     }
 
     // Patch read-back: NRPN 127/127 makes a PreenFM2 send its whole current patch as NRPN writes on the
@@ -2757,8 +2780,9 @@ class MIDIRouterWorker {
         const read = { id, values: new Map(), number: [0, 0], msb: 0, quiet: null };
         read.timeout = setTimeout(() => this._finishNrpnRead(key), NRPN_READ_TIMEOUT_MS);
         this._nrpnReads.set(key, read);
+        // Queued behind any NRPN writes still going out, so the dump shows them.
         const status = 0xB0 | (channel - 1);
-        for (const bytes of [[status, 99, 127], [status, 98, 127], [status, 6, 0], [status, 38, 0]]) output.sendMessage(Buffer.from(bytes));
+        this._queueNrpn(target, [[status, 99, 127], [status, 98, 127], [status, 6, 0], [status, 38, 0]]);
     }
 
     _finishNrpnRead(key) {
