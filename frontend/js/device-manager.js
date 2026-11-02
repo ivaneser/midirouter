@@ -583,20 +583,24 @@ export class DeviceManager {
             });
             presetLabel.dataset.group = groupSelect.dataset.group || '';
             const favoritesStorage = `preset-favorites:${unitKey}`;
-            const favoritesOnly = document.createElement('label');
+            const favoritesOnly = document.createElement('button');
+            favoritesOnly.type = 'button';
             favoritesOnly.className = 'device-program-favorites';
-            favoritesOnly.title = 'Show only favorite presets in the lists';
-            const favoritesBox = document.createElement('input');
-            favoritesBox.type = 'checkbox';
-            favoritesBox.setAttribute('aria-label', `${label}: only favorite presets`);
-            try { favoritesBox.checked = localStorage.getItem(favoritesStorage) === '1'; } catch { /* storage unavailable */ }
-            presetLabel.dataset.favorites = favoritesBox.checked ? '1' : '';
-            favoritesBox.addEventListener('change', () => {
-                presetLabel.dataset.favorites = favoritesBox.checked ? '1' : '';
-                try { localStorage.setItem(favoritesStorage, favoritesBox.checked ? '1' : '0'); } catch { /* optional */ }
+            favoritesOnly.setAttribute('aria-label', `${label}: only favorite presets`);
+            const showFavoritesOnly = on => {
+                presetLabel.dataset.favorites = on ? '1' : '';
+                favoritesOnly.textContent = on ? '★' : '☆';
+                favoritesOnly.classList.toggle('starred', on);
+                favoritesOnly.setAttribute('aria-pressed', String(on));
+                favoritesOnly.title = on ? 'Showing only favorite presets: click to show all' : 'Show only favorite presets in the lists';
+            };
+            try { showFavoritesOnly(localStorage.getItem(favoritesStorage) === '1'); } catch { showFavoritesOnly(false); }
+            favoritesOnly.addEventListener('click', () => {
+                const on = presetLabel.dataset.favorites !== '1';
+                showFavoritesOnly(on);
+                try { localStorage.setItem(favoritesStorage, on ? '1' : '0'); } catch { /* optional */ }
                 this.refreshPresetLabels();
             });
-            favoritesOnly.append(favoritesBox, ' ★');
             const star = document.createElement('button');
             star.type = 'button';
             star.className = 'device-program-star';
@@ -614,8 +618,8 @@ export class DeviceManager {
                 const program = Number(presetLabel.value);
                 if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
             });
-            presets.appendChild(groupSelect);
             presets.appendChild(favoritesOnly);
+            presets.appendChild(groupSelect);
             for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
                 const button = document.createElement('button');
                 button.type = 'button';
