@@ -2820,11 +2820,11 @@
   },
   "705": {
    "name": "Gl    i no",
-   "group": "Misc"
+   "group": "Synths"
   },
   "706": {
    "name": "Sa    a n.",
-   "group": "Misc"
+   "group": "Synths"
   },
   "707": {
    "name": "GrandPiano",
@@ -2840,11 +2840,11 @@
   },
   "710": {
    "name": "JA",
-   "group": "Misc"
+   "group": "Synths"
   },
   "711": {
    "name": "E. GOM",
-   "group": "Misc"
+   "group": "Bass"
   },
   "712": {
    "name": "FM PIANO B",
@@ -2852,15 +2852,15 @@
   },
   "713": {
    "name": "SY C  V ER",
-   "group": "Misc"
+   "group": "Synths"
   },
   "714": {
    "name": "Split #1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "715": {
    "name": "Split #2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "716": {
    "name": "CathedrOrg",
@@ -2876,7 +2876,7 @@
   },
   "719": {
    "name": "TORIMTORAH",
-   "group": "Misc"
+   "group": "Synths"
   },
   "720": {
    "name": "DBL GITUAR",
@@ -2884,7 +2884,7 @@
   },
   "721": {
    "name": "Rastabuzzz",
-   "group": "Misc"
+   "group": "Synths"
   },
   "722": {
    "name": "SYNERGY  4",
@@ -2908,11 +2908,11 @@
   },
   "727": {
    "name": "PRINCE",
-   "group": "Misc"
+   "group": "Leads"
   },
   "728": {
    "name": "MICHAEL",
-   "group": "Misc"
+   "group": "Synths"
   },
   "729": {
    "name": "SYN-RISE A",
@@ -2920,11 +2920,11 @@
   },
   "730": {
    "name": "DARKSHADOW",
-   "group": "Misc"
+   "group": "Synths"
   },
   "731": {
    "name": "SURVIVOR",
-   "group": "Misc"
+   "group": "Synths"
   },
   "732": {
    "name": "SLAPCONGAS",
@@ -2948,7 +2948,7 @@
   },
   "737": {
    "name": "OEOEOE",
-   "group": "Misc"
+   "group": "Synths"
   },
   "738": {
    "name": "TAKINGOFF?",
@@ -2984,7 +2984,7 @@
   },
   "746": {
    "name": "IN THE AIR",
-   "group": "Misc"
+   "group": "Synths"
   },
   "747": {
    "name": "WHEET WEOW",
@@ -3004,7 +3004,7 @@
   },
   "751": {
    "name": "WONDER",
-   "group": "Misc"
+   "group": "Synths"
   },
   "752": {
    "name": "MOON SHUTL",
@@ -3020,7 +3020,7 @@
   },
   "755": {
    "name": "MNSKOPRBOL",
-   "group": "Misc"
+   "group": "Synths"
   },
   "756": {
    "name": "METAL BOW",
@@ -3028,7 +3028,7 @@
   },
   "757": {
    "name": "LLEB",
-   "group": "Misc"
+   "group": "Synths"
   },
   "758": {
    "name": "NOTONEBELL",
@@ -3052,7 +3052,7 @@
   },
   "763": {
    "name": "HANFULOMTL",
-   "group": "Misc"
+   "group": "Synths"
   },
   "764": {
    "name": "INDUSTRY",
@@ -3084,7 +3084,7 @@
   },
   "771": {
    "name": "Bang ?????",
-   "group": "Misc"
+   "group": "Synths"
   },
   "772": {
    "name": "-METABASS-",
@@ -3160,7 +3160,7 @@
   },
   "790": {
    "name": "Doug17synt",
-   "group": "Misc"
+   "group": "Synths"
   },
   "791": {
    "name": "AnaBass",
@@ -3168,11 +3168,11 @@
   },
   "792": {
    "name": "Slicktrick",
-   "group": "Misc"
+   "group": "Synths"
   },
   "793": {
    "name": "Slicktrik2",
-   "group": "Misc"
+   "group": "Synths"
   },
   "794": {
    "name": "-ANALOG 7-",
@@ -3208,7 +3208,7 @@
   },
   "802": {
    "name": "HipHopOtam",
-   "group": "Misc"
+   "group": "Synths"
   },
   "803": {
    "name": "-WURLIE-",
@@ -3256,7 +3256,7 @@
   },
   "814": {
    "name": "Funkydroid",
-   "group": "Misc"
+   "group": "Synths"
   },
   "815": {
    "name": "ACOU VOICE",
@@ -3272,7 +3272,7 @@
   },
   "818": {
    "name": "Y.BNK 27.6",
-   "group": "Misc"
+   "group": "Synths"
   },
   "819": {
    "name": "NCLAV 32.5",
@@ -3308,7 +3308,7 @@
   },
   "827": {
    "name": "Bang ?????",
-   "group": "Misc"
+   "group": "Synths"
   },
   "828": {
    "name": "Clavdroid",
@@ -3316,7 +3316,7 @@
   },
   "829": {
    "name": "EVERYTHING",
-   "group": "Misc"
+   "group": "Synths"
   },
   "830": {
    "name": "PIANO  RR",
@@ -3428,7 +3428,7 @@
   },
   "857": {
    "name": "Chorma 6 Y",
-   "group": "Misc"
+   "group": "Synths"
   },
   "858": {
    "name": "FullTines",
@@ -3496,7 +3496,7 @@
   },
   "874": {
    "name": "SLOATTACK",
-   "group": "Misc"
+   "group": "Synths"
   },
   "875": {
    "name": "SYN BRS 2A",
@@ -3536,7 +3536,7 @@
   },
   "884": {
    "name": "SEXSHIN 3",
-   "group": "Misc"
+   "group": "Synths"
   },
   "885": {
    "name": "ANLGBRASS",
@@ -3560,7 +3560,7 @@
   },
   "890": {
    "name": "BIGANDBAD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "891": {
    "name": "SYNBR2 MGD",
@@ -3728,11 +3728,11 @@
   },
   "932": {
    "name": "SLX      3",
-   "group": "Misc"
+   "group": "Synths"
   },
   "933": {
    "name": "OUTOFTOUCH",
-   "group": "Misc"
+   "group": "Leads"
   },
   "934": {
    "name": "TODD WASH",
@@ -3744,7 +3744,7 @@
   },
   "936": {
    "name": "LUCY..SKY",
-   "group": "Misc"
+   "group": "Synths"
   },
   "937": {
    "name": "HARPSI-STG",
@@ -3808,7 +3808,7 @@
   },
   "952": {
    "name": "O.SPH 26.6",
-   "group": "Misc"
+   "group": "Synths"
   },
   "953": {
    "name": "SITAR 28.4",
@@ -3828,7 +3828,7 @@
   },
   "957": {
    "name": "P.ICE 25.1",
-   "group": "Misc"
+   "group": "Synths"
   },
   "958": {
    "name": "DB.HP.31.1",
@@ -3884,7 +3884,7 @@
   },
   "971": {
    "name": "Dlby Rude",
-   "group": "Misc"
+   "group": "Synths"
   },
   "972": {
    "name": "Bass 1",
@@ -3972,7 +3972,7 @@
   },
   "993": {
    "name": "BEEFPOP",
-   "group": "Misc"
+   "group": "Synths"
   },
   "994": {
    "name": "SLAPKLAV",
@@ -4000,15 +4000,15 @@
   },
   "1000": {
    "name": "METALFUNK",
-   "group": "Misc"
+   "group": "Synths"
   },
   "1001": {
    "name": "POWERCHORD",
-   "group": "Misc"
+   "group": "Synths"
   },
   "1002": {
    "name": "SHIFTY",
-   "group": "Misc"
+   "group": "Synths"
   },
   "1003": {
    "name": "MESSYBASS",
@@ -4024,7 +4024,7 @@
   },
   "1006": {
    "name": "BRITEFUNK",
-   "group": "Misc"
+   "group": "Synths"
   },
   "1007": {
    "name": "BEEFBASS",
@@ -4080,7 +4080,7 @@
   },
   "1020": {
    "name": "E. GOMEZ",
-   "group": "Misc"
+   "group": "Synths"
   },
   "1021": {
    "name": "PLEX BASS",
