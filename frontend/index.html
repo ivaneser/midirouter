@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=92">
+    <link rel="stylesheet" href="/css/style.css?v=94">
 </head>
 <body>
     <div id="app">
@@ -87,7 +87,7 @@
         </details>
 
         <details id="midi-keyboard-section" class="collapsible-panel">
-            <summary class="collapsible-header"><span class="arrow">▶</span>MIDI keyboard</summary>
+            <summary class="collapsible-header"><span class="arrow">▶</span>Keyboard</summary>
             <div class="config-panel-content">
                 <div class="piano-roll-toolbar">
                     <label>Output <select id="keyboard-output" aria-label="Keyboard MIDI output"></select></label>
@@ -106,7 +106,7 @@
         <details class="collapsible-panel clock-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                MIDI clock
+                Clock
             </summary>
             <div class="config-panel-content">
                 <p class="tab-hint">Choose a MIDI clock source and adjust timing calibration.</p>
@@ -141,7 +141,7 @@
         <details class="collapsible-panel devices-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                MIDI devices
+                Devices
             </summary>
             <div class="config-panel-content">
                 <p class="tab-hint">Connected MIDI instruments and controls. Devices update automatically.</p>
@@ -154,7 +154,7 @@
         <details class="collapsible-panel audio-details">
             <summary class="collapsible-header">
                 <span class="arrow">▶</span>
-                MIDI audio
+                Audio
             </summary>
             <div class="config-panel-content">
                 <div class="audio-controls">
@@ -270,7 +270,7 @@
                     <li>Routing presets (Routing → Save / 📂 Load) store routing only and are separate from sessions.</li>
                 </ul>
 
-                <h4>🔊 MIDI audio</h4>
+                <h4>🔊 Audio</h4>
                 <ul>
                     <li><strong>Listen</strong> — hear the audio interface live in this browser. <strong>Pi out</strong> — also play it on the Pi's headphone jack, together with the metronome; the knob sets its volume (0 dB plays it exactly as it is). A microphone near the speakers will howl.</li>
                     <li><strong>Noise</strong> — a noise filter on the Pi's audio input, shared by everyone who listens (the listen page, the headphone jack and this page). It learns the steady hiss and takes it out, also while music plays, and mutes what is left in the pauses. <em>Light</em> takes about 6–8 dB off the hiss; <em>Strong</em> about 10–14 dB (a very steady, noise-like sound that lasts more than about 20 seconds can be dulled); <em>Off</em> plays the audio as it arrives. Held notes and chords are left alone.</li>
@@ -281,7 +281,7 @@
                 <h4>🔌 MIDI Routing</h4>
                 <ul>
                     <li>All connected MIDI devices are routed to each other automatically; hot-plug is supported.</li>
-                    <li>Custom routes: Routing → <strong>+ Add Route</strong>. MIDI devices lists every connected port.</li>
+                    <li>Custom routes: Routing → <strong>+ Add Route</strong>. Devices lists every connected port.</li>
                 </ul>
             </div>
         </details>

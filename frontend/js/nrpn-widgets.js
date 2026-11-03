@@ -137,6 +137,15 @@ export function planNrpnWidgets(controls, algorithms, nrpnParams = [], algorithm
     }
     if (rows.length) { widgets.push({ kind: 'matrix', rows }); rows.forEach(row => mark([row.amount])); }
 
+    // Arpeggiator: the clock / tempo / octaves / latch row, then the direction and pattern pickers.
+    const clock = take('Arp Clock')?.[0], octave = take('Arp Octave')?.[0], bpm = choice.get('Arp BPM'), latch = choice.get('Arp Latch');
+    if (clock) {
+        widgets.push({ kind: 'arp-main', clock, bpm, octave, latch });
+        mark([clock, octave].filter(Boolean));
+    }
+    const direction = take('Arp Direction');
+    if (direction) { widgets.push({ kind: 'arp-directions', def: direction[0] }); mark(direction); }
+
     const arp = take('Arp Pattern');
     if (arp) { widgets.push({ kind: 'arp-patterns', def: arp[0] }); mark(arp); }
 
@@ -555,6 +564,113 @@ export function createArpPatternPicker(plan, io) {
     return wrap;
 }
 
+// The 12 arpeggiator directions: each icon plots eight steps as dots at their pitch level (0 low .. 4 high);
+// a chord plays all its notes at once, so it is drawn as stacks.
+const ARP_DIRECTIONS = [
+    ['Up', [0, 1, 2, 3, 0, 1, 2, 3]], ['Down', [3, 2, 1, 0, 3, 2, 1, 0]], ['Up & Down', [0, 1, 2, 3, 2, 1, 0, 1]],
+    ['Played', [1, 3, 0, 2, 1, 3, 0, 2]], ['Random', [2, 0, 3, 1, 3, 0, 2, 1]], ['Chord', 'chord'],
+    ['Rotate Up', [0, 1, 2, 3, 1, 2, 3, 0]], ['Rotate Down', [3, 2, 1, 0, 2, 1, 0, 3]], ['Rotate Up & Down', [0, 1, 2, 3, 2, 1, 0, 2]],
+    ['Shift Up', [0, 1, 2, 3, 1, 2, 3, 4]], ['Shift Down', [4, 3, 2, 1, 3, 2, 1, 0]], ['Shift Up & Down', [0, 1, 2, 3, 4, 3, 2, 1]],
+];
+
+/** The arpeggiator direction as icons: the notes' path over time. */
+export function createArpDirectionPicker(plan, io) {
+    let redraw = () => {};
+    const { wrap } = makeWrap('', [plan.def], () => redraw());
+    const grid = html('div', 'nrpn-arp-grid nrpn-dir-grid');
+    grid.setAttribute('role', 'radiogroup');
+    grid.setAttribute('aria-label', 'Arpeggiator direction');
+    wrap.appendChild(grid);
+    const buttons = ARP_DIRECTIONS.map(([name, steps], index) => {
+        const button = html('button', 'nrpn-arp');
+        button.type = 'button';
+        button.setAttribute('role', 'radio');
+        button.title = name;
+        button.setAttribute('aria-label', `Arpeggiator direction ${name}`);
+        const icon = svg('svg', { viewBox: '0 0 48 26', class: 'nrpn-arp-icon', 'aria-hidden': 'true' });
+        const x = i => 4 + i * 5.7, y = level => 22 - level * 4.5;
+        if (steps === 'chord') {
+            for (const i of [0, 2, 4, 6]) for (let level = 0; level < 4; level++) icon.appendChild(svg('circle', { cx: x(i + 0.5), cy: y(level), r: 1.7, class: 'nrpn-dir-dot' }));
+        } else {
+            icon.appendChild(svg('polyline', { points: steps.map((level, i) => `${x(i)},${y(level)}`).join(' '), class: 'nrpn-dir-line' }));
+            steps.forEach((level, i) => icon.appendChild(svg('circle', { cx: x(i), cy: y(level), r: 1.9, class: 'nrpn-dir-dot' })));
+        }
+        button.append(icon, html('span', 'nrpn-dir-name', name));
+        button.addEventListener('click', () => { io.set(plan.def, index); redraw(); });
+        grid.appendChild(button);
+        return button;
+    });
+    redraw = () => {
+        const current = Math.round(read(io, plan.def));
+        buttons.forEach((button, index) => button.setAttribute('aria-checked', String(index === current)));
+    };
+    redraw();
+    return wrap;
+}
+
+/** A pill switch with one stop per label and a thumb that slides to the picked one. Value = first + index. */
+function createStops(labels, label, onPick) {
+    const box = html('div', 'nrpn-stops');
+    box.style.setProperty('--stops', String(labels.length));
+    box.setAttribute('role', 'radiogroup');
+    box.setAttribute('aria-label', label);
+    const thumb = html('span', 'nrpn-stops-thumb');
+    box.appendChild(thumb);
+    const buttons = labels.map((text, index) => {
+        const button = html('button', 'nrpn-stop', text);
+        button.type = 'button';
+        button.setAttribute('role', 'radio');
+        button.addEventListener('click', () => onPick(index));
+        box.appendChild(button);
+        return button;
+    });
+    const set = index => {
+        thumb.style.setProperty('--at', String(clamp(index, 0, labels.length - 1)));
+        buttons.forEach((button, i) => button.setAttribute('aria-checked', String(i === index)));
+    };
+    return { box, set };
+}
+
+/** Arpeggiator clock (Off / Int / Ext), tempo knob (live only on Int), octaves (1-3) and latch. */
+export function createArpMain(plan, io) {
+    let redraw = () => {};
+    const defs = [plan.clock, plan.bpm, plan.octave, plan.latch].filter(Boolean);
+    const { wrap } = makeWrap('', defs, () => redraw());
+    const row = html('div', 'nrpn-arp-main');
+    wrap.appendChild(row);
+    const cell = (caption, ...nodes) => {
+        const box = html('div', 'nrpn-arp-main-cell');
+        box.append(...nodes, html('div', 'nrpn-name', caption));
+        row.appendChild(box);
+        return box;
+    };
+    const pick = (def, first, index) => { io.set(def, first + index); redraw(); };
+    const clock = createStops(['Off', 'Int', 'Ext'], 'Arpeggiator clock', index => pick(plan.clock, span(plan.clock).min, index));
+    cell('Clock', clock.box);
+    let bpm = null;
+    if (plan.bpm) {
+        bpm = io.knob(plan.bpm);
+        bpm.classList.add('nrpn-arp-bpm');
+        bpm.querySelector?.('.synth-control-name')?.remove();
+        bpm.title = 'Tempo of the internal clock';
+        cell('BPM', bpm);
+    }
+    let octave = null;
+    if (plan.octave) { octave = createStops(['1', '2', '3'], 'Arpeggiator octaves', index => pick(plan.octave, span(plan.octave).min, index)); cell('Octaves', octave.box); }
+    let latch = null;
+    if (plan.latch) { latch = createStops(['Off', 'On'], 'Arpeggiator latch', index => pick(plan.latch, span(plan.latch).min, index)); latch.box.classList.add('nrpn-stops-two'); cell('Latch', latch.box); }
+    redraw = () => {
+        const mode = Math.round(read(io, plan.clock)) - span(plan.clock).min;
+        clock.set(mode);
+        // The tempo knob only matters when the synth keeps the time itself.
+        bpm?.classList.toggle('nrpn-idle', mode !== 1);
+        octave?.set(Math.round(read(io, plan.octave)) - span(plan.octave).min);
+        latch?.set(Math.round(read(io, plan.latch)) - span(plan.latch).min);
+    };
+    redraw();
+    return wrap;
+}
+
 // The PreenFM2 filter types by value, and a sketch of each family's response (32x18 box, y down). Several types
 // are only approximately like their sketch (the name says which exact type it is).
 const FILTER_TYPES = ['Off', 'Mix', 'LP', 'HP', 'Bass', 'BP', 'Crsh', 'LP2', 'HP2', 'BP2', 'Lp3', 'Hp3', 'Bp3', 'Peak', 'Notc', 'Bell',
@@ -906,6 +1022,8 @@ export function createNrpnWidget(plan, io) {
     if (plan.kind === 'env-triangles') return createEnvelopeTriangles(plan, io);
     if (plan.kind === 'lfo-plots') return createLfoPlots(plan, io);
     if (plan.kind === 'algorithms') return createAlgorithmPicker(plan, io);
+    if (plan.kind === 'arp-main') return createArpMain(plan, io);
+    if (plan.kind === 'arp-directions') return createArpDirectionPicker(plan, io);
     if (plan.kind === 'arp-patterns') return createArpPatternPicker(plan, io);
     if (plan.kind === 'filter') return createFilterWidget(plan, io);
     if (plan.kind === 'matrix') return createMatrixWidget(plan, io);

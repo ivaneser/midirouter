@@ -1,7 +1,7 @@
 /* === Device Manager — MIDI device management === */
 import { attachMidiKnob } from './midi-knob.js?v=26';
 import { planWidgets, createXYPad, createAdsrGraph } from './synth-widgets.js?v=5';
-import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=14';
+import { planNrpnWidgets, createNrpnWidget } from './nrpn-widgets.js?v=15';
 import { connectedDevices, uniquePorts } from './connected-devices.js';
 import { groupSynthControls } from './synth-layout.js?v=24';
 import { buildStages } from './synth-stages.js?v=4';
@@ -16,7 +16,7 @@ import {
     MAP_FILES,
     dropdownRaw,
     dropdownIndex,
-} from './synth-catalog.js?v=27';
+} from './synth-catalog.js?v=29';
 
 // Instruments without presets of their own: the user saves the CCs they set as named presets (stored on the router).
 const USER_PRESET_FILES = { 'korg-nts-1': 'korg_nts1' };

@@ -5618,7 +5618,7 @@
       },
       {
         "title": "Modulation",
-        "hint": "Three LFOs and the modulation matrix: pick a source on the left, a target on the right, and set how much with the knobs.",
+        "hint": "Three LFOs and the modulation matrix: pick a source on the left, a target on the right, and set how much with the knobs. The wheel and the four Performance knobs are sources you move by hand; point a matrix row at one to use it.",
         "modules": [
           {
             "title": "LFOs",
@@ -5635,37 +5635,26 @@
             ]
           },
           {
-            "title": "Modulation wheel",
+            "title": "Performance",
             "section": "cc",
             "categories": [
               "performance"
             ],
-            "match": [
-              "Modulation Wheel"
-            ]
+            "full": true
           }
         ]
       },
       {
-        "title": "Arpeggiator and Performance",
-        "hint": "Plays held notes as a pattern; performance controllers shape the sound while you play.",
+        "title": "Arpeggiator",
+        "hint": "Plays held notes as a pattern.",
         "modules": [
           {
             "title": "Arpeggiator",
             "section": "cc",
             "categories": [
               "arp"
-            ]
-          },
-          {
-            "title": "Performance",
-            "section": "cc",
-            "categories": [
-              "performance"
             ],
-            "exclude": [
-              "Modulation Wheel"
-            ]
+            "full": true
           }
         ]
       }

@@ -141,7 +141,9 @@ export async function getControlsForModel(model) {
     // Algorithm wirings (the PreenFM2), for the algorithm picker.
     if (parsed.controls_nrpn?.algorithms) copy.algorithms = JSON.parse(JSON.stringify(parsed.controls_nrpn.algorithms));
     // The modulation matrix's source and destination choices exist only as NRPN parameters.
-    if (parsed.controls_nrpn?.parameters) copy.nrpnParams = JSON.parse(JSON.stringify(parsed.controls_nrpn.parameters.filter(p => p.category === 'matrix')));
+    if (parsed.controls_nrpn?.parameters) copy.nrpnParams = JSON.parse(JSON.stringify(parsed.controls_nrpn.parameters.filter(p => ['matrix', 'arp', 'performance'].includes(p.category))));
+    // Controls that exist only as NRPN (Performance 4) still get a knob of their own.
+    for (const param of copy.nrpnParams || []) if (param.category === 'performance' && !copy.some(c => c.name === param.name)) copy.push({ ...param, section: 'cc' });
     return copy;
 }
 
