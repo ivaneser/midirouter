@@ -116,14 +116,14 @@ export function planNrpnWidgets(controls, algorithms, nrpnParams = [], algorithm
         operators.push({ n, label: `Op ${n}`, attack: pair[0], release: pair[1], freq: freq?.[0] });
         mark(pair); if (freq) mark(freq);
     }
-    if (operators.length) widgets.push({ kind: 'env-triangles', title: 'Operators · apex = attack, end = release, middle dot = frequency', items: operators,
+    if (operators.length) widgets.push({ kind: 'env-triangles', role: 'operators', title: 'Operators · apex = attack, end = release, middle dot = frequency', items: operators,
         // With these the names of the operators that are carriers in the current algorithm are filled in.
         ...(algorithmDef && algorithms?.length ? { algorithmDef, algorithms } : {}) });
 
     // The carriers' shared envelope has no NRPN: it is two CCs.
     const carrier = ['Carrier Env Attack (all)', 'Carrier Env Release (all)'].map(name => byName.get(name));
     if (carrier.every(Boolean)) {
-        widgets.push({ kind: 'env-triangles', title: 'Carriers · apex = attack, end = release', items: [{ label: 'All carriers', attack: carrier[0], release: carrier[1] }] });
+        widgets.push({ kind: 'env-triangles', role: 'carriers', title: 'Carriers · apex = attack, end = release', items: [{ label: 'All carriers', attack: carrier[0], release: carrier[1] }] });
         mark(carrier);
     }
 
@@ -195,6 +195,7 @@ export function createEnvelopeTriangles(plan, io) {
     const names = [];
     const { wrap } = makeWrap('', defs, () => redraws.forEach(fn => fn()));
     const grid = html('div', 'nrpn-env-grid');
+    if (plan.role) grid.dataset.role = plan.role;
     wrap.appendChild(grid);
 
     const W = 200, H = 96, left = 8, mid = 100, right = 192, top = 8, bottom = 78, midY = (top + bottom) / 2;
@@ -206,6 +207,7 @@ export function createEnvelopeTriangles(plan, io) {
 
     for (const item of plan.items) {
         const cell = html('div', 'nrpn-env-cell');
+        if (item.n !== undefined) cell.dataset.op = String(item.n);
         const graph = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'synth-adsr nrpn-env', role: 'application', tabindex: '0',
             'aria-label': `${item.label} envelope: attack and release${item.freq ? ', frequency' : ''}` });
         const fill = svg('polygon', { class: 'synth-adsr-fill' });
@@ -306,6 +308,20 @@ export function createEnvelopeTriangles(plan, io) {
             const carrier = !!algorithm && item.n !== undefined && algorithm.carriers.includes(item.n);
             name.classList.toggle('carrier', carrier);
             name.title = carrier ? `${item.label} is a carrier in this algorithm` : '';
+        }
+        // Carriers move to the Carriers group (before its shared "All carriers" graph), modulators stay in this one.
+        const carriers = wrap.closest?.('.synth-controls')?.querySelector('.nrpn-env-grid[data-role="carriers"]');
+        if (carriers && algorithm) {
+            const shared = carriers.querySelector(':scope > .nrpn-env-cell:not([data-op])');
+            for (const [item, name] of names) {
+                const cell = name.closest('.nrpn-env-cell');
+                if (!cell) continue;
+                if (item.n !== undefined && algorithm.carriers.includes(item.n)) { if (cell.parentElement !== carriers) carriers.insertBefore(cell, shared); }
+                else if (cell.parentElement !== grid) grid.appendChild(cell);
+            }
+            // Keep each group in operator order.
+            const order = cell => Number(cell.dataset.op ?? 99);
+            for (const box of [grid, carriers]) [...box.children].filter(c => order(c) !== 99).sort((a, b) => order(a) - order(b)).forEach(c => box.insertBefore(c, box === carriers ? shared : null));
         }
         // Operators beyond the algorithm's count and modulation indexes it does not use do nothing: switch them off.
         for (const [item, name] of names) {

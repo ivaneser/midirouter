@@ -5563,16 +5563,7 @@
             "full": true
           },
           {
-            "title": "Modulation indexes",
-            "section": "cc",
-            "categories": [
-              "modindex"
-            ],
-            "strip": "Mod Index ",
-            "full": true
-          },
-          {
-            "title": "Operators",
+            "title": "Modulators",
             "section": "cc",
             "categories": [
               "envelopes",
@@ -5584,14 +5575,24 @@
             "full": true
           },
           {
-            "title": "Carrier",
+            "title": "Modulation indexes",
+            "section": "cc",
+            "categories": [
+              "modindex"
+            ],
+            "strip": "Mod Index ",
+            "full": true
+          },
+          {
+            "title": "Carriers",
             "section": "cc",
             "categories": [
               "envelopes"
             ],
             "match": [
               "Carrier"
-            ]
+            ],
+            "full": true
           }
         ]
       },
