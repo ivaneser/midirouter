@@ -142,6 +142,11 @@ export async function getControlsForModel(model) {
     if (parsed.controls_nrpn?.algorithms) copy.algorithms = JSON.parse(JSON.stringify(parsed.controls_nrpn.algorithms));
     // The modulation matrix's source and destination choices exist only as NRPN parameters.
     if (parsed.controls_nrpn?.parameters) copy.nrpnParams = JSON.parse(JSON.stringify(parsed.controls_nrpn.parameters.filter(p => ['matrix', 'arp', 'performance'].includes(p.category))));
+    // NRPN-only parameters name their range min / max / scale; the knobs and senders read it as nrpnMin / nrpnMax / nrpnScale.
+    for (const param of copy.nrpnParams || []) {
+        param.nrpnMin ??= param.min; param.nrpnMax ??= param.max;
+        if (param.scale !== undefined) param.nrpnScale ??= param.scale;
+    }
     // Controls that exist only as NRPN (Performance 4) still get a knob of their own.
     for (const param of copy.nrpnParams || []) if (param.category === 'performance' && !copy.some(c => c.name === param.name)) copy.push({ ...param, section: 'cc' });
     return copy;

@@ -16,7 +16,7 @@ import {
     MAP_FILES,
     dropdownRaw,
     dropdownIndex,
-} from './synth-catalog.js?v=29';
+} from './synth-catalog.js?v=30';
 
 // Instruments without presets of their own: the user saves the CCs they set as named presets (stored on the router).
 const USER_PRESET_FILES = { 'korg-nts-1': 'korg_nts1' };
