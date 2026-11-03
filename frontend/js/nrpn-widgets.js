@@ -307,6 +307,21 @@ export function createEnvelopeTriangles(plan, io) {
             name.classList.toggle('carrier', carrier);
             name.title = carrier ? `${item.label} is a carrier in this algorithm` : '';
         }
+        // Operators beyond the algorithm's count and modulation indexes it does not use do nothing: switch them off.
+        for (const [item, name] of names) {
+            const idle = !!algorithm && item.n !== undefined && item.n > algorithm.operators;
+            name.closest('.nrpn-env-cell')?.classList.toggle('nrpn-idle', idle);
+        }
+        const panel = wrap.closest?.('.synth-controls');
+        if (panel && algorithm) {
+            const used = new Set(algorithm.modulation.map(m => m.im));
+            for (let im = 1; im <= 6; im++) {
+                for (const input of panel.querySelectorAll(`input[data-nrpn="${2 * im + 2}"]`)) {
+                    const box = input.parentElement;
+                    box?.classList.toggle('nrpn-idle', !used.has(im));
+                }
+            }
+        }
     };
     if (plan.algorithmDef) {
         redraws.push(markCarriers);
@@ -317,6 +332,7 @@ export function createEnvelopeTriangles(plan, io) {
         });
     }
     redraws.forEach(fn => fn());
+    if (plan.algorithmDef) setTimeout(markCarriers, 0);   // once the panel is built the modulation index knobs can be found
     return wrap;
 }
 

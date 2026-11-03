@@ -472,3 +472,6 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .synth-module-full .nrpn-algo-grid { grid-template-columns: repeat(auto-fill, 84px); }
 
 .nrpn-name.carrier { width: fit-content; padding: 0 6px; border-radius: 4px; background: var(--accent); color: #11181d; }
+
+/* Parts of the synth the current algorithm does not use. */
+.nrpn-idle { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
