@@ -146,6 +146,14 @@ export function planNrpnWidgets(controls, algorithms, nrpnParams = [], algorithm
     const direction = take('Arp Direction');
     if (direction) { widgets.push({ kind: 'arp-directions', def: direction[0] }); mark(direction); }
 
+    const division = take('Arp Division');
+    if (division) { widgets.push({ kind: 'note-values', def: division[0], label: 'Division' }); mark(division); }
+    const duration = take('Arp Duration');
+    if (duration) {
+        widgets.push({ kind: 'note-values', def: duration[0], label: 'Duration' });
+        mark(duration);
+    }
+
     const arp = take('Arp Pattern');
     if (arp) { widgets.push({ kind: 'arp-patterns', def: arp[0] }); mark(arp); }
 
@@ -564,6 +572,49 @@ export function createArpPatternPicker(plan, io) {
     return wrap;
 }
 
+// The arpeggiator's note lengths by value (a whole note = 1/1), longest first. 3/x are dotted, x/3 and 1/6, 1/12... triplets.
+const NOTE_VALUES = ['2/1', '3/2', '1/1', '3/4', '2/3', '1/2', '3/8', '1/3', '1/4', '1/6', '1/8', '1/12', '1/16', '1/24', '1/32', '1/48', '1/96'].map(text => {
+    const [top, bottom] = text.split('/').map(Number);
+    const length = top / bottom;
+    const triplet = bottom % 3 === 0 && top !== 3 || text === '2/3';
+    const dotted = top === 3 && bottom % 3 !== 0;
+    const name = `${text}${dotted ? ' dotted' : triplet ? ' triplet' : ''}`;
+    return { text, length, triplet, dotted, name };
+});
+
+/** Note lengths as small bars on a time axis (longer = wider), a dot for dotted and three ticks for triplets. */
+export function createNoteValuePicker(plan, io) {
+    let redraw = () => {};
+    const { wrap } = makeWrap('', [plan.def], () => redraw());
+    const grid = html('div', 'nrpn-arp-grid nrpn-note-grid');
+    grid.setAttribute('role', 'radiogroup');
+    grid.setAttribute('aria-label', `Arpeggiator ${plan.label.toLowerCase()}`);
+    wrap.append(grid, html('div', 'nrpn-name', plan.label));
+    const fraction = value => (Math.log2(value.length) + 6.6) / 7.6;
+    const buttons = NOTE_VALUES.map((value, index) => {
+        const button = html('button', 'nrpn-arp');
+        button.type = 'button';
+        button.setAttribute('role', 'radio');
+        button.title = `${plan.label} ${value.name}`;
+        button.setAttribute('aria-label', `Arpeggiator ${plan.label.toLowerCase()} ${value.name}`);
+        const icon = svg('svg', { viewBox: '0 0 44 16', class: 'nrpn-arp-icon', 'aria-hidden': 'true' });
+        const width = 4 + 34 * fraction(value);
+        icon.appendChild(svg('rect', { x: 2, y: 4, width, height: 8, rx: 2, class: 'nrpn-note-bar' }));
+        if (value.triplet) for (const k of [1, 2]) icon.appendChild(svg('line', { x1: 2 + width * k / 3, x2: 2 + width * k / 3, y1: 4, y2: 12, class: 'nrpn-note-tick' }));
+        if (value.dotted) icon.appendChild(svg('circle', { cx: 2 + width + 3, cy: 8, r: 1.4, class: 'nrpn-note-dot' }));
+        button.append(icon, html('span', 'nrpn-dir-name', value.text));
+        button.addEventListener('click', () => { io.set(plan.def, index); redraw(); });
+        grid.appendChild(button);
+        return button;
+    });
+    redraw = () => {
+        const current = Math.round(read(io, plan.def));
+        buttons.forEach((button, index) => button.setAttribute('aria-checked', String(index === current)));
+    };
+    redraw();
+    return wrap;
+}
+
 // The 12 arpeggiator directions: each icon plots eight steps as dots at their pitch level (0 low .. 4 high);
 // a chord plays all its notes at once, so it is drawn as stacks.
 const ARP_DIRECTIONS = [
@@ -707,7 +758,7 @@ export function createHorizontalSlider(plan, io) {
     const { min, max } = span(plan.def);
     let value = min;
     const draw = () => {
-        const f = clamp01((value - min) / (max - min));
+        const f = plan.reverse ? 1 - clamp01((value - min) / (max - min)) : clamp01((value - min) / (max - min));
         handle.style.left = `${f * 100}%`;
         fill.style.width = `${f * 100}%`;
         readout.textContent = plan.text(value);
@@ -722,12 +773,12 @@ export function createHorizontalSlider(plan, io) {
         draw();
     };
     redraw = () => { value = Math.round(read(io, plan.def)); draw(); };
-    drag(track, track, wrap, { begin: () => true, move: f => change(snap(plan.def, min + f[0] * (max - min))) });
+    drag(track, track, wrap, { begin: () => true, move: f => change(snap(plan.def, min + (plan.reverse ? 1 - f[0] : f[0]) * (max - min))) });
     track.addEventListener('keydown', event => {
         const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key];
         if (!dir) return;
         event.preventDefault();
-        change(snap(plan.def, value + dir));
+        change(snap(plan.def, value + (plan.reverse ? -dir : dir)));
     });
     redraw();
     return wrap;
@@ -1022,6 +1073,13 @@ export function createNrpnWidget(plan, io) {
     if (plan.kind === 'env-triangles') return createEnvelopeTriangles(plan, io);
     if (plan.kind === 'lfo-plots') return createLfoPlots(plan, io);
     if (plan.kind === 'algorithms') return createAlgorithmPicker(plan, io);
+    if (plan.kind === 'note-values') return createNoteValuePicker(plan, io);
+    if (plan.kind === 'hslider') {
+        const wrap = createHorizontalSlider(plan, io);
+        wrap.classList.add('nrpn-hslider-labelled');
+        wrap.appendChild(html('div', 'nrpn-name', plan.label));
+        return wrap;
+    }
     if (plan.kind === 'arp-main') return createArpMain(plan, io);
     if (plan.kind === 'arp-directions') return createArpDirectionPicker(plan, io);
     if (plan.kind === 'arp-patterns') return createArpPatternPicker(plan, io);

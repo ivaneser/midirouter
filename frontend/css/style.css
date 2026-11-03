@@ -491,3 +491,9 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .nrpn-arp[aria-checked="true"] .nrpn-dir-dot { fill: var(--accent); }
 .nrpn-arp[aria-checked="true"] .nrpn-dir-line { stroke: var(--accent); }
 .nrpn-dir-name { font-size: .66rem; color: #8d9ba7; text-align: center; line-height: 1.1; }
+.nrpn-note-grid { grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); }
+.nrpn-note-bar { fill: #9fb0bd; }
+.nrpn-note-tick { stroke: #0f151a; stroke-width: 1.4; }
+.nrpn-note-dot { fill: #9fb0bd; }
+.nrpn-arp[aria-checked="true"] .nrpn-note-bar, .nrpn-arp[aria-checked="true"] .nrpn-note-dot { fill: var(--accent); }
+.nrpn-hslider-labelled { max-width: 420px; }
