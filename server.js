@@ -437,7 +437,7 @@ const mcp = createMcpServer({
     noteControl: (target, channel, cc, value) => router.noteControl(target, channel, cc, value),
     selectPreset: (target, channel, index) => {
         router.presetNames.delete(`${deviceChannelKey(target)}:${channel}:${index}`);
-        router.worker?.postMessage({ type: 'select_preset', target, channel, index });
+        router.worker?.postMessage({ type: 'select_preset', target, channel, index, readNrpn: nrpnControls(deviceCatalog.forPort(target)?.map).length > 0 });
     },
     presetName: (target, channel, program) => router.presetNames.get(`${deviceChannelKey(target)}:${channel}:${program}`) ?? null,
     waitPresetName: (target, channel, program, ms) => new Promise(resolve => {
@@ -925,7 +925,7 @@ function startServer() {
                     case 'select-preset':
                         if (router.worker && typeof message.target === 'string') {
                             router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index, reset: message.reset === true, reloadPreset: message.reloadPreset === true,
-                                readNrpn: message.reset === true && nrpnControls(deviceCatalog.forPort(message.target)?.map).length > 0 });
+                                readNrpn: nrpnControls(deviceCatalog.forPort(message.target)?.map).length > 0 });
                         }
                         break;
 

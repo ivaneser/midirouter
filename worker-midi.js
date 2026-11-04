@@ -3053,7 +3053,19 @@ if (parentPort) {
                     }
                     else console.log(`[MIDI] [PRESET] ${msg.target} ch${msg.channel}: no preset selected yet, nothing to reload`);
                     worker._broadcastState();
-                } else if (worker._sendPreset(msg.target, msg.channel, msg.index)) worker._broadcastState();
+                } else if (worker._sendPreset(msg.target, msg.channel, msg.index)) {
+                    worker._broadcastState();
+                    // A new sound: read the patch the synth now plays so the router and UI knobs hold its values.
+                    if (msg.readNrpn) {
+                        worker._resyncTimers ??= new Map();
+                        const timerKey = `${deviceChannelKey(msg.target)}:${msg.channel}`;
+                        clearTimeout(worker._resyncTimers.get(timerKey));
+                        worker._resyncTimers.set(timerKey, setTimeout(() => {
+                            worker._resyncTimers.delete(timerKey);
+                            try { worker._resyncNrpnPatch(msg.target, msg.channel); } catch (e) { console.error(`[MIDI] NRPN resync failed for ${msg.target}:`, e.message); }
+                        }, 1000));
+                    }
+                }
             }
             catch (e) { console.error(`[MIDI] Preset select failed for ${msg.target}:`, e.message); }
         }

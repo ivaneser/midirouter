@@ -475,6 +475,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 
 /* Parts of the synth the current algorithm does not use. */
 .nrpn-idle { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
+.nrpn-gone { display: none !important; }
 
 /* Arpeggiator: clock / tempo / octaves / latch row and the direction icons. */
 .nrpn-arp-main { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 18px 28px; }

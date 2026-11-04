@@ -354,6 +354,14 @@ export function createEnvelopeTriangles(plan, io) {
                     box?.classList.toggle('nrpn-idle', !used.has(im));
                 }
             }
+            // The mixer has a level and a pan per carrier: show only as many as the algorithm has.
+            for (let n = 1; n <= 6; n++) {
+                for (const nrpn of [16 + 2 * (n - 1), 17 + 2 * (n - 1)]) {
+                    for (const input of panel.querySelectorAll(`input[data-nrpn="${nrpn}"]`)) {
+                        input.parentElement?.classList.toggle('nrpn-gone', n > algorithm.carriers.length);
+                    }
+                }
+            }
         }
     };
     if (plan.algorithmDef) {
