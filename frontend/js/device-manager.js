@@ -537,13 +537,14 @@ export class DeviceManager {
     // or for one part of a multitimbral device.
     // A new or reloaded sound replaces every knob tweak: forget the remembered values and put every
     // control of an open panel back to its start position (nothing is sent to the synth).
-    _discardControls(el, dev, part) {
+    // keepKnobs: leave the knobs where they are (a new preset's values arrive from the synth and move them).
+    _discardControls(el, dev, part, keepKnobs = false) {
         const prefix = `${dev.id}:${this.channelForDevice(dev, part)}:`;
         for (const key of [...this._controlValues.keys()]) if (key.startsWith(prefix)) this._controlValues.delete(key);
         // The router reads the reloaded patch back; its NRPN values must reach the knobs even when they equal the old ones.
         for (const map of [this._nrpnValues, this._nrpnSeen]) for (const key of [...map.keys()]) if (key.startsWith(prefix)) map.delete(key);
         const panel = el.querySelector('.synth-controls');
-        if (!panel) return;
+        if (!panel || keepKnobs) return;
         for (const input of panel.querySelectorAll('[data-cc]')) {
             if (input.type === 'range') {
                 input.value = input.dataset.start ?? input.min;
@@ -588,7 +589,7 @@ export class DeviceManager {
                 // Clear cached names until this selection is confirmed by the device.
                 this.presetNames.delete(`${key}:${program}`);
                 this.refreshPresetLabels();
-                this._discardControls(el, dev, part);
+                this._discardControls(el, dev, part, !!el.querySelector('.synth-controls [data-nrpn]'));
                 presets.title = `Last requested preset: ${program + 1}`;
             };
             groupSelect.addEventListener('change', () => {

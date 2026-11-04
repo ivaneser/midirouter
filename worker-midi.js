@@ -2811,8 +2811,7 @@ class MIDIRouterWorker {
     _resyncNrpnPatch(target, channel) {
         this._startNrpnRead(null, target, channel, values => {
             for (const [nrpn, raw] of values) {
-                try { this._sendNrpn(target, channel, nrpn, raw); }
-                catch (error) { console.error(`[MIDI] NRPN resend failed for ${target}:`, error.message); break; }
+                this._rememberDeviceNrpn(target, channel, nrpn, raw);   // remembered only: the synth already plays these
             }
             this._broadcastState();
         });
