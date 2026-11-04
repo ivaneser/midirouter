@@ -3037,6 +3037,13 @@ if (parentPort) {
         }
     } else if (msg.type === 'forget_controls') {
         if (typeof msg.target === 'string' && Number.isInteger(msg.channel)) worker._forgetDeviceControls(msg.target, msg.channel);
+    } else if (msg.type === 'remember_nrpn_patch') {
+        if (typeof msg.target === 'string' && Number.isInteger(msg.channel) && Array.isArray(msg.values)) {
+            const prefix = `${deviceChannelKey(msg.target)}:${msg.channel}:`;
+            for (const key of [...(worker._deviceNrpns?.keys() || [])]) if (key.startsWith(prefix)) worker._deviceNrpns.delete(key);
+            for (const [nrpn, raw] of msg.values) worker._rememberDeviceNrpn(msg.target, msg.channel, nrpn, raw);
+            worker._broadcastState();
+        }
     } else if (msg.type === 'select_preset') {
         if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
             try {
@@ -3047,23 +3054,11 @@ if (parentPort) {
                     const program = known?.program ?? (msg.reloadPreset ? msg.index : undefined);
                     if (program !== undefined) {
                         worker._reloadPreset(msg.target, msg.channel, program, known?.name);
-                        // Give the synth time to load the sound, then read its patch back.
-                        if (msg.readNrpn) setTimeout(() => { try { worker._resyncNrpnPatch(msg.target, msg.channel); } catch (e) { console.error(`[MIDI] NRPN resync failed for ${msg.target}:`, e.message); } }, 1000).unref?.();
                     }
                     else console.log(`[MIDI] [PRESET] ${msg.target} ch${msg.channel}: no preset selected yet, nothing to reload`);
                     worker._broadcastState();
                 } else if (worker._sendPreset(msg.target, msg.channel, msg.index)) {
                     worker._broadcastState();
-                    // A new sound: read the patch the synth now plays so the router and UI knobs hold its values.
-                    if (msg.readNrpn) {
-                        worker._resyncTimers ??= new Map();
-                        const timerKey = `${deviceChannelKey(msg.target)}:${msg.channel}`;
-                        clearTimeout(worker._resyncTimers.get(timerKey));
-                        worker._resyncTimers.set(timerKey, setTimeout(() => {
-                            worker._resyncTimers.delete(timerKey);
-                            try { worker._resyncNrpnPatch(msg.target, msg.channel); } catch (e) { console.error(`[MIDI] NRPN resync failed for ${msg.target}:`, e.message); }
-                        }, 1000));
-                    }
                 }
             }
             catch (e) { console.error(`[MIDI] Preset select failed for ${msg.target}:`, e.message); }

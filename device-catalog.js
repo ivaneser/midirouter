@@ -30,6 +30,16 @@ export class DeviceCatalog {
         return { model, map, presets: this._load(join(this.directory, 'presets', `${file}.json`)) };
     }
 
+    // The stored patch of a preset (1-based number) as [[nrpn, raw], ...], from device_maps/presets/<file>-patches.json
+    // (written by scripts/profile-patches.mjs), or null when it was not profiled.
+    storedPatch(portName, number) {
+        const { supported, model } = classifySynthPortName(portName);
+        const file = supported && MAP_FILES[model];
+        const data = file ? this._load(join(this.directory, 'presets', `${file}-patches.json`)) : null;
+        const raws = data?.patches?.[String(number)];
+        return raws ? data.nrpns.map((nrpn, i) => [nrpn, raws[i]]).filter(([, raw]) => raw !== null) : null;
+    }
+
     // Favourite presets are the ones whose catalog entry carries the tag "favorite".
     favorites(file) {
         const presets = /^[\w-]+$/.test(file) ? this._load(join(this.directory, 'presets', `${file}.json`))?.presets : null;

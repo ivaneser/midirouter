@@ -402,6 +402,11 @@ const uiLayout = new UiLayoutSettings(join(import.meta.dirname, 'ui-layout.json'
 // Audio capture/analysis tools come from mcpi (Python) and are forwarded through the same /mcp.
 // MCPI_URL="" disables forwarding.
 const deviceCatalog = new DeviceCatalog(join(import.meta.dirname, 'device_maps'));
+// A preset's profiled patch becomes the remembered NRPN values of the channel: the knobs show it without asking the synth.
+function storePatch(target, channel, index) {
+    const values = deviceCatalog.storedPatch(target, index + 1);
+    if (values) router.worker?.postMessage({ type: 'remember_nrpn_patch', target, channel, values });
+}
 const mcp = createMcpServer({
     upstream: createUpstream({ url: process.env.MCPI_URL ?? 'http://127.0.0.1:8000/mcp', token: process.env.MCPI_TOKEN }),
     catalog: deviceCatalog,
@@ -437,7 +442,8 @@ const mcp = createMcpServer({
     noteControl: (target, channel, cc, value) => router.noteControl(target, channel, cc, value),
     selectPreset: (target, channel, index) => {
         router.presetNames.delete(`${deviceChannelKey(target)}:${channel}:${index}`);
-        router.worker?.postMessage({ type: 'select_preset', target, channel, index, readNrpn: nrpnControls(deviceCatalog.forPort(target)?.map).length > 0 });
+        router.worker?.postMessage({ type: 'select_preset', target, channel, index });
+        storePatch(target, channel, index);
     },
     presetName: (target, channel, program) => router.presetNames.get(`${deviceChannelKey(target)}:${channel}:${program}`) ?? null,
     waitPresetName: (target, channel, program, ms) => new Promise(resolve => {
@@ -924,8 +930,8 @@ function startServer() {
 
                     case 'select-preset':
                         if (router.worker && typeof message.target === 'string') {
-                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index, reset: message.reset === true, reloadPreset: message.reloadPreset === true,
-                                readNrpn: nrpnControls(deviceCatalog.forPort(message.target)?.map).length > 0 });
+                            router.worker.postMessage({ type: 'select_preset', target: message.target, channel: message.channel, index: message.index, reset: message.reset === true, reloadPreset: message.reloadPreset === true });
+                            if (Number.isInteger(message.channel) && Number.isInteger(message.index) && (message.reset !== true || message.reloadPreset === true)) storePatch(message.target, message.channel, message.index);
                         }
                         break;
 
