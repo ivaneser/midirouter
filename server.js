@@ -719,6 +719,11 @@ function startServer() {
                         router.worker.postMessage({ type: 'daw_click_offset', ms: message.ms });
                         break;
 
+                    // Where the audio metronome clicks go: auto | jack | usb.
+                    case 'daw-metronome-output':
+                        router.worker.postMessage({ type: 'daw_metronome_output', output: message.output });
+                        break;
+
                     // Quantization grid (beats) for recorded notes.
                     case 'daw-quantize-grid':
                         router.worker.postMessage({ type: 'daw_quantize_grid', beats: message.beats });
