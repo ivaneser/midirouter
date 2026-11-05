@@ -2255,6 +2255,11 @@ class MIDIRouterWorker {
                 break;
             }
             // Click offset (ms): negative = clicks earlier, positive = later.
+            // Click level 0..1 (the latency calibration raises it for a moment so the click stands out in the recording).
+            case 'metronome_volume':
+                if (Number.isFinite(+msg.volume)) this.metronomeCtrl?.setVolume(+msg.volume);
+                this._broadcastState();
+                break;
             case 'daw_click_offset': {
                 const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
                 this.clickOffsetMs = Math.max(-200, Math.min(200, ms));
@@ -2557,6 +2562,7 @@ class MIDIRouterWorker {
         state.clockMasterSource = this._clockMaster.source;
         state.clockSenders = [...(this._clockSenders || [])].filter(name => this.inputs.has(name));
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
+        state.metronomeVolume = this.metronomeCtrl?.volume;
         state.audioOffsetMs = this.audioOffsetMs;
         state.clickOffsetMs = this.clickOffsetMs;
         state.audioMonitor = !!this._audioMonitor;

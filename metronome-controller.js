@@ -356,6 +356,21 @@ export class MetronomeController {
     }
 
     /**
+     * Click level (peak, 0..1). Remembered, so a restarted process uses it too.
+     * @param {number} volume
+     */
+    setVolume(volume) {
+        this.volume = Math.max(0, Math.min(1, Number(volume) || 0));
+        if (this._process && this._pid && this._running) {
+            try {
+                this._process.stdin.write(`volume ${this.volume}\n`);
+            } catch (e) {
+                console.warn(`[METRONOME] Failed to set volume: ${e.message}`);
+            }
+        }
+    }
+
+    /**
      * Mix the router's live audio input into this process's output (the Pi's headphone jack) next to
      * the clicks. Remembered, so a restarted process picks it up again.
      * @param {boolean} on

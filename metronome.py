@@ -16,6 +16,7 @@ IPC Controls (via stdin)
     stop          # Stop playing clicks (silence)
     monitor <1|0> # Mix the router's live audio input into the output (with the clicks) on/off
     monitorgain <x># Gain of the monitored input (1 = as it is, default 1)
+    volume <x>    # Click level (peak, 0..1); the calibration raises it for a moment
     bpm <n>       # Change BPM (stored for volume / accent calculations)
     beats <n>     # Change beats per measure
     click         # Play one metronome click immediately
@@ -128,6 +129,13 @@ class Metronome:
         self._monitor_thread = None
 
         # Cached waveform for fast per-click emission.
+        self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
+        self._accent_click = self._click_waveform(
+            self.volume * (1.0 if self.accent == 1 else 0.7), ACCENT_FREQ)
+
+    def set_volume(self, volume: float):
+        """New click level: the cached waveforms are rebuilt (clicks already queued keep the old one)."""
+        self.volume = max(0.0, min(1.0, float(volume)))
         self._normal_click = self._click_waveform(self.volume, CLICK_FREQ)
         self._accent_click = self._click_waveform(
             self.volume * (1.0 if self.accent == 1 else 0.7), ACCENT_FREQ)
@@ -501,6 +509,11 @@ def read_commands(metronome: Metronome):
                 metronome._emit_click(is_accent)
             elif cmd == "monitor" and len(parts) >= 2:
                 metronome.set_monitor(parts[1].lower() in ('1', 'true', 'on', 'yes'))
+            elif cmd == "volume" and len(parts) >= 2:
+                try:
+                    metronome.set_volume(float(parts[1]))
+                except ValueError:
+                    print(f"[metronome] Invalid volume: {parts[1]}", flush=True)
             elif cmd == "monitorgain" and len(parts) >= 2:
                 try:
                     metronome._monitor_gain = max(0.0, min(32.0, float(parts[1])))

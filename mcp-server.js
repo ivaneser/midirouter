@@ -396,7 +396,7 @@ export function createMcpServer(ctx) {
             const beatSec = 60 / bpm, barSec = 4 * beatSec;
             const noteHz = 440 * 2 ** ((note - 69) / 12);
             const program = currentProgram(output, ch);
-            const before = { tempo: start.tempo, metronome: start.metronomeEnabled, beats: start.metronomeBeatsPerMeasure, playing: start.playing, audioOffset: start.audioOffsetMs ?? 0 };
+            const before = { tempo: start.tempo, metronome: start.metronomeEnabled, beats: start.metronomeBeatsPerMeasure, volume: start.metronomeVolume, playing: start.playing, audioOffset: start.audioOffsetMs ?? 0 };
             const log = [];
             let offset = Number.isInteger(from_offset) ? Math.max(-200, Math.min(200, from_offset)) : before.audioOffset;
             let saved = null;
@@ -409,6 +409,7 @@ export function createMcpServer(ctx) {
                         'Op 1 Attack Time': 0.005, 'Op 1 Attack Level': 1, 'Op 1 Decay Time': 0, 'Op 1 Decay Level': 1, 'Op 1 Sustain Time': 0, 'Op 1 Sustain Level': 1, 'Op 1 Release Time': 0.1, 'Op 1 Release Level': 0 } });
                     await sleep(3000);   // the patch is sent paced; let it land
                 }
+                ctx.daw({ type: 'metronome_volume', volume: 0.9 });   // the click is far quieter than the note on the input; make it stand out
                 handlers.daw_set_tempo({ bpm });
                 handlers.daw_set_metronome({ enabled: true, beats_per_measure: 4 });
                 handlers.daw_set_clip({ track, slot, channel: ch, bars: 1, notes: [0, 1, 2, 3].map(b => ({ note, start: b, duration: 0.25, velocity: 110 })) });
@@ -437,6 +438,7 @@ export function createMcpServer(ctx) {
                 }
             } finally {
                 try {
+                    if (before.volume) ctx.daw({ type: 'metronome_volume', volume: before.volume });
                     handlers.daw_stop_clip({ track });
                     await sleep(200);
                     handlers.daw_clear_clip({ track, slot });
