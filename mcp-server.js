@@ -49,7 +49,7 @@ export const TOOLS = [
     { name: 'daw_set_loop_bars', description: 'Master loop length in bars (1-64); every clip then repeats for exactly this long.', inputSchema: obj({ bars: { type: 'integer', minimum: 1, maximum: 64 } }, ['bars']) },
     { name: 'daw_set_clock', description: 'Master clock. source: internal (the router is clock master) or external (follow the MIDI input named port). output: send MIDI clock to devices on or off.', inputSchema: obj({ source: { enum: ['internal', 'external'] }, port: { type: 'string', description: 'Input port name for external source' }, output: { type: 'boolean' } }) },
     { name: 'daw_set_metronome', description: 'Metronome on/off and beats per measure (1-16), which sets the bar length.', inputSchema: obj({ enabled: { type: 'boolean' }, beats_per_measure: { type: 'integer', minimum: 1, maximum: 16 } }) },
-    { name: 'calibrate_latency', description: 'Measure how far a melody played through the DAW lags the metronome click and set the Audio offset so they sound together. Needs the audio input to hear both the click and the synth (mixed into the interface input). It plays a test note on every beat in a temporary clip (the device gets a plain sine sound for the test and its preset is selected again afterwards), records the input, finds the click and note onsets, applies the correction and measures again. Takes about 15 s per round. Set apply:false to only measure.', inputSchema: obj({ device: DEVICE, channel: CHANNEL, note: { type: 'integer', minimum: 36, maximum: 84, description: 'Test note, default 57 (A3, 220 Hz)' }, bpm: { type: 'number', minimum: 60, maximum: 180, description: 'Default 120' }, rounds: { type: 'integer', minimum: 1, maximum: 5, description: 'Measure-correct rounds, default 3' }, apply: { type: 'boolean', description: 'Default true: change the Audio offset' } }, ['device']) },
+    { name: 'calibrate_latency', description: 'Measure how far a melody played through the DAW lags the metronome click and set the Audio offset so they sound together. Needs the audio input to hear both the click and the synth (mixed into the interface input). It plays a test note on every beat in a temporary clip (the device gets a plain sine sound for the test and its preset is selected again afterwards), records the input, finds the click and note onsets, applies the correction and measures again. Takes about 15 s per round. Set apply:false to only measure.', inputSchema: obj({ device: DEVICE, channel: CHANNEL, note: { type: 'integer', minimum: 36, maximum: 84, description: 'Test note, default 57 (A3, 220 Hz)' }, bpm: { type: 'number', minimum: 60, maximum: 180, description: 'Default 120' }, rounds: { type: 'integer', minimum: 1, maximum: 5, description: 'Measure-correct rounds, default 3' }, apply: { type: 'boolean', description: 'Default true: change the Audio offset' }, from_offset: { type: 'integer', minimum: -200, maximum: 200, description: 'Start the first round at this Audio offset (ms) instead of the current one, to check that the measurement follows it' } }, ['device']) },
     { name: 'daw_set_quantize', description: 'Quantize grid for recorded takes in beats: 0 (off), 0.125, 0.25, 0.5, 1 or 2.', inputSchema: obj({ beats: { enum: [0, 0.125, 0.25, 0.5, 1, 2] } }, ['beats']) },
     { name: 'set_device_part', description: 'Add or move a part of a multitimbral instrument (e.g. Blofeld part 2 on channel 6), or remove it. Afterwards address it as "<device> part <n>".', inputSchema: obj({ device: DEVICE, part: { type: 'integer', minimum: 1, maximum: 16 }, channel: CHANNEL, remove: { type: 'boolean' } }, ['device', 'part']) },
     { name: 'play_notes', description: 'Play timed notes on a device now. An armed DAW recording captures them. notes: [{note 0-127, start beats, duration beats, velocity 1-127}].', inputSchema: obj({
@@ -377,7 +377,7 @@ export function createMcpServer(ctx) {
             }
             return { ok: true, enabled, beats_per_measure: beats };
         },
-        async calibrate_latency({ device, channel, note = 57, bpm = 120, rounds = 3, apply = true }) {
+        async calibrate_latency({ device, channel, note = 57, bpm = 120, rounds = 3, apply = true, from_offset }) {
             const output = resolve(device);
             const ch = channelFor(output, channel);
             const audio = ctx.audio;
@@ -395,7 +395,7 @@ export function createMcpServer(ctx) {
             const program = currentProgram(output, ch);
             const before = { tempo: start.tempo, metronome: start.metronomeEnabled, beats: start.metronomeBeatsPerMeasure, playing: start.playing, audioOffset: start.audioOffsetMs ?? 0 };
             const log = [];
-            let offset = before.audioOffset;
+            let offset = Number.isInteger(from_offset) ? Math.max(-200, Math.min(200, from_offset)) : before.audioOffset;
             let saved = null;
             try {
                 if (nrpnControls(catalogFor(output).map).length) {
