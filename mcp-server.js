@@ -1,5 +1,6 @@
 import { MULTITIMBRAL_PARTS } from './frontend/js/synth-catalog.js';
 import { deviceChannelKey, validMidiChannel } from './frontend/js/device-channels.js';
+import { measureLag } from './latency-calibration.js';
 import { resolveOutput, findControl, encodeControlValue, decodeControlValue, nrpnControls, encodeNrpnValue, decodeNrpnValue } from './device-catalog.js';
 
 // Minimal MCP server (Streamable HTTP, JSON responses, stateless). It exposes the "MIDI devices"
@@ -48,6 +49,7 @@ export const TOOLS = [
     { name: 'daw_set_loop_bars', description: 'Master loop length in bars (1-64); every clip then repeats for exactly this long.', inputSchema: obj({ bars: { type: 'integer', minimum: 1, maximum: 64 } }, ['bars']) },
     { name: 'daw_set_clock', description: 'Master clock. source: internal (the router is clock master) or external (follow the MIDI input named port). output: send MIDI clock to devices on or off.', inputSchema: obj({ source: { enum: ['internal', 'external'] }, port: { type: 'string', description: 'Input port name for external source' }, output: { type: 'boolean' } }) },
     { name: 'daw_set_metronome', description: 'Metronome on/off and beats per measure (1-16), which sets the bar length.', inputSchema: obj({ enabled: { type: 'boolean' }, beats_per_measure: { type: 'integer', minimum: 1, maximum: 16 } }) },
+    { name: 'calibrate_latency', description: 'Measure how far a melody played through the DAW lags the metronome click and set the Audio offset so they sound together. Needs the audio input to hear both the click and the synth (mixed into the interface input). It plays a test note on every beat in a temporary clip (the device gets a plain sine sound for the test and its preset is selected again afterwards), records the input, finds the click and note onsets, applies the correction and measures again. Takes about 15 s per round. Set apply:false to only measure.', inputSchema: obj({ device: DEVICE, channel: CHANNEL, note: { type: 'integer', minimum: 36, maximum: 84, description: 'Test note, default 57 (A3, 220 Hz)' }, bpm: { type: 'number', minimum: 60, maximum: 180, description: 'Default 120' }, rounds: { type: 'integer', minimum: 1, maximum: 5, description: 'Measure-correct rounds, default 3' }, apply: { type: 'boolean', description: 'Default true: change the Audio offset' } }, ['device']) },
     { name: 'daw_set_quantize', description: 'Quantize grid for recorded takes in beats: 0 (off), 0.125, 0.25, 0.5, 1 or 2.', inputSchema: obj({ beats: { enum: [0, 0.125, 0.25, 0.5, 1, 2] } }, ['beats']) },
     { name: 'set_device_part', description: 'Add or move a part of a multitimbral instrument (e.g. Blofeld part 2 on channel 6), or remove it. Afterwards address it as "<device> part <n>".', inputSchema: obj({ device: DEVICE, part: { type: 'integer', minimum: 1, maximum: 16 }, channel: CHANNEL, remove: { type: 'boolean' } }, ['device', 'part']) },
     { name: 'play_notes', description: 'Play timed notes on a device now. An armed DAW recording captures them. notes: [{note 0-127, start beats, duration beats, velocity 1-127}].', inputSchema: obj({
@@ -374,6 +376,78 @@ export function createMcpServer(ctx) {
                 ctx.daw({ type: 'daw_metronome_beats_per_measure', bpm: beats });
             }
             return { ok: true, enabled, beats_per_measure: beats };
+        },
+        async calibrate_latency({ device, channel, note = 57, bpm = 120, rounds = 3, apply = true }) {
+            const output = resolve(device);
+            const ch = channelFor(output, channel);
+            const audio = ctx.audio;
+            if (!audio || audio.status().state !== 'live') throw new ToolError(`the audio input is not live (${audio?.status().state ?? 'no capture'}): connect the interface that hears the click and the synth`);
+            const start = ctx.getDawState();
+            if (!start?.tracks) throw new ToolError('no DAW state yet');
+            if (start.recording) throw new ToolError('stop recording first');
+            let track = -1, slot = -1;
+            start.tracks.forEach((t, i) => { if (track < 0 && !t.playing) { const k = t.clips.findIndex(c => !c.notes); if (k >= 0) { track = i; slot = k; } } });
+            if (track < 0) throw new ToolError('no empty clip slot to play the test in; clear one');
+            const sleep = ms => new Promise(done => setTimeout(done, ms));
+            const beatSec = 60 / bpm, barSec = 4 * beatSec;
+            const noteHz = 440 * 2 ** ((note - 69) / 12);
+            const program = currentProgram(output, ch);
+            const before = { tempo: start.tempo, metronome: start.metronomeEnabled, beats: start.metronomeBeatsPerMeasure, bars: start.masterLoopBars, playing: start.playing, audioOffset: start.audioOffsetMs ?? 0 };
+            const log = [];
+            let offset = before.audioOffset;
+            try {
+                if (nrpnControls(catalogFor(output).map).length) {
+                    // A pure sine: nothing near the click's 1-2 kHz to confuse the measurement.
+                    handlers.set_nrpn_parameters({ device, channel: ch, from_init: true, values: { Algorithm: 0, Voices: 1, 'IM 1': 0, 'IM 2': 0, 'IM 3': 0, 'Mix 1': 0.9, 'Op 1 Frequency': 1,
+                        'Op 1 Attack Time': 0, 'Op 1 Attack Level': 1, 'Op 1 Decay Time': 0, 'Op 1 Decay Level': 1, 'Op 1 Sustain Time': 0, 'Op 1 Sustain Level': 1, 'Op 1 Release Time': 0.1, 'Op 1 Release Level': 0 } });
+                    await sleep(3000);   // the patch is sent paced; let it land
+                }
+                handlers.daw_set_tempo({ bpm });
+                handlers.daw_set_metronome({ enabled: true, beats_per_measure: 4 });
+                handlers.daw_set_loop_bars({ bars: 1 });
+                handlers.daw_set_clip({ track, slot, channel: ch, bars: 1, notes: [0, 1, 2, 3].map(b => ({ note, start: b, duration: 0.25, velocity: 110 })) });
+                if (!before.playing) handlers.daw_transport({ action: 'play' });
+                await sleep(500);
+                for (let round = 1; round <= rounds; round++) {
+                    handlers.daw_stop_clip({ track });
+                    await sleep(300);
+                    ctx.daw({ type: 'daw_audio_offset', ms: offset });
+                    await sleep(200);
+                    handlers.daw_trigger_pad({ track, slot });
+                    await sleep(Math.round(barSec * 2 * 1000) + 800);   // the clip starts on a bar line; let it settle
+                    const seconds = 8;
+                    await sleep(seconds * 1000);
+                    const result = measureLag(audio.snapshot(seconds), { sampleRate: audio.status().sampleRate, channels: audio.status().channels, noteHz, beatSec });
+                    if (!result.clicks) throw new ToolError('no click was heard on the audio input: mix the click output into the interface input and raise its level');
+                    if (!result.notes) throw new ToolError('the test note was not heard on the audio input: check the synth output reaches it');
+                    if (result.lagMs === null) throw new ToolError(`heard ${result.clicks} clicks and ${result.notes} notes but could not pair them (the lag may exceed half a beat)`);
+                    const step = { round, audioOffsetMs: offset, lagMs: Math.round(result.lagMs * 10) / 10, jitterMs: Math.round(result.jitterMs * 10) / 10, pairs: result.pairs };
+                    log.push(step);
+                    if (!apply || Math.abs(result.lagMs) < 2) break;
+                    offset = Math.max(-200, Math.min(200, Math.round(offset - result.lagMs)));
+                    if (round === rounds) break;
+                }
+            } finally {
+                try {
+                    handlers.daw_stop_clip({ track });
+                    await sleep(200);
+                    handlers.daw_clear_clip({ track, slot });
+                    if (!before.playing) handlers.daw_transport({ action: 'stop' });
+                    handlers.daw_set_tempo({ bpm: before.tempo });
+                    handlers.daw_set_metronome({ enabled: before.metronome, beats_per_measure: before.beats });
+                    handlers.daw_set_loop_bars({ bars: before.bars });
+                    if (!apply) ctx.daw({ type: 'daw_audio_offset', ms: before.audioOffset });
+                    if (program) await handlers.select_preset({ device, channel: ch, preset: program.number });
+                } catch (error) { log.push({ cleanupError: error.message }); }
+            }
+            const measured = log.filter(l => l.lagMs !== undefined);
+            const last = measured[measured.length - 1];
+            const final = apply ? offset : before.audioOffset;
+            if (apply) ctx.daw({ type: 'daw_audio_offset', ms: final });
+            const settled = last && Math.abs(last.lagMs) < 2;
+            return { device: output.name, channel: ch, rounds: log, audioOffsetMs: final, previousAudioOffsetMs: before.audioOffset, applied: apply,
+                note: apply ? (settled ? 'The last round measured the note within 2 ms of the click at this offset (the offset shown is the one measured in that round).' : 'Not within 2 ms in the last round: the offset was moved by the last measured lag and was not measured again. Run again to verify.') : 'Measured only; the offset was left as it was.',
+                restoredPreset: program?.number ?? null };
         },
         daw_set_quantize({ beats }) {
             if (![0, 0.125, 0.25, 0.5, 1, 2].includes(beats)) throw new ToolError('beats must be 0, 0.125, 0.25, 0.5, 1 or 2');

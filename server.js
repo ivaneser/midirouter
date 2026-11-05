@@ -423,6 +423,7 @@ const mcp = createMcpServer({
         return true;
     },
     getDawState: () => router.dawState,
+    audio: { status: () => audioCapture.status(), snapshot: seconds => audioCapture.snapshot(seconds) },
     setPart: (name, part, channel, remove) => {
         if (!(remove ? deviceChannels.removePart(name, part) : deviceChannels.setPart(name, part, channel))) return false;
         router.publishChannels(deviceChannels.channels);
