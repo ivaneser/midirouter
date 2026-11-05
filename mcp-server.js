@@ -424,7 +424,7 @@ export function createMcpServer(ctx) {
                     if (!result.clicks) throw new ToolError('no click was heard on the audio input: mix the click output into the interface input and raise its level');
                     if (!result.notes) throw new ToolError('the test note was not heard on the audio input: check the synth output reaches it');
                     if (result.lagMs === null) throw new ToolError(`heard ${result.clicks} clicks and ${result.notes} notes but could not pair them (the lag may exceed half a beat)`);
-                    const step = { round, audioOffsetMs: offset, lagMs: Math.round(result.lagMs * 10) / 10, jitterMs: Math.round(result.jitterMs * 10) / 10, pairs: result.pairs };
+                    const step = { round, audioOffsetMs: offset, lagMs: Math.round(result.lagMs * 10) / 10, jitterMs: Math.round(result.jitterMs * 10) / 10, pairs: result.pairs, detail: result.detail.slice(0, 12) };
                     log.push(step);
                     if (!apply || Math.abs(result.lagMs) < 2) break;
                     offset = Math.max(-200, Math.min(200, Math.round(offset - result.lagMs)));

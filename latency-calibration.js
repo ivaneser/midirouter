@@ -75,5 +75,5 @@ export function measureLag(pcm, { sampleRate, channels = 2, noteHz, clickHz = [1
     const lags = pairs.map(p => p.lagMs);
     const lagMs = lags.length ? median(lags) : null;
     const jitterMs = lags.length ? lags.reduce((sum, l) => sum + Math.abs(l - lagMs), 0) / lags.length : null;
-    return { lagMs, jitterMs, pairs: pairs.length, clicks: distinctClicks.length, notes: notes.length };
+    return { lagMs, jitterMs, pairs: pairs.length, clicks: distinctClicks.length, notes: notes.length, detail: pairs.map(p => [Math.round(p.click * 1000), Math.round(p.note * 1000)]) };
 }
