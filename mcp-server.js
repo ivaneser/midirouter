@@ -455,6 +455,7 @@ export function createMcpServer(ctx) {
             const final = apply ? offset : before.audioOffset;
             if (apply) ctx.daw({ type: 'daw_audio_offset', ms: final });
             const settled = last && Math.abs(last.lagMs) < 2;
+            if (last) ctx.daw({ type: 'calibration_result', result: { audioOffsetMs: last.audioOffsetMs, lagMs: last.lagMs, jitterMs: last.jitterMs, applied: apply && settled, device: output.name } });
             return { device: output.name, channel: ch, rounds: log, audioOffsetMs: final, previousAudioOffsetMs: before.audioOffset, applied: apply,
                 note: apply ? (settled ? 'The last round measured the note within 2 ms of the click at this offset (the offset shown is the one measured in that round).' : 'Not within 2 ms in the last round: the offset was moved by the last measured lag and was not measured again. Run again to verify.') : 'Measured only; the offset was left as it was.',
                 restored: saved?.length ? 'the patch the synth played before' : (program ? `preset ${program.number}` : null) };

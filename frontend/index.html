@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=96">
+    <link rel="stylesheet" href="/css/style.css?v=97">
 </head>
 <body>
     <div id="app">
@@ -133,6 +133,7 @@
                         <input type="range" id="click-latency" min="-200" max="200" step="1" value="0">
                         <span id="click-latency-label">0 ms</span>
                     </label>
+                    <p id="calibration-status" class="calibration-status" role="status" hidden></p>
                     <label class="transport-label" title="Where metronome clicks are played: the Pi's 3.5 mm jack, a USB audio device or HDMI.">
                         Click output:
                         <select id="metro-output">
@@ -309,6 +310,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=91"></script>
+    <script type="module" src="/js/app.js?v=92"></script>
 </body>
 </html>

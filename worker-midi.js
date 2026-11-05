@@ -237,6 +237,7 @@ class MIDIRouterWorker {
             const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(-200, Math.min(200, Math.round(+v))) : d);
             this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
             this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
+            if (s.calibration && Number.isFinite(+s.calibration.at)) this._calibration = s.calibration;
             if (['auto', 'jack', 'usb', 'hdmi'].includes(s.metronomeOutput)) this._metronomeOutput = s.metronomeOutput;
             if (Number.isFinite(+s.audioMonitorGain)) this._audioMonitorGain = Math.max(0, Math.min(32, +s.audioMonitorGain));
             const cs = s.clockSource;
@@ -257,6 +258,7 @@ class MIDIRouterWorker {
                 clickOffsetMs: this.clickOffsetMs,
                 audioMonitorGain: this._audioMonitorGain,
                 metronomeOutput: this._metronomeOutput,
+                calibration: this._calibration || undefined,
                 clockSource: this._savedClockSource || undefined,
             }, null, 2) + '\n');
         } catch (e) {
@@ -2254,12 +2256,21 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
-            // Click offset (ms): negative = clicks earlier, positive = later.
+            // What the latency calibration measured, shown next to the offset sliders.
+            case 'calibration_result': {
+                const r = msg.result || {};
+                this._calibration = { at: Date.now(), audioOffsetMs: Math.round(+r.audioOffsetMs) || 0, clickOffsetMs: this.clickOffsetMs, lagMs: Number.isFinite(+r.lagMs) ? +r.lagMs : null,
+                    jitterMs: Number.isFinite(+r.jitterMs) ? +r.jitterMs : null, applied: r.applied === true, device: typeof r.device === 'string' ? r.device : null };
+                this._saveSettings();
+                this._broadcastState();
+                break;
+            }
             // Click level 0..1 (the latency calibration raises it for a moment so the click stands out in the recording).
             case 'metronome_volume':
                 if (Number.isFinite(+msg.volume)) this.metronomeCtrl?.setVolume(+msg.volume);
                 this._broadcastState();
                 break;
+            // Click offset (ms): negative = clicks earlier, positive = later.
             case 'daw_click_offset': {
                 const ms = Math.round(Number.isFinite(+msg.ms) ? +msg.ms : 0);
                 this.clickOffsetMs = Math.max(-200, Math.min(200, ms));
@@ -2563,6 +2574,7 @@ class MIDIRouterWorker {
         state.clockSenders = [...(this._clockSenders || [])].filter(name => this.inputs.has(name));
         state.clockMasterActiveOutputs = this._clockMaster.activeOutputs.map(p => p.name);
         state.metronomeVolume = this.metronomeCtrl?.volume;
+        state.calibration = this._calibration || null;
         state.audioOffsetMs = this.audioOffsetMs;
         state.clickOffsetMs = this.clickOffsetMs;
         state.audioMonitor = !!this._audioMonitor;

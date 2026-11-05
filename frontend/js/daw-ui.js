@@ -467,6 +467,23 @@ export class DAWUI {
             if (label) label.textContent = `${this.dawState.clickOffsetMs} ms`;
         }
 
+        // What the last latency calibration measured, and whether the sliders still hold the offsets it used.
+        const calibrationStatus = document.getElementById('calibration-status');
+        if (calibrationStatus) {
+            const c = this.dawState?.calibration;
+            calibrationStatus.hidden = !c;
+            if (c) {
+                const sign = c.lagMs > 0 ? '+' : '';
+                const lag = c.lagMs == null ? 'not measured' : `${sign}${c.lagMs} ms`;
+                const when = new Date(c.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+                const stale = this.dawState.audioOffsetMs !== c.audioOffsetMs;
+                calibrationStatus.classList.toggle('stale', stale);
+                calibrationStatus.textContent = `Calibrated ${when}: note vs click ${lag} at Audio offset ${c.audioOffsetMs} ms` +
+                    (c.jitterMs != null ? `, click spread ±${c.jitterMs} ms` : '') +
+                    (stale ? `. Offset is now ${this.dawState.audioOffsetMs} ms: calibrate again.` : '.');
+            }
+        }
+
         // Metronome output selector: sync from state; disable outputs that are not present.
         const metroOutput = document.getElementById('metro-output');
         if (metroOutput && this.dawState?.metronomeOutput) {

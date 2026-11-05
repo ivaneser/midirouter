@@ -498,3 +498,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .nrpn-note-dot { fill: #9fb0bd; }
 .nrpn-arp[aria-checked="true"] .nrpn-note-bar, .nrpn-arp[aria-checked="true"] .nrpn-note-dot { fill: var(--accent); }
 .nrpn-hslider-labelled { max-width: 420px; }
+
+.calibration-status { color: var(--text-dim, #9aa5b1); font-size: .82rem; margin: 2px 0 8px; }
+.calibration-status[hidden] { display: none; }
+.calibration-status.stale { color: var(--amber); }
