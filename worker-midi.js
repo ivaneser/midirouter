@@ -192,7 +192,7 @@ class MIDIRouterWorker {
         // Click latency compensation (ms) for the audio metronome, tuned by ear.
         this._audioMonitorGain = 1;   // the monitored input plays as it is (the knob can boost a quiet one)
         this.clickOffsetMs = 0;    // metronome clicks
-        this._metronomeOutput = 'auto';   // where clicks go: auto | jack | usb
+        this._metronomeOutput = 'auto';   // where clicks go: auto | jack | usb | hdmi
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
         // one of the allowed values (0 = Off), default 0.5 (1/8 note).
@@ -237,7 +237,7 @@ class MIDIRouterWorker {
             const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(-200, Math.min(200, Math.round(+v))) : d);
             this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
             this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
-            if (['auto', 'jack', 'usb'].includes(s.metronomeOutput)) this._metronomeOutput = s.metronomeOutput;
+            if (['auto', 'jack', 'usb', 'hdmi'].includes(s.metronomeOutput)) this._metronomeOutput = s.metronomeOutput;
             if (Number.isFinite(+s.audioMonitorGain)) this._audioMonitorGain = Math.max(0, Math.min(32, +s.audioMonitorGain));
             const cs = s.clockSource;
             if (cs?.kind === 'internal') this._savedClockSource = { kind: 'internal' };
@@ -2559,7 +2559,7 @@ class MIDIRouterWorker {
         state.audioMonitorGain = this._audioMonitorGain;
         state.audioOutAvailable = !!this._audioMetronomeAvailable;
         state.metronomeOutput = this.metronomeCtrl?.output || this._metronomeOutput;
-        state.metronomeOutputs = this._audioMetronomeAvailable ? this.metronomeCtrl.getOutputs() : { jack: false, usb: false };
+        state.metronomeOutputs = this._audioMetronomeAvailable ? this.metronomeCtrl.getOutputs() : { jack: false, usb: false, hdmi: false };
         state.quantizeGrid = this.quantizeGrid;
         state.clipProgress = this._clipPlaybackProgress();
         parentPort?.postMessage({ type: 'daw_state', state });

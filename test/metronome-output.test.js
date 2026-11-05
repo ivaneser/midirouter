@@ -9,17 +9,22 @@ card 2: CODEC [USB Audio CODEC], device 0: USB Audio [USB Audio]
 `;
 const ZERO = `card 0: CODEC [USB Audio CODEC], device 0: USB Audio [USB Audio]\n`;
 
-test('parsePlaybackCards skips HDMI', () => {
-    assert.deepEqual(parsePlaybackCards(PI4).map(c => c.id), ['Headphones', 'CODEC']);
+test('parsePlaybackCards lists every card', () => {
+    assert.deepEqual(parsePlaybackCards(PI4).map(c => c.id), ['vc4hdmi0', 'Headphones', 'CODEC']);
 });
 
 test('findOutputs sees jack and USB on a Pi 4', () => {
-    assert.deepEqual(findOutputs(PI4), { jack: 'hw:Headphones', usb: 'plughw:CARD=CODEC,DEV=0' });
+    assert.deepEqual(findOutputs(PI4), { hdmi: 'plughw:CARD=vc4hdmi0,DEV=0', jack: 'hw:Headphones', usb: 'plughw:CARD=CODEC,DEV=0' });
 });
 
 test('a Zero 2 W has no jack', () => {
     assert.equal(resolveOutputDevice('jack', ZERO), null);
     assert.equal(resolveOutputDevice('usb', ZERO), 'plughw:CARD=CODEC,DEV=0');
+});
+
+test('hdmi resolves to the HDMI card', () => {
+    assert.equal(resolveOutputDevice('hdmi', PI4), 'plughw:CARD=vc4hdmi0,DEV=0');
+    assert.equal(resolveOutputDevice('hdmi', ZERO), null);
 });
 
 test('auto leaves the choice to metronome.py', () => {

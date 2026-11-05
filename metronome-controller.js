@@ -14,15 +14,14 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const OUTPUT_CHOICES = ['auto', 'jack', 'usb'];
+export const OUTPUT_CHOICES = ['auto', 'jack', 'usb', 'hdmi'];
 
-// Playback cards from `aplay -l` text: [{ id, name, line }]. HDMI cards are skipped.
+// Playback cards from `aplay -l` text: [{ id, name, line }].
 export function parsePlaybackCards(text) {
     const cards = [];
     for (const line of String(text || '').split('\n')) {
         const m = line.match(/^card\s+\d+:\s+(\S+)\s+\[([^\]]*)\]/);
         if (!m) continue;
-        if (/hdmi/i.test(m[1]) || /hdmi/i.test(m[2])) continue;
         if (cards.some(c => c.id === m[1])) continue;
         cards.push({ id: m[1], name: m[2], line });
     }
@@ -32,9 +31,12 @@ export function parsePlaybackCards(text) {
 // Which outputs exist: the Pi's 3.5 mm jack ("Headphones"/bcm2835) and any USB audio card.
 export function findOutputs(text) {
     const cards = parsePlaybackCards(text);
-    const jack = cards.find(c => /headphones|bcm2835/i.test(c.id + ' ' + c.name));
-    const usb = cards.find(c => c !== jack && /usb/i.test(c.id + ' ' + c.name + ' ' + c.line));
+    const isHdmi = c => /hdmi/i.test(c.id + ' ' + c.name);
+    const hdmi = cards.find(isHdmi);
+    const jack = cards.find(c => !isHdmi(c) && /headphones|bcm2835/i.test(c.id + ' ' + c.name));
+    const usb = cards.find(c => !isHdmi(c) && c !== jack && /usb/i.test(c.id + ' ' + c.name + ' ' + c.line));
     return {
+        hdmi: hdmi ? `plughw:CARD=${hdmi.id},DEV=0` : null,
         jack: jack ? `hw:${jack.id}` : null,
         usb: usb ? `plughw:CARD=${usb.id},DEV=0` : null,
     };
@@ -44,6 +46,7 @@ export function findOutputs(text) {
 export function resolveOutputDevice(choice, text) {
     if (choice === 'jack') return findOutputs(text).jack;
     if (choice === 'usb') return findOutputs(text).usb;
+    if (choice === 'hdmi') return findOutputs(text).hdmi;
     return null;
 }
 
@@ -110,11 +113,11 @@ export class MetronomeController {
     /** Which outputs are present now: { jack: bool, usb: bool }. */
     getOutputs() {
         const found = findOutputs(this._aplayList());
-        return { jack: !!found.jack, usb: !!found.usb };
+        return { jack: !!found.jack, usb: !!found.usb, hdmi: !!found.hdmi };
     }
 
     /**
-     * Choose where the clicks go: 'jack' (3.5 mm), 'usb' (USB audio card) or 'auto'.
+     * Choose where the clicks go: 'jack' (3.5 mm), 'usb' (USB audio card), 'hdmi' or 'auto'.
      * A running process is restarted on the new device (and resumes if it was playing).
      * Returns false for an unknown choice or an output that is not present.
      * @param {string} choice
