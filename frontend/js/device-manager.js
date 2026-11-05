@@ -637,6 +637,9 @@ export class DeviceManager {
             });
             presets.appendChild(favoritesOnly);
             presets.appendChild(groupSelect);
+            const pick = document.createElement('span');   // ‹ name › stay together when the row wraps
+            pick.className = 'device-program-pick';
+            presets.appendChild(pick);
             for (const [text, step, description] of [['‹', -1, 'Previous preset'], ['›', 1, 'Next preset']]) {
                 const button = document.createElement('button');
                 button.type = 'button';
@@ -650,8 +653,8 @@ export class DeviceManager {
                     const next = (step > 0 ? list.find(index => index > current) : [...list].reverse().find(index => index < current)) ?? (step > 0 ? list.at(-1) : list[0]);
                     if (next != null) selectProgram(next);
                 });
-                if (step > 0) presets.appendChild(presetLabel);
-                presets.appendChild(button);
+                if (step > 0) pick.appendChild(presetLabel);
+                pick.appendChild(button);
             }
             const reset = document.createElement('button');
             reset.type = 'button';

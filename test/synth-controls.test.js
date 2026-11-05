@@ -463,7 +463,7 @@ test('DeviceManager lists devices flat; clicking a name expands its controls and
         channelSelect.listeners.change();
         assert.deepEqual(sent.at(-1), { type: 'set-device-channel', target: 'microfreak-output', channel: 16 });
         assert.equal(microItem.querySelector('.device-header-mixer'), null);
-        const presetButtons = microItem.querySelector('.device-program-controls').children.filter(el => el.tagName === 'button');
+        const presetButtons = microItem.querySelector('.device-program-controls').children.flatMap(el => [el, ...(el.children || [])]).filter(el => el.tagName === 'button');
         presetButtons.find(button => button.title.startsWith('Next preset')).listeners.click();
         assert.deepEqual(sent.at(-1), { type: 'select-preset', target: 'microfreak-output', channel: 16, index: 1 });
         const presetName = microItem.querySelector('.device-program-name');

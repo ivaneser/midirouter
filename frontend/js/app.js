@@ -1,6 +1,6 @@
 /* === MIDI Router — auto-connect all to all === */
 
-import { DeviceManager } from './device-manager.js?v=105';
+import { DeviceManager } from './device-manager.js?v=106';
 import { DAWUI } from './daw-ui.js?v=62';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=56';
