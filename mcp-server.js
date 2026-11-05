@@ -406,7 +406,7 @@ export function createMcpServer(ctx) {
                     saved = (await ctx.readNrpnPatch(output.id, ch)).map(([nrpn, raw]) => ({ nrpn, raw }));
                     // A pure sine: nothing near the click's 1-2 kHz to confuse the measurement.
                     handlers.set_nrpn_parameters({ device, channel: ch, from_init: true, values: { Algorithm: 0, Voices: 1, 'IM 1': 0, 'IM 2': 0, 'IM 3': 0, 'Mix 1': 0.9, 'Op 1 Frequency': 1,
-                        'Op 1 Attack Time': 0, 'Op 1 Attack Level': 1, 'Op 1 Decay Time': 0, 'Op 1 Decay Level': 1, 'Op 1 Sustain Time': 0, 'Op 1 Sustain Level': 1, 'Op 1 Release Time': 0.1, 'Op 1 Release Level': 0 } });
+                        'Op 1 Attack Time': 0.005, 'Op 1 Attack Level': 1, 'Op 1 Decay Time': 0, 'Op 1 Decay Level': 1, 'Op 1 Sustain Time': 0, 'Op 1 Sustain Level': 1, 'Op 1 Release Time': 0.1, 'Op 1 Release Level': 0 } });
                     await sleep(3000);   // the patch is sent paced; let it land
                 }
                 handlers.daw_set_tempo({ bpm });

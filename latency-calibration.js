@@ -85,10 +85,14 @@ function detectorBias({ sampleRate, hz, windowSec, decaySec }) {
 export function measureLag(pcm, { sampleRate, channels = 2, noteHz, clickHz = [1000, 2000], beatSec }) {
     const samples = toMono(pcm, channels);
     const hop = 0.001, clickWindow = 0.012, noteWindow = 0.04;
+    // The note is far louder than the click on a real input and its onset splatters into the click bands: take the
+    // low frequencies (the note) out before looking for clicks.
+    const lowPass = movingAverage(samples, Math.max(2, Math.round(sampleRate / 700)));
+    const highs = samples.map((v, i) => v - lowPass[i]);
     const clicks = [];
     for (const hz of clickHz) {
         const bias = detectorBias({ sampleRate, hz, windowSec: clickWindow, decaySec: 0.015 });
-        clicks.push(...onsets(bandEnvelope(samples, sampleRate, hz, clickWindow, hop), hop).map(t => t - bias));
+        clicks.push(...onsets(bandEnvelope(highs, sampleRate, hz, clickWindow, hop), hop).map(t => t - bias));
     }
     clicks.sort((a, b) => a - b);
     const distinctClicks = clicks.filter((t, i) => i === 0 || t - clicks[i - 1] > 0.03);   // plain and accent band both fire on one click
