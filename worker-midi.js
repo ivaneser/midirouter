@@ -2238,6 +2238,10 @@ class MIDIRouterWorker {
             case 'daw_metronome_note':
                 if (msg.note != null) daw.setMetronomeNote(msg.note);
                 break;
+            // A client that has no state yet (the router restarted and nothing changed since) asks for it.
+            case 'daw_state_request':
+                this._broadcastState();
+                break;
             case 'daw_metronome_beats_per_measure':
                 if (msg.bpm != null) daw.setMetronomeBeatsPerMeasure(msg.bpm);
                 this._broadcastState();

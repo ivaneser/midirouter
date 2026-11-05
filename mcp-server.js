@@ -382,6 +382,7 @@ export function createMcpServer(ctx) {
             const ch = channelFor(output, channel);
             const audio = ctx.audio;
             if (!audio || audio.status().state !== 'live') throw new ToolError(`the audio input is not live (${audio?.status().state ?? 'no capture'}): connect the interface that hears the click and the synth`);
+            if (!ctx.getDawState()?.tracks) { ctx.daw({ type: 'daw_state_request' }); await new Promise(done => setTimeout(done, 500)); }
             const start = ctx.getDawState();
             if (!start?.tracks) throw new ToolError('no DAW state yet');
             if (start.recording) throw new ToolError('stop recording first');
