@@ -1,5 +1,8 @@
 import { MULTITIMBRAL_PARTS } from './frontend/js/synth-catalog.js';
 import { deviceChannelKey, validMidiChannel } from './frontend/js/device-channels.js';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { measureLag } from './latency-calibration.js';
 import { resolveOutput, findControl, encodeControlValue, decodeControlValue, nrpnControls, encodeNrpnValue, decodeNrpnValue } from './device-catalog.js';
 
@@ -420,7 +423,9 @@ export function createMcpServer(ctx) {
                     await sleep(Math.round(barSec * 2 * 1000) + 800);   // the clip starts on a bar line; let it settle
                     const seconds = 8;
                     await sleep(seconds * 1000);
-                    const result = measureLag(audio.snapshot(seconds), { sampleRate: audio.status().sampleRate, channels: audio.status().channels, noteHz, beatSec });
+                    const captured = audio.snapshot(seconds);
+                    try { writeFileSync(join(tmpdir(), 'midirouter-calibration.pcm'), captured); } catch { /* the copy is only for diagnosis */ }
+                    const result = measureLag(captured, { sampleRate: audio.status().sampleRate, channels: audio.status().channels, noteHz, beatSec });
                     if (!result.clicks) throw new ToolError('no click was heard on the audio input: mix the click output into the interface input and raise its level');
                     if (!result.notes) throw new ToolError('the test note was not heard on the audio input: check the synth output reaches it');
                     if (result.lagMs === null) throw new ToolError(`heard ${result.clicks} clicks and ${result.notes} notes but could not pair them (the lag may exceed half a beat)`);
