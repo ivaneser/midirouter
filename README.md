@@ -103,6 +103,8 @@ The project has been used on Pi 4. Pi 3 models are expected to work, but timing 
 memory use have not been benchmarked on a Pi 3A+. Use a headless OS and open the
 web UI on another device; a powered USB hub can supply multiple instruments.
 
+**Click output:** choose *Auto*, *Headphone jack*, *USB audio device* or *HDMI* under **Click output** in Timing settings. The choice is saved in `settings.json`; options for a device that isn't present are greyed out (a Pi Zero 2 W has no jack).
+
 **ALSA device for headphones:**
 - The metronome automatically looks for `hw:Headphones` or `headphones` through `aplay -L`.
 - To force a choice, set `MIDIR_METRONOME_DEVICE`, for example `hw:0,0`, in the service environment.

@@ -327,6 +327,14 @@ export class DAWUI {
             });
         }
 
+        // Metronome output selector: jack / USB / auto.
+        const metroOutput = document.getElementById('metro-output');
+        if (metroOutput) {
+            metroOutput.addEventListener('change', () => {
+                this._send({ type: 'daw-metronome-output', output: metroOutput.value });
+            });
+        }
+
         // Quantization grid selector (beats). Snaps recorded note starts.
         const quantizeGridInput = document.getElementById('quantize-grid');
         if (quantizeGridInput) {
@@ -457,6 +465,17 @@ export class DAWUI {
             clickLatencyInput.value = String(this.dawState.clickOffsetMs);
             const label = document.getElementById('click-latency-label');
             if (label) label.textContent = `${this.dawState.clickOffsetMs} ms`;
+        }
+
+        // Metronome output selector: sync from state; disable outputs that are not present.
+        const metroOutput = document.getElementById('metro-output');
+        if (metroOutput && this.dawState?.metronomeOutput) {
+            const present = this.dawState.metronomeOutputs || {};
+            for (const opt of metroOutput.options) {
+                opt.disabled = opt.value !== 'auto' && present[opt.value] === false;
+            }
+            metroOutput.value = this.dawState.metronomeOutput;
+            metroOutput.disabled = this.dawState.audioOutAvailable === false;
         }
 
         // Audio latency offset slider: sync from state.

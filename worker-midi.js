@@ -192,6 +192,7 @@ class MIDIRouterWorker {
         // Click latency compensation (ms) for the audio metronome, tuned by ear.
         this._audioMonitorGain = 1;   // the monitored input plays as it is (the knob can boost a quiet one)
         this.clickOffsetMs = 0;    // metronome clicks
+        this._metronomeOutput = 'auto';   // where clicks go: auto | jack | usb | hdmi
 
         // Quantization grid (beats, quarter note = 1) applied by quantizeClip;
         // one of the allowed values (0 = Off), default 0.5 (1/8 note).
@@ -236,6 +237,7 @@ class MIDIRouterWorker {
             const clamp = (v, d) => (Number.isFinite(+v) ? Math.max(-200, Math.min(200, Math.round(+v))) : d);
             this.audioOffsetMs = clamp(s.audioOffsetMs, this.audioOffsetMs);
             this.clickOffsetMs = clamp(s.clickOffsetMs, this.clickOffsetMs);
+            if (['auto', 'jack', 'usb', 'hdmi'].includes(s.metronomeOutput)) this._metronomeOutput = s.metronomeOutput;
             if (Number.isFinite(+s.audioMonitorGain)) this._audioMonitorGain = Math.max(0, Math.min(32, +s.audioMonitorGain));
             const cs = s.clockSource;
             if (cs?.kind === 'internal') this._savedClockSource = { kind: 'internal' };
@@ -254,6 +256,7 @@ class MIDIRouterWorker {
                 audioOffsetMs: this.audioOffsetMs,
                 clickOffsetMs: this.clickOffsetMs,
                 audioMonitorGain: this._audioMonitorGain,
+                metronomeOutput: this._metronomeOutput,
                 clockSource: this._savedClockSource || undefined,
             }, null, 2) + '\n');
         } catch (e) {
@@ -268,6 +271,11 @@ class MIDIRouterWorker {
             this._loadSettings();
             this.metronomeCtrl.setClickOffset(this.clickOffsetMs);
             this.metronomeCtrl.setMonitorGain(this._audioMonitorGain);
+            if (this._metronomeOutput !== 'auto') {
+                this.metronomeCtrl.setOutput(this._metronomeOutput).then((ok) => {
+                    if (!ok) console.warn(`[WORKER] Saved metronome output '${this._metronomeOutput}' not present; using auto`);
+                });
+            }
             if (NO_HARDWARE) {
                 console.log('[WORKER] MIDIR_NO_HARDWARE=1: skipping port enumeration and hot-plug');
             } else {
@@ -2251,6 +2259,21 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            // Where the metronome clicks go: the 3.5 mm jack, a USB audio card, or auto.
+            case 'daw_metronome_output': {
+                if (this._audioMetronomeAvailable && this.metronomeCtrl) {
+                    this.metronomeCtrl.setOutput(msg.output).then((ok) => {
+                        if (ok) {
+                            this._metronomeOutput = msg.output;
+                            this._saveSettings();
+                        } else {
+                            console.warn(`[WORKER] Metronome output '${msg.output}' not available`);
+                        }
+                        this._broadcastState();
+                    });
+                }
+                break;
+            }
             // Live audio input mixed into the Pi's headphone output together with the metronome.
             case 'daw_audio_monitor': {
                 this._audioMonitor = !!msg.on && this._audioMetronomeAvailable;
@@ -2535,6 +2558,8 @@ class MIDIRouterWorker {
         state.audioMonitor = !!this._audioMonitor;
         state.audioMonitorGain = this._audioMonitorGain;
         state.audioOutAvailable = !!this._audioMetronomeAvailable;
+        state.metronomeOutput = this.metronomeCtrl?.output || this._metronomeOutput;
+        state.metronomeOutputs = this._audioMetronomeAvailable ? this.metronomeCtrl.getOutputs() : { jack: false, usb: false, hdmi: false };
         state.quantizeGrid = this.quantizeGrid;
         state.clipProgress = this._clipPlaybackProgress();
         parentPort?.postMessage({ type: 'daw_state', state });

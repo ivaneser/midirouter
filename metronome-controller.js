@@ -14,6 +14,42 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+export const OUTPUT_CHOICES = ['auto', 'jack', 'usb', 'hdmi'];
+
+// Playback cards from `aplay -l` text: [{ id, name, line }].
+export function parsePlaybackCards(text) {
+    const cards = [];
+    for (const line of String(text || '').split('\n')) {
+        const m = line.match(/^card\s+\d+:\s+(\S+)\s+\[([^\]]*)\]/);
+        if (!m) continue;
+        if (cards.some(c => c.id === m[1])) continue;
+        cards.push({ id: m[1], name: m[2], line });
+    }
+    return cards;
+}
+
+// Which outputs exist: the Pi's 3.5 mm jack ("Headphones"/bcm2835) and any USB audio card.
+export function findOutputs(text) {
+    const cards = parsePlaybackCards(text);
+    const isHdmi = c => /hdmi/i.test(c.id + ' ' + c.name);
+    const hdmi = cards.find(isHdmi);
+    const jack = cards.find(c => !isHdmi(c) && /headphones|bcm2835/i.test(c.id + ' ' + c.name));
+    const usb = cards.find(c => !isHdmi(c) && c !== jack && /usb/i.test(c.id + ' ' + c.name + ' ' + c.line));
+    return {
+        hdmi: hdmi ? `plughw:CARD=${hdmi.id},DEV=0` : null,
+        jack: jack ? `hw:${jack.id}` : null,
+        usb: usb ? `plughw:CARD=${usb.id},DEV=0` : null,
+    };
+}
+
+// ALSA device for a choice, or null (let metronome.py pick: env override, else the jack).
+export function resolveOutputDevice(choice, text) {
+    if (choice === 'jack') return findOutputs(text).jack;
+    if (choice === 'usb') return findOutputs(text).usb;
+    if (choice === 'hdmi') return findOutputs(text).hdmi;
+    return null;
+}
+
 export class MetronomeController {
     constructor(options = {}) {
         this.bpm = options.bpm || 120;
@@ -21,6 +57,8 @@ export class MetronomeController {
         // Click level: quiet next to the live audio that can play with it (MIDIR_METRONOME_VOLUME overrides).
         this.volume = options.volume || Number(process.env.MIDIR_METRONOME_VOLUME) || 0.3;
         this.device = options.device || process.env.MIDIR_METRONOME_DEVICE || null;
+        this._defaultDevice = this.device;
+        this.output = 'auto';   // 'auto' | 'jack' | 'usb'
         this.pythonPath = options.pythonPath || 'python3';
         this.metronomeScript = path.resolve(
             __dirname,
@@ -62,6 +100,55 @@ export class MetronomeController {
         } catch (e) {
             return false;
         }
+    }
+
+    _aplayList() {
+        try {
+            return execSync('aplay -l', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+        } catch (_) {
+            return '';
+        }
+    }
+
+    /** Which outputs are present now: { jack: bool, usb: bool }. */
+    getOutputs() {
+        const found = findOutputs(this._aplayList());
+        return { jack: !!found.jack, usb: !!found.usb, hdmi: !!found.hdmi };
+    }
+
+    /**
+     * Choose where the clicks go: 'jack' (3.5 mm), 'usb' (USB audio card), 'hdmi' or 'auto'.
+     * A running process is restarted on the new device (and resumes if it was playing).
+     * Returns false for an unknown choice or an output that is not present.
+     * @param {string} choice
+     * @returns {Promise<boolean>}
+     */
+    async setOutput(choice) {
+        if (!OUTPUT_CHOICES.includes(choice)) return false;
+        let device = this._defaultDevice;
+        if (choice !== 'auto') {
+            device = resolveOutputDevice(choice, this._aplayList());
+            if (!device) return false;
+        }
+        this.output = choice;
+        if (device === this.device) return true;
+        this.device = device;
+        if (!this._process) return true;
+        const wasPlaying = this._running;
+        await this._restart();
+        if (wasPlaying) await this.play();
+        return true;
+    }
+
+    _restart() {
+        return new Promise((resolve) => {
+            const proc = this._process;
+            if (!proc) { resolve(); return; }
+            const done = () => { clearTimeout(timer); resolve(); };
+            const timer = setTimeout(() => { try { proc.kill('SIGKILL'); } catch (_) {} done(); }, 1000);
+            proc.once('close', done);
+            try { proc.stdin.write('quit\n'); } catch (_) { try { proc.kill('SIGTERM'); } catch (_) {} }
+        }).then(() => this.start().catch((e) => console.warn(`[METRONOME] Restart failed: ${e.message}`)));
     }
 
     isAvailable() {
