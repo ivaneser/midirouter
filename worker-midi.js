@@ -2257,7 +2257,7 @@ class MIDIRouterWorker {
                 break;
             }
             // What the latency calibration measured, shown next to the offset sliders.
-            case 'calibration_result': {
+            case 'daw_calibration_result': {
                 const r = msg.result || {};
                 this._calibration = { at: Date.now(), audioOffsetMs: Math.round(+r.audioOffsetMs) || 0, clickOffsetMs: this.clickOffsetMs, lagMs: Number.isFinite(+r.lagMs) ? +r.lagMs : null,
                     jitterMs: Number.isFinite(+r.jitterMs) ? +r.jitterMs : null, applied: r.applied === true, device: typeof r.device === 'string' ? r.device : null };
@@ -2266,7 +2266,7 @@ class MIDIRouterWorker {
                 break;
             }
             // Click level 0..1 (the latency calibration raises it for a moment so the click stands out in the recording).
-            case 'metronome_volume':
+            case 'daw_metronome_volume':
                 if (Number.isFinite(+msg.volume)) this.metronomeCtrl?.setVolume(+msg.volume);
                 this._broadcastState();
                 break;

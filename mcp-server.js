@@ -409,7 +409,7 @@ export function createMcpServer(ctx) {
                         'Op 1 Attack Time': 0.005, 'Op 1 Attack Level': 1, 'Op 1 Decay Time': 0, 'Op 1 Decay Level': 1, 'Op 1 Sustain Time': 0, 'Op 1 Sustain Level': 1, 'Op 1 Release Time': 0.1, 'Op 1 Release Level': 0 } });
                     await sleep(3000);   // the patch is sent paced; let it land
                 }
-                ctx.daw({ type: 'metronome_volume', volume: 0.9 });   // the click is far quieter than the note on the input; make it stand out
+                ctx.daw({ type: 'daw_metronome_volume', volume: 0.9 });   // the click is far quieter than the note on the input; make it stand out
                 handlers.daw_set_tempo({ bpm });
                 handlers.daw_set_metronome({ enabled: true, beats_per_measure: 4 });
                 handlers.daw_set_clip({ track, slot, channel: ch, bars: 1, notes: [0, 1, 2, 3].map(b => ({ note, start: b, duration: 0.25, velocity: 110 })) });
@@ -438,7 +438,7 @@ export function createMcpServer(ctx) {
                 }
             } finally {
                 try {
-                    if (before.volume) ctx.daw({ type: 'metronome_volume', volume: before.volume });
+                    if (before.volume) ctx.daw({ type: 'daw_metronome_volume', volume: before.volume });
                     handlers.daw_stop_clip({ track });
                     await sleep(200);
                     handlers.daw_clear_clip({ track, slot });
@@ -455,7 +455,7 @@ export function createMcpServer(ctx) {
             const final = apply ? offset : before.audioOffset;
             if (apply) ctx.daw({ type: 'daw_audio_offset', ms: final });
             const settled = last && Math.abs(last.lagMs) < 2;
-            if (last) ctx.daw({ type: 'calibration_result', result: { audioOffsetMs: last.audioOffsetMs, lagMs: last.lagMs, jitterMs: last.jitterMs, applied: apply && settled, device: output.name } });
+            if (last) ctx.daw({ type: 'daw_calibration_result', result: { audioOffsetMs: last.audioOffsetMs, lagMs: last.lagMs, jitterMs: last.jitterMs, applied: apply && settled, device: output.name } });
             return { device: output.name, channel: ch, rounds: log, audioOffsetMs: final, previousAudioOffsetMs: before.audioOffset, applied: apply,
                 note: apply ? (settled ? 'The last round measured the note within 2 ms of the click at this offset (the offset shown is the one measured in that round).' : 'Not within 2 ms in the last round: the offset was moved by the last measured lag and was not measured again. Run again to verify.') : 'Measured only; the offset was left as it was.',
                 restored: saved?.length ? 'the patch the synth played before' : (program ? `preset ${program.number}` : null) };
