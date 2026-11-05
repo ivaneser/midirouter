@@ -393,11 +393,14 @@ export function createMcpServer(ctx) {
             const beatSec = 60 / bpm, barSec = 4 * beatSec;
             const noteHz = 440 * 2 ** ((note - 69) / 12);
             const program = currentProgram(output, ch);
-            const before = { tempo: start.tempo, metronome: start.metronomeEnabled, beats: start.metronomeBeatsPerMeasure, bars: start.masterLoopBars, playing: start.playing, audioOffset: start.audioOffsetMs ?? 0 };
+            const before = { tempo: start.tempo, metronome: start.metronomeEnabled, beats: start.metronomeBeatsPerMeasure, playing: start.playing, audioOffset: start.audioOffsetMs ?? 0 };
             const log = [];
             let offset = before.audioOffset;
+            let saved = null;
             try {
                 if (nrpnControls(catalogFor(output).map).length) {
+                    // What the synth plays now, to put back afterwards (the router may not know which preset it came from).
+                    saved = (await ctx.readNrpnPatch(output.id, ch)).map(([nrpn, raw]) => ({ nrpn, raw }));
                     // A pure sine: nothing near the click's 1-2 kHz to confuse the measurement.
                     handlers.set_nrpn_parameters({ device, channel: ch, from_init: true, values: { Algorithm: 0, Voices: 1, 'IM 1': 0, 'IM 2': 0, 'IM 3': 0, 'Mix 1': 0.9, 'Op 1 Frequency': 1,
                         'Op 1 Attack Time': 0, 'Op 1 Attack Level': 1, 'Op 1 Decay Time': 0, 'Op 1 Decay Level': 1, 'Op 1 Sustain Time': 0, 'Op 1 Sustain Level': 1, 'Op 1 Release Time': 0.1, 'Op 1 Release Level': 0 } });
@@ -405,7 +408,6 @@ export function createMcpServer(ctx) {
                 }
                 handlers.daw_set_tempo({ bpm });
                 handlers.daw_set_metronome({ enabled: true, beats_per_measure: 4 });
-                handlers.daw_set_loop_bars({ bars: 1 });
                 handlers.daw_set_clip({ track, slot, channel: ch, bars: 1, notes: [0, 1, 2, 3].map(b => ({ note, start: b, duration: 0.25, velocity: 110 })) });
                 if (!before.playing) handlers.daw_transport({ action: 'play' });
                 await sleep(500);
@@ -436,9 +438,9 @@ export function createMcpServer(ctx) {
                     if (!before.playing) handlers.daw_transport({ action: 'stop' });
                     handlers.daw_set_tempo({ bpm: before.tempo });
                     handlers.daw_set_metronome({ enabled: before.metronome, beats_per_measure: before.beats });
-                    handlers.daw_set_loop_bars({ bars: before.bars });
                     if (!apply) ctx.daw({ type: 'daw_audio_offset', ms: before.audioOffset });
-                    if (program) await handlers.select_preset({ device, channel: ch, preset: program.number });
+                    if (saved?.length) { ctx.sendNrpn(output.id, ch, saved); await sleep(2500); }
+                    else if (program) await handlers.select_preset({ device, channel: ch, preset: program.number });
                 } catch (error) { log.push({ cleanupError: error.message }); }
             }
             const measured = log.filter(l => l.lagMs !== undefined);
@@ -448,7 +450,7 @@ export function createMcpServer(ctx) {
             const settled = last && Math.abs(last.lagMs) < 2;
             return { device: output.name, channel: ch, rounds: log, audioOffsetMs: final, previousAudioOffsetMs: before.audioOffset, applied: apply,
                 note: apply ? (settled ? 'The last round measured the note within 2 ms of the click at this offset (the offset shown is the one measured in that round).' : 'Not within 2 ms in the last round: the offset was moved by the last measured lag and was not measured again. Run again to verify.') : 'Measured only; the offset was left as it was.',
-                restoredPreset: program?.number ?? null };
+                restored: saved?.length ? 'the patch the synth played before' : (program ? `preset ${program.number}` : null) };
         },
         daw_set_quantize({ beats }) {
             if (![0, 0.125, 0.25, 0.5, 1, 2].includes(beats)) throw new ToolError('beats must be 0, 0.125, 0.25, 0.5, 1 or 2');
