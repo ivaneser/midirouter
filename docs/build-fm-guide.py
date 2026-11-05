@@ -1,0 +1,426 @@
+# Builds docs/FM-synthesis-guide.pdf:  OUT=docs/FM-synthesis-guide.pdf python docs/build-fm-guide.py  (needs reportlab, matplotlib, numpy; Arial from macOS)
+import os
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.lib import colors
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, PageBreak, Table, TableStyle, KeepTogether
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+OUT = os.environ['OUT']
+import tempfile
+import tempfile
+IMG = tempfile.mkdtemp(prefix='fmguide-')
+os.makedirs(IMG, exist_ok=True)
+FONTS = '/System/Library/Fonts/Supplemental/'
+for f in ('Arial.ttf', 'Arial Bold.ttf', 'Arial Italic.ttf'):
+    font_manager.fontManager.addfont(FONTS + f)
+plt.rcParams.update({'font.family': 'Arial', 'axes.spines.top': False, 'axes.spines.right': False, 'font.size': 11,
+                     'figure.dpi': 200, 'axes.facecolor': 'white'})
+pdfmetrics.registerFont(TTFont('A', FONTS + 'Arial.ttf'))
+pdfmetrics.registerFont(TTFont('A-B', FONTS + 'Arial Bold.ttf'))
+pdfmetrics.registerFont(TTFont('A-I', FONTS + 'Arial Italic.ttf'))
+pdfmetrics.registerFontFamily('A', normal='A', bold='A-B', italic='A-I', boldItalic='A-B')
+
+C_CAR, C_MOD, C_OUT, C_GREY = '#2a9d8f', '#e76f51', '#264653', '#8d99ae'
+SR = 44100
+
+
+def save(fig, name):
+    path = os.path.join(IMG, name)
+    fig.savefig(path, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    return path
+
+
+def fm(fc, fm_, index, t):
+    return np.sin(2 * np.pi * fc * t + index * np.sin(2 * np.pi * fm_ * t))
+
+
+def spectrum(sig, fmax, n=SR):
+    s = np.abs(np.fft.rfft(sig[:n] * np.hanning(n))) / n * 4
+    f = np.fft.rfftfreq(n, 1 / SR)
+    m = f <= fmax
+    return f[m], s[m]
+
+
+# ---------------------------------------------------------------- figure 1: carrier, modulator, result
+def fig_idea():
+    t = np.linspace(0, 0.02, 2000)
+    fc, fmod = 300, 100
+    fig, ax = plt.subplots(3, 1, figsize=(7.2, 4.6), sharex=True)
+    ax[0].plot(t * 1000, np.sin(2 * np.pi * fmod * t), color=C_MOD, lw=2)
+    ax[0].set_title('1. Модулятор — медленная волна (здесь 100 Гц). Её не слышно: она только «качает» несущую', loc='left', fontsize=9.5)
+    ax[1].plot(t * 1000, np.sin(2 * np.pi * fc * t), color=C_CAR, lw=2)
+    ax[1].set_title('2. Несущая (carrier) — волна, которую слышно (здесь 300 Гц), без модуляции', loc='left', fontsize=9.5)
+    ax[2].plot(t * 1000, fm(fc, fmod, 3, t), color=C_OUT, lw=2)
+    ax[2].set_title('3. Результат: несущая, у которой частота «плывёт» в такт модулятору', loc='left', fontsize=9.5)
+    ax[2].set_xlabel('время, мс')
+    for a in ax:
+        a.set_yticks([])
+    fig.tight_layout()
+    return save(fig, 'idea.png')
+
+
+# ---------------------------------------------------------------- figure 2: operators diagram
+def box(ax, x, y, text, color, w=1.6, h=0.9):
+    ax.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h, boxstyle='round,pad=0.02,rounding_size=0.12', fc=color, ec='none'))
+    ax.text(x, y, text, ha='center', va='center', color='white', fontweight='bold', fontsize=11)
+
+
+def arrow(ax, p, q, label=None, color=C_GREY):
+    ax.add_patch(FancyArrowPatch(p, q, arrowstyle='-|>', mutation_scale=14, color=color, lw=2))
+    if label:
+        ax.text((p[0] + q[0]) / 2 + 0.12, (p[1] + q[1]) / 2, label, fontsize=9.5, color=C_GREY, va='center')
+
+
+def fig_operators():
+    fig, ax = plt.subplots(figsize=(7.2, 2.6))
+    ax.set_xlim(0, 12); ax.set_ylim(0, 3.4); ax.axis('off')
+    box(ax, 1.6, 2.6, 'Оп 2', C_MOD); arrow(ax, (1.6, 2.1), (1.6, 1.35), 'индекс\nмодуляции (IM)')
+    box(ax, 1.6, 0.9, 'Оп 1', C_CAR); arrow(ax, (1.6, 0.45), (1.6, -0.1), 'звук')
+    ax.text(1.6, 3.35, 'простейший алгоритм', ha='center', fontsize=9.5, color=C_GREY)
+    ax.text(3.9, 2.6, 'Модулятор (оранжевый) не слышен сам по себе.\nОн меняет частоту оператора, на который указывает стрелка.', va='center', fontsize=10)
+    ax.text(3.9, 0.9, 'Несущая (бирюзовый) — то, что уходит на выход,\nто есть то, что вы слышите. Громкость задаёт Mix.', va='center', fontsize=10)
+    return save(fig, 'operators.png')
+
+
+# ---------------------------------------------------------------- figure 3: ratios and spectra
+def fig_ratios():
+    cases = [('1 : 1', 1, 'ровный ряд гармоник'), ('1 : 2', 2, 'ярче'),
+             ('1 : 3', 3, 'полый, «деревянный»'), ('1 : 1.41', 1.41, 'нецелое — звон, металл, колокол')]
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 4.4), sharex=True, sharey=True)
+    fc = 400
+    t = np.arange(SR) / SR
+    for a, (name, r, desc) in zip(axes.flat, cases):
+        f, s = spectrum(fm(fc, fc * r, 1.6, t), 4000)
+        a.vlines(f, 0, s, color=C_OUT, lw=1.2)
+        a.set_title(f'несущая : модулятор = {name}\n{desc}', fontsize=9.5, loc='left')
+        a.set_yticks([])
+    for a in axes[1]:
+        a.set_xlabel('частота, Гц')
+    fig.tight_layout()
+    return save(fig, 'ratios.png')
+
+
+# ---------------------------------------------------------------- figure 4: modulation index
+def fig_index():
+    fc = fm_ = 200
+    t = np.arange(SR) / SR
+    idx = [0, 1, 3, 6]
+    fig, axes = plt.subplots(2, 4, figsize=(7.4, 3.6), gridspec_kw={'height_ratios': [1, 1]})
+    tt = np.linspace(0, 0.02, 800)
+    for k, i in enumerate(idx):
+        axes[0][k].plot(tt * 1000, fm(fc, fm_, i, tt), color=C_OUT, lw=1.6)
+        axes[0][k].set_title(f'IM = {i}', fontsize=10.5, color=C_MOD, fontweight='bold')
+        axes[0][k].set_yticks([]); axes[0][k].set_xticks([])
+        f, s = spectrum(fm(fc, fm_, i, t), 3000)
+        axes[1][k].vlines(f, 0, s, color=C_CAR, lw=1.3)
+        axes[1][k].set_yticks([]); axes[1][k].set_xticks([])
+    axes[0][0].set_ylabel('волна')
+    axes[1][0].set_ylabel('гармоники')
+    fig.text(0.5, 0.0, 'больше индекс → больше гармоник → ярче звук (по горизонтали справа — высокие частоты)', ha='center', fontsize=9.5)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    return save(fig, 'index.png')
+
+
+# ---------------------------------------------------------------- figure 5: envelopes
+def tri(ax, attack, release, color, label, total=2.0):
+    x = [0, attack, attack + release * (total - attack) / total * 1.0, total]
+    t = np.array([0, attack, total])
+    y = np.array([0, 1, 0])
+    ax.fill_between(t, 0, y, color=color, alpha=0.25)
+    ax.plot(t, y, color=color, lw=2.2)
+    ax.plot([attack], [1], 'o', color=color, ms=8)
+    ax.set_ylim(0, 1.15); ax.set_xlim(0, total); ax.set_yticks([]); ax.set_xticks([])
+    ax.set_title(label, fontsize=8.5, loc='left')
+
+
+def fig_env():
+    fig, axes = plt.subplots(1, 3, figsize=(7.4, 2.3))
+    plt.rcParams['font.size'] = 9
+    tri(axes[0], 0.05, 1, C_CAR, 'Громкость (carrier)\nатака быстрая → «щипок»')
+    tri(axes[1], 0.9, 1, C_CAR, 'Громкость (carrier)\nатака медленная → «пэд»')
+    tri(axes[2], 0.05, 0.6, C_MOD, 'Яркость (модулятор)\nярко и быстро темнеет')
+    for a in axes:
+        a.set_xlabel('время →', fontsize=9)
+    fig.tight_layout()
+    return save(fig, 'env.png')
+
+
+def fig_bright():
+    t = np.arange(int(SR * 0.9)) / SR
+    env_i = 5 * np.exp(-t * 6)
+    phase = 2 * np.pi * 220 * t + env_i * np.sin(2 * np.pi * 220 * t)
+    sig = np.sin(phase) * np.exp(-t * 3)
+    fig, ax = plt.subplots(figsize=(7.2, 2.2))
+    ax.plot(t * 1000, sig, color=C_OUT, lw=0.6)
+    ax.plot(t * 1000, np.exp(-t * 3), color=C_CAR, lw=2, label='громкость (огибающая несущей)')
+    ax.plot(t * 1000, env_i / 5, color=C_MOD, lw=2, ls='--', label='индекс/яркость (огибающая модулятора)')
+    ax.set_yticks([]); ax.set_xlabel('время, мс')
+    ax.legend(fontsize=9, frameon=False, loc='upper right')
+    ax.set_title('Атака звука «щёлкает» ярко, потом остаётся мягкий тон — так звучат электропиано, бас, колокол', fontsize=9.5, loc='left')
+    fig.tight_layout()
+    return save(fig, 'bright.png')
+
+
+# ---------------------------------------------------------------- figure 6: algorithms
+def fig_algos():
+    fig, axes = plt.subplots(1, 4, figsize=(7.4, 2.6))
+    def place(ax, nodes, links, title):
+        ax.set_xlim(0, 4); ax.set_ylim(0, 4.4); ax.axis('off')
+        ax.set_title(title, fontsize=9.5)
+        for k, (x, y, lab, col) in nodes.items():
+            box(ax, x, y, lab, col, w=1.15, h=0.8)
+        for a, b in links:
+            (x1, y1, *_), (x2, y2, *_) = nodes[a], nodes[b]
+            arrow(ax, (x1, y1 - 0.42), (x2, y2 + 0.42))
+    place(axes[0], {1: (2, 3.4, '2', C_MOD), 2: (2, 1.0, '1', C_CAR)}, [(1, 2)], '2 оператора')
+    place(axes[1], {1: (2, 3.8, '3', C_MOD), 2: (2, 2.4, '2', C_MOD), 3: (2, 1.0, '1', C_CAR)}, [(1, 2), (2, 3)], 'цепочка 3-2-1')
+    place(axes[2], {1: (2, 3.4, '3', C_MOD), 2: (1, 1.0, '1', C_CAR), 3: (3, 1.0, '2', C_CAR)}, [(1, 2), (1, 3)], 'один модулятор,\nдве несущие')
+    place(axes[3], {1: (1, 3.4, '2', C_MOD), 2: (3, 3.4, '4', C_MOD), 3: (1, 1.0, '1', C_CAR), 4: (3, 1.0, '3', C_CAR)}, [(1, 3), (2, 4)], 'две пары\n(два голоса)')
+    fig.tight_layout()
+    return save(fig, 'algos.png')
+
+
+# ---------------------------------------------------------------- figure 7: decay / ratio of bell
+def fig_bell():
+    t = np.arange(int(SR * 1.2)) / SR
+    fc = 523
+    env = np.exp(-t * 2.4)
+    sig = np.sin(2 * np.pi * fc * t + 2.6 * np.exp(-t * 7) * np.sin(2 * np.pi * fc * 3.5 * t)) * env
+    fig, ax = plt.subplots(1, 2, figsize=(7.2, 2.4), gridspec_kw={'width_ratios': [2, 1.3]})
+    ax[0].plot(t * 1000, sig, color=C_OUT, lw=0.6); ax[0].plot(t * 1000, env, color=C_CAR, lw=2)
+    ax[0].set_yticks([]); ax[0].set_xlabel('время, мс'); ax[0].set_title('Колокол: быстрая атака, долгое затухание', fontsize=9.5, loc='left')
+    f, s = spectrum(sig, 6000, n=SR // 2)
+    ax[1].vlines(f, 0, s, color=C_MOD, lw=1.2); ax[1].set_yticks([]); ax[1].set_xlabel('частота, Гц')
+    ax[1].set_title('Нецелое 3.5 даёт «звон»', fontsize=9.5, loc='left')
+    fig.tight_layout()
+    return save(fig, 'bell.png')
+
+
+figs = {n: f() for n, f in [('idea', fig_idea), ('operators', fig_operators), ('ratios', fig_ratios), ('index', fig_index),
+                            ('env', fig_env), ('bright', fig_bright), ('algos', fig_algos), ('bell', fig_bell)]}
+
+# ================================================================= PDF
+ST = {
+    'title': ParagraphStyle('t', fontName='A-B', fontSize=26, leading=30, textColor=C_OUT, spaceAfter=6),
+    'sub': ParagraphStyle('s', fontName='A', fontSize=13, leading=18, textColor=C_GREY, spaceAfter=14),
+    'h1': ParagraphStyle('h1', fontName='A-B', fontSize=16, leading=20, textColor=C_OUT, spaceBefore=12, spaceAfter=6, keepWithNext=1),
+    'h2': ParagraphStyle('h2', fontName='A-B', fontSize=11.5, leading=15, textColor=C_CAR, spaceBefore=8, spaceAfter=3, keepWithNext=1),
+    'p': ParagraphStyle('p', fontName='A', fontSize=10.2, leading=14.6, spaceAfter=5),
+    'li': ParagraphStyle('li', fontName='A', fontSize=10.2, leading=14.2, leftIndent=14, bulletIndent=3, spaceAfter=2),
+    'cap': ParagraphStyle('cap', fontName='A-I', fontSize=8.8, leading=11.5, textColor=C_GREY, spaceAfter=8),
+    'tip': ParagraphStyle('tip', fontName='A', fontSize=10, leading=14, backColor='#eaf6f4', borderPadding=(6, 8, 6, 8), spaceBefore=6, spaceAfter=10),
+    'cell': ParagraphStyle('c', fontName='A', fontSize=8.8, leading=11.4),
+    'cellh': ParagraphStyle('ch', fontName='A-B', fontSize=8.8, leading=11.4, textColor=colors.white),
+}
+
+
+def P(t, s='p'): return Paragraph(t, ST[s])
+def L(items): return [Paragraph(i, ST['li'], bulletText='•') for i in items]
+
+
+def img(name, width_mm=170):
+    from reportlab.lib.utils import ImageReader
+    w, h = ImageReader(figs[name]).getSize()
+    return Image(figs[name], width=width_mm * mm, height=width_mm * mm * h / w)
+
+
+def table(rows, widths):
+    data = [[Paragraph(c, ST['cellh'] if i == 0 else ST['cell']) for c in r] for i, r in enumerate(rows)]
+    t = Table(data, colWidths=[w * mm for w in widths], repeatRows=1)
+    t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(C_OUT)), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f3f6f7')]),
+                           ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#cfd8dc')), ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3)]))
+    return t
+
+
+s = []
+s += [P('FM-синтез с нуля', 'title'),
+      P('Как он работает и как самому делать звуки на PreenFM2 — с картинками', 'sub')]
+s += [P('Эта инструкция написана для вашего PreenFM2 и панели управления в MIDI-роутере. Сначала идея (10 минут чтения), потом шесть упражнений, '
+        'после которых вы сможете сами собрать колокол, электропиано, бас и другие звуки.'), Spacer(1, 4)]
+
+s += [P('1. Главная идея', 'h1'),
+      P('Обычный синтезатор берёт волну и фильтрует её. FM-синтез (frequency modulation, частотная модуляция) делает по-другому: '
+        'берёт <b>простую синусоиду</b> и заставляет её частоту быстро «качаться» под действием другой синусоиды. '
+        'От такого качания в звуке появляются новые гармоники — тембр становится богатым. Всё, что вы слышите от FM, получено из синусоид.'),
+      img('idea'), P('Рис. 1. Модулятор качает частоту несущей. Результат (внизу) уже не синусоида.', 'cap'),
+      P('Что здесь важно запомнить: <b>слышно только несущую</b>, модулятор — это «рука», которая её трясёт.', 'tip')]
+
+s += [P('2. Операторы, несущие и модуляторы', 'h1'),
+      P('Каждая синусоида в FM называется <b>оператором</b>. У PreenFM2 их шесть. Оператор может быть одним из двух:'),
+      *L(['<b>Несущая (carrier)</b> — идёт на выход, вы её слышите. Её огибающая задаёт громкость звука во времени.',
+          '<b>Модулятор (modulator)</b> — на выход не идёт, а меняет частоту другого оператора. Его огибающая задаёт яркость тембра во времени.']),
+      img('operators', 160),
+      P('Рис. 2. Стрелка — это модуляция. Число на стрелке — индекс модуляции (IM): «насколько сильно трясём».', 'cap'),
+      P('Как соединены операторы, решает <b>алгоритм</b>. У PreenFM2 их 28: от простой пары до шести несущих рядом.'),
+      img('algos'), P('Рис. 3. Четыре типичных схемы. Оранжевые — модуляторы, бирюзовые — несущие. В панели несущие подсвечены.', 'cap')]
+
+s += [P('3. Три ручки, которые решают всё', 'h1'),
+      P('Почти любой FM-звук определяется тремя вещами. Если вы поймёте их, остальное — детали.'),
+      P('3.1. Соотношение частот (ratio)', 'h2'),
+      P('У каждого оператора есть множитель частоты относительно ноты. В панели это точка в середине графика оператора. '
+        'Если ratio несущей 1, она играет ноту, как есть. Ratio модулятора определяет, <b>какого характера</b> будут гармоники:'),
+      *L(['<b>Целые числа (1, 2, 3, 4…)</b> — гармонический звук с чёткой высотой: клавиши, орган, бас, струнные.',
+          '<b>Нецелые (1.41, 3.5, 7.13…)</b> — негармонический звук: колокол, гонг, металл, «стекло».']),
+      img('ratios'), P('Рис. 4. Спектр (какие гармоники есть в звуке) при разных соотношениях. Целые дают ровный «гребень», нецелые — россыпь.', 'cap'),
+      P('В панели у точки частоты есть «магнит»: если вести её строго по горизонтали, она притягивается к целым числам. '
+        'Хотите нецелое — отведите палец чуть вверх или вниз от линии: магнит слабеет и движение становится точнее.', 'tip'),
+      P('3.2. Индекс модуляции (IM, «Mod Index»)', 'h2'),
+      P('Это сила модуляции. Нулевой индекс — чистая синусоида. Чем больше индекс, тем больше гармоник и тем звук ярче и жёстче.'),
+      img('index'), P('Рис. 5. Один и тот же звук при IM = 0, 1, 3 и 6. Вверху форма волны, внизу спектр.', 'cap'),
+      P('3.3. Огибающие (envelopes)', 'h2'),
+      P('Огибающая — это как громкость или яркость меняются со временем. У PreenFM2 здесь только два параметра: <b>Attack</b> (как быстро нарастает) и <b>Release</b> (как долго затухает). '
+        'В панели это треугольник: верхняя точка — атака, правая — затухание.'),
+      img('env'), P('Рис. 6. Три типичных треугольника. Один у несущей — громкость, один у модулятора — яркость.', 'cap'),
+      P('Секрет живых FM-звуков: <b>яркость тоже затухает</b>. Попробуйте сделать так, чтобы у модулятора затухание было короче, чем у несущей.', 'tip'),
+      img('bright'), P('Рис. 7. Сначала звук яркий, потом мягкий — как удар по клавише электропиано или по колоколу.', 'cap')]
+
+s += [PageBreak(), P('4. Как это выглядит в вашей панели', 'h1'),
+      P('Раскройте нужную Part (1–4) — раздел <b>Sound source</b> идёт сверху вниз так же, как сигнал:'),
+      *L(['<b>Algorithm</b> — картинки алгоритмов. Нажмите на схему, чтобы выбрать.',
+          '<b>Modulators</b> — операторы-модуляторы выбранного алгоритма (они сами переезжают между Modulators и Carriers). Серые операторы алгоритмом не используются.',
+          '<b>Modulation indexes</b> — ручки 1–6: сила модуляции каждой стрелки алгоритма. Неиспользуемые ручки серые.',
+          '<b>Carriers</b> — несущие, и последняя «All carriers» — общая огибающая всех несущих.']),
+      P('Дальше по панели:'),
+      *L(['<b>Mixer</b> — уровень и панорама каждой несущей; показаны только несущие выбранного алгоритма, лишние скрыты.',
+          '<b>Filter</b> — 2D-поле (два параметра), ползунок-тип и вертикальный Gain. Кривая фильтра рисуется тонкой линией на фоне.',
+          '<b>Modulation</b> — три LFO (медленные колебатели), матрица модуляции и ручки Performance.',
+          '<b>Arpeggiator</b> — клок, BPM, октавы, Latch, направление и ритм.']),
+      P('Матрица модуляции: слева источник (например LFO 1 или Performance 1), справа цель (например Mod Index 1 или частота фильтра), между ними ручка «насколько сильно». '
+        'Так вы привязываете ручку или LFO к любому параметру звука.', 'tip')]
+
+s += [P('5. Шесть упражнений — по порядку', 'h1'),
+      P('Делайте их по очереди. Каждое — одна новая мысль. После каждого шага нажимайте ноты и слушайте.'),
+      P('Упражнение 1. Чистая синусоида', 'h2'),
+      P('Выберите алгоритм с двумя операторами (Оп 2 → Оп 1). Поставьте IM 1 = 0. Играйте. Слышна гладкая «флейта». Теперь медленно поднимайте IM 1 до 2–3: звук обрастает гармониками. Это и есть FM.'),
+      P('Упражнение 2. Целые и нецелые', 'h2'),
+      P('Поставьте IM около 2 и перетягивайте частоту модулятора (точка в графике Оп 2). Целые значения: «чистый» тембр. Отведите в 1.41 или 3.5: звук становится звонким, «стеклянным». Запомните этот контраст.'),
+      P('Упражнение 3. Щелчок и мягкий хвост', 'h2'),
+      P('У модулятора поставьте быструю атаку и короткое затухание. У несущей — быструю атаку и более длинное затухание. Получился ударный звук: ярко в начале, мягко в конце.'),
+      P('Упражнение 4. Три оператора', 'h2'),
+      P('Возьмите цепочку 3 → 2 → 1. Начните с IM 3 = 0, затем добавляйте. Верхний модулятор делает яркость у среднего, средний — у несущей. Звук становится богаче, но и грязнее: следите, чтобы частоты были целыми.'),
+      P('Упражнение 5. Две несущие', 'h2'),
+      P('Алгоритм «один модулятор, две несущие». Сделайте у несущих разные ratio (1 и 2), в Mixer сдвиньте точки в стороны. Получится ширина, как у хоруса.'),
+      P('Упражнение 6. Подвижность', 'h2'),
+      P('В Matrix выберите источник LFO 1, цель — Mod Index 1 и немного Amount. Звук начнёт «дышать». Затем привяжите Performance 1 к IM — это рука, которой вы играете яркость вживую.')]
+
+s += [P('6. Стартовые рецепты', 'h1'),
+      P('Это точки отсчёта, не готовые пресеты. Крутите ratio и IM на слух. Значения «IM» ниже — относительные: «малый» ≈ 0.5–1.5, «средний» ≈ 2–4, «большой» ≈ 5+.'),
+      table([
+          ['Звук', 'Алгоритм', 'Ratio (несущая : модулятор)', 'IM', 'Огибающие'],
+          ['Электропиано', '2 оператора (2 → 1), можно добавить 4 → 3', '1 : 1; вторая пара 1 : 14 (тихо, даёт «язычок»)', 'средний, затухает быстрее несущей', 'Несущая: быстрая атака, средний спад. Модулятор: быстрая атака, короче спад'],
+          ['Колокол', '2 оператора', '1 : 3.5 (или 1 : 1.41)', 'средний, быстро убывает', 'Несущая: быстрая атака, длинный спад. Модулятор: короче'],
+          ['Бас', '2 оператора', '1 : 1 или 1 : 2', 'средний-большой, быстро убывает', 'Всё очень быстрая атака, короткий-средний спад'],
+          ['Орган', '2 оператора или 3 несущие', '1 : 1, 2 : 1, 4 : 1', 'малый', 'Быстрая атака, длинный спад — звук держится, пока нажата клавиша'],
+          ['Струнный пэд', 'две несущие с одним модулятором', '1 : 1, 1 : 2', 'малый-средний', 'Медленная атака, длинный спад'],
+          ['«Стекло»', '2 оператора', '1 : 7.13 или нецелое', 'малый', 'Быстрая атака, длинный спад'],
+          ['Щипок / арфа', '2 оператора', '1 : 2 или 1 : 3', 'средний, быстро убывает', 'Быстрая атака, средний спад'],
+      ], [28, 34, 38, 32, 40]),
+      Spacer(1, 6),
+      P('Пример: колокол. Нецелое ratio 3.5, быстрая атака, длинное затухание, у модулятора короче.'),
+      img('bell', 160),
+      P('Рис. 8. Колокол: слева форма волны и огибающая, справа спектр с «звоном».', 'cap')]
+
+s += [PageBreak(), P('7. Как собраны готовые пресеты и как выбирать алгоритм и значения', 'h1'),
+      P('Семь рецептов выше лежат в файле <b>fm-recipes.json</b> в виде готовых патчей. Они сделаны по теории FM, а не скопированы: сначала тип спектра, потом алгоритм, '
+        'потом яркость, потом огибающие. Каждый патч строится «с нуля» от начального (Init), поэтому не зависит от того, что играло раньше. '
+        'Значения проверены на то, что синтезатор их принимает, а на слух вы их оценивали сами, поэтому считайте их хорошей отправной точкой, а не окончательными.'),
+      P('Шаг 1. Тип спектра', 'h2'),
+      table([
+          ['Хочу', 'Спектр', 'Ratio'],
+          ['Тёплый тон: бас, клавиши, пэд', 'гармонический', 'целые: 1, 2, 3, 4'],
+          ['Колокол, стекло, металл', 'негармонический', 'дробные: 3.5, 7.13, 1.41'],
+          ['Живость, хор', 'почти гармонический', '1 и 1.01 (лёгкая расстройка)'],
+          ['Орган', 'чистые гармоники, без модуляции', 'несущие 1, 2, 4'],
+      ], [66, 56, 50]),
+      P('Шаг 2. Алгоритм по числу несущих и цепочек', 'h2'),
+      table([
+          ['Нужно', 'Алгоритм (схема в панели)', 'Где использован'],
+          ['Простая пара «модулятор → несущая»', '1: несущая 1, модуляторы 2 и 3. Оставляют только IM 1, остальные 0', 'Колокол, Бас, Стекло, Щипок'],
+          ['Две несущие от одного модулятора', '2: несущие 1 и 2, модулятор 3', 'Струнный пэд'],
+          ['Две несущие, у каждой свой модулятор', '4: несущие 1 и 2, модуляторы 3 и 4; IM 3 и IM 4 равны 0', 'Электропиано'],
+          ['Несколько несущих без модуляции', '6: несущие 1, 2, 3; все IM равны 0', 'Орган'],
+      ], [50, 80, 42]),
+      P('Чем больше несущих, тем шире и плотнее звук. Чем длиннее цепочка модуляторов, тем он ярче и грязнее. Для первого звука берите короткие цепочки.', 'tip'),
+      P('Шаг 3. Индекс модуляции (IM) — это яркость', 'h2'),
+      table([
+          ['IM', 'Звук'],
+          ['0', 'чистая синусоида (или орган, если несущих несколько)'],
+          ['0.5–1.5', 'мягкий, тёплый, лёгкий блеск (пэд, стекло)'],
+          ['2–3.5', 'заметно яркий (электропиано, щипок, бас)'],
+          ['4 и больше', 'резкий, «пилообразный», металлический'],
+      ], [30, 142]),
+      P('Шаг 4. Огибающие — форма звука во времени', 'h2'),
+      P('Огибающая несущей задаёт громкость, огибающая модулятора задаёт тембр. Яркость, которая гаснет быстрее громкости, делает звук живым.'),
+      table([
+          ['Звук', 'Несущая', 'Модулятор'],
+          ['Щипок, бас', 'быстрая атака, средний спад, без долгого sustain', 'очень короткая яркость (спад 0.2–0.3), в sustain ноль'],
+          ['Колокол, стекло', 'долгий спад (2.5–3), длинный release (1.5)', 'короче несущей: удар и быстрое затухание яркости'],
+          ['Электропиано', 'спад около 1.5, sustain 0', 'вторая пара гаснет быстро, это «язычок»'],
+          ['Пэд', 'медленная атака около 0.9, release около 1.2', 'ещё медленнее, звук «расцветает»'],
+          ['Орган', 'атака 0.01, sustain 1, короткий release', 'модулятора нет'],
+      ], [34, 68, 70]),
+      P('Шаг 5. Мелкие приёмы', 'h2'),
+      *L(['Расстройка: у второй несущей частота 1.01 при 1 у первой даёт хор (Струнный пэд).',
+          'Панорама: Pan 1 = −0.5 и Pan 2 = 0.5 разводят две несущие по сторонам. Voices = 4 хватает для аккордов.',
+          'Микшер: у нескольких несущих держите сумму уровней Mix около 1.5–2, чтобы не клиповать.',
+          'Учитесь так: меняйте что-то одно за раз, сразу сохраняйте удачные звуки и разбирайте понравившиеся (алгоритм, ratio, индекс).']),
+      P('Схема «описание звука → стартовый патч»', 'h2'),
+      *L(['Звенящий, металлический: нецелое ratio, алгоритм 1, IM 1.4–2.6, у несущей долгий спад.',
+          'Тёплый и ударный (бас, щипок): целое ratio, алгоритм 1, IM 3–3.5, у модулятора короткий спад.',
+          'Клавишный: алгоритм 4, у второй пары короткий спад.',
+          'Длинный и мягкий: алгоритм 2, медленные атаки, лёгкая расстройка, малый IM.',
+          'Ровный, как орган: алгоритм 6, все IM равны 0, ratio несущих 1, 2, 4.',
+          'Дальше поправьте две ручки: IM (яркость) и спад модулятора (как быстро яркость уходит).']),
+      P('Что здесь не проверено: рецепты не измерялись по записи, а ratio вроде 7.13 и 3.5 взяты как типовые для стекла и колокола. Подбор по вкусу может дать лучший результат.', 'cap')]
+
+s += [P('8. Если звук не такой, как вы хотите', 'h1'),
+      table([
+          ['Проблема', 'Что попробовать'],
+          ['Звук грязный, «шумит»', 'Сделайте частоты целыми (магнит). Уменьшите IM. У модулятора сократите длинный хвост.'],
+          ['Звук тусклый, «пустой»', 'Поднимите IM. Поставьте у модулятора быструю атаку. Попробуйте ratio 2 или 3.'],
+          ['Слишком металлический', 'Верните ratio к целым. Уменьшите IM.'],
+          ['Удар слишком резкий', 'Чуть увеличьте Attack модулятора. Уменьшите IM.'],
+          ['Звук не затухает', 'Проверьте Release у несущих (общая огибающая «All carriers») и у оператора.'],
+          ['Тихо', 'Проверьте Mixer: уровни несущих и их панораму.'],
+          ['Ручка не откликается', 'Она серая — алгоритм этот оператор или индекс не использует. Выберите другой алгоритм.'],
+      ], [60, 112]),
+      P('9. Словарь', 'h1'),
+      table([
+          ['Термин', 'Значение'],
+          ['Оператор', 'Одна синусоида со своей частотой и огибающей.'],
+          ['Carrier / несущая', 'Оператор, который идёт на выход.'],
+          ['Modulator / модулятор', 'Оператор, который меняет частоту другого.'],
+          ['IM (Mod Index)', 'Сила модуляции по одной стрелке алгоритма.'],
+          ['Ratio', 'Множитель частоты оператора относительно ноты.'],
+          ['Алгоритм', 'Схема соединений операторов.'],
+          ['Гармоники', 'Составляющие звука на кратных частотах. Больше гармоник — ярче.'],
+          ['Огибающая', 'Как параметр меняется после нажатия ноты.'],
+          ['LFO', 'Медленный генератор, который двигает параметры.'],
+      ], [45, 127]),
+      ]
+
+
+def footer(canvas, doc):
+    canvas.saveState()
+    canvas.setFont('A', 8)
+    canvas.setFillColor(colors.HexColor(C_GREY))
+    canvas.drawString(20 * mm, 10 * mm, 'FM-синтез с нуля — для PreenFM2')
+    canvas.drawRightString(190 * mm, 10 * mm, str(doc.page))
+    canvas.restoreState()
+
+
+doc = SimpleDocTemplate(OUT, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=16 * mm, bottomMargin=18 * mm,
+                        title='FM-синтез с нуля', author='Claude')
+doc.build(s, onFirstPage=footer, onLaterPages=footer)
+print('ok', OUT)
