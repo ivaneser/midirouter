@@ -4,7 +4,7 @@ import { measureLag } from '../latency-calibration.js';
 
 // A recording with a click (1 kHz, 50 ms decaying burst; 2 kHz on the first beat of four) and a 220 Hz note on
 // every beat that starts `lagMs` after the click.
-function recording({ lagMs, bpm = 120, seconds = 8, sampleRate = 48000, noise = 0.01, jitterMs = 0 }) {
+function recording({ lagMs, bpm = 120, seconds = 8, sampleRate = 48000, noise = 0.01, jitterMs = 0, noteGain = 0.4 }) {
     const beat = 60 / bpm, frames = Math.round(seconds * sampleRate);
     const data = new Float32Array(frames);
     let seed = 7;
@@ -18,7 +18,7 @@ function recording({ lagMs, bpm = 120, seconds = 8, sampleRate = 48000, noise = 
         }
         for (let i = 0; i < 0.2 * sampleRate; i++) {
             const t = i / sampleRate, at = Math.round(note * sampleRate) + i;
-            if (at < frames) data[at] += 0.4 * Math.exp(-t / 0.15) * Math.sin(2 * Math.PI * 220 * t);
+            if (at < frames) data[at] += noteGain * Math.exp(-t / 0.15) * Math.sin(2 * Math.PI * 220 * t);
         }
     }
     const pcm = Buffer.alloc(frames * 4);
@@ -50,3 +50,12 @@ test('measureLag finds nothing in silence', () => {
     assert.equal(result.lagMs, null);
     assert.equal(result.pairs, 0);
 });
+
+for (const lagMs of [0, 8, -15, 60]) {
+    test(`measureLag is not fooled by a loud click over a quiet note (lag ${lagMs} ms)`, () => {
+        const { pcm, sampleRate, beat } = recording({ lagMs, noteGain: 0.04 });
+        const result = measureLag(pcm, { sampleRate, noteHz: 220, beatSec: beat });
+        assert.ok(result.pairs >= 10, `pairs ${result.pairs}`);
+        assert.ok(Math.abs(result.lagMs - lagMs) < 3, `measured ${result.lagMs}`);
+    });
+}
