@@ -17,6 +17,7 @@ import { serveRecording } from './audio-record.js';
 import { createListenServer, listenOnFirstFree } from './listen-server.js';
 import { AudioSettings, PACKING_FRAMES } from './audio-settings.js';
 import { OpusBroadcast } from './audio-opus.js';
+import { serveWebRtcOffer } from './audio-webrtc.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
@@ -519,6 +520,10 @@ function startServer() {
         if (cleanUrl === '/audio/status') {
             res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
             res.end(JSON.stringify(audioCapture.status()));
+            return;
+        }
+        if (cleanUrl === '/audio/webrtc' && req.method === 'POST') {
+            serveWebRtcOffer(audioCapture, opusBroadcast, req, res);
             return;
         }
         if (cleanUrl === '/audio/live') {

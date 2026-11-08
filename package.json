@@ -12,6 +12,7 @@
   "dependencies": {
     "@julusian/midi": "^3.8.1",
     "opusscript": "^0.1.1",
+    "werift": "^0.26.0",
     "ws": "^8.16.0"
   }
 }

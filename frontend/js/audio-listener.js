@@ -134,7 +134,22 @@ export class AudioListener {
         return !this.rawOnly && typeof AudioDecoder !== 'undefined' && typeof EncodedAudioChunk !== 'undefined';
     }
 
+    _canWebRtc() {
+        return !this.noWebRtc && typeof RTCPeerConnection !== 'undefined' && typeof fetch === 'function';
+    }
+
+    // WebRTC first (UDP: a lost packet is skipped, not waited for); the HTTP stream when that cannot be set up.
     async _stream() {
+        if (this._canWebRtc()) {
+            try {
+                await this._streamWebRtc();
+                return;
+            } catch (error) {
+                if (error.name === 'AbortError' || !this.active || this.webrtcLive || error.final) throw error;
+                this.log(`WebRTC: ${error.message}, using the HTTP stream`);
+                this.noWebRtc = true;
+            }
+        }
         const response = await fetch(this._canOpus() ? '/audio/live?codec=opus' : '/audio/live', { signal: this.controller.signal, cache: 'no-store' });
         if (!response.ok) {
             const reason = (await response.json().catch(() => ({}))).error || `HTTP ${response.status}`;
@@ -148,6 +163,84 @@ export class AudioListener {
         this._animate();
         if (response.headers.get('X-Codec') === 'opus') await this._readOpus(reader, rate);
         else await this._readPcm(reader, rate);
+    }
+
+    // The router answers the offer with its ICE candidates already in it, so no trickle exchange is needed.
+    async _streamWebRtc() {
+        const signal = this.controller.signal;
+        const abortError = () => Object.assign(new Error('aborted'), { name: 'AbortError' });
+        this.webrtcLive = false;
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        let tap = null, meter = null, sink = null;
+        const cleanup = () => {
+            clearInterval(meter);
+            try { sink?.pause(); sink.srcObject = null; } catch { /* nothing to stop */ }
+            try { tap?.disconnect(); } catch { /* already disconnected */ }
+            pc.close();
+        };
+        try {
+            const transceiver = pc.addTransceiver('audio', { direction: 'recvonly' });
+            const stream = new Promise(resolve => { pc.ontrack = event => resolve(event.streams[0] || new MediaStream([event.track])); });
+            // Chrome plays Opus as mono unless the offer asks for stereo.
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription({ type: 'offer', sdp: offer.sdp.replace(/^(a=fmtp:(\d+) [^\r\n]*)/gm, (line, _all, type) => (new RegExp(`a=rtpmap:${type} opus/`).test(offer.sdp) && !/stereo=1/.test(line) ? `${line};stereo=1;sprop-stereo=1` : line)) });
+            await new Promise(resolve => {
+                if (pc.iceGatheringState === 'complete') return resolve();
+                pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') resolve(); };
+                setTimeout(resolve, 1000);
+            });
+            const response = await fetch('/audio/webrtc', {
+                method: 'POST', signal, cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sdp: pc.localDescription.sdp }),
+            });
+            const answer = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw Object.assign(new Error(answer.error || `HTTP ${response.status}`), { final: response.status === 503 });
+            }
+            await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
+            this.channels = Math.max(1, Math.min(2, Number(answer.channels) || 2));
+            const connected = new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('no connection (is UDP blocked?)')), 6000);
+                const check = () => {
+                    if (pc.connectionState === 'connected') { clearTimeout(timer); resolve(); }
+                    else if (pc.connectionState === 'failed') { clearTimeout(timer); reject(new Error('connection failed')); }
+                };
+                pc.onconnectionstatechange = check;
+                check();
+            });
+            const media = await stream;
+            await connected;
+            if (signal.aborted) throw abortError();
+            // Chrome only delivers a remote stream that is also attached to a media element; this one is silent.
+            sink = Object.assign(new Audio(), { srcObject: media, muted: true });
+            sink.play().catch(() => {});
+            try { transceiver.receiver.jitterBufferTarget = Math.round(this.cushion * 1000 / 2); } catch { /* not supported */ }
+            const source = this.context.createMediaStreamSource(media);
+            source.connect(this.output);
+            tap = this.context.createAnalyser();
+            tap.fftSize = 512;
+            source.connect(tap);
+            const samples = new Float32Array(tap.fftSize);
+            meter = setInterval(() => {
+                tap.getFloatTimeDomainData(samples);
+                let peak = 0;
+                for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+                this.level = Math.max(peak, this.level * 0.85);
+            }, 50);
+            this.webrtcLive = true;
+            this.error = null;
+            this._animate();
+            this.onState('live', null);
+            this.log('Audio over WebRTC');
+            await new Promise((resolve, reject) => {
+                signal.addEventListener('abort', () => reject(abortError()), { once: true });
+                pc.addEventListener('connectionstatechange', () => {
+                    if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) resolve();
+                });
+            });
+        } finally {
+            cleanup();
+        }
     }
 
     async _readOpus(reader, rate) {

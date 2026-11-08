@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { serveLiveAudio } from './audio-capture.js';
+import { serveWebRtcOffer } from './audio-webrtc.js';
 
 // The listen-only page for many devices. It serves exactly these files and the live audio, and nothing
 // of the DAW, the MIDI controls or the MCP server, so it can sit open on port 80 for anyone on the network.
@@ -14,6 +15,10 @@ const FILES = {
 export function createListenServer({ capture, opus = null, root = import.meta.dirname }) {
     return createServer(async (req, res) => {
         const path = req.url.split('?')[0];
+        if (req.method === 'POST' && path === '/audio/webrtc') {
+            serveWebRtcOffer(capture, opus, req, res);
+            return;
+        }
         if (req.method !== 'GET' && req.method !== 'HEAD') {
             res.writeHead(405, { Allow: 'GET, HEAD' });
             res.end();
