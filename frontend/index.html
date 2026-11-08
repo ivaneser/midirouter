@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#101418">
     <meta name="color-scheme" content="dark">
     <title>MIDI Router · Session</title>
-    <link rel="stylesheet" href="/css/style.css?v=99">
+    <link rel="stylesheet" href="/css/style.css?v=100">
 </head>
 <body>
     <div id="app">
@@ -23,8 +23,7 @@
                         <div id="session-picker" class="session-picker" hidden></div>
                     </div>
                 </div>
-                <span id="connection-status" class="status-indicator disconnected">● Disconnected</span>
-                <button id="btn-connect" class="btn btn-primary">Connect</button>
+                <button id="btn-connect" class="btn btn-connect is-offline" title="Not connected: click to connect" aria-pressed="false">Connect</button>
                 <button id="btn-panic" class="btn btn-danger" title="Release held notes on every MIDI output and channel">Panic</button>
                 <button id="btn-shutdown" class="btn btn-danger" title="Power off the Raspberry Pi">Power off</button>
             </div>
@@ -310,6 +309,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=92"></script>
+    <script type="module" src="/js/app.js?v=93"></script>
 </body>
 </html>

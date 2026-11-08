@@ -21,7 +21,16 @@ function getWsUrl() {
 }
 
 const connectBtn = document.getElementById('btn-connect');
-const statusEl = document.getElementById('connection-status');
+// The connection state is the colour of the Connect button: red offline, amber connecting, green connected.
+function showConnection(state) {
+    const labels = { offline: 'Connect', connecting: 'Connecting…', connected: 'Disconnect' };
+    const titles = { offline: 'Not connected: click to connect', connecting: 'Connecting…', connected: 'Connected: click to disconnect', error: 'Connection error: click to try again' };
+    connectBtn.classList.remove('is-offline', 'is-connecting', 'is-connected');
+    connectBtn.classList.add(`is-${state === 'error' ? 'offline' : state}`);
+    connectBtn.textContent = labels[state] ?? labels.offline;
+    connectBtn.title = titles[state];
+    connectBtn.setAttribute('aria-pressed', String(state === 'connected'));
+}
 const logsDiv = document.getElementById('logs');
 
 let ws = null;
@@ -61,8 +70,7 @@ function connect() {
     const url = getWsUrl();
 
     log('Connecting to ' + url + '...');
-    statusEl.textContent = '● Connecting...';
-    statusEl.className = 'status-indicator disconnected';
+    showConnection('connecting');
 
     ws = new WebSocket(url);
     window.app.ws = ws;
@@ -72,9 +80,7 @@ function connect() {
         bestSyncRtt = Infinity;
         window.app.clockOffset = 0;
         for (let i = 0; i < 8; i++) setTimeout(syncClock, i * 120);
-        statusEl.textContent = '● Connected';
-        statusEl.className = 'status-indicator connected';
-        connectBtn.textContent = 'Disconnect';
+        showConnection('connected');
         log('Connected');
         
         // Request devices after connecting
@@ -89,17 +95,14 @@ function connect() {
 
     ws.onclose = () => {
         midiKeyboard.releaseAll();
-        statusEl.textContent = '● Disconnected';
-        statusEl.className = 'status-indicator disconnected';
-        connectBtn.textContent = 'Connect';
+        showConnection('offline');
         log('Disconnected');
         window.app.ws = null;
     };
 
     ws.onerror = () => {
         log('WS error — check URL and that server is running');
-        statusEl.textContent = '● Error';
-        statusEl.className = 'status-indicator disconnected';
+        showConnection('error');
     };
 
     ws.onmessage = (event) => {

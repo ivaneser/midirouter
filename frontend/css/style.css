@@ -37,9 +37,10 @@ input[type="checkbox"] { width: 24px; min-height: 24px; accent-color: var(--acce
 .header h1 { font-size: 1.125rem; font-weight: 650; letter-spacing: -.03em; }
 .brand p { color: var(--muted); font-size: .75rem; }
 .status-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.status-indicator { font-size: .75rem; white-space: nowrap; padding: 6px 10px; border-radius: 20px; background: #222a32; color: var(--muted); }
-.status-indicator.connected { color: var(--green); background: #233326; }
-.status-indicator.disconnected { color: #d5afb1; }
+/* Connect button: its colour shows the connection. */
+.btn-connect.is-offline { background: #35272b; border-color: #634149; color: #ffb7ba; }
+.btn-connect.is-connecting { background: #3a3220; border-color: #6b5a2e; color: var(--amber); }
+.btn-connect.is-connected { background: #233326; border-color: #3f6a47; color: var(--green); }
 .session-header-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .session-recent { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .session-recent:empty { display: none; }
@@ -241,8 +242,7 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
     .session-recent { justify-content: flex-start; order: 2; }
     .session-header-controls > .btn, .session-load-wrap, .session-load-wrap > .btn { flex: 1; }
     .session-load-wrap > .btn { width: 100%; }
-    .status-indicator { justify-self: start; padding: 4px 6px; font-size: .6875rem; }
-    .status-bar > .btn { padding: 8px 10px; font-size: .75rem; }
+        .status-bar > .btn { padding: 8px 10px; font-size: .75rem; }
     .session-picker { left: auto; right: 0; width: min(290px, calc(100vw - 48px)); }
     .collapsible-panel, .debug-panel { border-radius: 12px; margin-bottom: 10px; }
     .collapsible-header { padding: 13px 14px; min-height: 48px; }
