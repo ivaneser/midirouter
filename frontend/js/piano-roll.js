@@ -134,6 +134,7 @@ export class PianoRoll {
         }
         svg.addEventListener('click', e => {
             if (e.target.dataset?.note) return;
+            if (performance.now() < (this.ignoreClickUntil || 0)) return;
             this.addNote(e, clip, geometry, svg);
         });
         svg.addEventListener('keydown', e => {
@@ -199,6 +200,9 @@ export class PianoRoll {
         const same = this.lastPress && this.lastPress.channel === note.channel && this.lastPress.note === note.note && this.lastPress.start === note.start;
         if (same && now - this.lastPress.time < 400) {
             this.lastPress = null;
+            // The roll is redrawn under the pointer, so the click that ends this press would land on the empty
+            // grid and add a note where the deleted one was.
+            this.ignoreClickUntil = now + 500;
             this.removeNote(clip, note);
             return;
         }

@@ -3,7 +3,7 @@
 import { DeviceManager } from './device-manager.js?v=106';
 import { DAWUI } from './daw-ui.js?v=62';
 import { ConfigEditor } from './config-editor.js';
-import { PianoRoll } from './piano-roll.js?v=56';
+import { PianoRoll } from './piano-roll.js?v=57';
 import { AudioListener, sliderToGain } from './audio-listener.js?v=9';
 import { attachMidiKnob } from './midi-knob.js?v=26';
 import { MidiKeyboard } from './midi-keyboard.js?v=55';
