@@ -57,3 +57,18 @@ test('3/4 meter: first replace take spanning 6 beats locks a 6-beat global cycle
         `loopLenBeats must be 6 (aligned to the 3/4 meter), not the hardcoded 8 from 4/4; got ${daw.loopLenBeats}`,
     );
 });
+
+test('the default loop follows the meter, so the accent never lands twice where it wraps', async () => {
+    const { DAWEngine } = await import('../daw.js');
+    const daw = new DAWEngine({ tempo: 120 });
+    assert.equal(daw.loopLenBeats, 16);
+    daw.setMetronomeBeatsPerMeasure(3);
+    assert.equal(daw.loopLenBeats, 12, 'four bars of 3/4');
+    assert.ok(daw.tracks.every(track => track.clips.every(clip => clip.length === 12)));
+    daw.setMetronomeBeatsPerMeasure(4);
+    assert.equal(daw.loopLenBeats, 16);
+    // Beat n is an accent when n % meter === 0 within the loop: no two accents in a row at the wrap.
+    daw.setMetronomeBeatsPerMeasure(3);
+    const accents = Array.from({ length: daw.loopLenBeats }, (_, beat) => beat % 3 === 0);
+    assert.ok(accents[0] && !accents[accents.length - 1]);
+});

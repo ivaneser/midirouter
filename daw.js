@@ -274,11 +274,16 @@ class DAWEngine {
         if (typeof n !== 'number' || !Number.isFinite(n)) {
             return;
         }
+        const previousMeter = this._metronomeBeatsPerMeasure;
         this._metronomeBeatsPerMeasure = Math.max(1, Math.min(16, n));
-        // Keep an explicit master loop measured in bars (not beats): re-derive
-        // the shared cycle and clip lengths from the new meter.
-        if (this.masterLoopBars != null) {
-            this.loopLenBeats = this.masterLoopBars * this._metronomeBeatsPerMeasure;
+        // Keep the master loop measured in bars (not beats): re-derive the shared cycle and clip lengths
+        // from the new meter. Before anything is recorded the loop is the default four bars of the old
+        // meter, so it follows the meter too; otherwise a 16-beat loop in 3/4 would cut its last bar short
+        // and the accent would land twice in a row where the loop wraps.
+        const untouched = this.masterLoopBars == null && this.tracks.every(track => track.clips.every(clip => !clip.notes.length));
+        const bars = this.masterLoopBars ?? (untouched ? Math.max(1, Math.round(this.loopLenBeats / previousMeter)) : null);
+        if (bars != null) {
+            this.loopLenBeats = bars * this._metronomeBeatsPerMeasure;
             for (const track of this.tracks) {
                 for (const clip of track.clips) {
                     clip.length = this.loopLenBeats;
