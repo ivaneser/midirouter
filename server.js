@@ -408,6 +408,7 @@ function storePatch(target, channel, index) {
     const values = deviceCatalog.storedPatch(target, index + 1);
     if (values) router.worker?.postMessage({ type: 'remember_nrpn_patch', target, channel, values });
 }
+let calibrating = false;   // one latency calibration at a time
 const mcp = createMcpServer({
     upstream: createUpstream({ url: process.env.MCPI_URL ?? 'http://127.0.0.1:8000/mcp', token: process.env.MCPI_TOKEN }),
     catalog: deviceCatalog,
@@ -623,6 +624,20 @@ function startServer() {
                         // Lets the browser estimate its clock offset to the router.
                         ws.send(JSON.stringify({ type: 'time-sync', t0: message.t0, ts: Date.now() }));
                         break;
+                    case 'calibrate-latency': {
+                        // The same measurement as the calibrate_latency tool, started from the Clock section's button.
+                        if (calibrating) break;
+                        calibrating = true;
+                        router._broadcast({ type: 'calibration-run', running: true, device: String(message.device ?? '') });
+                        mcp.callTool('calibrate_latency', { device: String(message.device ?? '') }).then(result => {
+                            calibrating = false;
+                            router._broadcast({ type: 'calibration-run', running: false, error: result.isError ? result.content?.[0]?.text || 'failed' : null });
+                        }, error => {
+                            calibrating = false;
+                            router._broadcast({ type: 'calibration-run', running: false, error: error.message });
+                        });
+                        break;
+                    }
                     case 'net-smoothing':
                         // Hold live notes from Wi-Fi clients back so network jitter does not reach the sound: off | auto | ms.
                         if (message.mode === 'off' || message.mode === 'auto' || (Number(message.mode) > 0 && Number(message.mode) <= 160)) {

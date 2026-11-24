@@ -1,7 +1,7 @@
 /* === MIDI Router — auto-connect all to all === */
 
 import { DeviceManager } from './device-manager.js?v=106';
-import { DAWUI } from './daw-ui.js?v=63';
+import { DAWUI } from './daw-ui.js?v=64';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=57';
 import { AudioListener, sliderToGain } from './audio-listener.js?v=13';
@@ -298,7 +298,12 @@ function handleMessage(msg) {
             midiKeyboard.updatePorts();
             // Refresh the clock source dropdown so hot-plugged inputs appear.
             dawUI.refreshClockSourceSelect();
+            dawUI.setCalibrationDevices(msg.outputs || []);
             log(`Devices: ${msg.inputs?.length || 0} input, ${msg.outputs?.length || 0} output`);
+            break;
+
+        case 'calibration-run':
+            dawUI.calibrationRun(msg);
             break;
 
         case 'daw_state':

@@ -297,6 +297,17 @@ export class DAWUI {
             });
         }
 
+        // Latency calibration: the instrument that plays the test note, and the button that starts the measurement.
+        const calibrateButton = document.getElementById('calibrate-btn');
+        const calibrateDevice = document.getElementById('calibrate-device');
+        if (calibrateButton && calibrateDevice) {
+            calibrateDevice.addEventListener('change', () => { try { localStorage.setItem('calibrate-device', calibrateDevice.value); } catch { /* storage unavailable */ } });
+            calibrateButton.addEventListener('click', () => {
+                if (!calibrateDevice.value) return;
+                this._send({ type: 'calibrate-latency', device: calibrateDevice.value });
+            });
+        }
+
         // Wi-Fi smoothing for notes played from this page: remembered here, sent whenever the page connects.
         const smoothing = document.getElementById('net-smoothing');
         if (smoothing) {
@@ -338,6 +349,148 @@ export class DAWUI {
                 updateLabel();
             });
         }
+
+        // Metronome output selector: jack / USB / auto.
+        const metroOutput = document.getElementById('metro-output');
+        if (metroOutput) {
+            metroOutput.addEventListener('change', () => {
+                this._send({ type: 'daw-metronome-output', output: metroOutput.value });
+            });
+        }
+
+        // Quantization grid selector (beats). Snaps recorded note starts.
+        const quantizeGridInput = document.getElementById('quantize-grid');
+        if (quantizeGridInput) {
+            quantizeGridInput.addEventListener('change', () => {
+                const beats = Number(quantizeGridInput.value);
+                if (!Number.isNaN(beats)) this._send({ type: 'daw-quantize-grid', beats });
+            });
+        }
+
+        // MIDI Clock (MTC)
+        const midiClockBtn = document.getElementById('midi-clock-toggle');
+        if (midiClockBtn) {
+            midiClockBtn.addEventListener('click', () => this._send({ type: 'daw-midi-clock-toggle' }));
+        }
+
+        // ---- Clock master source selection ----
+        const clockSourceSelect = document.getElementById('clock-source-select');
+        if (clockSourceSelect) {
+            clockSourceSelect.addEventListener('change', () => {
+                const value = clockSourceSelect.value; // 'internal' | 'external:<portName>'
+                if (value === 'internal') {
+                    this._send({ type: 'clock-source-select', kind: 'internal' });
+                } else {
+                    const portName = value.replace('external:', '');
+                    this._send({ type: 'clock-source-select', kind: 'external', portName });
+                }
+            });
+        }
+
+        // Note: daw-get is now sent from app.js after WebSocket connects.
+        // (Sending it here at module-load time fails because window.app.ws is null.)
+    }
+
+    /** Handle messages from the server */
+    handleMessage(msg) {
+        if (msg.type === 'daw_state') {
+            this.dawState = msg.payload;
+            this._syncControls();
+            this._renderClockMasterUI();
+            this._renderGrid();
+            this._renderTrackControls();
+        } else if (msg.type === 'daw_pad_map_list') {
+            // Show all configured controllers that can trigger each clip.
+            this.padNotes = {};
+            for (const entry of (msg.map || [])) {
+                const key = `${entry.trackIdx}-${entry.slot}`;
+                if (!this.padNotes[key]) this.padNotes[key] = [];
+                const source = entry.profileId || 'learned';
+                const message = entry.message === 'cc' ? 'CC' : entry.message === 'program' ? 'program' : entry.message === 'sysex' ? 'SysEx pad' : 'note';
+                this.padNotes[key].push(`${source} ${message} ${entry.note}`);
+            }
+            // Update the learn mode state
+            if (document.getElementById('btn-learn')) {
+                document.getElementById('btn-learn').classList.toggle('active', !!msg.learnMode);
+            }
+            // Re-render the grid with the new pad hints
+            this._renderGrid();
+        } else if (msg.type === 'daw_event') {
+            this._flashPad(msg.payload);
+        } else if (msg.type === 'daw_progress') {
+            this._updateTransportCue(msg.payload);
+            const positions = msg.payload?.playing === false ? [] : msg.payload?.clipProgress || [];
+            if (this.dawState) this.dawState.clipProgress = positions;
+            this._updateClipProgress(positions);
+        } else if (msg.type === 'daw_visual_event') {
+            this._flashPad(msg.event);
+        } else if (msg.type === 'daw_session_list') {
+            this._sessions = Array.isArray(msg.sessions) ? msg.sessions : [];
+            this._recent = Array.isArray(msg.recent) ? msg.recent : [];
+            this._renderSessions();
+            this._renderRecentSessions();
+        } else if (msg.type === 'daw_session_error') {
+            if (msg.name && msg.name === this._activeSession) {
+                this._activeSession = null;
+                this._renderRecentSessions();
+            }
+            this._flashSessionStatus(msg.error || 'Session error', true);
+        }
+    }
+
+    _flashSessionStatus(text, isError = false) {
+        const el = document.getElementById('session-status');
+        if (!el) return;
+        el.textContent = text;
+        el.classList.toggle('error', isError);
+        clearTimeout(this._sessionStatusTimer);
+        this._sessionStatusTimer = setTimeout(() => { el.textContent = ''; }, 4000);
+    }
+
+    _syncControls() {
+        const modeSelect = document.getElementById('record-mode');
+        const tempoInput = document.getElementById('tempo');
+        const masterLoopBars = document.getElementById('master-loop-bars');
+        
+        if (modeSelect) {
+            modeSelect.value = this.dawState.recordMode;
+            modeSelect.classList.remove('mode-play', 'mode-overdub');
+            const modeClass = {
+                none: 'mode-play',
+                overdub: 'mode-overdub',
+            }[this.dawState.recordMode];
+            if (modeClass) modeSelect.classList.add(modeClass);
+            modeSelect.dataset.recordMode = this.dawState.recordMode;
+        }
+        if (tempoInput) tempoInput.value = Math.round(this.dawState.tempo);
+        if (masterLoopBars) {
+            masterLoopBars.value = this.dawState.masterLoopBars != null
+                ? String(this.dawState.masterLoopBars) : '';
+        }
+        
+        // Metronome
+        const metroBtn = document.getElementById('metronome-toggle');
+        if (metroBtn) {
+            const enabled = this.dawState.metronomeEnabled;
+            metroBtn.classList.toggle('active', !!enabled);
+            metroBtn.textContent = enabled ? '♫ Metro ON' : '♪ Metro';
+        }
+
+        // Beats per measure
+        const metroBeatsInput = document.getElementById('metro-beats');
+        if (metroBeatsInput && this.dawState.metronomeBeatsPerMeasure != null) {
+            metroBeatsInput.value = String(this.dawState.metronomeBeatsPerMeasure);
+        }
+
+        // Click latency slider: sync from state.
+        const clickLatencyInput = document.getElementById('click-latency');
+        if (clickLatencyInput && this.dawState?.clickOffsetMs != null) {
+            clickLatencyInput.value = String(this.dawState.clickOffsetMs);
+            const label = document.getElementById('click-latency-label');
+            if (label) label.textContent = `${this.dawState.clickOffsetMs} ms`;
+        }
+
+        this._renderCalibrationStatus();
 
         // Metronome output selector: jack / USB / auto.
         const metroOutput = document.getElementById('metro-output');
@@ -633,6 +786,56 @@ export class DAWUI {
     }
 
     /** Public entry point for the clock source dropdown to refresh after hotplug. */
+    // The instruments the calibration can play its test note on.
+    setCalibrationDevices(outputs) {
+        const select = document.getElementById('calibrate-device');
+        if (!select) return;
+        let wanted = select.value;
+        if (!wanted) { try { wanted = localStorage.getItem('calibrate-device') || ''; } catch { /* storage unavailable */ } }
+        select.replaceChildren(...outputs.map(o => Object.assign(document.createElement('option'), { value: o.name, textContent: o.name })));
+        if (outputs.some(o => o.name === wanted)) select.value = wanted;
+        document.getElementById('calibrate-btn').disabled = !outputs.length || this.calibrating === true;
+    }
+
+    // The server tells every page when a calibration starts and ends.
+    calibrationRun({ running, error }) {
+        this.calibrating = !!running;
+        this.calibrationError = running ? null : (error || null);
+        const button = document.getElementById('calibrate-btn');
+        if (button) {
+            button.disabled = this.calibrating || !document.getElementById('calibrate-device')?.options.length;
+            button.textContent = this.calibrating ? 'Calibrating…' : 'Calibrate';
+        }
+        this._renderCalibrationStatus();
+    }
+
+    // While measuring: progress; after a failure: the reason; otherwise what the last calibration measured and
+    // whether the sliders still hold the offsets it used.
+    _renderCalibrationStatus() {
+        const calibrationStatus = document.getElementById('calibration-status');
+        if (!calibrationStatus) return;
+        if (this.calibrating || this.calibrationError) {
+            calibrationStatus.hidden = false;
+            calibrationStatus.classList.toggle('stale', !this.calibrating);
+            calibrationStatus.textContent = this.calibrating
+                ? 'Calibrating: playing a test note against the click (about 45 s). Keep the sound on the audio input.'
+                : `Calibration failed: ${this.calibrationError}`;
+            return;
+        }
+        const c = this.dawState?.calibration;
+        calibrationStatus.hidden = !c;
+        if (c) {
+            const sign = c.lagMs > 0 ? '+' : '';
+            const lag = c.lagMs == null ? 'not measured' : `${sign}${c.lagMs} ms`;
+            const when = new Date(c.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+            const stale = this.dawState.audioOffsetMs !== c.audioOffsetMs;
+            calibrationStatus.classList.toggle('stale', stale);
+            calibrationStatus.textContent = `Calibrated ${when}: note vs click ${lag} at Audio offset ${c.audioOffsetMs} ms` +
+                (c.jitterMs != null ? `, click spread ±${c.jitterMs} ms` : '') +
+                (stale ? `. Offset is now ${this.dawState.audioOffsetMs} ms: calibrate again.` : '.');
+        }
+    }
+
     refreshClockSourceSelect() {
         this._renderClockMasterUI();
     }

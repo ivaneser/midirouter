@@ -502,3 +502,5 @@ h2 { font-size: clamp(1.5rem, 3vw, 2rem); letter-spacing: -.045em; line-height: 
 .calibration-status { color: var(--text-dim, #9aa5b1); font-size: .82rem; margin: 2px 0 8px; }
 .calibration-status[hidden] { display: none; }
 .calibration-status.stale { color: var(--amber); }
+.calibration-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
+.calibration-row .transport-label { margin: 0; }
