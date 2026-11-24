@@ -6,6 +6,17 @@ const CALM_MS = 20000;       // this long without a dropout and the automatic bu
 const MAX_LAG = 0.4;         // lagging this far beyond the cushion: drop chunks to catch up
 const RETRY_MS = 2000;
 
+// The Pi's capture clock and this device's output clock differ by tens of parts per million, so the queue of
+// scheduled audio slowly grows or drains. Instead of waiting for an overflow (a dropped chunk, heard as a click) or
+// an underrun (a gap, then a bigger buffer), every chunk is played a hair faster or slower to keep the queue at the
+// cushion: 0.1 s too much queued = 0.2 % faster, limited to 0.3 % (about 5 cents, not audible as a pitch change).
+export const MAX_RATE_TRIM = 0.003;
+const RATE_GAIN = 0.02;   // trim per second of queue error
+export function driftRate(ahead, cushion) {
+    const trim = Math.max(-MAX_RATE_TRIM, Math.min(MAX_RATE_TRIM, (ahead - cushion) * RATE_GAIN));
+    return 1 + trim;
+}
+
 // Little-endian 16-bit samples from a byte chunk of interleaved channels: one Float32Array per channel.
 // A trailing partial frame comes back in `rest` (a Uint8Array, or null) to start the next chunk.
 export function pcmToFloat(bytes, carry = null, channels = 1) {
@@ -404,9 +415,10 @@ export class AudioListener {
         if (this.next - now > this.cushion + MAX_LAG) return;          // too far behind: skip this chunk
         const source = context.createBufferSource();
         source.buffer = buffer;
+        source.playbackRate.value = driftRate(this.next - now, this.cushion);
         source.connect(this.output);
         source.start(this.next);
-        this.next += buffer.duration;
+        this.next += buffer.duration / source.playbackRate.value;
     }
 
     _animate() {

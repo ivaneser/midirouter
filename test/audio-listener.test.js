@@ -52,3 +52,16 @@ test('the volume slider is unchanged sound in the middle and boosts up to +24 dB
     assert.equal(sliderToGain(-3), 0, 'out of range is clamped');
     assert.equal(sliderToGain(9), 16);
 });
+
+import { driftRate, MAX_RATE_TRIM } from '../frontend/js/audio-listener.js';
+
+test('the drift controller plays faster when too much audio is queued, slower when too little, and never more than 0.3 %', () => {
+    assert.equal(driftRate(0.12, 0.12), 1);
+    assert.ok(driftRate(0.22, 0.12) > 1);
+    assert.ok(driftRate(0.05, 0.12) < 1);
+    assert.ok(Math.abs(driftRate(0.12, 0.12) - 1) < 1e-12);
+    assert.equal(driftRate(5, 0.12), 1 + MAX_RATE_TRIM);
+    assert.equal(driftRate(-1, 0.12), 1 - MAX_RATE_TRIM);
+    // A 50 ppm faster source: the queue grows 50 us per second; the trim needed (0.005 %) is well inside the limit.
+    assert.ok(driftRate(0.12 + 0.0025, 0.12) - 1 > 0.00004);
+});
