@@ -66,3 +66,28 @@ test('the offer endpoint answers 501 when Opus is off (the browser falls back to
         assert.equal((await post()).status, 503);
     } finally { server.closeAllConnections(); server.close(); }
 });
+
+test('a call whose browser went silent is hung up, and the encoder subscription goes with it', async () => {
+    const opus = new FakeOpus();
+    const client = new RTCPeerConnection({ iceUseIpv6: false, codecs: { audio: [new RTCRtpCodecParameters({ mimeType: 'audio/opus', clockRate: 48000, channels: 2, payloadType: 111 })], video: [] } });
+    client.addTransceiver('audio', { direction: 'recvonly' });
+    await client.setLocalDescription(await client.createOffer());
+    let closed = false;
+    // The answer is never applied, so no feedback ever comes: the watchdog ends the call while it is still being set up.
+    await assert.rejects(answerOffer(opus, client.localDescription.sdp, { idleMs: 600, onClose: () => { closed = true; } }), /ended before/);
+    assert.ok(closed);
+    assert.equal(opus.count, 0, 'a call that ended during setup never subscribes to the encoder');
+
+    // And one that is set up, then goes quiet, is hung up.
+    const live = new RTCPeerConnection({ iceUseIpv6: false, codecs: { audio: [new RTCRtpCodecParameters({ mimeType: 'audio/opus', clockRate: 48000, channels: 2, payloadType: 111 })], video: [] } });
+    live.addTransceiver('audio', { direction: 'recvonly' });
+    await live.setLocalDescription(await live.createOffer());
+    let liveClosed = false;
+    const call = await answerOffer(opus, live.localDescription.sdp, { idleMs: 4000, onClose: () => { liveClosed = true; } });
+    assert.equal(opus.count, 1);
+    call.close();
+    assert.ok(liveClosed);
+    assert.equal(opus.count, 0);
+    await live.close();
+    await client.close();
+});

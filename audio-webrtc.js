@@ -6,19 +6,23 @@ import { RTCPeerConnection, RTCRtpCodecParameters, MediaStreamTrack, RtpPacket, 
 const OPUS_FRAME_TICKS = 960;   // 20 ms at 48 kHz
 const PAYLOAD_TYPE = 111;
 const GATHER_TIMEOUT_MS = 2000;
+// A browser that left (tab closed, phone asleep, Wi-Fi gone) rarely says goodbye, and werift takes minutes to notice.
+// A live receiver sends RTCP reports about once a second: a call that has been silent this long is hung up.
+const IDLE_MS = 12000;
 
 const AUDIO_CODEC = () => new RTCRtpCodecParameters({ mimeType: 'audio/opus', clockRate: 48000, channels: 2, payloadType: PAYLOAD_TYPE, parameters: 'minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1' });
 
 // Answers `offerSdp`. Resolves with { sdp, close }: the answer to hand back and the function that ends the call.
 // `onClose` runs once when the call ends for any reason (the browser left, ICE failed, close()).
-export async function answerOffer(opus, offerSdp, { onClose = () => {}, gatherTimeoutMs = GATHER_TIMEOUT_MS } = {}) {
+export async function answerOffer(opus, offerSdp, { onClose = () => {}, gatherTimeoutMs = GATHER_TIMEOUT_MS, idleMs = IDLE_MS } = {}) {
     if (!opus?.available) throw new Error('Opus stream is not available');
     const pc = new RTCPeerConnection({ iceUseIpv6: false, codecs: { audio: [AUDIO_CODEC()], video: [] } });
     const track = new MediaStreamTrack({ kind: 'audio' });
-    let unsubscribe = null, closed = false;
+    let unsubscribe = null, closed = false, watchdog = null;
     const close = () => {
         if (closed) return;
         closed = true;
+        clearInterval(watchdog);
         unsubscribe?.();
         unsubscribe = null;
         pc.close().catch(() => {});
@@ -30,6 +34,10 @@ export async function answerOffer(opus, offerSdp, { onClose = () => {}, gatherTi
         if (!transceiver) throw new Error('The offer has no audio section');
         transceiver.direction = 'sendonly';
         transceiver.sender.registerTrack(track);
+        let lastHeard = Date.now();
+        transceiver.sender.onRtcp.subscribe(() => { lastHeard = Date.now(); });
+        watchdog = setInterval(() => { if (Date.now() - lastHeard > idleMs) close(); }, Math.max(100, Math.min(2000, idleMs / 4)));
+        watchdog.unref?.();
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await Promise.race([
@@ -40,6 +48,7 @@ export async function answerOffer(opus, offerSdp, { onClose = () => {}, gatherTi
         close();
         throw error;
     }
+    if (closed) throw new Error('The call ended before it was set up');
     pc.connectionStateChange.subscribe(state => { if (state === 'failed' || state === 'closed' || state === 'disconnected') close(); });
     let sequence = Math.floor(Math.random() * 0xffff), timestamp = Math.floor(Math.random() * 0xffffffff);
     unsubscribe = opus.subscribe(framed => {
