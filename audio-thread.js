@@ -21,16 +21,19 @@ export class ThreadedOpus extends EventEmitter {
         this.count = 0;
     }
 
+    // Browsers listen over WebRTC, which is Opus only: a saved "pcm" (the old raw stream) now means Opus at 128 kbit/s.
+    get encoded() { return qualityBitrate(this.quality) != null ? this.quality : 'opus-128'; }
+
     get available() {
-        return [OPUS_RATE, 44100].includes(this.hub.sampleRate) && qualityBitrate(this.quality) != null;
+        return [OPUS_RATE, 44100].includes(this.hub.sampleRate);
     }
 
-    get bitrate() { return qualityBitrate(this.quality); }
+    get bitrate() { return qualityBitrate(this.encoded); }
 
     setQuality(quality) {
         const was = this.quality;
         this.quality = quality;
-        this.hub._send({ type: 'quality', quality });
+        this.hub._send({ type: 'quality', quality: this.encoded });
         if (was !== quality) this.emit('quality', quality, was);
     }
 
@@ -119,7 +122,7 @@ export class ThreadedAudioCapture extends AudioCapture {
     _spawn() {
         if (!this.threadWanted || this.worker) return;
         const worker = new Worker(new URL('./audio-worker.js', import.meta.url), {
-            workerData: { sampleRate: this.sampleRate, channels: this.channels, filter: this.filterLevel, quality: this.opus.quality },
+            workerData: { sampleRate: this.sampleRate, channels: this.channels, filter: this.filterLevel, quality: this.opus.encoded },
         });
         this.worker = worker;
         worker.on('message', message => this._onWorkerMessage(worker, message));

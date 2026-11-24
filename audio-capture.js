@@ -2,8 +2,9 @@ import { spawn, execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { NoiseFilter } from './audio-clean.js';
 
-// Small ALSA periods keep the capture delay low (about 23 ms per period) for live listening.
-const PERIOD_FRAMES = 1024;
+// ALSA periods of about 43 ms with eight of them in the buffer (350 ms): the capture rides out a busy Pi without an
+// overrun (a click in every listener), and listening does not need the capture to be quick.
+const PERIOD_FRAMES = 2048;
 
 // Instruments that show up as USB sound cards (many have no recording input, and a synth's passthrough
 // codec makes arecord crash-loop): never the capture device.
@@ -136,7 +137,7 @@ export class AudioCapture extends EventEmitter {
         this.carry = null;
         let proc;
         try {
-            proc = this.spawnProcess('arecord', ['-t', 'raw', '-f', 'S16_LE', '-r', String(this.sampleRate), '-c', String(this.channels), '-D', device, `--period-size=${PERIOD_FRAMES}`, `--buffer-size=${PERIOD_FRAMES * 4}`], { stdio: ['ignore', 'pipe', 'pipe'] });
+            proc = this.spawnProcess('arecord', ['-t', 'raw', '-f', 'S16_LE', '-r', String(this.sampleRate), '-c', String(this.channels), '-D', device, `--period-size=${PERIOD_FRAMES}`, `--buffer-size=${PERIOD_FRAMES * 8}`], { stdio: ['ignore', 'pipe', 'pipe'] });
         } catch (error) {
             this.state = 'no-device';
             this.error = error.message;

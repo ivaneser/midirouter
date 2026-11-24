@@ -193,14 +193,13 @@
                             <option value="strong">Strong</option>
                         </select>
                     </label>
-                    <label class="audio-filter" title="How the Pi sends the audio to everyone who listens (this page and the listen page). Opus is compressed: much less Wi-Fi traffic for the same sound, 128 kbit/s is nearly transparent, 32 kbit/s is for a weak connection. Raw is uncompressed (about 1.5 Mbit/s per listener). A browser that cannot decode Opus gets the raw stream.">
+                    <label class="audio-filter" title="How the Pi sends the audio to everyone who listens (this page and the listen page). Opus is compressed: much less Wi-Fi traffic for the same sound, 128 kbit/s is nearly transparent, 32 kbit/s is for a weak connection.">
                         <span>Stream</span>
                         <select id="audio-quality" aria-label="Audio stream format and quality">
                             <option value="opus-128">Opus 128 kbit/s</option>
                             <option value="opus-96" selected>Opus 96 kbit/s</option>
                             <option value="opus-64">Opus 64 kbit/s</option>
                             <option value="opus-32">Opus 32 kbit/s</option>
-                            <option value="pcm">Raw (uncompressed)</option>
                         </select>
                     </label>
                     <label class="audio-filter" title="How the Pi packs the Opus stream, for everyone who listens. Low sends every 20 ms (least delay); Balanced and Efficient send 40 or 60 ms at a time: fewer Wi-Fi packets, so more phones fit on the network, at 20-40 ms more delay.">
@@ -211,14 +210,14 @@
                             <option value="efficient">Efficient</option>
                         </select>
                     </label>
-                    <label class="audio-filter" title="Delay kept in this browser to ride out Wi-Fi jitter. Auto starts at 120 ms, grows after a dropout and shrinks again when the connection is calm. A fixed value is steadier but cannot adapt.">
+                    <label class="audio-filter" title="How much audio this browser holds back before playing it. A larger buffer rides out Wi-Fi hiccups without clicks; the sound is simply heard that much later. Auto is 500 ms.">
                         <span>Buffer</span>
                         <select id="audio-buffer" aria-label="Listening buffer of this browser">
-                            <option value="auto" selected>Auto</option>
-                            <option value="60">60 ms</option>
+                            <option value="auto" selected>Auto (500 ms)</option>
                             <option value="120">120 ms</option>
                             <option value="250">250 ms</option>
-                            <option value="500">500 ms</option>
+                            <option value="1000">1 s</option>
+                            <option value="2000">2 s</option>
                         </select>
                     </label>
                 </div>
@@ -319,6 +318,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=95"></script>
+    <script type="module" src="/js/app.js?v=96"></script>
 </body>
 </html>

@@ -1,49 +1,9 @@
-// Listens to the router's audio interface: GET /audio/live is raw 16-bit PCM (stereo, interleaved), played as it
-// arrives through Web Audio with a small buffer (about 120 ms) to ride out network jitter.
-const TARGET_AHEAD = 0.12;   // seconds of audio kept queued (the start value of the automatic buffer)
-const MIN_AHEAD = 0.08, MAX_CUSHION = 0.5;   // the automatic buffer stays between these
-const CALM_MS = 20000;       // this long without a dropout and the automatic buffer shrinks a little
-const MAX_LAG = 0.4;         // lagging this far beyond the cushion: drop chunks to catch up
+// Listens to the router's audio over WebRTC: the browser's own receiver (NetEQ) orders the packets by their RTP
+// timestamps, hides lost ones, and keeps a jitter buffer that follows the sender's clock, so Wi-Fi hiccups and clock
+// drift do not click. The buffer is large on purpose (default 500 ms): this is for listening, not for playing live.
+const DEFAULT_BUFFER_MS = 500;   // the "Auto" buffer
+const MAX_BUFFER_MS = 4000;      // what the receiver accepts
 const RETRY_MS = 2000;
-
-// The Pi's capture clock and this device's output clock differ by tens of parts per million, so the queue of
-// scheduled audio slowly grows or drains. Instead of waiting for an overflow (a dropped chunk, heard as a click) or
-// an underrun (a gap, then a bigger buffer), every chunk is played a hair faster or slower to keep the queue at the
-// cushion: 0.1 s too much queued = 0.2 % faster, limited to 0.3 % (about 5 cents, not audible as a pitch change).
-export const MAX_RATE_TRIM = 0.003;
-const RATE_GAIN = 0.02;   // trim per second of queue error
-export function driftRate(ahead, cushion) {
-    const trim = Math.max(-MAX_RATE_TRIM, Math.min(MAX_RATE_TRIM, (ahead - cushion) * RATE_GAIN));
-    return 1 + trim;
-}
-
-// Little-endian 16-bit samples from a byte chunk of interleaved channels: one Float32Array per channel.
-// A trailing partial frame comes back in `rest` (a Uint8Array, or null) to start the next chunk.
-export function pcmToFloat(bytes, carry = null, channels = 1) {
-    let data = bytes;
-    if (carry && carry.length) {
-        data = new Uint8Array(carry.length + bytes.length);
-        data.set(carry, 0);
-        data.set(bytes, carry.length);
-    }
-    const frameBytes = 2 * channels;
-    const frames = Math.floor(data.length / frameBytes);
-    const out = Array.from({ length: channels }, () => new Float32Array(frames));
-    let peak = 0;
-    for (let i = 0; i < frames; i++) {
-        for (let c = 0; c < channels; c++) {
-            const at = i * frameBytes + c * 2;
-            let value = data[at] | (data[at + 1] << 8);
-            if (value >= 0x8000) value -= 0x10000;
-            const sample = value / 32768;
-            out[c][i] = sample;
-            const magnitude = Math.abs(sample);
-            if (magnitude > peak) peak = magnitude;
-        }
-    }
-    const used = frames * frameBytes;
-    return { channels: out, samples: out[0], peak, rest: used < data.length ? data.slice(used) : null };
-}
 
 // Volume slider position 0..1 -> gain: 0..1 up to the middle (unchanged sound), then up to x16 (+24 dB)
 // for a quiet input.
@@ -75,8 +35,7 @@ export class AudioListener {
         this.onState = onState;
         this.mediaSession = mediaSession;
         this.volume = 1;
-        this.cushion = TARGET_AHEAD;
-        this.autoBuffer = true;
+        this.bufferMs = DEFAULT_BUFFER_MS;
         this.analyser = null;
         this.active = false;
         this.level = 0;
@@ -133,47 +92,29 @@ export class AudioListener {
         if (wasActive) this.onState('stopped', this.error);
     }
 
-    // 'auto' (grows after a dropout, shrinks when the connection is calm) or a fixed number of milliseconds.
+    // 'auto' (500 ms) or a fixed number of milliseconds. A running call picks it up at once.
     setBuffer(mode) {
         const ms = Number(mode);
-        this.autoBuffer = !(ms > 0);
-        this.cushion = this.autoBuffer ? TARGET_AHEAD : Math.min(MAX_CUSHION, Math.max(0.04, ms / 1000));
+        this.bufferMs = ms > 0 ? Math.min(MAX_BUFFER_MS, ms) : DEFAULT_BUFFER_MS;
+        this._applyBuffer();
     }
 
-    // Opus needs the browser's AudioDecoder; without it, or after it failed once, the raw stream is used.
-    _canOpus() {
-        return !this.rawOnly && typeof AudioDecoder !== 'undefined' && typeof EncodedAudioChunk !== 'undefined';
+    // How long the receiver holds audio back. Chrome calls it jitterBufferTarget (ms), older versions playoutDelayHint (s);
+    // a browser with neither keeps its own adaptive buffer.
+    _applyBuffer() {
+        const receiver = this.receiver;
+        if (!receiver) return;
+        try { receiver.jitterBufferTarget = this.bufferMs; } catch { /* not supported */ }
+        try { if ('playoutDelayHint' in receiver) receiver.playoutDelayHint = this.bufferMs / 1000; } catch { /* not supported */ }
     }
 
     _canWebRtc() {
-        return !this.noWebRtc && typeof RTCPeerConnection !== 'undefined' && typeof fetch === 'function';
+        return typeof RTCPeerConnection !== 'undefined' && typeof fetch === 'function';
     }
 
-    // WebRTC first (UDP: a lost packet is skipped, not waited for); the HTTP stream when that cannot be set up.
     async _stream() {
-        if (this._canWebRtc()) {
-            try {
-                await this._streamWebRtc();
-                return;
-            } catch (error) {
-                if (error.name === 'AbortError' || !this.active || this.webrtcLive || error.final) throw error;
-                this.log(`WebRTC: ${error.message}, using the HTTP stream`);
-                this.noWebRtc = true;
-            }
-        }
-        const response = await fetch(this._canOpus() ? '/audio/live?codec=opus' : '/audio/live', { signal: this.controller.signal, cache: 'no-store' });
-        if (!response.ok) {
-            const reason = (await response.json().catch(() => ({}))).error || `HTTP ${response.status}`;
-            throw new Error(reason);
-        }
-        const rate = Number(response.headers.get('X-Sample-Rate')) || 44100;
-        this.channels = Math.max(1, Math.min(2, Number(response.headers.get('X-Channels')) || 1));
-        this.next = 0;
-        this.error = null;
-        const reader = response.body.getReader();
-        this._animate();
-        if (response.headers.get('X-Codec') === 'opus') await this._readOpus(reader, rate);
-        else await this._readPcm(reader, rate);
+        if (!this._canWebRtc()) throw new Error('this browser has no WebRTC');
+        await this._streamWebRtc();
     }
 
     // The router answers the offer with its ICE candidates already in it, so no trickle exchange is needed.
@@ -184,6 +125,7 @@ export class AudioListener {
         const pc = new RTCPeerConnection({ iceServers: [] });
         let tap = null, meter = null, sink = null;
         const cleanup = () => {
+            this.receiver = null;
             clearInterval(meter);
             try { sink?.pause(); sink.srcObject = null; } catch { /* nothing to stop */ }
             try { tap?.disconnect(); } catch { /* already disconnected */ }
@@ -206,7 +148,7 @@ export class AudioListener {
             });
             const answer = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw Object.assign(new Error(answer.error || `HTTP ${response.status}`), { final: response.status === 503 });
+                throw new Error(answer.error || `HTTP ${response.status}`);
             }
             await pc.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
             this.channels = Math.max(1, Math.min(2, Number(answer.channels) || 2));
@@ -225,7 +167,8 @@ export class AudioListener {
             // Chrome only delivers a remote stream that is also attached to a media element; this one is silent.
             sink = Object.assign(new Audio(), { srcObject: media, muted: true });
             sink.play().catch(() => {});
-            try { transceiver.receiver.jitterBufferTarget = Math.round(this.cushion * 1000 / 2); } catch { /* not supported */ }
+            this.receiver = transceiver.receiver;
+            this._applyBuffer();
             const source = this.context.createMediaStreamSource(media);
             source.connect(this.output);
             tap = this.context.createAnalyser();
@@ -251,77 +194,6 @@ export class AudioListener {
             });
         } finally {
             cleanup();
-        }
-    }
-
-    async _readOpus(reader, rate) {
-        let failed = null;
-        const decoder = new AudioDecoder({
-            output: data => {
-                try {
-                    const frames = data.numberOfFrames;
-                    const channels = Array.from({ length: data.numberOfChannels }, (_, plane) => {
-                        const samples = new Float32Array(frames);
-                        data.copyTo(samples, { planeIndex: plane, format: 'f32-planar' });
-                        return samples;
-                    });
-                    let peak = 0;
-                    for (const sample of channels[0]) peak = Math.max(peak, Math.abs(sample));
-                    this.level = Math.max(peak, this.level * 0.85);
-                    this._play(channels, data.sampleRate || rate);
-                } finally { data.close(); }
-            },
-            error: error => { failed = error; this.controller?.abort(); },
-        });
-        decoder.configure({ codec: 'opus', sampleRate: rate, numberOfChannels: this.channels });
-        let buffer = new Uint8Array(0), stamp = 0, first = true;
-        try {
-            for (;;) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                if (first) { first = false; this.onState('live', null); }
-                const joined = new Uint8Array(buffer.length + value.length);
-                joined.set(buffer, 0);
-                joined.set(value, buffer.length);
-                let at = 0;
-                while (joined.length - at >= 2) {
-                    const size = (joined[at] << 8) | joined[at + 1];
-                    if (joined.length - at - 2 < size) break;
-                    if (decoder.decodeQueueSize < 20) {   // a stalled decoder drops packets instead of piling them up
-                        decoder.decode(new EncodedAudioChunk({ type: 'key', timestamp: stamp, data: joined.subarray(at + 2, at + 2 + size) }));
-                    }
-                    stamp += 20000;
-                    at += 2 + size;
-                }
-                buffer = joined.slice(at);
-            }
-        } catch (error) {
-            if (failed) {   // the browser cannot decode this: carry on with the raw stream
-                this.log(`Opus: ${failed.message}, using raw audio`);
-                this.rawOnly = true;
-                this._fallback = true;
-                return;
-            }
-            throw error;
-        } finally {
-            try { decoder.close(); } catch { /* already closed */ }
-        }
-    }
-
-    async _readPcm(reader, rate) {
-        let carry = null;
-        let first = true;
-        for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (first) {
-                first = false;
-                this.onState('live', null);
-            }
-            const chunk = pcmToFloat(value, carry, this.channels);
-            carry = chunk.rest;
-            this.level = Math.max(chunk.peak, this.level * 0.85);
-            if (chunk.samples.length) this._play(chunk.channels, rate);
         }
     }
 
@@ -395,30 +267,6 @@ export class AudioListener {
             this.silent.setAttribute('playsinline', '');
             this.silent.play().catch(() => {});
         } catch { /* the sound still plays, only the silent switch may mute it */ }
-    }
-
-    _play(channels, rate) {
-        const context = this.context;
-        const buffer = context.createBuffer(channels.length, channels[0].length, rate);
-        channels.forEach((samples, index) => buffer.copyToChannel(samples, index));
-        const now = context.currentTime;
-        if (this.next < now + 0.02) {   // first chunk, or an underrun: queue a fresh cushion
-            if (this.next > 0 && this.autoBuffer) {   // a dropout: the automatic buffer grows
-                this.cushion = Math.min(MAX_CUSHION, this.cushion * 1.5);
-                this.lastDropout = performance.now();
-            }
-            this.next = now + this.cushion;
-        } else if (this.autoBuffer && this.cushion > MIN_AHEAD && performance.now() - (this.lastDropout ?? (this.lastDropout = performance.now())) > CALM_MS) {
-            this.cushion = Math.max(MIN_AHEAD, this.cushion * 0.9);   // calm for a while: a little less delay
-            this.lastDropout = performance.now();
-        }
-        if (this.next - now > this.cushion + MAX_LAG) return;          // too far behind: skip this chunk
-        const source = context.createBufferSource();
-        source.buffer = buffer;
-        source.playbackRate.value = driftRate(this.next - now, this.cushion);
-        source.connect(this.output);
-        source.start(this.next);
-        this.next += buffer.duration / source.playbackRate.value;
     }
 
     _animate() {
