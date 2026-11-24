@@ -590,6 +590,7 @@ function startServer() {
     wss = new WebSocketServer({ server });
 
     wss.on('connection', (ws, req) => {
+        req.socket.setNoDelay(true);   // send each message at once: Nagle's wait is jitter on a Wi-Fi link
         console.log('[SERVER] Client connected from', req.socket.remoteAddress);
 
         // Send the port list on connection
@@ -622,6 +623,13 @@ function startServer() {
                         // Lets the browser estimate its clock offset to the router.
                         ws.send(JSON.stringify({ type: 'time-sync', t0: message.t0, ts: Date.now() }));
                         break;
+                    case 'net-smoothing':
+                        // Hold live notes from Wi-Fi clients back so network jitter does not reach the sound: off | auto | ms.
+                        if (message.mode === 'off' || message.mode === 'auto' || (Number(message.mode) > 0 && Number(message.mode) <= 160)) {
+                            router.worker?.postMessage({ type: 'net_smoothing', mode: message.mode });
+                        }
+                        break;
+
                     case 'midi-performance':
                         router.worker?.postMessage({ type: 'midi_performance', targets: message.targets, bytes: message.bytes, at: message.at });
                         break;

@@ -7,6 +7,7 @@ import { portIndex, PortRecord } from './port-index.js';
 import { ChannelFilter, VelocityFilter, MessageTypeFilter } from './filters.js';
 import { CCMapper } from './cc-mapper.js';
 import { PresetNames, bankSelectMessages, presetPosition } from './preset-names.js';
+import { NetworkSmoother } from './network-smoother.js';
 import { deviceChannelKey } from './frontend/js/device-channels.js';
 import { computeRoutingStep } from './route-midi.js';
 import { ControllerEngine, matches } from './controller-engine.js';
@@ -39,6 +40,7 @@ const NO_HARDWARE = process.env.MIDIR_NO_HARDWARE === '1';
 
 class MIDIRouterWorker {
     constructor() {
+        this.netSmoother = new NetworkSmoother(process.env.MIDIROUTER_NET_SMOOTHING || 'auto');
         this.inputs = new Map();   // deviceName -> RtMidiIn instance
         this.outputs = new Map();  // deviceName -> RtMidiOut instance
 
@@ -1911,12 +1913,19 @@ class MIDIRouterWorker {
             if (age >= 0 && age <= 2000) time -= age;
         }
         this._recordPerformanceEvent(bytes[0], bytes[1], bytes[2], time, 'ui');
-        for (const target of new Set(Array.isArray(msg.targets) ? msg.targets : [])) {
-            const output = this.outputs.get(target);
-            if (!output) continue;
-            try { output.sendMessage(Buffer.from(bytes)); }
-            catch (error) { console.error(`[MIDI] Keyboard send failed: ${target}:`, error.message); }
-        }
+        // Wi-Fi delivers events with uneven delays; holding each one back by what it gained over the
+        // fastest ones makes them all sound the same time after the key press (see network-smoother.js).
+        const wait = this.netSmoother?.delay(msg.at, Date.now()) ?? 0;
+        const send = () => {
+            for (const target of new Set(Array.isArray(msg.targets) ? msg.targets : [])) {
+                const output = this.outputs.get(target);
+                if (!output) continue;
+                try { output.sendMessage(Buffer.from(bytes)); }
+                catch (error) { console.error(`[MIDI] Keyboard send failed: ${target}:`, error.message); }
+            }
+        };
+        if (wait >= 1) setTimeout(send, wait);
+        else send();
     }
 
     _onIncomingMessage(deviceName, deltaTime, bytes) {
@@ -3068,6 +3077,8 @@ if (parentPort) {
         worker._deviceChannels = msg.channels && typeof msg.channels === 'object' ? msg.channels : {};
     } else if (msg.type === 'midi_performance') {
         worker._handleUiPerformance(msg);
+    } else if (msg.type === 'net_smoothing') {
+        (worker.netSmoother ??= new NetworkSmoother('auto')).setMode(msg.mode);
     } else if (msg.type === 'nrpn_read') {
         if (Number.isInteger(msg.channel) && msg.channel >= 1 && msg.channel <= 16) {
             try { worker._startNrpnRead(msg.id, msg.target, msg.channel); }

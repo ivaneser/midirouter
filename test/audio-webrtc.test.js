@@ -49,3 +49,20 @@ test('an offer without audio, or an unavailable stream, is refused and subscribe
     await assert.rejects(answerOffer(opus, 'garbage'));
     assert.equal(opus.count, 0);
 });
+
+test('the offer endpoint answers 501 when Opus is off (the browser falls back to HTTP) and 503 when nothing is captured', async () => {
+    const { createServer } = await import('node:http');
+    const { serveWebRtcOffer } = await import('../audio-webrtc.js');
+    const state = { value: 'live' };
+    const capture = { status: () => ({ state: state.value, error: null }), listeners_: 0 };
+    const opus = { available: false };
+    const server = createServer((req, res) => serveWebRtcOffer(capture, opus, req, res));
+    await new Promise(resolve => server.listen(0, resolve));
+    const url = `http://127.0.0.1:${server.address().port}/audio/webrtc`;
+    try {
+        const post = () => fetch(url, { method: 'POST', body: JSON.stringify({ sdp: 'x' }) });
+        assert.equal((await post()).status, 501);
+        state.value = 'no-device';
+        assert.equal((await post()).status, 503);
+    } finally { server.closeAllConnections(); server.close(); }
+});

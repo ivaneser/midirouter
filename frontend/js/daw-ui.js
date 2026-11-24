@@ -297,6 +297,18 @@ export class DAWUI {
             });
         }
 
+        // Wi-Fi smoothing for notes played from this page: remembered here, sent whenever the page connects.
+        const smoothing = document.getElementById('net-smoothing');
+        if (smoothing) {
+            try { const saved = localStorage.getItem('net-smoothing'); if (saved && [...smoothing.options].some(o => o.value === saved)) smoothing.value = saved; } catch { /* storage unavailable */ }
+            const sendSmoothing = () => this._send({ type: 'net-smoothing', mode: smoothing.value });
+            smoothing.addEventListener('change', () => {
+                try { localStorage.setItem('net-smoothing', smoothing.value); } catch { /* storage unavailable */ }
+                sendSmoothing();
+            });
+            this.sendNetSmoothing = sendSmoothing;
+        }
+
         // Audio latency offset slider (ms). Shifts clip note-ons earlier.
         const audioLatencyInput = document.getElementById('audio-latency');
         if (audioLatencyInput) {

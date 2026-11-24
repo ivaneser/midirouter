@@ -53,8 +53,8 @@ export async function answerOffer(opus, offerSdp, { onClose = () => {}, gatherTi
     return { sdp: pc.localDescription.sdp, close };
 }
 
-// POST /audio/webrtc with {"sdp": "<offer>"} -> {"sdp": "<answer>"}. 503 when nothing is being captured or Opus is
-// off (the browser then uses the HTTP stream), 400 for a bad offer.
+// POST /audio/webrtc with {"sdp": "<offer>"} -> {"sdp": "<answer>"}. 503 when nothing is being captured (the HTTP stream
+// would fail the same way), 501 when Opus is off (the browser then uses the raw HTTP stream), 400 for a bad offer.
 export function serveWebRtcOffer(capture, opus, req, res) {
     const reply = (status, body) => {
         res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -62,7 +62,7 @@ export function serveWebRtcOffer(capture, opus, req, res) {
     };
     const status = capture.status();
     if (status.state !== 'live') return reply(503, { error: status.error || `audio capture ${status.state}` });
-    if (!opus?.available) return reply(503, { error: 'Opus stream is off' });
+    if (!opus?.available) return reply(501, { error: 'Opus stream is off' });   // not 503: the browser then uses the HTTP stream
     let body = '';
     let tooBig = false;
     req.on('data', chunk => { body += chunk; if (body.length > 65536) { tooBig = true; req.destroy(); } });

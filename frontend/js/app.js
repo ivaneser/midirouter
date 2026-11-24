@@ -1,7 +1,7 @@
 /* === MIDI Router — auto-connect all to all === */
 
 import { DeviceManager } from './device-manager.js?v=106';
-import { DAWUI } from './daw-ui.js?v=62';
+import { DAWUI } from './daw-ui.js?v=63';
 import { ConfigEditor } from './config-editor.js';
 import { PianoRoll } from './piano-roll.js?v=57';
 import { AudioListener, sliderToGain } from './audio-listener.js?v=11';
@@ -89,6 +89,7 @@ function connect() {
         send({ type: 'get-config' });
         // Request DAW state (clips, grid) — must be AFTER WS connection
         send({ type: 'daw-get' });
+        window.app.dawUI?.sendNetSmoothing?.();
         // Saved sessions list (for the Load picker)
         send({ type: 'daw-list-sessions' });
     };

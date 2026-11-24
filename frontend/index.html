@@ -132,6 +132,16 @@
                         <input type="range" id="click-latency" min="-200" max="200" step="1" value="0">
                         <span id="click-latency-label">0 ms</span>
                     </label>
+                    <label class="transport-label" title="Notes played from this page travel over Wi-Fi with an uneven delay. Auto holds each note back a few milliseconds so they all sound the same time after the key press.">
+                        Wi-Fi smoothing:
+                        <select id="net-smoothing">
+                            <option value="auto">Auto</option>
+                            <option value="off">Off</option>
+                            <option value="20">20 ms</option>
+                            <option value="40">40 ms</option>
+                            <option value="80">80 ms</option>
+                        </select>
+                    </label>
                     <p id="calibration-status" class="calibration-status" role="status" hidden></p>
                     <label class="transport-label" title="Where metronome clicks are played: the Pi's 3.5 mm jack, a USB audio device or HDMI.">
                         Click output:
@@ -309,6 +319,6 @@
         <span data-stat="disk" title="Disk used"></span>
     </footer>
 
-    <script type="module" src="/js/app.js?v=94"></script>
+    <script type="module" src="/js/app.js?v=95"></script>
 </body>
 </html>
