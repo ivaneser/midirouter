@@ -12,11 +12,11 @@ import { EventEmitter } from 'events';
 import { DeviceCatalog, nrpnControls } from './device-catalog.js';
 import { createMcpServer } from './mcp-server.js';
 import { scaleById } from './frontend/js/scales.js';
-import { AudioCapture, serveLiveAudio } from './audio-capture.js';
+import { serveLiveAudio } from './audio-capture.js';
+import { createAudioThread } from './audio-thread.js';
 import { serveRecording } from './audio-record.js';
 import { createListenServer, listenOnFirstFree } from './listen-server.js';
 import { AudioSettings, PACKING_FRAMES } from './audio-settings.js';
-import { OpusBroadcast } from './audio-opus.js';
 import { serveWebRtcOffer } from './audio-webrtc.js';
 import { createUpstream } from './mcp-upstream.js';
 import { SystemStats } from './system-stats.js';
@@ -393,8 +393,8 @@ const router = new MIDIRouterWorker();
 // The router owns the audio interface: the browser listens to it and mcpi gets its audio from here.
 // MIDIROUTER_AUDIO=off leaves the device alone (for another program that needs it).
 const audioSettings = new AudioSettings(join(import.meta.dirname, 'audio-settings.json'), process.env.MIDIROUTER_AUDIO_FILTER);
-const audioCapture = new AudioCapture({ filter: audioSettings.filter });
-const opusBroadcast = new OpusBroadcast(audioCapture, { quality: audioSettings.quality });
+// Capture and HTTP stay here; the noise filter, Opus encoder and WebRTC run on an audio thread of their own.
+const { capture: audioCapture, opus: opusBroadcast } = createAudioThread({ filter: audioSettings.filter, quality: audioSettings.quality });
 opusBroadcast.packing = PACKING_FRAMES[audioSettings.packing];
 let listenServer = null;
 const deviceChannels = new DeviceChannelSettings(join(import.meta.dirname, 'device-channels.json'));

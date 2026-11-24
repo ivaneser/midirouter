@@ -1,15 +1,11 @@
 import { EventEmitter } from 'node:events';
 import OpusScript from 'opusscript';
 
+import { OPUS_RATE, qualityBitrate } from './audio-quality.js';
+export { OPUS_RATE, qualityBitrate };
+
 // Opus frames of 20 ms at 48 kHz.
 const FRAME_SAMPLES = 960;
-export const OPUS_RATE = 48000;
-
-// "opus-96" -> 96000 bit/s; "pcm" (or anything else) -> null.
-export function qualityBitrate(quality) {
-    const match = /^opus-(\d+)$/.exec(String(quality));
-    return match ? Number(match[1]) * 1000 : null;
-}
 
 // Linear-interpolation resampler for interleaved 16-bit audio (Opus runs at 48 kHz, the capture at 44.1 kHz). It keeps
 // its position between chunks, so the stream is continuous.

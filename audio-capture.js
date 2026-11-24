@@ -191,6 +191,11 @@ export class AudioCapture extends EventEmitter {
         this.ringBytes += chunk.length;
         while (this.ringBytes - this.ring[0].length >= this.maxBytes) this.ringBytes -= this.ring.shift().length;
         this.emit('chunk', chunk);
+        this._emitClean(chunk);
+    }
+
+    // The cleaned stream's share of a captured chunk. A subclass can hand the work to another thread.
+    _emitClean(chunk) {
         if (this.cleanSubscribers > 0) {
             const cleaned = this.cleanFilter ? this.cleanFilter.process(chunk) : chunk;   // no filter: the audio as it is
             if (cleaned.length) this.emit('clean', cleaned);

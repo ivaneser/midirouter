@@ -73,7 +73,8 @@ export function serveWebRtcOffer(capture, opus, req, res) {
         if (typeof sdp !== 'string' || !sdp) return reply(400, { error: 'expected {"sdp": "..."}' });
         try {
             capture.listeners_++;
-            const call = await answerOffer(opus, sdp, { onClose: () => { capture.listeners_ = Math.max(0, capture.listeners_ - 1); } });
+            const onClose = () => { capture.listeners_ = Math.max(0, capture.listeners_ - 1); };
+            const call = await (opus.answerOffer ? opus.answerOffer(sdp, { onClose }) : answerOffer(opus, sdp, { onClose }));
             reply(200, { sdp: call.sdp, channels: capture.channels });
         } catch (error) {
             capture.listeners_ = Math.max(0, capture.listeners_ - 1);
