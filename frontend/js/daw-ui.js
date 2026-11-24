@@ -1,3 +1,5 @@
+import { connectedDevices } from './connected-devices.js';
+import { classifySynthPortName } from './synth-catalog.js?v=30';
 /* === DAW / Clip UI — Ableton Session View style === */
 
 export class DAWUI {
@@ -786,15 +788,24 @@ export class DAWUI {
     }
 
     /** Public entry point for the clock source dropdown to refresh after hotplug. */
-    // The instruments the calibration can play its test note on.
+    // The instruments the calibration can play its test note on: known synths only (not controllers), named without the port address.
     setCalibrationDevices(outputs) {
         const select = document.getElementById('calibrate-device');
         if (!select) return;
         let wanted = select.value;
         if (!wanted) { try { wanted = localStorage.getItem('calibrate-device') || ''; } catch { /* storage unavailable */ } }
-        select.replaceChildren(...outputs.map(o => Object.assign(document.createElement('option'), { value: o.name, textContent: o.name })));
-        if (outputs.some(o => o.name === wanted)) select.value = wanted;
-        document.getElementById('calibrate-btn').disabled = !outputs.length || this.calibrating === true;
+        const synths = connectedDevices([], outputs).filter(d => d.output && classifySynthPortName(d.name).supported);
+        // The device's own name ("Blofeld", not "Blofeld · MIDI 1" or its address); a second one of the same kind is numbered.
+        const seen = new Map();
+        const label = d => {
+            const base = d.name.split(':')[0].replace(/\s+\d+:\d+$/, '').trim() || d.displayName;
+            const n = (seen.get(base) || 0) + 1;
+            seen.set(base, n);
+            return n > 1 ? `${base} ${n}` : base;
+        };
+        select.replaceChildren(...synths.map(d => Object.assign(document.createElement('option'), { value: d.name, textContent: label(d) })));
+        if (synths.some(d => d.name === wanted)) select.value = wanted;
+        document.getElementById('calibrate-btn').disabled = !synths.length || this.calibrating === true;
     }
 
     // The server tells every page when a calibration starts and ends.
