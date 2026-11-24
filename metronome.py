@@ -312,8 +312,35 @@ class Metronome:
             print("[metronome] MONITOR off", flush=True)
         self._wake.set()
 
-    def _monitor_push(self, data: bytes, channels: int = 2):
-        """Add captured audio (S16_LE, `channels` interleaved; mono is centered). Keeps the cushion bounded."""
+    _resample_pos = 0.0
+    _resample_prev = None
+
+    def _resample(self, data: bytes, rate: int) -> bytes:
+        """Stereo S16_LE at `rate` -> SAMPLE_RATE by linear interpolation; the position carries over between chunks."""
+        samples = array('h')
+        samples.frombytes(data)
+        count = len(samples) // 2
+        if count == 0:
+            return b""
+        prev = self._resample_prev or (samples[0], samples[1])
+        left = [prev[0]] + samples[0::2].tolist()
+        right = [prev[1]] + samples[1::2].tolist()
+        step = rate / SAMPLE_RATE
+        pos = self._resample_pos
+        out = array('h')
+        append = out.append
+        while pos < count:
+            i = int(pos)
+            f = pos - i
+            append(int(left[i] + (left[i + 1] - left[i]) * f))
+            append(int(right[i] + (right[i + 1] - right[i]) * f))
+            pos += step
+        self._resample_pos = pos - count
+        self._resample_prev = (left[-1], right[-1])
+        return out.tobytes()
+
+    def _monitor_push(self, data: bytes, channels: int = 2, rate: int = SAMPLE_RATE):
+        """Add captured audio (S16_LE, `channels` interleaved; mono is centered; any `rate`). Keeps the cushion bounded."""
         if channels == 1:
             mono = array('h')
             mono.frombytes(data)
@@ -321,6 +348,8 @@ class Metronome:
             stereo[0::2] = mono
             stereo[1::2] = mono
             data = stereo.tobytes()
+        if rate != SAMPLE_RATE:
+            data = self._resample(data, rate)
         with self._monitor_lock:
             self._monitor_buf += data
             limit = int(SAMPLE_RATE * MONITOR_MAX_MS / 1000) * 4
@@ -373,12 +402,13 @@ class Metronome:
                 with urllib.request.urlopen(MONITOR_URL, timeout=5) as response:
                     rate = int(response.headers.get("X-Sample-Rate", SAMPLE_RATE))
                     channels = int(response.headers.get("X-Channels", 1))
-                    if rate != SAMPLE_RATE or channels not in (1, 2):
-                        print(f"[metronome] MONITOR: stream is {rate} Hz / {channels} ch, expected {SAMPLE_RATE} Hz mono or stereo", flush=True)
+                    if not 8000 <= rate <= 192000 or channels not in (1, 2):
+                        print(f"[metronome] MONITOR: stream is {rate} Hz / {channels} ch, expected mono or stereo", flush=True)
                         self._monitor_stop.wait(5)
                         continue
                     frame_bytes = 2 * channels
                     pending = b""
+                    self._resample_pos, self._resample_prev = 0.0, None
                     while self._monitor and not self._monitor_stop.is_set():
                         data = response.read(4096)
                         if not data:
@@ -387,7 +417,7 @@ class Metronome:
                         usable = len(data) - len(data) % frame_bytes   # whole frames only
                         pending = data[usable:]
                         if usable:
-                            self._monitor_push(data[:usable], channels)
+                            self._monitor_push(data[:usable], channels, rate)
             except Exception as exc:   # router restarting, no audio device yet, ...
                 print(f"[metronome] MONITOR: {exc}", flush=True)
             self._monitor_stop.wait(2)

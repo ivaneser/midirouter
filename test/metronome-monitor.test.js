@@ -211,3 +211,16 @@ print(json.dumps({"channels": m.OUT_CHANNELS, "pipe_frames": m.PIPE_BYTES // (2 
     assert.equal(out.pipe_frames, 2048, 'the same 2048 frames of backlog as in mono');
     assert.ok(Math.abs(out.latency - (4096 + 2048) * 1000 / 44100) < 0.01, `latency ${out.latency}`);
 });
+
+test('a 48 kHz stream is resampled to the output rate, with no gaps between chunks', { skip: !python }, () => {
+    const result = py(`
+data = array('h', [1000] * 9600).tobytes()      # 4800 stereo frames at 48 kHz = 100 ms
+for i in range(0, len(data), 2400):             # fed in uneven pieces
+    met._monitor_push(data[i:i + 2400], 2, 48000)
+frames = len(met._monitor_buf) // 4
+samples = array('h'); samples.frombytes(bytes(met._monitor_buf))
+print(json.dumps({ 'frames': frames, 'flat': all(v == 1000 for v in samples) }))
+`);
+    assert.ok(Math.abs(result.frames - 4410) <= 3, `100 ms is about 4410 frames at 44.1 kHz, got ${result.frames}`);
+    assert.equal(result.flat, true, 'a constant level stays constant');
+});
