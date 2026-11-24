@@ -2269,7 +2269,7 @@ class MIDIRouterWorker {
             case 'daw_calibration_result': {
                 const r = msg.result || {};
                 this._calibration = { at: Date.now(), audioOffsetMs: Math.round(+r.audioOffsetMs) || 0, clickOffsetMs: this.clickOffsetMs, lagMs: Number.isFinite(+r.lagMs) ? +r.lagMs : null,
-                    jitterMs: Number.isFinite(+r.jitterMs) ? +r.jitterMs : null, applied: r.applied === true, device: typeof r.device === 'string' ? r.device : null };
+                    jitterMs: Number.isFinite(+r.jitterMs) ? +r.jitterMs : null, finalOffsetMs: this.audioOffsetMs, applied: r.applied === true, device: typeof r.device === 'string' ? r.device : null };
                 this._saveSettings();
                 this._broadcastState();
                 break;
