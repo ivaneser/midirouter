@@ -300,3 +300,11 @@ test('read_nrpn_patch decodes the patch the synth sends back, with its algorithm
     assert.ok((await call('read_nrpn_patch', { device: 'PreenFM', channel: 5 })).error, 'no answer is an error');
     assert.ok((await call('read_nrpn_patch', { device: 'MicroFreak' })).error);
 });
+
+test('daw_get_state numbers presets as the tools and the UI do, next to the 0-based program', async () => {
+    const { call, state } = setup();
+    state.devicePresets = [{ target: 'Blofeld:Blofeld 20:0', channel: 2, program: 58 }, { target: FREAK.id, channel: 3, program: 0, name: 'Saved name' }];
+    const { data } = await call('daw_get_state', {});
+    assert.deepEqual(data.devicePresets.map(p => [p.program, p.preset, p.presetName]), [[58, 59, 'Goldfinger Pad T'], [0, 1, 'Saved name']]);
+    assert.equal(state.devicePresets[0].preset, undefined, 'the router state is not changed');
+});

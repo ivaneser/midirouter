@@ -34,7 +34,7 @@ export const TOOLS = [
     { name: 'select_preset', description: 'Set the preset of a synth on a MIDI channel (default: the device\'s channel); it is kept for that synth and channel and saved with the DAW session. Switch preset: Bank Select + Program Change. preset is the 1-based global number (as in list_presets) or a catalog name. Returns the preset name when the device reports it.', inputSchema: obj({ device: DEVICE, preset: { type: ['integer', 'string'] }, channel: CHANNEL }, ['device', 'preset']) },
     { name: 'set_device_channel', description: 'Set the MIDI channel the router uses for UI/MCP messages to a device.', inputSchema: obj({ device: DEVICE, channel: CHANNEL }, ['device', 'channel']) },
     { name: 'panic', description: 'All notes off on every output.', inputSchema: obj({}) },
-    { name: 'daw_get_state', description: 'DAW state: tempo, transport, record mode, tracks and clips.', inputSchema: obj({}) },
+    { name: 'daw_get_state', description: 'DAW state: tempo, transport, record mode, tracks and clips. In devicePresets, preset is the number to use with select_preset and daw_create_session (as in the UI); program is the same preset counted from 0.', inputSchema: obj({}) },
     { name: 'daw_set_tempo', description: 'Set DAW tempo in BPM (20-300).', inputSchema: obj({ bpm: { type: 'number', minimum: 20, maximum: 300 } }, ['bpm']) },
     { name: 'daw_set_record_mode', description: 'Record mode: none (play), replace or overdub.', inputSchema: obj({ mode: { enum: ['none', 'replace', 'overdub'] } }, ['mode']) },
     { name: 'daw_transport', description: 'Start or stop the DAW transport.', inputSchema: obj({ action: { enum: ['play', 'stop'] } }, ['action']) },
@@ -358,7 +358,15 @@ export function createMcpServer(ctx) {
             return { device: output.name, channel };
         },
         panic() { ctx.panic(); return { ok: true }; },
-        daw_get_state() { return ctx.getDawState(); },
+        daw_get_state() {
+            const state = ctx.getDawState();
+            if (!state?.devicePresets) return state;
+            // `program` counts from 0 (MIDI); the tools and the UI count presets from 1.
+            return { ...state, devicePresets: state.devicePresets.map(p => ({
+                ...p, preset: p.program + 1,
+                presetName: ctx.presetName(p.target, p.channel, p.program) ?? p.name ?? presetCatalogName({ name: p.target }, p.program),
+            })) };
+        },
         daw_set_tempo({ bpm }) {
             if (!Number.isFinite(bpm) || bpm < 20 || bpm > 300) throw new ToolError('bpm must be 20-300');
             ctx.daw({ type: 'daw_set_tempo', bpm }); return { ok: true, bpm };
