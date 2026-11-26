@@ -2396,13 +2396,13 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             case 'daw_save_session':
-                this._saveSession(msg.name);
+                this._answerSession(msg.id, this._saveSession(msg.name));
                 break;
             case 'daw_load_session':
-                this._loadSession(msg.name);
+                this._answerSession(msg.id, this._loadSession(msg.name));
                 break;
             case 'daw_delete_session':
-                this._deleteSession(msg.name);
+                this._answerSession(msg.id, this._deleteSession(msg.name));
                 break;
             case 'daw_list_sessions':
                 this._listSessions();
@@ -2472,6 +2472,13 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            // A new session starts without remembered sounds: it saves only what is chosen for it.
+            case 'daw_forget_sounds':
+                this._devicePrograms = new Map();
+                this._deviceControls = new Map();
+                this._deviceNrpns = new Map();
+                this._broadcastState();
+                break;
             case 'daw_set_track_channel': {
                 const { trackIdx } = msg;
                 if (!daw.setTrackChannel(trackIdx, msg.channel)) break;
@@ -2973,6 +2980,11 @@ class MIDIRouterWorker {
         }
     }
 
+    // The outcome of a save, load or delete, for a caller that waits for it (MCP).
+    _answerSession(id, result) {
+        if (id !== undefined) parentPort?.postMessage({ type: 'daw_session_result', id, ...result });
+    }
+
     _saveSession(rawName) {
         try {
             const name = this._sessionNameOf(rawName);
@@ -2986,12 +2998,15 @@ class MIDIRouterWorker {
             data.deviceParts = Object.fromEntries(Object.entries(this._deviceChannels || {}).filter(([key]) => key.includes('#')));
             const notes = data.tracks.reduce(
                 (sum, t) => sum + t.clips.reduce((s, c) => s + c.notes.length, 0), 0);
+            const overwritten = fs.existsSync(file);
             fs.writeFileSync(file, JSON.stringify(data, null, 2));
             console.log(`[DAW] Session saved: ${name} (${notes} notes)`);
             this._listSessions();
+            return { ok: true, name, notes, overwritten };
         } catch (error) {
             console.error(`[DAW] Session save failed: ${error.message}`);
             if (parentPort) parentPort?.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
+            return { ok: false, error: error.message };
         }
     }
 
@@ -3026,23 +3041,29 @@ class MIDIRouterWorker {
             this._syncPadClock();
             this._broadcastState();
             console.log(`[DAW] Session loaded: ${name}`);
+            return { ok: true, name };
         } catch (error) {
             console.error(`[DAW] Session load failed: ${error.message}`);
             if (parentPort) parentPort?.postMessage({ type: 'daw_session_error', name: String(rawName || ''), error: error.message });
+            return { ok: false, error: error.code === 'ENOENT' ? `no session "${rawName}"` : error.message };
         }
     }
 
     _deleteSession(rawName) {
         const name = this._sessionNameOf(rawName);
+        let result = { ok: false, error: 'invalid session name' };
         if (name) {
             try {
                 fs.unlinkSync(path.join(this._sessionsDir(), `${name}.json`));
                 console.log(`[DAW] Session deleted: ${name}`);
+                result = { ok: true, name };
             } catch (error) {
                 console.error(`[DAW] Session delete failed: ${error.message}`);
+                result = { ok: false, error: error.code === 'ENOENT' ? `no session "${rawName}"` : error.message };
             }
         }
         this._listSessions();
+        return result;
     }
 
     // ---- Panic: send All Notes Off to all outputs on all channels ----

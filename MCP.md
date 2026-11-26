@@ -26,6 +26,7 @@ Requests with a foreign `Origin` header are rejected.
 | `daw_*` | State, tempo, record mode, transport, pads, sessions (list/save/load/delete) |
 | `daw_reset`, `daw_set_layout`, `daw_set_clip`, `daw_clear_clip`, `daw_stop_clip`, `daw_track` | Build a session without recording: reset, size the grid, write clips from note lists, mute/solo/arm |
 | `daw_set_loop_bars`, `daw_set_clock`, `daw_set_metronome`, `daw_set_quantize` | Master loop length, clock source (internal/external) and clock output, metronome, quantize grid |
+| `daw_create_session` | One call: sounds per synth and channel, tracks with melodies, saved under a name (replaces the current session) |
 | `daw_set_track_channel` | The MIDI channel a track plays on (also for an empty track); the sound is set per synth and channel with `select_preset` |
 | `set_device_part` | Add, move or remove a part of a multitimbral instrument |
 

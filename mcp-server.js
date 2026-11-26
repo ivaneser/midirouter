@@ -38,11 +38,16 @@ export const TOOLS = [
     { name: 'daw_set_tempo', description: 'Set DAW tempo in BPM (20-300).', inputSchema: obj({ bpm: { type: 'number', minimum: 20, maximum: 300 } }, ['bpm']) },
     { name: 'daw_set_record_mode', description: 'Record mode: none (play), replace or overdub.', inputSchema: obj({ mode: { enum: ['none', 'replace', 'overdub'] } }, ['mode']) },
     { name: 'daw_transport', description: 'Start or stop the DAW transport.', inputSchema: obj({ action: { enum: ['play', 'stop'] } }, ['action']) },
-    { name: 'daw_trigger_pad', description: 'Press a clip pad (0-based track and slot): starts/stops recording or playback according to the record mode.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 7 }, slot: { type: 'integer', minimum: 0, maximum: 15 } }, ['track', 'slot']) },
-    { name: 'daw_sessions', description: 'List, save, load or delete DAW sessions (clips plus instrument presets and parameter values).', inputSchema: obj({ action: { enum: ['list', 'save', 'load', 'delete'] }, name: { type: 'string' } }, ['action']) },
+    { name: 'daw_trigger_pad', description: 'Press a clip pad (0-based track and slot): starts/stops recording or playback according to the record mode.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 } }, ['track', 'slot']) },
+    { name: 'daw_sessions', description: 'List, save, load or delete DAW sessions (clips plus instrument presets and parameter values). Saving under an existing name replaces it (overwritten: true in the answer).', inputSchema: obj({ action: { enum: ['list', 'save', 'load', 'delete'] }, name: { type: 'string' } }, ['action']) },
     { name: 'daw_reset', description: 'Reset the DAW session: stop playback and transport, erase all clips, restore the default 6 tracks x 2 clips and Play mode. Does not change device presets or channels.', inputSchema: obj({}) },
     { name: 'daw_set_layout', description: 'Set the number of tracks (1-16) and/or clips per track (1-16). Stops playback; existing clips beyond the new size are dropped.', inputSchema: obj({ tracks: { type: 'integer', minimum: 1, maximum: 16 }, slots: { type: 'integer', minimum: 1, maximum: 16 } }) },
     { name: 'daw_set_track_channel', description: 'Set the MIDI channel a track plays on, also for an empty track; its recorded notes move to that channel. A track holds only a channel and notes: the sound belongs to the synth on that channel (select_preset with device and channel). Give channel, or a device to use its channel ("Blofeld part 2" for a part). Arming the track later lets the next recording take the channel of the incoming notes.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 }, channel: CHANNEL, device: DEVICE }, ['track']) },
+    { name: 'daw_create_session', description: 'Make a whole new DAW session in one call and save it: choose the sound of each synth on its MIDI channel, create the tracks (each plays one channel) with their melodies as clips, and save under name. Replaces the current DAW session (save it first with daw_sessions if it matters). See list_devices and list_presets for devices and sounds. Several instruments of a multitimbral synth (Blofeld) go on different channels. Everything is checked before anything changes.', inputSchema: obj({
+        name: { type: 'string', description: 'Session name: Latin letters, digits, space, . _ -' }, tempo: { type: 'number', minimum: 20, maximum: 300 }, beats_per_measure: { type: 'integer', minimum: 1, maximum: 16 }, overwrite: { type: 'boolean', description: 'Replace a session of the same name' },
+        instruments: { type: 'array', minItems: 1, maxItems: 32, items: obj({ device: DEVICE, channel: CHANNEL, preset: { type: 'string', description: 'Preset name or number (see list_presets)' } }, ['device', 'channel']) },
+        tracks: { type: 'array', minItems: 1, maxItems: 16, items: obj({ channel: CHANNEL, clips: { type: 'array', maxItems: 16, items: obj({ bars: { type: 'integer', minimum: 1, maximum: 64 }, notes: { type: 'array', minItems: 1, maxItems: 1024, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0, description: 'Beats from the clip start' }, duration: { type: 'number', exclusiveMinimum: 0, description: 'Beats' }, velocity: { type: 'integer', minimum: 1, maximum: 127 } }, ['note', 'start', 'duration']) } }, ['notes']) } }, ['channel']) },
+    }, ['name', 'instruments', 'tracks']) },
     { name: 'daw_set_clip', description: 'Write a looping clip without recording. Give device (its channel is used) or channel. notes: [{note, start beats, duration beats, velocity}], beat 0 = clip start. Length rounds up to whole bars (or set bars). Start it with daw_trigger_pad once daw_transport play is running.', inputSchema: obj({
         track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 }, device: DEVICE, channel: CHANNEL, bars: { type: 'integer', minimum: 1, maximum: 64 },
         notes: { type: 'array', maxItems: 1024, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0 }, duration: { type: 'number', exclusiveMinimum: 0 }, velocity: { type: 'integer', minimum: 1, maximum: 127 }, channel: { type: 'integer', minimum: 1, maximum: 16, description: 'Optional per-note MIDI channel, so one clip can drive several parts' } }, ['note', 'start', 'duration']) },
@@ -85,6 +90,77 @@ export function createMcpServer(ctx) {
         const entry = ctx.catalog.forPort(output.name);
         if (!entry) throw new ToolError(`no control map for "${output.name}" (supported: Craft Synth, NTS-1 digital kit, MicroFreak)`);
         return entry;
+    };
+    // A preset given by number or catalog name -> its 1-based global number.
+    const presetNumber = (output, preset) => {
+        const entry = ctx.catalog.forPort(output.name);
+        let number = preset;
+        if (typeof preset === 'string' && !/^\d+$/.test(preset.trim())) {
+            const wanted = preset.trim().toLowerCase();
+            const matches = Object.entries(entry?.presets?.presets || {}).filter(([, p]) => p.name.toLowerCase() === wanted);
+            if (matches.length !== 1) throw new ToolError(matches.length ? `preset name "${preset}" is not unique; use its number` : `unknown preset "${preset}" (use list_presets)`);
+            number = Number(matches[0][0]);
+        }
+        number = Number(number);
+        const limit = entry?.map.presetName?.programs ?? 128;
+        if (!Number.isInteger(number) || number < 1 || number > limit) throw new ToolError(`preset must be 1-${limit}`);
+        return number;
+    };
+    // Notes as the tools take them -> as the DAW stores them.
+    const cleanNotes = notes => notes.map(n => {
+        const velocity = n?.velocity === undefined ? 100 : n.velocity;
+        if (!Number.isInteger(n?.note) || n.note < 0 || n.note > 127 || !(n.start >= 0) || !(n.duration > 0) || !Number.isInteger(velocity) || velocity < 1 || velocity > 127) {
+            throw new ToolError('each note needs note 0-127, start >= 0, duration > 0 and velocity 1-127');
+        }
+        if (n.channel !== undefined && !validMidiChannel(n.channel)) throw new ToolError('note channel must be 1-16');
+        return n.channel === undefined ? { note: n.note, start: n.start, dur: n.duration, velocity } : { note: n.note, start: n.start, dur: n.duration, velocity, channel: n.channel };
+    });
+    // Everything daw_create_session needs, checked before anything changes.
+    const planSession = ({ instruments, tracks }) => {
+        if (!Array.isArray(instruments) || !instruments.length || instruments.length > 32) throw new ToolError('instruments must hold 1-32 entries');
+        if (!Array.isArray(tracks) || !tracks.length || tracks.length > 16) throw new ToolError('tracks must hold 1-16 entries');
+        const used = new Map();   // output name -> Map(part or 0 -> channel) as it will be
+        const sounds = instruments.map((entry, i) => {
+            try {
+                const match = /^(.*?)[\s#:_-]*part[\s#:_-]*(\d{1,2})$/i.exec(String(entry?.device ?? '').trim());
+                const output = resolveOutput(outputs(), match ? match[1] : entry?.device);
+                const { channel } = entry;
+                if (!validMidiChannel(channel)) throw new ToolError('channel must be 1-16');
+                const count = MULTITIMBRAL_PARTS[ctx.catalog.forPort(output.name)?.model];
+                if (match && !count) throw new ToolError(`"${output.name}" is not multitimbral`);
+                const taken = used.get(output.name) ?? new Map();
+                used.set(output.name, taken);
+                let part = 0;
+                if (count) {
+                    // The part named, else the one already on this channel, else the part with the channel's number, else a free one.
+                    const existing = ctx.getParts(output.name);
+                    const busy = number => taken.has(number) || existing.some(p => p.part === number);
+                    part = match ? Number(match[2])
+                        : existing.find(p => p.channel === channel && !taken.has(p.part))?.part
+                        ?? [channel, ...Array.from({ length: count }, (_, n) => n + 1)].find(n => n <= count && !busy(n));
+                    if (!part || part < 1 || part > count) throw new ToolError(`"${output.name}" has parts 1-${count}; name a free one ("${output.name} part 1")`);
+                }
+                if (taken.has(part) && taken.get(part) !== channel) throw new ToolError(`"${output.name}"${part ? ` part ${part}` : ''} is listed on two channels`);
+                // A synth holds one sound per channel.
+                if ([...taken.values()].includes(channel)) throw new ToolError(`"${output.name}" is listed twice for channel ${channel}`);
+                taken.set(part, channel);
+                const number = entry.preset === undefined ? null : presetNumber(output, entry.preset);
+                return { output, part, channel, number };
+            } catch (error) { throw new ToolError(`instrument ${i + 1}: ${error.message}`); }
+        });
+        const plan = tracks.map((track, t) => {
+            try {
+                if (!validMidiChannel(track?.channel)) throw new ToolError('channel must be 1-16');
+                const clips = track.clips ?? [];
+                if (!Array.isArray(clips) || clips.length > 16) throw new ToolError('clips must hold 0-16 entries');
+                return { channel: track.channel, clips: clips.map(clip => {
+                    if (!Array.isArray(clip?.notes) || !clip.notes.length || clip.notes.length > 1024) throw new ToolError('each clip needs 1-1024 notes');
+                    if (clip.bars !== undefined && (!Number.isInteger(clip.bars) || clip.bars < 1 || clip.bars > 64)) throw new ToolError('bars must be 1-64');
+                    return { bars: clip.bars, notes: cleanNotes(clip.notes) };
+                }) };
+            } catch (error) { throw new ToolError(`track ${t + 1}: ${error.message}`); }
+        });
+        return { sounds, plan };
     };
     const rawValues = (output, channel) => {
         const key = deviceChannelKey(output.id);
@@ -251,16 +327,7 @@ export function createMcpServer(ctx) {
             const output = resolve(device);
             const ch = channelFor(output, channel);
             const entry = ctx.catalog.forPort(output.name);
-            let number = preset;
-            if (typeof preset === 'string' && !/^\d+$/.test(preset.trim())) {
-                const wanted = preset.trim().toLowerCase();
-                const matches = Object.entries(entry?.presets?.presets || {}).filter(([, p]) => p.name.toLowerCase() === wanted);
-                if (matches.length !== 1) throw new ToolError(matches.length ? `preset name "${preset}" is not unique; use its number` : `unknown preset "${preset}" (use list_presets)`);
-                number = Number(matches[0][0]);
-            }
-            number = Number(number);
-            const limit = entry?.map.presetName?.programs ?? 128;
-            if (!Number.isInteger(number) || number < 1 || number > limit) throw new ToolError(`preset must be 1-${limit}`);
+            const number = presetNumber(output, preset);
             const index = number - 1;
             ctx.selectPreset(output.id, ch, index);
             const reported = await ctx.waitPresetName(output.id, ch, index, 1500);
@@ -305,17 +372,57 @@ export function createMcpServer(ctx) {
             ctx.daw({ type: action === 'play' ? 'daw_start_transport' : 'daw_stop_transport' }); return { ok: true, action };
         },
         daw_trigger_pad({ track, slot }) {
-            if (!Number.isInteger(track) || track < 0 || track > 7 || !Number.isInteger(slot) || slot < 0 || slot > 15) throw new ToolError('track 0-7, slot 0-15');
+            if (!Number.isInteger(track) || track < 0 || track > 15 || !Number.isInteger(slot) || slot < 0 || slot > 15) throw new ToolError('track 0-15, slot 0-15');
             ctx.daw({ type: 'daw_pad_trigger', trackIdx: track, slot }); return { ok: true, track, slot };
         },
-        daw_sessions({ action, name }) {
+        async daw_sessions({ action, name }) {
             if (action === 'list') return ctx.listSessions();
             if (typeof name !== 'string' || !/^[\w .-]{1,64}$/.test(name)) throw new ToolError('name is required (letters, digits, space, . _ -)');
             const types = { save: 'daw_save_session', load: 'daw_load_session', delete: 'daw_delete_session' };
             if (!types[action]) throw new ToolError('action must be list, save, load or delete');
-            ctx.daw({ type: types[action], name }); return { ok: true, action, name };
+            const result = await ctx.sessionAction(types[action], name);
+            if (!result.ok) throw new ToolError(`could not ${action} the session: ${result.error}`);
+            return { ok: true, action, name: result.name, ...(action === 'save' ? { notes: result.notes, overwritten: result.overwritten } : {}) };
         },
         daw_reset() { ctx.daw({ type: 'daw_reset_arm_record' }); return { ok: true }; },
+        async daw_create_session({ name, tempo = 120, beats_per_measure = 4, instruments, tracks, overwrite = false }) {
+            if (typeof name !== 'string' || !/^[\w .-]{1,64}$/.test(name) || name.startsWith('.') || name !== name.trim()) throw new ToolError('name is required (Latin letters, digits, space, . _ -)');
+            if (!Number.isFinite(tempo) || tempo < 20 || tempo > 300) throw new ToolError('tempo must be 20-300');
+            if (!Number.isInteger(beats_per_measure) || beats_per_measure < 1 || beats_per_measure > 16) throw new ToolError('beats_per_measure must be 1-16');
+            const { sounds, plan } = planSession({ instruments, tracks });
+            if (ctx.getDawState()?.recording) throw new ToolError('stop recording first');
+            const { sessions = [] } = await ctx.listSessions();
+            if (!overwrite && sessions.includes(name)) throw new ToolError(`session "${name}" already exists: use another name or overwrite: true`);
+
+            ctx.daw({ type: 'daw_reset_arm_record' });
+            ctx.daw({ type: 'daw_forget_sounds' });   // only the sounds chosen here belong to the new session
+            ctx.daw({ type: 'daw_set_tempo', bpm: tempo });
+            ctx.daw({ type: 'daw_metronome_beats_per_measure', bpm: beats_per_measure });
+            const chosen = [];
+            for (const { output, part, channel, number } of sounds) {
+                if (part) ctx.setPart(output.name, part, channel, false);
+                else ctx.setChannel(output.name, channel);
+                const result = { device: output.name, ...(part ? { part } : {}), channel };
+                if (number !== null) {
+                    ctx.selectPreset(output.id, channel, number - 1);
+                    const reported = await ctx.waitPresetName(output.id, channel, number - 1, 1500);
+                    Object.assign(result, { preset: number, presetName: reported ?? presetCatalogName(output, number - 1) });
+                }
+                chosen.push(result);
+            }
+            ctx.daw({ type: 'daw_set_layout', tracks: plan.length, slots: Math.max(2, ...plan.map(t => t.clips.length)) });
+            plan.forEach((track, trackIdx) => {
+                ctx.daw({ type: 'daw_set_track_channel', trackIdx, channel: track.channel });
+                track.clips.forEach((clip, slot) => ctx.daw({ type: 'daw_set_clip', trackIdx, slot, channel: track.channel, bars: clip.bars, notes: clip.notes }));
+            });
+            const saved = await ctx.sessionAction('daw_save_session', name);
+            if (!saved.ok) throw new ToolError(`the session was built but not saved: ${saved.error}`);
+            const silent = [...new Set(plan.map(t => t.channel))].filter(ch => !sounds.some(s => s.channel === ch));
+            return { ok: true, name: saved.name, overwritten: saved.overwritten, notes: saved.notes, tempo, instruments: chosen,
+                tracks: plan.map((t, track) => ({ track, channel: t.channel, clips: t.clips.length })),
+                ...(silent.length ? { warning: `no instrument listed for channel ${silent.join(', ')}` } : {}),
+                next: 'daw_transport play, then daw_trigger_pad for each track and slot. Each synth must receive on its channel.' };
+        },
         daw_set_layout({ tracks, slots }) {
             if (tracks === undefined && slots === undefined) throw new ToolError('give tracks and/or slots');
             for (const [key, v, max] of [['tracks', tracks, 16], ['slots', slots, 16]]) {
@@ -333,14 +440,7 @@ export function createMcpServer(ctx) {
             if (device !== undefined) ch = channelFor(resolve(device), channel);
             if (!validMidiChannel(ch)) throw new ToolError('give device or channel (1-16)');
             if (bars !== undefined && (!Number.isInteger(bars) || bars < 1 || bars > 64)) throw new ToolError('bars must be 1-64');
-            const clean = notes.map(n => {
-                const velocity = n?.velocity === undefined ? 100 : n.velocity;
-                if (!Number.isInteger(n?.note) || n.note < 0 || n.note > 127 || !(n.start >= 0) || !(n.duration > 0) || !Number.isInteger(velocity) || velocity < 1 || velocity > 127) {
-                    throw new ToolError('each note needs note 0-127, start >= 0, duration > 0 and velocity 1-127');
-                }
-                if (n.channel !== undefined && !validMidiChannel(n.channel)) throw new ToolError('note channel must be 1-16');
-                return n.channel === undefined ? { note: n.note, start: n.start, dur: n.duration, velocity } : { note: n.note, start: n.start, dur: n.duration, velocity, channel: n.channel };
-            });
+            const clean = cleanNotes(notes);
             ctx.daw({ type: 'daw_set_clip', trackIdx: track, slot, channel: ch, bars, notes: clean });
             return { ok: true, track, slot, channel: ch, notes: clean.length };
         },
@@ -532,7 +632,7 @@ export function createMcpServer(ctx) {
                     protocolVersion: SUPPORTED_PROTOCOLS.includes(requested) ? requested : SUPPORTED_PROTOCOLS[0],
                     capabilities: { tools: { listChanged: false } },
                     serverInfo: SERVER_INFO,
-                    instructions: 'Control MIDI instruments connected to the midirouter: list_devices, then get_device_params / list_presets to choose sounds, select_preset and set_parameter(s) to apply them; devices with nrpnControls (PreenFM2) expose every patch parameter through get_device_nrpn_params / set_nrpn_parameters (from_init builds a sound from scratch) and read_nrpn_patch (what the synth is playing). DAW tools record and play clips. All MIDI goes through the router.',
+                    instructions: 'Control MIDI instruments connected to the midirouter: list_devices, then get_device_params / list_presets to choose sounds, select_preset and set_parameter(s) to apply them; devices with nrpnControls (PreenFM2) expose every patch parameter through get_device_nrpn_params / set_nrpn_parameters (from_init builds a sound from scratch) and read_nrpn_patch (what the synth is playing). DAW tools record and play clips; daw_create_session builds and saves a whole session (sounds per synth and channel, tracks, melodies) in one call. All MIDI goes through the router.',
                 });
             }
             case 'ping': return reply({});

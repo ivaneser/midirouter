@@ -24,6 +24,7 @@ function setup(extra = {}) {
         sendPerformance: (targets, bytes) => sent.push([targets, bytes]),
         daw: message => daw.push(message),
         listSessions: async () => ({ sessions: ['a'] }),
+        sessionAction: async (type, name) => { daw.push({ type, name }); return name === 'missing' ? { ok: false, error: `no session "${name}"` } : { ok: true, name, notes: 4, overwritten: false }; },
         panic: () => daw.push('panic'),
         later: (ms, fn) => fn(),
         ...extra,
@@ -165,6 +166,12 @@ test('DAW authoring tools validate input and forward worker messages', async () 
     assert.deepEqual(daw.splice(-2), [{ type: 'daw_metronome_off' }, { type: 'daw_metronome_beats_per_measure', bpm: 3 }]);
     await call('daw_sessions', { action: 'delete', name: 'old' });
     assert.deepEqual(daw.pop(), { type: 'daw_delete_session', name: 'old' });
+    assert.deepEqual((await call('daw_sessions', { action: 'save', name: 'new' })).data, { ok: true, action: 'save', name: 'new', notes: 4, overwritten: false });
+    const missing = await call('daw_sessions', { action: 'load', name: 'missing' });
+    assert.ok(missing.error);
+    assert.match(missing.data, /no session "missing"/);
+    assert.ok(!(await call('daw_trigger_pad', { track: 15, slot: 0 })).error, 'every track can be launched');
+    assert.ok((await call('daw_trigger_pad', { track: 16, slot: 0 })).error);
 });
 
 test('DAWEngine.setClipNotes fills a clip, assigns the channel and rounds the length to bars', async () => {

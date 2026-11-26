@@ -168,6 +168,9 @@ class MIDIRouterWorker {
                 this._broadcast({ type: 'daw_visual_event', event: msg.event });
                 break;
 
+            case 'daw_session_result':
+                this.events.emit('session-result', msg);
+                break;
             case 'daw_session_list':
                 this.events.emit('session-list', msg.sessions);
                 // falls through
@@ -458,6 +461,15 @@ const mcp = createMcpServer({
     }),
     sendPerformance: (targets, bytes) => router.worker?.postMessage({ type: 'midi_performance', targets, bytes, at: Date.now() }),
     daw: message => router.worker?.postMessage(message),
+    // Save, load or delete a session and wait for what happened.
+    sessionAction: (type, name) => new Promise(resolve => {
+        const id = `${Date.now()}-${Math.random()}`;
+        const done = msg => { clearTimeout(timer); router.events.off('session-result', onResult); resolve(msg); };
+        const onResult = msg => { if (msg.id === id) done(msg); };
+        const timer = setTimeout(() => done({ ok: false, error: 'the router did not answer in time' }), 5000);
+        router.events.on('session-result', onResult);
+        router.worker?.postMessage({ type, name, id });
+    }),
     listSessions: () => new Promise(resolve => {
         const done = sessions => { clearTimeout(timer); router.events.off('session-list', done); resolve({ sessions }); };
         const timer = setTimeout(() => done([]), 1500);
