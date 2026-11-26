@@ -1153,6 +1153,20 @@ class DAWEngine {
 
     // ---- Transport play / loop playback ----
     // Track controls
+    // Point a track at an instrument's MIDI channel. Notes that played on the track's old channel move with it;
+    // notes authored for other channels (one clip driving several parts) stay. Returns false for no such track.
+    setTrackChannel(trackIdx, channel) {
+        const track = this.tracks[trackIdx];
+        if (!track || !Number.isInteger(channel) || channel < 1 || channel > 16) return false;
+        for (const clip of track.clips) {
+            // A new array, so a clip that is playing is read afresh.
+            clip.notes = clip.notes.map(n => (n.channel === track.channel ? { ...n, channel } : n));
+        }
+        track.channel = channel;
+        track.channelAssigned = true;
+        return true;
+    }
+
     armTrack(trackIdx) {
         const track = this.tracks[trackIdx];
         if (!track) return;

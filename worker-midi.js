@@ -2472,6 +2472,15 @@ class MIDIRouterWorker {
                 this._broadcastState();
                 break;
             }
+            case 'daw_set_track_channel': {
+                const { trackIdx } = msg;
+                if (!daw.setTrackChannel(trackIdx, msg.channel)) break;
+                // A playing clip carries on from its beat position on the new channel; sounding notes end on the old one.
+                const slot = daw.clipState[trackIdx];
+                if (slot >= 0 && daw.playing && !this._refreshPlayingClip(trackIdx, slot)) this._startTrackPlayback(trackIdx, slot);
+                this._broadcastState();
+                break;
+            }
             case 'daw_set_scale': {
                 if (!daw.setScale(msg.root, msg.scale)) break;
                 // Playing clips carry on with their refitted notes.

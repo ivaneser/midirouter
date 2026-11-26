@@ -31,7 +31,7 @@ export const TOOLS = [
     { name: 'send_cc', description: 'Send a raw Control Change (cc 1-119 except 32) for things outside the control map, e.g. part volume (7), pan (10, 64 = centre). Prefer set_parameter when the control is listed.', inputSchema: obj({ device: DEVICE, cc: { type: 'integer', minimum: 1, maximum: 119 }, value: { type: 'integer', minimum: 0, maximum: 127 }, channel: CHANNEL }, ['device', 'cc', 'value']) },
     { name: 'send_sysex', description: 'Send a raw System Exclusive message to a device, for settings that have no CC (e.g. Blofeld effect types via Sound Parameter Change). bytes: the data bytes 0-127, with or without the leading 0xF0 and trailing 0xF7 (added when missing). Starts and ends are validated; no reply is read.', inputSchema: obj({ device: DEVICE, bytes: { type: 'array', minItems: 1, maxItems: 512, items: { type: 'integer', minimum: 0, maximum: 247 } } }, ['device', 'bytes']) },
     { name: 'list_presets', description: 'Preset catalog of a device (name, number, tags) when one is available; supports a name filter.', inputSchema: obj({ device: DEVICE, query: { type: 'string' }, offset: { type: 'integer', minimum: 0 }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, ['device']) },
-    { name: 'select_preset', description: 'Switch preset: Bank Select + Program Change. preset is the 1-based global number (as in list_presets) or a catalog name. Returns the preset name when the device reports it.', inputSchema: obj({ device: DEVICE, preset: { type: ['integer', 'string'] }, channel: CHANNEL }, ['device', 'preset']) },
+    { name: 'select_preset', description: 'Set the preset of a synth on a MIDI channel (default: the device\'s channel); it is kept for that synth and channel and saved with the DAW session. Switch preset: Bank Select + Program Change. preset is the 1-based global number (as in list_presets) or a catalog name. Returns the preset name when the device reports it.', inputSchema: obj({ device: DEVICE, preset: { type: ['integer', 'string'] }, channel: CHANNEL }, ['device', 'preset']) },
     { name: 'set_device_channel', description: 'Set the MIDI channel the router uses for UI/MCP messages to a device.', inputSchema: obj({ device: DEVICE, channel: CHANNEL }, ['device', 'channel']) },
     { name: 'panic', description: 'All notes off on every output.', inputSchema: obj({}) },
     { name: 'daw_get_state', description: 'DAW state: tempo, transport, record mode, tracks and clips.', inputSchema: obj({}) },
@@ -42,6 +42,7 @@ export const TOOLS = [
     { name: 'daw_sessions', description: 'List, save, load or delete DAW sessions (clips plus instrument presets and parameter values).', inputSchema: obj({ action: { enum: ['list', 'save', 'load', 'delete'] }, name: { type: 'string' } }, ['action']) },
     { name: 'daw_reset', description: 'Reset the DAW session: stop playback and transport, erase all clips, restore the default 6 tracks x 2 clips and Play mode. Does not change device presets or channels.', inputSchema: obj({}) },
     { name: 'daw_set_layout', description: 'Set the number of tracks (1-16) and/or clips per track (1-16). Stops playback; existing clips beyond the new size are dropped.', inputSchema: obj({ tracks: { type: 'integer', minimum: 1, maximum: 16 }, slots: { type: 'integer', minimum: 1, maximum: 16 } }) },
+    { name: 'daw_set_track_channel', description: 'Set the MIDI channel a track plays on, also for an empty track; its recorded notes move to that channel. A track holds only a channel and notes: the sound belongs to the synth on that channel (select_preset with device and channel). Give channel, or a device to use its channel ("Blofeld part 2" for a part). Arming the track later lets the next recording take the channel of the incoming notes.', inputSchema: obj({ track: { type: 'integer', minimum: 0, maximum: 15 }, channel: CHANNEL, device: DEVICE }, ['track']) },
     { name: 'daw_set_clip', description: 'Write a looping clip without recording. Give device (its channel is used) or channel. notes: [{note, start beats, duration beats, velocity}], beat 0 = clip start. Length rounds up to whole bars (or set bars). Start it with daw_trigger_pad once daw_transport play is running.', inputSchema: obj({
         track: { type: 'integer', minimum: 0, maximum: 15 }, slot: { type: 'integer', minimum: 0, maximum: 15 }, device: DEVICE, channel: CHANNEL, bars: { type: 'integer', minimum: 1, maximum: 64 },
         notes: { type: 'array', maxItems: 1024, items: obj({ note: { type: 'integer', minimum: 0, maximum: 127 }, start: { type: 'number', minimum: 0 }, duration: { type: 'number', exclusiveMinimum: 0 }, velocity: { type: 'integer', minimum: 1, maximum: 127 }, channel: { type: 'integer', minimum: 1, maximum: 16, description: 'Optional per-note MIDI channel, so one clip can drive several parts' } }, ['note', 'start', 'duration']) },
@@ -342,6 +343,19 @@ export function createMcpServer(ctx) {
             });
             ctx.daw({ type: 'daw_set_clip', trackIdx: track, slot, channel: ch, bars, notes: clean });
             return { ok: true, track, slot, channel: ch, notes: clean.length };
+        },
+        daw_set_track_channel({ track, channel, device }) {
+            const state = ctx.getDawState();
+            if (!state?.tracks?.[track]) throw new ToolError(`no track ${track} (see daw_get_state / daw_set_layout)`);
+            if (state.recording?.track === track) throw new ToolError('that track is recording: stop recording first');
+            let ch = channel;
+            if (device !== undefined) ch = channelFor(resolve(device), channel);
+            if (!validMidiChannel(ch)) throw new ToolError('give channel (1-16) or device');
+            ctx.daw({ type: 'daw_set_track_channel', trackIdx: track, channel: ch });
+            // Clips are sent by channel: every synth listening on it plays this track.
+            const players = outputs().filter(o => ctx.catalog.forPort(o.name)
+                && (ctx.getChannel(o.name) === ch || (ctx.getParts?.(o.name) || []).some(p => p.channel === ch))).map(o => o.name);
+            return { ok: true, track, channel: ch, played_by: players };
         },
         daw_clear_clip({ track, slot }) {
             if (!Number.isInteger(track) || track < 0 || track > 15 || !Number.isInteger(slot) || slot < 0 || slot > 15) throw new ToolError('track 0-15, slot 0-15');
