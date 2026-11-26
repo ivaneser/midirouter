@@ -62,6 +62,8 @@ export class DeviceManager {
         this._nrpnSeen = new Map();
         this.channels = {};
         this.programs = new Map();
+        this.reportedPrograms = new Map(); // what the router last reported per `${baseKey}:${channel}`
+        this.followPresets = new Set();    // keys whose preset changed elsewhere: their lists move to its group
         this.presetNames = new Map();
         this.presetCounts = new Map();
         this.presetFiles = new Map();      // baseKey -> device map file name
@@ -320,9 +322,13 @@ export class DeviceManager {
     }
 
     updateDevicePresets(presets) {
+        const shown = new Map(this.programs);   // includes a choice just made on this page
         this.programs.clear();
         for (const { target, channel, program, name } of presets || []) {
             const key = `${deviceChannelKey(target)}:${channel}`;
+            // Chosen somewhere else (MCP, another page, the synth, a session) or first seen by this page.
+            if (this.reportedPrograms.get(key) !== program && shown.get(key) !== program) this.followPresets.add(key);
+            this.reportedPrograms.set(key, program);
             this.programs.set(key, program);
             if (name) this.presetNames.set(`${key}:${program}`, name);   // saved with the session
         }
@@ -331,7 +337,30 @@ export class DeviceManager {
 
     // The preset drop-down lists every program of the device; a program shows its name when one is
     // known (factory catalog, or reported by the device / saved with the session).
+    // A preset chosen elsewhere must be visible: move the lists of its synth and channel to its group
+    // (and out of "favorites only" when it is not a favorite). Waits until the lists and the catalog are there.
+    _followPresets() {
+        const followed = new Set();
+        document.querySelectorAll?.('.device-program-name').forEach(select => {
+            const baseKey = select.dataset.baseKey || select.dataset.deviceKey;
+            const key = `${baseKey}:${this.channelForKey(select.dataset.deviceKey, select.dataset.part)}`;
+            const program = this.programs.get(key);
+            const groups = this.presetGroups.get(baseKey);
+            if (!this.followPresets.has(key) || program == null || !groups) return;
+            followed.add(key);
+            const group = groups[String(program + 1)] || '';
+            select.dataset.group = group;
+            if (select._groupSelect) {
+                select._groupSelect.dataset.group = group;
+                select._groupSelect.value = group;   // set again below once its options are filled
+            }
+            if (select.dataset.favorites === '1' && !this.favorites.get(this.presetFiles.get(baseKey))?.has(program + 1)) select._showFavoritesOnly?.(false);
+        });
+        for (const key of followed) this.followPresets.delete(key);
+    }
+
     refreshPresetLabels() {
+        this._followPresets();
         document.querySelectorAll?.('.device-program-group').forEach(select => {
             const groups = this.presetGroups.get(select.dataset.baseKey);
             select.hidden = !groups;
@@ -631,6 +660,8 @@ export class DeviceManager {
                 window.app.ws.send(JSON.stringify({ type: 'favorite-set', file, number: program + 1, favorite: !this.favorites.get(file)?.has(program + 1) }));
             });
             presetLabel._star = star;
+            presetLabel._groupSelect = groupSelect;
+            presetLabel._showFavoritesOnly = showFavoritesOnly;
             presetLabel.addEventListener('change', () => {
                 const program = Number(presetLabel.value);
                 if (presetLabel.value !== '' && Number.isInteger(program)) selectProgram(program);
