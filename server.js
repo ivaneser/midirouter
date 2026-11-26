@@ -142,6 +142,8 @@ class MIDIRouterWorker {
                 // Send panic note-off to release held notes
                 if (this.worker) {
                     this.worker.postMessage({ type: 'panic_note_off' });
+                    // MCP reads the DAW state too: have it before any page asks (after a start or a worker restart).
+                    this.worker.postMessage({ type: 'daw_state_request' });
                 }
                 break;
 
